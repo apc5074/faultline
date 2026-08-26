@@ -11,3 +11,4 @@ export * from "./geographic-routing.js";
 export * from "./deployments.js";
 export * from "./requirements.js";
 export * from "./validation.js";
+export * from "./version.js";

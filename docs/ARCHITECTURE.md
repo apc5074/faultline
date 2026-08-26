@@ -2,7 +2,7 @@
 
 `apps/web` is the Next.js product surface. `packages/core` owns framework- and provider-independent contracts.
 
-The browser canvas and future world map must consume one canonical architecture state. The human owns architecture edits during a challenge; agents may inspect or challenge a design but do not edit it.
+The browser canvas and world map must consume one canonical architecture state. The human owns architecture edits during a challenge; agents may inspect or challenge a design but do not edit it.
 
 Supabase, Vercel, AI providers, and browser APIs are adapters around these boundaries, not sources of architecture truth. Persistence, canvas state, and adapter implementations are not yet built.
 
@@ -11,6 +11,8 @@ Supabase, Vercel, AI providers, and browser APIs are adapters around these bound
 `Architecture` in `@faultline/core` is the single serializable domain representation. It has an explicit `version`, stable component and connection IDs, component configuration, regional `deployments[]` on each component instance, and presentation-only `ui` coordinates. UI coordinates never belong to simulation input.
 
 `RegionDeployment` carries a stable `id`, `regionId`, and component-specific `config` (service instances, Redis regional footprint, Postgres `primary`/`replica` role). Deployments are physical placement of the same logical component — never a second architecture model. Empty `deployments` keeps Phase 1/2 logical-only behavior. When deployments are present, they are the capacity source of truth and logical totals (`instances`, `readReplicaCount`) must match.
+
+The Logical canvas and World SVG map are two presentation views of that same `Architecture`. View mode is UI state only; the world map never persists separate `worldNodes` / `worldEdges` domain data.
 
 Use `validateArchitecture` or `parseArchitecture` when architecture-shaped data crosses an untrusted boundary. This first validation layer checks the serializable shape, version, identity uniqueness, and initial semantic connection fields. Simulation validation additionally rejects unknown regions, unsupported placement, capacity mismatches, and multiple Postgres primaries.
 

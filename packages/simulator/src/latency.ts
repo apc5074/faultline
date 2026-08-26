@@ -2,10 +2,13 @@ import {
   postgresBaseP95LatencyMs,
   serviceBaseP95LatencyMs,
 } from "@faultline/component-catalog";
-import type { Architecture } from "@faultline/core";
+import type { Architecture, RegionId } from "@faultline/core";
 
+import type { CacheResult } from "./cache.js";
+import type { GeographicRoute } from "./geographic-routing.js";
 import { evaluatePostgresCapacity, type PostgresCapacityMetrics } from "./postgres-capacity.js";
 import { evaluateServiceCapacity, type ServiceCapacityMetrics } from "./service-capacity.js";
+import type { RegionalWorkload } from "./regional-workload.js";
 import type {
   SimulationEvent,
   TrafficPropagationInput,
@@ -31,16 +34,33 @@ export interface PathLatencyBreakdown {
   pathLatencyMs: number;
 }
 
+/** Per-origin redirect path used for geographic p95 approximation. */
+export interface GeographicOriginLatency {
+  originRegion: RegionId;
+  serviceRegion: RegionId;
+  redirectRps: number;
+  networkToServiceMs: number;
+  serviceLatencyMs: number;
+  networkToDatastoreMs: number;
+  postgresLatencyMs: number;
+  cacheHitRate: number;
+  /** Full redirect path: network hops (RTT each) + component processing. */
+  pathLatencyMs: number;
+}
+
 export type PathLatencyResult =
   | (Extract<TrafficPropagationResult, { valid: true }> & {
       services: Readonly<Record<string, ServiceCapacityMetrics>>;
       postgres: Readonly<Record<string, PostgresCapacityMetrics>>;
       components: Readonly<Record<string, ComponentLatencyMetrics>>;
       paths: readonly PathLatencyBreakdown[];
+      /** Present when geographic routing produced origin paths. */
+      geographicOriginLatencies?: readonly GeographicOriginLatency[];
       /**
-       * Phase 1 request p95 is the worst Traffic→Service→Postgres path latency:
-       * service pressure latency + database pressure latency.
-       * Reads and writes share one DB pressure value; geographic latency is not modelled.
+       * Challenge redirect p95 approximation.
+       * Logical mode: worst Traffic→Service→Postgres component path.
+       * Geographic mode: discrete traffic-weighted regional p95 over origin paths
+       * (network RTT hops + component pressure latency).
        */
       p95LatencyMs: number;
     })
@@ -98,8 +118,142 @@ function stableById<T extends { id: string }>(items: readonly T[]): T[] {
 }
 
 /**
- * Applies capacity pressure to component base latencies and reports Phase 1 path p95.
- * No geographic network latency is included.
+ * Discrete regional p95: sort origin paths by latency, walk cumulative redirect
+ * weight until 95% of redirect traffic is covered.
+ */
+export function discreteTrafficWeightedP95(
+  samples: readonly { weight: number; latencyMs: number }[],
+): number {
+  const totalWeight = samples.reduce((sum, sample) => sum + sample.weight, 0);
+  if (totalWeight <= 0 || samples.length === 0) return 0;
+
+  const ordered = [...samples].sort((left, right) => left.latencyMs - right.latencyMs);
+  const target = totalWeight * 0.95;
+  let cumulative = 0;
+  for (const sample of ordered) {
+    cumulative += sample.weight;
+    if (cumulative >= target) return sample.latencyMs;
+  }
+  return ordered[ordered.length - 1]?.latencyMs ?? 0;
+}
+
+function weightedAverageNetworkMs(routes: readonly GeographicRoute[]): number {
+  const totalRps = routes.reduce((sum, route) => sum + route.rps, 0);
+  if (totalRps <= 0) return 0;
+  return routes.reduce((sum, route) => sum + route.networkLatencyMs * route.rps, 0) / totalRps;
+}
+
+function redisHitRate(
+  architecture: Architecture,
+  caches: Readonly<Record<string, CacheResult>>,
+  serviceId: string,
+): { hitRate: number; redisId: string | null } {
+  const redisEdge = architecture.connections.find(
+    (connection) =>
+      connection.sourceComponentId === serviceId &&
+      connection.type === "read_write" &&
+      architecture.components.some(
+        (component) => component.id === connection.targetComponentId && component.type === "redis",
+      ),
+  );
+  if (!redisEdge) return { hitRate: 0, redisId: null };
+  const cache = caches[redisEdge.targetComponentId];
+  return { hitRate: cache?.hitRate ?? 0, redisId: redisEdge.targetComponentId };
+}
+
+/**
+ * Builds per-origin redirect path latency from geographicRoutes + component pressure.
+ * Matrix RTTs are added once per remote hop; cache hits skip downstream DB network+processing.
+ */
+export function buildGeographicOriginLatencies(input: {
+  architecture: Architecture;
+  regionalWorkload: RegionalWorkload;
+  geographicRoutes: readonly GeographicRoute[];
+  caches: Readonly<Record<string, CacheResult>>;
+  components: Readonly<Record<string, ComponentLatencyMetrics>>;
+}): GeographicOriginLatency[] {
+  const { architecture, regionalWorkload, geographicRoutes, caches, components } = input;
+  if (!regionalWorkload.active || geographicRoutes.length === 0) return [];
+
+  const results: GeographicOriginLatency[] = [];
+
+  for (const origin of regionalWorkload.origins) {
+    if (origin.redirectRps <= 0) continue;
+
+    const requestRoutes = geographicRoutes.filter(
+      (route) => route.kind === "request" && route.originRegion === origin.regionId,
+    );
+    if (requestRoutes.length === 0) continue;
+
+    const networkToServiceMs = weightedAverageNetworkMs(requestRoutes);
+    // Dominant service for this origin (highest rps).
+    const primaryRequest = [...requestRoutes].sort((left, right) => right.rps - left.rps)[0]!;
+    const serviceId = primaryRequest.componentId;
+    const serviceRegion = primaryRequest.destinationRegion;
+    const serviceLatencyMs = components[serviceId]?.p95LatencyMs ?? 0;
+
+    const { hitRate, redisId } = redisHitRate(architecture, caches, serviceId);
+
+    const redisRoutes = redisId
+      ? geographicRoutes.filter(
+          (route) =>
+            route.kind === "read" &&
+            route.componentId === redisId &&
+            route.originRegion === serviceRegion,
+        )
+      : [];
+    // After Redis, miss traffic is attributed with origin = Redis destination region.
+    const datastoreOriginRegion =
+      redisRoutes.length > 0 ? (redisRoutes[0]?.destinationRegion ?? serviceRegion) : serviceRegion;
+
+    const postgresReadRoutes = geographicRoutes.filter((route) => {
+      if (route.kind !== "read" || route.originRegion !== datastoreOriginRegion) return false;
+      const component = architecture.components.find((entry) => entry.id === route.componentId);
+      return component?.type === "postgres";
+    });
+
+    const postgresId =
+      postgresReadRoutes[0]?.componentId ??
+      architecture.components.find((component) => component.type === "postgres")?.id;
+    const postgresLatencyMs = postgresId ? (components[postgresId]?.p95LatencyMs ?? 0) : 0;
+
+    let networkToDatastoreMs = 0;
+    let effectivePostgresLatencyMs = 0;
+
+    if (redisRoutes.length > 0) {
+      const redisNetworkMs = weightedAverageNetworkMs(redisRoutes);
+      const missNetworkMs =
+        postgresReadRoutes.length > 0 ? weightedAverageNetworkMs(postgresReadRoutes) : 0;
+      // Hit: pay Redis RTT only. Miss: Redis RTT + Postgres RTT + Postgres processing.
+      networkToDatastoreMs = redisNetworkMs + (1 - hitRate) * missNetworkMs;
+      effectivePostgresLatencyMs = (1 - hitRate) * postgresLatencyMs;
+    } else if (postgresReadRoutes.length > 0) {
+      networkToDatastoreMs = weightedAverageNetworkMs(postgresReadRoutes);
+      effectivePostgresLatencyMs = postgresLatencyMs;
+    }
+
+    const pathLatencyMs =
+      networkToServiceMs + serviceLatencyMs + networkToDatastoreMs + effectivePostgresLatencyMs;
+
+    results.push({
+      originRegion: origin.regionId,
+      serviceRegion,
+      redirectRps: origin.redirectRps,
+      networkToServiceMs,
+      serviceLatencyMs,
+      networkToDatastoreMs,
+      postgresLatencyMs: effectivePostgresLatencyMs,
+      cacheHitRate: hitRate,
+      pathLatencyMs,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Applies capacity pressure to component base latencies and reports request p95.
+ * Geographic mode adds matrix RTT hops from simulation routes without replacing component latency.
  */
 export function evaluatePathLatency(input: TrafficPropagationInput): PathLatencyResult {
   const services = evaluateServiceCapacity(input);
@@ -166,6 +320,29 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
     );
 
     for (const edge of databaseEdges) {
+      const target = architecture.components.find((component) => component.id === edge.targetComponentId);
+      // Logical path summary still Service→Postgres (through Redis edges, skip non-postgres).
+      if (target?.type === "redis") {
+        const originEdges = stableById(
+          architecture.connections.filter(
+            (connection) =>
+              connection.sourceComponentId === target.id && connection.type === "read_write",
+          ),
+        );
+        for (const originEdge of originEdges) {
+          const postgresLatencyMs = components[originEdge.targetComponentId]?.p95LatencyMs;
+          if (postgresLatencyMs === undefined) continue;
+          paths.push({
+            serviceId: service.id,
+            postgresId: originEdge.targetComponentId,
+            serviceLatencyMs,
+            postgresLatencyMs,
+            pathLatencyMs: serviceLatencyMs + postgresLatencyMs,
+          });
+        }
+        continue;
+      }
+
       const postgresLatencyMs = components[edge.targetComponentId]?.p95LatencyMs;
       if (postgresLatencyMs === undefined) continue;
       paths.push({
@@ -178,13 +355,32 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
     }
   }
 
+  const geographicOriginLatencies = buildGeographicOriginLatencies({
+    architecture,
+    regionalWorkload: services.regionalWorkload,
+    geographicRoutes: services.geographicRoutes,
+    caches: services.caches,
+    components,
+  });
+
   const worstServiceLatencyMs = Object.keys(services.services).reduce((worst, componentId) => {
     return Math.max(worst, components[componentId]?.p95LatencyMs ?? 0);
   }, 0);
-  const p95LatencyMs =
-    paths.length > 0
-      ? paths.reduce((worst, path) => Math.max(worst, path.pathLatencyMs), 0)
-      : worstServiceLatencyMs;
+
+  let p95LatencyMs: number;
+  if (geographicOriginLatencies.length > 0) {
+    p95LatencyMs = discreteTrafficWeightedP95(
+      geographicOriginLatencies.map((origin) => ({
+        weight: origin.redirectRps,
+        latencyMs: origin.pathLatencyMs,
+      })),
+    );
+  } else {
+    p95LatencyMs =
+      paths.length > 0
+        ? paths.reduce((worst, path) => Math.max(worst, path.pathLatencyMs), 0)
+        : worstServiceLatencyMs;
+  }
 
   return {
     valid: true,
@@ -198,6 +394,8 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
     postgres: postgres.postgres,
     components,
     paths,
+    geographicOriginLatencies:
+      geographicOriginLatencies.length > 0 ? geographicOriginLatencies : undefined,
     p95LatencyMs,
   };
 }

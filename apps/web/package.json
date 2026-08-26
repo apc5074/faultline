@@ -6,7 +6,9 @@
     "dev": "next dev",
     "typecheck": "tsc --noEmit",
     "build:deps": "pnpm --filter \"@faultline/web^...\" build",
-    "build": "pnpm run build:deps && next build"
+    "build": "pnpm run build:deps && next build",
+    "verify:alias": "node --experimental-strip-types scripts/verify-alias.ts",
+    "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
   "dependencies": {
     "@faultline/challenges": "workspace:*",
@@ -14,6 +16,7 @@
     "@faultline/core": "workspace:*",
     "@faultline/simulator": "workspace:*",
     "@next/env": "16.1.6",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.112.4",
     "@xyflow/react": "^12.11.5",
     "next": "16.1.6",

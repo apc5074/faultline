@@ -20,6 +20,7 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 
 import { urlShortenerChallenge } from "@faultline/challenges";
+import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
 import { componentRegistry, postgresTierModels, postgresReadCapacityForConfig, postgresReadReplicaBounds, postgresWriteCapacityForConfig, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels, loadBalancerMonthlyCost, loadBalancerPolicies, cdnConfiguredHitIntent, cdnHitRateForConfig, cdnMonthlyCostForConfig, cdnThroughputCapacityForConfig, cdnTtlHitRateBands, cdnTierModels } from "@faultline/component-catalog";
 import { checkConnectionCompatibility, createRegionDeployment, getRegions, isValidRegion, postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RegionDeployment, type RegionId, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
@@ -30,6 +31,8 @@ import {
   type ServiceCapacityMetrics,
   type SimulationValidationError,
 } from "@faultline/simulator";
+
+import { WorldMap, type WorldMapSelection } from "@/features/world-map/WorldMap";
 
 type CapacityVisualState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
 
@@ -1032,6 +1035,8 @@ function connectionFromFlow(connection: FlowConnectionLike, components: readonly
 function ArchitectureWorkspace() {
   const [architecture, setArchitecture] = useState<Architecture>(initialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
+  const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
   const [runState, setRunState] = useState<SimulationRunState>("idle");
   const [simulationResult, setSimulationResult] = useState<SuccessfulSimulation | null>(null);
   const [simulationErrors, setSimulationErrors] = useState<readonly SimulationValidationError[]>([]);
@@ -1240,15 +1245,39 @@ function ArchitectureWorkspace() {
   }, [architecture]);
 
   return (
-    <section className="architecture-workspace" aria-label="Logical architecture workspace">
+    <section className="architecture-workspace" aria-label="Architecture workspace">
       <ComponentPalette definitions={paletteDefinitions} />
-      <div className="architecture-canvas" aria-label="Logical architecture canvas">
+      <div className="architecture-canvas" aria-label={viewMode === "logical" ? "Logical architecture canvas" : "World architecture map"}>
       <div className="architecture-canvas__header">
         <div>
           <p className="wordmark">FAULTLINE</p>
-          <h1>Logical architecture</h1>
+          <h1>{viewMode === "logical" ? "Logical architecture" : "World map"}</h1>
         </div>
-        <p>Move components to shape the design. Select a node, then press Delete to remove it.</p>
+        <div className="architecture-canvas__header-actions">
+          <div className="view-mode-toggle" role="group" aria-label="Architecture view">
+            <button
+              type="button"
+              className={viewMode === "logical" ? "view-mode-toggle__button view-mode-toggle__button--active" : "view-mode-toggle__button"}
+              aria-pressed={viewMode === "logical"}
+              onClick={() => setViewMode("logical")}
+            >
+              Logical
+            </button>
+            <button
+              type="button"
+              className={viewMode === "world" ? "view-mode-toggle__button view-mode-toggle__button--active" : "view-mode-toggle__button"}
+              aria-pressed={viewMode === "world"}
+              onClick={() => setViewMode("world")}
+            >
+              World
+            </button>
+          </div>
+          <p>
+            {viewMode === "logical"
+              ? "Move components to shape the design. Select a node, then press Delete to remove it."
+              : "Same architecture, placed by region. Edit deployments in the inspector."}
+          </p>
+        </div>
       </div>
       <SimulationRunPanel
         runState={runState}
@@ -1258,6 +1287,7 @@ function ArchitectureWorkspace() {
         result={simulationResult}
         onRun={onRunSimulation}
       />
+      {viewMode === "logical" ? (
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1278,8 +1308,38 @@ function ArchitectureWorkspace() {
         <Controls showInteractive={false} />
         <MiniMap pannable zoomable />
       </ReactFlow>
+      ) : (
+        <WorldMap
+          architecture={architecture}
+          challenge={activeChallenge}
+          selectedComponentId={selectedComponentId}
+          selection={worldSelection}
+          geographicRoutes={
+            showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes ?? [] : []
+          }
+          routesActive={showSimulationVisuals && !resultIsStale}
+          onSelectComponent={(componentId) => {
+            setSelectedComponentId(componentId);
+            const component = architecture.components.find((entry) => entry.id === componentId);
+            const deployment = component?.deployments[0];
+            setWorldSelection(
+              deployment
+                ? { kind: "deployment", componentId, deploymentId: deployment.id }
+                : null,
+            );
+          }}
+          onSelectRegion={(regionId) => {
+            setWorldSelection({ kind: "region", regionId });
+            const deployed = architecture.components.find((component) =>
+              component.deployments.some((deployment) => deployment.regionId === regionId),
+            );
+            if (deployed) setSelectedComponentId(deployed.id);
+          }}
+        />
+      )}
       </div>
       <div className="architecture-sidebar">
+        <StartOfficialAttempt />
         <BudgetHud
           architecture={architecture}
           traffic={showSimulationVisuals && !resultIsStale ? simulationResult?.traffic : undefined}

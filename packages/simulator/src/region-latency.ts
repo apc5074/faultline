@@ -1,17 +1,21 @@
 /**
  * Deterministic educational network latency between regions.
  *
+ * Matrix values are round-trip (RTT) network latency between regions.
+ * Each logical remote dependency call adds the matrix value once — do not
+ * double-count request and response separately.
+ *
  * These are simplified educational latency assumptions, not real provider SLAs.
  * No live ping, jitter, time-of-day variation, or external latency APIs.
  */
 
-import { isValidRegion, UnknownRegionError, type RegionId } from "@faultline/core";
+import { isValidRegion, regionIds, UnknownRegionError, type RegionId } from "@faultline/core";
 
-/** Same-region hop cost. Nonzero so local traffic still pays a small network tax. */
+/** Same-region RTT. Nonzero so local traffic still pays a small network tax. */
 export const SAME_REGION_LATENCY_MS = 10;
 
 /**
- * Complete symmetric six-region matrix (ms).
+ * Complete symmetric six-region RTT matrix (ms).
  * Source examples: us-east→europe ≈ 80, us-east→singapore ≈ 220, same-region = 10.
  */
 const REGION_LATENCY_MS: Readonly<Record<RegionId, Readonly<Record<RegionId, number>>>> = {
@@ -73,7 +77,8 @@ function assertRegionId(id: string): RegionId {
 }
 
 /**
- * Educational one-way network latency between two registry regions.
+ * Educational round-trip network latency between two registry regions.
+ * Add once per remote dependency call (not separately for request and response).
  * @throws {UnknownRegionError} when either id is not in the region registry
  */
 export function getRegionLatencyMs(sourceRegionId: string, targetRegionId: string): number {
@@ -86,7 +91,12 @@ export function getRegionLatencyMs(sourceRegionId: string, targetRegionId: strin
   return latencyMs;
 }
 
-/** Exposes the full matrix for verification and future routing diagnostics. */
+/** Exposes the full RTT matrix for verification and future routing diagnostics. */
 export function getRegionLatencyMatrix(): Readonly<Record<RegionId, Readonly<Record<RegionId, number>>>> {
   return REGION_LATENCY_MS;
+}
+
+/** Stable region order used when materializing the matrix. */
+export function getLatencyMatrixRegionIds(): readonly RegionId[] {
+  return regionIds;
 }

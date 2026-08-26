@@ -22,11 +22,11 @@ Simulation decides outcomes, including pass/fail; an LLM never does. Geography, 
 
 ## Latency
 
-`latencyForUtilization` is the shared pure curve used by Service and Postgres. Each component supplies only a base latency (Service 20ms, Postgres 30ms). Pressure stays near base through 70% utilization, rises moderately through 90%, rises rapidly through 100%, and becomes obviously unacceptable above 100%. `evaluatePathLatency` applies that curve to service utilization and Postgres effective utilization, then reports request p95 as the worst Traffic→Service→Postgres path of `serviceLatency + databaseLatency`. Reads and writes share the database's effective pressure; geographic network latency is not modelled in that path evaluator yet.
+`latencyForUtilization` is the shared pure curve used by Service and Postgres. Each component supplies only a base latency (Service 20ms, Postgres 30ms). Pressure stays near base through 70% utilization, rises moderately through 90%, rises rapidly through 100%, and becomes obviously unacceptable above 100%. `evaluatePathLatency` applies that curve to service utilization and Postgres effective utilization. In logical mode (no geographic routes), request p95 is the worst Traffic→Service→Postgres path of `serviceLatency + databaseLatency`. In geographic mode it builds per-origin redirect paths from `geographicRoutes`, adds matrix RTT once per remote hop, applies Redis hit rates so cache hits skip downstream DB network and processing, then reports a discrete traffic-weighted regional p95. Reads and writes share the database's effective pressure; the UI never recalculates latency.
 
 ## Geographic latency
 
-`getRegionLatencyMs` is the centralized educational latency matrix between the six Phase 3 regions. Same-region hops are a small nonzero cost (10ms). Cross-region values are fixed, symmetric, and deterministic — for example US East → Europe is 80ms and US East → Singapore is 220ms. These are simplified educational latency assumptions, not real provider SLAs. Unknown region IDs throw rather than returning undefined/NaN. UI must consume simulator results; it must not duplicate these constants.
+`getRegionLatencyMs` is the centralized educational **round-trip (RTT)** latency matrix between the six Phase 3 regions. Each logical remote dependency call adds the matrix value once — do not double-count request and response separately. Same-region hops are a small nonzero cost (10ms). Cross-region values are fixed, symmetric, and deterministic — for example US East → Europe is 80ms and US East → Singapore is 220ms. These are simplified educational latency assumptions, not real provider SLAs. Unknown region IDs throw rather than returning undefined/NaN. UI must consume simulator results; it must not duplicate these constants.
 
 ## Geographic traffic distribution
 
@@ -35,6 +35,10 @@ Simulation decides outcomes, including pass/fail; an LLM never does. Geography, 
 ## Geographic routing
 
 When challenge geography is active and at least one Service has regional deployments, `propagateTraffic` uses nearest-healthy-region selection (Global Router policy). For each traffic origin it finds services reachable over the logical request graph, ignores unhealthy regions, picks the lowest `getRegionLatencyMs` deployment, and breaks ties by `componentId` then `deploymentId`. Writes follow logical edges but always land on the Postgres primary deployment; reads prefer a same-region Redis deployment and same-region Postgres replica when present. Results expose `geographicRoutes` and `regionalTraffic` for visualization. Regional service overload uses per-deployment capacity so a hot nearest region can saturate even when total instances look fine. Logical-only architectures (no service deployments) keep Phase 1/2 forwarding.
+
+## World map
+
+The World view is a lightweight SVG map in `apps/web` driven by the same canonical `Architecture` and challenge geographic distribution. Region markers use `RegionRegistry` coordinates; traffic origin labels come from challenge fractions/RPS; deployment chips come from `ComponentInstance.deployments[]` (Service counts, Redis, Postgres primary vs replica). After a successful simulation, traffic arcs are drawn from `geographicRoutes` (aggregated by origin→destination→kind) with educational stroke weight for volume — never invented decorative paths. Animation is CSS-only; the simulator does not depend on it. The map does not own separate world domain state or call external map providers. Placement editing stays in the existing inspector.
 
 ## Regional deployments
 
@@ -47,3 +51,7 @@ When challenge geography is active and at least one Service has regional deploym
 ## Hot-key scenario
 
 `evaluateHotKeyScenario` models concentrated viral-key redirect traffic when `challenge.workload.hotKeyReadFraction` is set. Viral RPS is `requestsPerSecond × readRatio × hotKeyReadFraction`. That volume propagates through the real architecture (CDN → Service → Redis → Postgres) using the same request/`read_write` edges as aggregate traffic. CDN and Redis absorb viral volume through shared `evaluateCacheOffload` hit/capacity rules; Redis saturation uses per-key `hotKeyCapacityRps` so aggregate cache utilization cannot hide a single-key bottleneck. Postgres hot-key pressure is measured against primary read capacity only—read replicas do not shard one viral key. When the fraction is omitted or zero (Tiny API), the scenario is inactive and does not affect pass/fail. When active, overall pass also requires the hot-key scenario to pass.
+
+## Simulator version
+
+`SIMULATOR_VERSION` in `@faultline/simulator` is recorded on each published `challenge_versions` row. Competition-affecting simulator changes require bumping this value and publishing a new challenge version so official attempts are never silently re-scored under incompatible semantics.

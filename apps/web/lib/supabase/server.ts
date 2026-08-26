@@ -3,40 +3,74 @@ import "server-only";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 
-export type SupabasePublicConfig = {
-  publishableKey: string;
-  url: string;
-};
+import {
+  getSupabaseAuthHealthUrl,
+  getSupabasePublicConfigFromEnv,
+  type SupabasePublicConfig,
+} from "./config";
 
+export type { SupabasePublicConfig };
+export { getSupabaseAuthHealthUrl };
+
+/**
+ * Resolves browser-safe Supabase config.
+ * In development, falls back to flattened repository-root `.env` parsing when
+ * process env is incomplete (same Phase 0 behavior).
+ */
 export function getSupabasePublicConfig(): SupabasePublicConfig | null {
-  const url =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? readFlattenedLocalEnvironment("NEXT_PUBLIC_SUPABASE_URL");
+  const fromEnv = getSupabasePublicConfigFromEnv();
+  if (fromEnv) return fromEnv;
+
+  const url = readFlattenedLocalEnvironment("NEXT_PUBLIC_SUPABASE_URL");
   const publishableKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
     readFlattenedLocalEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") ??
     readFlattenedLocalEnvironment("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-  if (!url || !publishableKey) {
-    return null;
-  }
+  if (!url || !publishableKey) return null;
 
   try {
-    const parsedUrl = new URL(url);
-
-    if (parsedUrl.protocol !== "https:") {
-      return null;
-    }
+    if (new URL(url).protocol !== "https:") return null;
   } catch {
     return null;
   }
 
-  return { publishableKey, url };
+  return { url, publishableKey };
 }
 
-export function createSupabaseServerClient(
+/** Cookie-aware Supabase client for Server Components, Route Handlers, and Server Actions. */
+export async function createSupabaseServerClient(
+  config: SupabasePublicConfig = requireSupabasePublicConfig(),
+): Promise<SupabaseClient> {
+  const cookieStore = await cookies();
+
+  return createServerClient(config.url, config.publishableKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Called from a Server Component where cookies are read-only.
+          // Proxy is responsible for refreshing sessions on navigation.
+        }
+      },
+    },
+  });
+}
+
+/**
+ * Table-free / session-free client for health probes only.
+ * Does not read or write auth cookies.
+ */
+export function createSupabaseProbeClient(
   config: SupabasePublicConfig = requireSupabasePublicConfig(),
 ): SupabaseClient {
   return createClient(config.url, config.publishableKey, {
@@ -47,17 +81,22 @@ export function createSupabaseServerClient(
   });
 }
 
-export function getSupabaseAuthHealthUrl(config: SupabasePublicConfig): string {
-  return new URL("auth/v1/health", `${config.url}/`).toString();
+/** Verified current user from Auth (network call). Null when unauthenticated. */
+export async function getCurrentAuthUser(): Promise<User | null> {
+  const config = getSupabasePublicConfig();
+  if (!config) return null;
+
+  const supabase = await createSupabaseServerClient(config);
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return null;
+  return data.user;
 }
 
 function requireSupabasePublicConfig(): SupabasePublicConfig {
   const config = getSupabasePublicConfig();
-
   if (!config) {
     throw new Error("Supabase is not configured.");
   }
-
   return config;
 }
 

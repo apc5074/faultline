@@ -166,6 +166,61 @@ h1 {
   font-size: 0.75rem;
 }
 
+.official-attempt {
+  padding: 1rem;
+  border: 1px solid #2d333b;
+  border-radius: 0.5rem;
+  background: #0d1015;
+}
+
+.official-attempt__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.official-attempt__status {
+  margin: 0.55rem 0 0;
+  color: #c4ccd6;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.official-attempt__status--ready {
+  color: #7dcea0;
+}
+
+.official-attempt__status--error {
+  color: #ff8a7a;
+}
+
+.official-attempt__button {
+  margin-top: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #3f8f6b;
+  border-radius: 0.3rem;
+  background: #163528;
+  color: #e8fff3;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.official-attempt__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.official-attempt__hint {
+  margin: 0.55rem 0 0;
+  color: #7d8794;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
 .requirements-hud {
   padding: 1rem;
   border: 1px solid #2d333b;
@@ -382,12 +437,226 @@ h1 {
   border-bottom: 1px solid #2d333b;
 }
 
+.architecture-canvas__header-actions {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: end;
+}
+
+.architecture-canvas__header-actions > p,
 .architecture-canvas__header > p {
   max-width: 40ch;
   margin: 0;
   color: #adb5bd;
   font-size: 0.85rem;
   text-align: right;
+}
+
+.view-mode-toggle {
+  display: inline-flex;
+  border: 1px solid #2d333b;
+  border-radius: 0.35rem;
+  overflow: hidden;
+  background: #11151b;
+}
+
+.view-mode-toggle__button {
+  margin: 0;
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: #9aa5b1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.view-mode-toggle__button--active {
+  background: #1a222d;
+  color: #f2f3f5;
+}
+
+.world-map {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  background: #0a0e14;
+}
+
+.world-map__svg {
+  width: 100%;
+  height: 100%;
+  min-height: 28rem;
+}
+
+.world-map__land ellipse {
+  fill: #18202a;
+  opacity: 0.85;
+}
+
+.world-map__grid line {
+  stroke: #1c2430;
+  stroke-width: 1;
+}
+
+.world-map__region-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.world-map__region-ring {
+  fill: none;
+  stroke: #3d4b5c;
+  stroke-width: 2;
+}
+
+.world-map__region-dot {
+  fill: #7bc4ff;
+}
+
+.world-map__region--selected .world-map__region-ring {
+  stroke: #ff5b4d;
+}
+
+.world-map__region--unhealthy .world-map__region-dot {
+  fill: #6b7280;
+}
+
+.world-map__region-label {
+  fill: #f2f3f5;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.world-map__region-traffic {
+  fill: #9aa5b1;
+  font-size: 11px;
+}
+
+.world-map__deployment {
+  cursor: pointer;
+}
+
+.world-map__deployment-chip {
+  fill: #151a22;
+  stroke: #44505f;
+  stroke-width: 1;
+}
+
+.world-map__deployment-label {
+  fill: #f2f3f5;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.world-map__deployment--service .world-map__deployment-chip {
+  stroke: #7bc4ff;
+}
+
+.world-map__deployment--redis .world-map__deployment-chip {
+  stroke: #d4a017;
+}
+
+.world-map__deployment--postgres-primary .world-map__deployment-chip {
+  stroke: #7dcea0;
+  fill: #132019;
+}
+
+.world-map__deployment--postgres-replica .world-map__deployment-chip {
+  stroke: #3f8f6b;
+  stroke-dasharray: 3 2;
+}
+
+.world-map__deployment--selected .world-map__deployment-chip {
+  stroke: #ff5b4d;
+  stroke-width: 2;
+}
+
+.world-map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid #2d333b;
+  color: #9aa5b1;
+  font-size: 0.75rem;
+}
+
+.world-map__legend-hint {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.world-map__legend-item::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.4rem;
+  border-radius: 999px;
+  vertical-align: middle;
+  background: #7bc4ff;
+}
+
+.world-map__legend-item--service::before { background: #7bc4ff; }
+.world-map__legend-item--redis::before { background: #d4a017; }
+.world-map__legend-item--primary::before { background: #7dcea0; }
+.world-map__legend-item--replica::before {
+  background: transparent;
+  border: 1px dashed #3f8f6b;
+  border-radius: 0.15rem;
+}
+.world-map__legend-item--origin::before { background: #7bc4ff; box-shadow: 0 0 0 3px rgb(123 196 255 / 25%); }
+.world-map__legend-item--arc-request::before { background: #7bc4ff; border-radius: 0; width: 0.85rem; height: 0.15rem; }
+.world-map__legend-item--arc-write::before { background: #ff8f84; border-radius: 0; width: 0.85rem; height: 0.15rem; }
+.world-map__legend-item--arc-read::before { background: #7dcea0; border-radius: 0; width: 0.85rem; height: 0.15rem; }
+
+.world-map__arc {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 10 8;
+  animation: world-arc-dash 1.4s linear infinite;
+  pointer-events: stroke;
+}
+
+.world-map__arc--request { stroke: #7bc4ff; }
+.world-map__arc--write { stroke: #ff8f84; }
+.world-map__arc--read { stroke: #7dcea0; }
+
+.world-map__arc--cross {
+  stroke-dasharray: 14 10;
+}
+
+.world-map__arc--local {
+  stroke-dasharray: 6 6;
+}
+
+.world-map__arc--highlighted {
+  filter: drop-shadow(0 0 4px rgb(255 91 77 / 55%));
+  animation-duration: 0.9s;
+}
+
+.world-map__arc--dimmed {
+  animation: none;
+  stroke-dasharray: none;
+}
+
+.world-map__arc-arrow {
+  fill: #9aa5b1;
+}
+
+@keyframes world-arc-dash {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-map__arc {
+    animation: none;
+  }
 }
 
 .simulation-run {
@@ -602,7 +871,9 @@ h1 {
   .component-palette__item { min-width: 9rem; margin-top: 0; }
   .architecture-canvas { grid-template-rows: auto auto minmax(28rem, calc(100svh - 1.5rem)); }
   .architecture-canvas__header { align-items: start; flex-direction: column; gap: 0.75rem; }
-  .architecture-canvas__header > p { text-align: left; }
+  .architecture-canvas__header > p,
+  .architecture-canvas__header-actions { justify-items: start; }
+  .architecture-canvas__header-actions > p { text-align: left; }
   .simulation-run__result { grid-template-columns: 1fr 1fr; }
   .webmcp-status { right: 0.75rem; }
 }

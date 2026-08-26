@@ -13,12 +13,13 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-tiny-api.mjs && node scripts/verify-url-shortener.mjs"
+    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-tiny-api.mjs && node scripts/verify-url-shortener.mjs && node scripts/verify-config-hash.mjs"
   },
   "dependencies": {
     "@faultline/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "24.10.1",
     "typescript": "5.9.3"
   }
 }
