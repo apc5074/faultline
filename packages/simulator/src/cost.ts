@@ -1,8 +1,10 @@
 import {
   postgresTierModels,
-  serviceMonthlyCostPerInstance,
+  redisMonthlyCostForConfig,
+  serviceMonthlyCostForConfig,
   ComponentRegistry,
   type PostgresConfig,
+  type RedisConfig,
   type ServiceConfig,
 } from "@faultline/component-catalog";
 import {
@@ -34,16 +36,20 @@ function priceComponent(component: ComponentInstance, registry: ComponentRegistr
   }
 
   if (component.type === "traffic-source") return null;
+  if (component.type === "global-router") return null;
   if (component.type === "service") {
-    return { componentId: component.id, amount: (configResult.data as ServiceConfig).instances * serviceMonthlyCostPerInstance };
+    return { componentId: component.id, amount: serviceMonthlyCostForConfig(configResult.data as ServiceConfig) };
   }
   if (component.type === "postgres") {
     const model = postgresTierModels[(configResult.data as PostgresConfig).tier];
     if (!model) throw new CostEstimationError(`Component "${component.id}" has an unpriceable Postgres tier.`);
     return { componentId: component.id, amount: model.monthlyCost };
   }
+  if (component.type === "redis") {
+    return { componentId: component.id, amount: redisMonthlyCostForConfig(configResult.data as RedisConfig) };
+  }
 
-  throw new CostEstimationError(`Component "${component.id}" of type "${component.type}" has no Phase 1 cost model.`);
+  throw new CostEstimationError(`Component "${component.id}" of type "${component.type}" has no cost model.`);
 }
 
 /** Simplified educational monthly infrastructure estimate from canonical state. */

@@ -1,4 +1,4 @@
-import { serviceCapacityPerInstance, type ServiceConfig } from "@faultline/component-catalog";
+import { serviceCapacityForConfig, type ServiceConfig } from "@faultline/component-catalog";
 import type { Architecture } from "@faultline/core";
 
 import {
@@ -63,9 +63,11 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
   const events = [...propagation.events];
 
   for (const component of [...architecture.components].filter((candidate) => candidate.type === "service").sort((left, right) => left.id.localeCompare(right.id))) {
-    const config = component.config as ServiceConfig;
+    const parsed = input.registry.get(component.type).configSchema.safeParse(component.config);
+    if (!parsed.success) continue;
+    const config = parsed.data as ServiceConfig;
     const incomingRps = propagation.traffic[component.id].incomingRps;
-    const capacityRps = config.instances * serviceCapacityPerInstance;
+    const capacityRps = serviceCapacityForConfig(config);
     const utilization = incomingRps / capacityRps;
     const metrics: ServiceCapacityMetrics = {
       incomingRps,

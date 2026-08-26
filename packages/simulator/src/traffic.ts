@@ -1,5 +1,5 @@
 import { ComponentRegistry } from "@faultline/component-catalog";
-import type { Architecture, ChallengeDefinition } from "@faultline/core";
+import type { Architecture, ChallengeDefinition, JsonObject } from "@faultline/core";
 
 import {
   validateArchitectureForSimulation,
@@ -66,9 +66,16 @@ function databaseEdgesFrom(architecture: Architecture, componentId: string) {
   );
 }
 
+function forwardsRequests(simulation: JsonObject | undefined): boolean {
+  return simulation?.forwardsRequests === true;
+}
+
 /**
- * Propagates configured workload through the initial Tiny API graph. This is a
- * deterministic flow model, not a capacity or latency calculation.
+ * Propagates configured workload through the architecture graph.
+ * Deterministic flow model only — not capacity or latency.
+ *
+ * Request passthrough components (Global Router, later Load Balancer) forward
+ * incoming request RPS equally across outbound request edges without geographic bias.
  */
 export function propagateTraffic({ architecture: input, challenge, registry }: TrafficPropagationInput): TrafficPropagationResult {
   const validation = validateArchitectureForSimulation({ architecture: input, challenge, registry });
@@ -96,6 +103,35 @@ export function propagateTraffic({ architecture: input, challenge, registry }: T
         data: { requestsPerSecond: trafficPerEdge, kind: "request" },
       });
     }
+  }
+
+  const forwarders = stableById(
+    architecture.components.filter((component) => forwardsRequests(registry.get(component.type).simulation)),
+  );
+  // Bounded passes support chained passthroughs without pretending to be geographic routing.
+  for (let pass = 0; pass < architecture.components.length; pass += 1) {
+    let forwardedAny = false;
+    for (const forwarder of forwarders) {
+      const edges = requestEdgesFrom(architecture, forwarder.id);
+      if (edges.length === 0) continue;
+      const pendingRps = traffic[forwarder.id].incomingRps - traffic[forwarder.id].outgoingRps;
+      if (pendingRps <= 0) continue;
+
+      const trafficPerEdge = pendingRps / edges.length;
+      traffic[forwarder.id].outgoingRps += pendingRps;
+      forwardedAny = true;
+
+      for (const edge of edges) {
+        traffic[edge.targetComponentId].incomingRps += trafficPerEdge;
+        events.push({
+          type: "traffic_routed",
+          connectionId: edge.id,
+          componentId: edge.targetComponentId,
+          data: { requestsPerSecond: trafficPerEdge, kind: "request" },
+        });
+      }
+    }
+    if (!forwardedAny) break;
   }
 
   for (const service of stableById(architecture.components.filter((component) => component.type === "service"))) {

@@ -39,9 +39,10 @@ Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Previ
 
 **Verification — 2026-08-25:** an operator confirmed the local probe succeeds with the authorized Gateway configuration. The script's operator-only execution is the access control for this billable request.
 
-## Phase 0 completion
+## Phase 1 vertical-slice verification
 
-**Phase 0 status — 2026-08-25:** verified by the project owner.
+**Verification — 2026-08-25:** `pnpm verify:phase-1` and `pnpm build` succeeded for the Tiny API vertical slice (canonical architecture, simulation outcomes, package boundaries). `pnpm probe:ai-gateway` returned `online`. Vercel production gameplay (PHASE-1-VERIFY V14) still requires pushing the current `main` (ahead of `origin/main`) and an operator pass of the Build → Run → Fail → Modify → Run → Pass loop on the deployed site.
+
 
 - Production: Vercel deployment from `main`, operator verified (revision `0ef08d7`).
 - Preview: verified.

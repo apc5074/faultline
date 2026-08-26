@@ -36,4 +36,20 @@ assert.equal(healthy.valid, true);
 if (!healthy.valid) throw new Error("Expected valid architecture.");
 assert.deepEqual(healthy.services["service-01"], { incomingRps: 6000, capacityRps: 8000, handledRps: 6000, unmetRps: 0, utilization: 0.75, headroom: 0.25, state: "warning" });
 assert.equal(healthy.events.some((event) => event.type === "component_warning"), true);
+
+const largeSize = evaluateServiceCapacity({
+  architecture: {
+    ...architectureForInstances(2),
+    components: architectureForInstances(2).components.map((component) =>
+      component.id === "service-01" ? { ...component, config: { size: "large", instances: 2 } } : component,
+    ),
+  },
+  challenge: tinyApiChallenge,
+  registry: componentRegistry,
+});
+assert.equal(largeSize.valid, true);
+if (!largeSize.valid) throw new Error("Expected valid architecture.");
+assert.equal(largeSize.services["service-01"].capacityRps, 8_000);
+assert.equal(largeSize.services["service-01"].utilization, 0.75);
+
 console.log("service capacity verified");

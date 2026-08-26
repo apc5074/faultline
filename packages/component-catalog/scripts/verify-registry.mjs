@@ -7,6 +7,12 @@ import {
   createComponentRegistry,
   postgresDefinition,
   postgresTierModels,
+  redisDefinition,
+  redisEffectiveModel,
+  redisHitRateForConfig,
+  redisMonthlyCostForConfig,
+  redisTtlHitRateBands,
+  globalRouterDefinition,
   serviceCapacityPerInstance,
   serviceDefinition,
   serviceMonthlyCostPerInstance,
@@ -68,8 +74,11 @@ assert.deepEqual(trafficSourceDefinition.simulation, { injectsChallengeWorkload:
 assert.deepEqual(trafficSourceDefinition.cost, { fixedMonthlyCost: 0 });
 
 assert.equal(componentRegistry.get("service"), serviceDefinition);
-assert.deepEqual(serviceDefinition.defaultConfig, { instances: 1 });
+assert.deepEqual(serviceDefinition.defaultConfig, { size: "medium", instances: 1 });
 assert.equal(serviceDefinition.configSchema.safeParse({ instances: 1 }).success, true);
+assert.deepEqual(serviceDefinition.configSchema.safeParse({ instances: 1 }).data, { size: "medium", instances: 1 });
+assert.equal(serviceDefinition.configSchema.safeParse({ size: "small", instances: 2 }).success, true);
+assert.equal(serviceDefinition.configSchema.safeParse({ size: "huge", instances: 1 }).success, false);
 assert.equal(serviceDefinition.configSchema.safeParse({ instances: 0 }).success, false);
 assert.equal(serviceDefinition.configSchema.safeParse({ instances: 11 }).success, false);
 assert.equal(serviceDefinition.configSchema.safeParse({ instances: 1.5 }).success, false);
@@ -77,9 +86,9 @@ assert.deepEqual(serviceDefinition.ports, [
   { id: "request_in", label: "Requests", direction: "input", connectionTypes: ["request"] },
   { id: "database_out", label: "Database", direction: "output", connectionTypes: ["read_write"] },
 ]);
-assert.equal(serviceDefinition.simulation.capacityPerInstance, serviceCapacityPerInstance);
+assert.equal(serviceDefinition.simulation.sizeModels.medium.capacityPerInstance, serviceCapacityPerInstance);
 assert.equal(serviceDefinition.simulation.baseP95LatencyMs, 20);
-assert.equal(serviceDefinition.cost.monthlyCostPerInstance, serviceMonthlyCostPerInstance);
+assert.equal(serviceDefinition.cost.sizeModels.medium.monthlyCostPerInstance, serviceMonthlyCostPerInstance);
 
 assert.equal(componentRegistry.get("postgres"), postgresDefinition);
 assert.deepEqual(postgresDefinition.defaultConfig, { tier: "small" });
@@ -97,4 +106,42 @@ assert.equal(postgresDefinition.simulation.baseP95LatencyMs, 30);
 assert.deepEqual(postgresDefinition.ports, [
   { id: "database_in", label: "Database operations", direction: "input", connectionTypes: ["read_write"] },
 ]);
+
+assert.equal(componentRegistry.get("redis"), redisDefinition);
+assert.equal(componentRegistry.has("redis"), true);
+assert.equal(componentRegistry.list().some((definition) => definition.type === "redis"), true);
+assert.deepEqual(redisDefinition.defaultConfig, { mode: "standalone", tier: "medium", ttlBand: "medium" });
+assert.equal(redisDefinition.configSchema.safeParse({ mode: "standalone", tier: "small", ttlBand: "short" }).success, true);
+assert.equal(redisDefinition.configSchema.safeParse({ mode: "replicated", tier: "large", ttlBand: "long" }).success, true);
+assert.equal(redisDefinition.configSchema.safeParse({ mode: "clustered", tier: "medium", ttlBand: "medium" }).success, false);
+assert.equal(redisDefinition.clusteringSupport, false);
+assert.equal(redisDefinition.replicationSupport, true);
+assert.equal(redisDefinition.simulation.cacheCapable, true);
+assert.equal(redisDefinition.simulation.absorbsWrites, false);
+assert.deepEqual(redisDefinition.ports, [
+  { id: "cache_in", label: "Cache operations", direction: "input", connectionTypes: ["read_write"] },
+  { id: "origin_out", label: "Origin / miss", direction: "output", connectionTypes: ["read_write"] },
+]);
+assert.equal(redisHitRateForConfig({ ttlBand: "medium" }), redisTtlHitRateBands.medium);
+assert.equal(redisMonthlyCostForConfig({ mode: "standalone", tier: "medium" }), 3_000);
+assert.equal(redisMonthlyCostForConfig({ mode: "replicated", tier: "medium" }), 6_000);
+assert.equal(redisEffectiveModel({ mode: "replicated", tier: "medium" }).hotKeyCapacityRps, 18_000);
+assert.ok(redisDefinition.metrics.some((metric) => metric.id === "hit_rate"));
+assert.ok(redisDefinition.metrics.some((metric) => metric.id === "hot_key_utilization"));
+
+assert.equal(componentRegistry.get("global-router"), globalRouterDefinition);
+assert.deepEqual(globalRouterDefinition.defaultConfig, {});
+assert.equal(globalRouterDefinition.configSchema.safeParse({}).success, true);
+assert.equal(globalRouterDefinition.configSchema.safeParse({ regionId: "us-east" }).success, false);
+assert.equal(globalRouterDefinition.simulation.forwardsRequests, true);
+assert.equal(globalRouterDefinition.simulation.geographicRouting, false);
+assert.equal(globalRouterDefinition.cost.fixedMonthlyCost, 0);
+assert.deepEqual(globalRouterDefinition.ports, [
+  { id: "request_in", label: "Requests", direction: "input", connectionTypes: ["request"] },
+  { id: "route_out", label: "Route", direction: "output", connectionTypes: ["request"] },
+]);
+assert.ok(globalRouterDefinition.metrics.some((metric) => metric.id === "incoming_requests_per_second"));
+assert.ok(globalRouterDefinition.metrics.some((metric) => metric.id === "forwarded_requests_per_second"));
+assert.equal(globalRouterDefinition.metrics.some((metric) => metric.id.includes("regional")), false);
+
 console.log("component registry verified");

@@ -4,6 +4,34 @@
 
 `ComponentRegistry` is the single registration boundary. It validates each definition, rejects duplicate stable types, resolves known definitions, and enumerates the registered catalog. A definition contains validated default configuration, domain port metadata, declared metrics, optional simulation/cost metadata, and explicit future-support flags. It must not contain challenge workload.
 
-Level 1 is expected to require service, Postgres, Redis, router, load balancer, CDN, replicas, and geography. Component definitions and UI rendering are not implemented yet.
+## Product rule
 
-`postgres` is the Phase 1 database primitive. Its `small`, `medium`, and `large` educational tier model keeps read capacity, write capacity, and monthly cost together while deliberately modelling reads and writes independently. It accepts only a typed `read_write` database input and has no replica, failover, or geography behavior.
+Difficulty comes from levels. Components are a controlled sandbox.
+
+Player-facing knobs must be few, legible, and outcome-coupled. Creative freedom comes from topology plus sizing dials — not from exposing product-internals theater.
+
+## Level 1 lever summary
+
+| Component | Player levers | Notes |
+|---|---|---|
+| Traffic Source | challenge-owned | Not a sandbox toy |
+| Stateless Service | `size`, `instances` | Scale-up and scale-out |
+| Postgres | `tier`, `readReplicas` | Reads scale independently of writes |
+| Redis | `mode`, `tier`, `ttlBand` | Standalone/replicated; no clustering yet |
+| CDN | `coverage`, `ttlBand`, `tier` | Edge offload; writes always miss |
+| Load Balancer | `policy` | `equal` or `capacity_weighted`; non-zero cost |
+| Global Router | Phase 2 passthrough | Geographic/healthy routing in Phase 3 |
+
+## Disruption readiness
+
+Attack mode (cache flush, component failure, region failure) is implemented later. Level 1 components must still expose the levers players will use to respond: spare capacity, Redis replication, layered CDN, multi-service + LB, Postgres read scaling, and (in Phase 3) multi-region + Global Router.
+
+Do not add an `HA: true` checkbox. Resilience must come from structure the simulator can evaluate.
+
+## Current catalog notes
+
+`postgres` is the Phase 1 database primitive. Its `small`, `medium`, and `large` educational tier model keeps read capacity, write capacity, and monthly cost together while deliberately modelling reads and writes independently. Phase 2 adds logical read replicas. It accepts only a typed `read_write` database input and has no failover or geography behavior until later phases activate them.
+
+`redis` is the Level 1 data-cache primitive. Player knobs are `mode` (`standalone` | `replicated`), `tier`, and `ttlBand`. Ports use `read_write` so `Service → Redis → Postgres` is a valid typed path. Replicated mode raises throughput/hot-key capacity and cost but does not cluster or shard a hot key. Redis must not absorb writes; hit/miss traffic reduction is applied by the simulator (SIM-007), not by the UI.
+
+`global-router` is a Phase 2 logical request passthrough (`request_in` → `route_out`) with zero cost. It forwards traffic without geographic selection. Phase 3 activates nearest healthy region routing on the same component type; Phase 2 config rejects premature geography knobs.

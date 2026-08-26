@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @faultline/web dev",
     "typecheck": "pnpm --filter @faultline/core typecheck && pnpm --filter @faultline/component-catalog typecheck && pnpm --filter @faultline/challenges typecheck && pnpm --filter @faultline/simulator typecheck && pnpm --filter @faultline/agent-capabilities typecheck && pnpm --filter @faultline/web typecheck",
     "build": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm --filter @faultline/simulator build && pnpm --filter @faultline/agent-capabilities build && pnpm --filter @faultline/web build",
+    "verify:phase-1": "pnpm --filter @faultline/core verify && pnpm --filter @faultline/component-catalog verify && pnpm --filter @faultline/challenges verify && pnpm --filter @faultline/simulator verify && pnpm --filter @faultline/agent-capabilities typecheck && pnpm --filter @faultline/web typecheck",
     "probe:ai-gateway": "node scripts/probe-ai-gateway.mjs"
   }
 }

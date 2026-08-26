@@ -20,7 +20,7 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 
 import { tinyApiChallenge } from "@faultline/challenges";
-import { componentRegistry, postgresTierModels, serviceCapacityForInstances, serviceCapacityPerInstance } from "@faultline/component-catalog";
+import { componentRegistry, postgresTierModels, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels } from "@faultline/component-catalog";
 import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
   estimateMonthlyCost,
@@ -451,10 +451,25 @@ function ComponentInspector({
   if (component.type === "service") {
     const parsed = definition.configSchema.safeParse(component.config);
     if (!parsed.success) return null;
+    const size = parsed.data.size as keyof typeof serviceSizeModels;
     const instances = parsed.data.instances as number;
+    const sizeModel = serviceSizeModels[size];
     return (
       <aside className="component-inspector" aria-label="Stateless Service inspector">
         <p className="component-inspector__eyebrow">Stateless Service</p>
+        <label>
+          Size
+          <select
+            value={size}
+            onChange={(event) => onConfigChange(component.id, { size: event.target.value, instances })}
+          >
+            {Object.keys(serviceSizeModels).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Instances
           <input
@@ -463,12 +478,12 @@ function ComponentInspector({
             max="10"
             step="1"
             value={instances}
-            onChange={(event) => onConfigChange(component.id, { instances: Number(event.target.value) })}
+            onChange={(event) => onConfigChange(component.id, { size, instances: Number(event.target.value) })}
           />
         </label>
         <dl>
-          <div><dt>Capacity / instance</dt><dd>{serviceCapacityPerInstance.toLocaleString()} req/sec</dd></div>
-          <div><dt>Estimated capacity</dt><dd>{serviceCapacityForInstances(instances).toLocaleString()} req/sec</dd></div>
+          <div><dt>Capacity / instance</dt><dd>{sizeModel.capacityPerInstance.toLocaleString()} req/sec</dd></div>
+          <div><dt>Estimated capacity</dt><dd>{serviceCapacityForConfig({ size, instances }).toLocaleString()} req/sec</dd></div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
         </dl>
       </aside>
@@ -494,6 +509,81 @@ function ComponentInspector({
           <div><dt>Write capacity</dt><dd>{model.writeCapacityRps.toLocaleString()} req/sec</dd></div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
         </dl>
+      </aside>
+    );
+  }
+
+  if (component.type === "redis") {
+    const parsed = definition.configSchema.safeParse(component.config);
+    if (!parsed.success) return null;
+    const mode = parsed.data.mode as "standalone" | "replicated";
+    const tier = parsed.data.tier as keyof typeof redisTierModels;
+    const ttlBand = parsed.data.ttlBand as keyof typeof redisTtlHitRateBands;
+    const effective = redisEffectiveModel({ mode, tier });
+    return (
+      <aside className="component-inspector" aria-label="Redis inspector">
+        <p className="component-inspector__eyebrow">Redis</p>
+        <label>
+          Mode
+          <select
+            value={mode}
+            onChange={(event) => onConfigChange(component.id, { mode: event.target.value, tier, ttlBand })}
+          >
+            <option value="standalone">standalone</option>
+            <option value="replicated">replicated</option>
+          </select>
+        </label>
+        <label>
+          Tier
+          <select
+            value={tier}
+            onChange={(event) => onConfigChange(component.id, { mode, tier: event.target.value, ttlBand })}
+          >
+            {Object.keys(redisTierModels).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          TTL band
+          <select
+            value={ttlBand}
+            onChange={(event) => onConfigChange(component.id, { mode, tier, ttlBand: event.target.value })}
+          >
+            {Object.keys(redisTtlHitRateBands).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <dl>
+          <div><dt>Configured hit rate</dt><dd>{Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
+          <div><dt>Throughput capacity</dt><dd>{effective.throughputRps.toLocaleString()} req/sec</dd></div>
+          <div><dt>Hot-key capacity</dt><dd>{effective.hotKeyCapacityRps.toLocaleString()} req/sec</dd></div>
+          <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
+        </dl>
+        <p className="component-inspector__hint">
+          Cache hits reduce Postgres reads once cache simulation is active. Writes always reach Postgres.
+        </p>
+      </aside>
+    );
+  }
+
+  if (component.type === "global-router") {
+    return (
+      <aside className="component-inspector" aria-label="Global Router inspector">
+        <p className="component-inspector__eyebrow">Global Router</p>
+        <dl>
+          <div><dt>Phase 2 role</dt><dd>Logical request passthrough</dd></div>
+          <div><dt>Geographic routing</dt><dd>Inactive</dd></div>
+          <div><dt>Monthly cost</dt><dd>{formatCost(0)}</dd></div>
+        </dl>
+        <p className="component-inspector__hint">
+          Forwards traffic without changing volume. Nearest healthy region routing activates when geography is enabled.
+        </p>
       </aside>
     );
   }
