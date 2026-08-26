@@ -78,6 +78,7 @@ assert.deepEqual(serviceDefinition.ports, [
   { id: "database_out", label: "Database", direction: "output", connectionTypes: ["read_write"] },
 ]);
 assert.equal(serviceDefinition.simulation.capacityPerInstance, serviceCapacityPerInstance);
+assert.equal(serviceDefinition.simulation.baseP95LatencyMs, 20);
 assert.equal(serviceDefinition.cost.monthlyCostPerInstance, serviceMonthlyCostPerInstance);
 
 assert.equal(componentRegistry.get("postgres"), postgresDefinition);
@@ -92,6 +93,7 @@ assert.equal(postgresTierModels.medium.readCapacityRps, 10_000);
 assert.equal(postgresTierModels.medium.writeCapacityRps, 2_000);
 assert.equal(postgresTierModels.large.monthlyCost, 7_000);
 assert.notEqual(postgresTierModels.small.monthlyCost, postgresTierModels.medium.monthlyCost);
+assert.equal(postgresDefinition.simulation.baseP95LatencyMs, 30);
 assert.deepEqual(postgresDefinition.ports, [
   { id: "database_in", label: "Database operations", direction: "input", connectionTypes: ["read_write"] },
 ]);

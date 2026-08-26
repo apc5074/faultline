@@ -20,6 +20,8 @@ export interface SimulationEvent {
     | "component_load_changed"
     | "component_warning"
     | "component_saturated"
+    | "requirement_passed"
+    | "requirement_failed"
     | "simulation_finished";
   connectionId?: string;
   componentId?: string;

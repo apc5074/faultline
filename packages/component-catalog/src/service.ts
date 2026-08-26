@@ -3,6 +3,8 @@ import type { ComponentConfigSchema, ComponentDefinition, JsonObject } from "@fa
 export const serviceInstanceBounds = { minimum: 1, maximum: 10 } as const;
 export const serviceCapacityPerInstance = 2_000;
 export const serviceMonthlyCostPerInstance = 1_000;
+/** Educational base p95 before utilization pressure is applied. */
+export const serviceBaseP95LatencyMs = 20;
 
 export interface ServiceConfig extends JsonObject {
   instances: number;
@@ -66,6 +68,7 @@ export const serviceDefinition: ComponentDefinition<ServiceConfig> = {
   ],
   simulation: {
     capacityPerInstance: serviceCapacityPerInstance,
+    baseP95LatencyMs: serviceBaseP95LatencyMs,
   },
   cost: {
     monthlyCostPerInstance: serviceMonthlyCostPerInstance,

@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm run build && node scripts/verify-validation.mjs && node scripts/verify-traffic.mjs && node scripts/verify-cost.mjs && node scripts/verify-service-capacity.mjs && node scripts/verify-postgres-capacity.mjs"
+    "verify": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm run build && node scripts/verify-validation.mjs && node scripts/verify-traffic.mjs && node scripts/verify-cost.mjs && node scripts/verify-service-capacity.mjs && node scripts/verify-postgres-capacity.mjs && node scripts/verify-latency.mjs && node scripts/verify-requirements.mjs"
   },
   "dependencies": {
     "@faultline/challenges": "workspace:*",

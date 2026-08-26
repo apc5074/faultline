@@ -16,6 +16,9 @@ export const postgresTierModels: Readonly<Record<PostgresTier, PostgresTierModel
   large: { readCapacityRps: 20_000, writeCapacityRps: 4_000, monthlyCost: 7_000 },
 };
 
+/** Educational base p95 before utilization pressure is applied. */
+export const postgresBaseP95LatencyMs = 30;
+
 export interface PostgresConfig extends JsonObject {
   tier: PostgresTier;
 }
@@ -70,7 +73,7 @@ export const postgresDefinition: ComponentDefinition<PostgresConfig> = {
     { id: "p95_latency", label: "p95 latency", unit: "ms" },
   ],
   simulation: {
-    baseP95LatencyMs: 30,
+    baseP95LatencyMs: postgresBaseP95LatencyMs,
     readAndWriteCapacityAreIndependent: true,
   },
   cost: {

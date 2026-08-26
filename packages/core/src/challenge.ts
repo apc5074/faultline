@@ -11,6 +11,17 @@ export interface RequirementDefinition {
   unit: string;
 }
 
+/** Deterministic outcome of evaluating one challenge requirement against simulated metrics. */
+export interface RequirementResult {
+  id: string;
+  type: RequirementType;
+  passed: boolean;
+  actual: number;
+  target: number;
+  operator: RequirementComparator;
+  explanation: string;
+}
+
 export interface WorkloadDefinition {
   requestsPerSecond: number;
   readRatio: number;
