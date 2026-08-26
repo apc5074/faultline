@@ -1,0 +1,45 @@
+:root {
+  color-scheme: dark;
+  background: #08090c;
+  color: #f2f3f5;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  display: grid;
+  align-content: center;
+  min-height: 100svh;
+  max-width: 48rem;
+  padding: 2rem;
+  margin: 0 auto;
+}
+
+.wordmark {
+  margin: 0 0 1rem;
+  color: #ff5b4d;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+h1 {
+  max-width: 18ch;
+  margin: 0;
+  font-size: clamp(2.5rem, 9vw, 5rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+
+.status {
+  margin: 2rem 0 0;
+  color: #adb5bd;
+  font-size: 1rem;
+}

@@ -1,0 +1,10 @@
+{
+  "name": "faultline",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "dev": "pnpm --filter @faultline/web dev",
+    "typecheck": "pnpm --filter @faultline/web typecheck",
+    "build": "pnpm --filter @faultline/web build"
+  }
+}
