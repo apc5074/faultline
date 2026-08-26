@@ -6,6 +6,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Shared schema for read capabilities that take no tool arguments. */
 export const noInputSchema: CapabilityInputSchema<undefined> = {
+  jsonSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
   safeParse(input: unknown) {
     if (input === undefined || input === null) {
       return { success: true as const, data: undefined };
@@ -23,6 +28,14 @@ export interface InspectComponentInput {
 
 /** Runtime-validated input for inspect_component. */
 export const inspectComponentInputSchema: CapabilityInputSchema<InspectComponentInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      componentId: { type: "string", minLength: 1 },
+    },
+    required: ["componentId"],
+    additionalProperties: false,
+  },
   safeParse(input: unknown) {
     if (!isRecord(input)) {
       return { success: false as const, errors: ["inspect_component input must be an object."] };
@@ -40,6 +53,13 @@ export interface EstimateCapacityInput {
 
 /** Optional componentId; omit / empty object = architecture-wide capacity summary. */
 export const estimateCapacityInputSchema: CapabilityInputSchema<EstimateCapacityInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      componentId: { type: "string", minLength: 1 },
+    },
+    additionalProperties: false,
+  },
   safeParse(input: unknown) {
     if (input === undefined || input === null) {
       return { success: true as const, data: {} };

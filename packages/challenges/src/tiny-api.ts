@@ -14,6 +14,10 @@ export const tinyApiChallenge: ChallengeDefinition = {
     readRatio: 0.9,
     writeRatio: 0.1,
   },
+  coachingPolicy: {
+    focusThemes: ["request flow", "capacity margin"],
+    prohibitedRevealCategories: ["canonical topology", "specific component requirements", "solution-only thresholds"],
+  },
   requirements: [
     { id: "throughput", label: "Throughput", type: "throughput", comparator: "gte", target: 1, unit: "ratio" },
     { id: "latency", label: "p95 latency", type: "latency", comparator: "lt", target: 200, unit: "ms" },

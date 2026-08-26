@@ -141,6 +141,15 @@ export function assertChallengeDefinition(definition: unknown): asserts definiti
     }
   }
 
+  if (definition.coachingPolicy !== undefined) {
+    const policy = definition.coachingPolicy;
+    const validEntries = (value: unknown): value is readonly string[] =>
+      Array.isArray(value) && value.length > 0 && value.length <= 8 && value.every((item) => isNonEmptyString(item) && item.length <= 120 && !/\d/.test(item));
+    if (!isRecord(policy) || !validEntries(policy.focusThemes) || !validEntries(policy.prohibitedRevealCategories)) {
+      throw new ChallengeDefinitionError(`Challenge "${definition.slug}" has an invalid coachingPolicy.`);
+    }
+  }
+
   if (definition.unscoredTargets !== undefined) {
     if (!Array.isArray(definition.unscoredTargets)) {
       throw new ChallengeDefinitionError(`Challenge "${definition.slug}" unscoredTargets must be an array when set.`);

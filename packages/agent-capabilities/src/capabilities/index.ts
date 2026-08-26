@@ -3,12 +3,16 @@ import { createAgentCapabilityRegistry, type AgentCapabilityRegistry } from "../
 import { estimateCapacityCapability } from "./estimate-capacity.js";
 import { getArchitectureCapability } from "./get-architecture.js";
 import { getChallengeCapability } from "./get-challenge.js";
+import { getCostBreakdownCapability } from "./get-cost-breakdown.js";
 import { getMetricsCapability } from "./get-metrics.js";
 import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
 
 export { getChallengeCapability, buildGetChallengeOutput } from "./get-challenge.js";
 export type { ChallengeSpecialScenario, GetChallengeOutput } from "./get-challenge.js";
+
+export { getCostBreakdownCapability, getCostBreakdown } from "./get-cost-breakdown.js";
+export type { CostBreakdownLineItem, GetCostBreakdownOutput } from "./get-cost-breakdown.js";
 
 export { getRequirementsCapability, buildGetRequirementsOutput } from "./get-requirements.js";
 export type {
@@ -59,5 +63,6 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     inspectComponentCapability,
     estimateCapacityCapability,
     getMetricsCapability,
+    getCostBreakdownCapability,
   ]);
 }

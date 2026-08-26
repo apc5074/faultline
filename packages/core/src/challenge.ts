@@ -71,6 +71,12 @@ export interface TransferPayloadAssumptions {
   replicationBytesPerWrite: number;
 }
 
+/** Server-only learning guidance; never a canonical solution or topology. */
+export interface ChallengeCoachingPolicy {
+  focusThemes: readonly string[];
+  prohibitedRevealCategories: readonly string[];
+}
+
 /** Challenge-owned configuration consumed by the simulator and UI. */
 export interface ChallengeDefinition {
   slug: string;
@@ -90,6 +96,7 @@ export interface ChallengeDefinition {
    * Required for truthful cross-region billing when geographic routes exist.
    */
   transferPayload?: TransferPayloadAssumptions;
+  coachingPolicy?: ChallengeCoachingPolicy;
   /** Deferred targets (e.g. availability) preserved without dishonest scoring. */
   unscoredTargets?: readonly UnscoredChallengeTarget[];
   requirements: readonly RequirementDefinition[];

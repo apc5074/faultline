@@ -5,8 +5,23 @@ export type CapabilityInputValidationResult<TInput> =
   | { success: true; data: TInput }
   | { success: false; errors: readonly string[] };
 
+/** Small adapter-neutral JSON Schema subset used to describe capability inputs. */
+export interface CapabilityJsonSchema {
+  readonly type: "object";
+  readonly properties?: Readonly<Record<string, CapabilityJsonSchemaProperty>>;
+  readonly required?: readonly string[];
+  readonly additionalProperties?: boolean;
+}
+
+export interface CapabilityJsonSchemaProperty {
+  readonly type: "string";
+  readonly minLength?: number;
+}
+
 /** A schema boundary shared by future AI SDK and WebMCP adapters. */
 export interface CapabilityInputSchema<TInput> {
+  /** JSON Schema supplied directly to adapters; never reconstructed per adapter. */
+  jsonSchema: CapabilityJsonSchema;
   safeParse(input: unknown): CapabilityInputValidationResult<TInput>;
 }
 

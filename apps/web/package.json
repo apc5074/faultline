@@ -14,10 +14,17 @@
     "verify:my-rank": "node --experimental-strip-types scripts/verify-my-rank.mjs",
     "verify:phase-4": "node --experimental-strip-types scripts/verify-phase-4.mjs",
     "verify:phase-4-live": "pnpm run build:deps && node --experimental-strip-types scripts/verify-phase-4-live.mjs",
+    "verify:ai-capabilities": "pnpm --filter @faultline/agent-capabilities build && node --experimental-strip-types scripts/verify-ai-capabilities.mjs",
+    "verify:ai-model": "node --experimental-strip-types scripts/verify-ai-model.mjs",
+    "verify:ai-limits": "node --experimental-strip-types scripts/verify-ai-limits.mjs",
+    "verify:ai-usage": "node --experimental-strip-types scripts/verify-ai-usage.mjs",
+    "verify:coaching-policy": "pnpm run build:deps && node --experimental-strip-types scripts/verify-coaching-policy.mjs",
+    "verify:agent-request": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-request.mjs",
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
   "dependencies": {
+    "@faultline/agent-capabilities": "workspace:*",
     "@faultline/challenges": "workspace:*",
     "@faultline/component-catalog": "workspace:*",
     "@faultline/core": "workspace:*",
@@ -26,6 +33,7 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.112.4",
     "@xyflow/react": "^12.11.5",
+    "ai": "^7.0.82",
     "next": "16.1.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"

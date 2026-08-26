@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
@@ -40,6 +40,7 @@ import {
 } from "@faultline/simulator";
 
 import { WorldMap, type WorldMapSelection } from "@/features/world-map/WorldMap";
+import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { logicalCapacitySummary } from "@/features/architecture-canvas/view-mode";
 
 type CapacityVisualState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
@@ -50,6 +51,7 @@ type ArchitectureNodeData = {
   serviceMetrics?: ServiceCapacityMetrics;
   postgresMetrics?: PostgresCapacityMetrics;
   resultIsStale: boolean;
+  attention: boolean;
 };
 
 type ArchitectureNode = Node<ArchitectureNodeData, "architecture">;
@@ -119,6 +121,7 @@ function componentToNode(
   selectedComponentId: string | null,
   simulation: SuccessfulSimulation | null,
   resultIsStale: boolean,
+  attentionComponentId: string | null,
 ): ArchitectureNode {
   const definition = componentRegistry.get(component.type);
   return {
@@ -131,6 +134,7 @@ function componentToNode(
       serviceMetrics: simulation?.services[component.id],
       postgresMetrics: simulation?.postgres[component.id],
       resultIsStale,
+      attention: component.id === attentionComponentId,
     },
     selected: component.id === selectedComponentId,
   };
@@ -165,7 +169,7 @@ function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
   const capacitySummary = logicalCapacitySummary(data.component);
 
   return (
-    <article className={`architecture-node${stateClass}${staleClass}${selected ? " architecture-node--selected" : ""}`}>
+    <article className={`architecture-node${stateClass}${staleClass}${selected ? " architecture-node--selected" : ""}${data.attention ? " architecture-node--attention" : ""}`}>
       {data.definition.ports.map((port) => (
         <Handle
           key={port.id}
@@ -1091,6 +1095,7 @@ function ArchitectureWorkspace() {
   const { session: officialSession, bumpRankRefresh } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(initialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [attentionComponentId, setAttentionComponentId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
   const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
   const [runState, setRunState] = useState<SimulationRunState>("idle");
@@ -1100,7 +1105,7 @@ function ArchitectureWorkspace() {
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const [officialSubmitting, setOfficialSubmitting] = useState(false);
   const [officialSummary, setOfficialSummary] = useState<string | null>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
     [],
@@ -1120,9 +1125,9 @@ function ArchitectureWorkspace() {
   const nodes = useMemo(
     () =>
       architecture.components.map((component) =>
-        componentToNode(component, selectedComponentId, showSimulationVisuals ? simulationResult : null, resultIsStale),
+        componentToNode(component, selectedComponentId, showSimulationVisuals ? simulationResult : null, resultIsStale, attentionComponentId),
       ),
-    [architecture.components, selectedComponentId, showSimulationVisuals, simulationResult, resultIsStale],
+    [architecture.components, selectedComponentId, showSimulationVisuals, simulationResult, resultIsStale, attentionComponentId],
   );
   const edges = useMemo(
     () =>
@@ -1132,6 +1137,11 @@ function ArchitectureWorkspace() {
     [architecture.connections, activeConnectionIds, showSimulationVisuals, resultIsStale],
   );
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
+  useEffect(() => {
+    if (attentionComponentId && !architecture.components.some((component) => component.id === attentionComponentId)) {
+      setAttentionComponentId(null);
+    }
+  }, [architecture.components, attentionComponentId]);
 
   const onNodesChange = useCallback((changes: NodeChange<ArchitectureNode>[]) => {
     setArchitecture((current) => {
@@ -1490,6 +1500,8 @@ function ArchitectureWorkspace() {
       )}
       </div>
       <div className="architecture-sidebar">
+        <p className="sr-only" aria-live="polite">{attentionComponentId ? `AI Engineer is inspecting ${attentionComponentId}.` : ""}</p>
+        <AiEngineerPanel architecture={architecture} onAttention={setAttentionComponentId} onShowOnCanvas={(componentId) => { if (viewMode === "logical") fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 }); }} />
         <StartOfficialAttempt />
         <PlayerRankHud />
         <LeaderboardHud />

@@ -48,6 +48,10 @@ export const urlShortenerChallenge: ChallengeDefinition = {
     databaseWriteBytes: 512,
     replicationBytesPerWrite: 512,
   },
+  coachingPolicy: {
+    focusThemes: ["hot-key resilience", "read scaling", "global latency"],
+    prohibitedRevealCategories: ["canonical topology", "specific component requirements", "solution-only thresholds"],
+  },
   unscoredTargets: [
     {
       id: "availability",

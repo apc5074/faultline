@@ -234,6 +234,19 @@ h1 {
   border-color: #4a5560;
 }
 
+.ai-engineer { padding: 1rem; border: 1px solid #2d333b; border-radius: .5rem; background: #0d1015; }
+.ai-engineer h2 { margin: 0; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+.ai-engineer__intro,.ai-engineer__notice { margin: .5rem 0; color: #9aa5b1; font-size: .74rem; line-height: 1.4; }
+.ai-engineer__notice { color: #ffb36b; }
+.ai-engineer__activity { margin: .45rem 0; color: #7dcea0; font-size: .72rem; }
+.ai-engineer__reference { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin: .45rem 0; color: #9aa5b1; font-size: .68rem; }.ai-engineer__reference button { width: auto; margin: 0; padding: .25rem .4rem; background: #111820; }
+.ai-engineer__messages { display: grid; gap: .4rem; max-height: 15rem; overflow: auto; }
+.ai-engineer__message { margin: 0; padding: .5rem; border-radius: .35rem; font-size: .75rem; line-height: 1.4; white-space: pre-wrap; }
+.ai-engineer__message--user { background: #1a222c; }.ai-engineer__message--assistant { background: #111820; color: #d9e2ec; }
+.ai-engineer__suggestions { display: grid; gap: .3rem; margin: .6rem 0; }.ai-engineer__suggestions button { width: 100%; margin: 0; border: 1px solid #2d333b; border-radius: .3rem; background: #111820; color: #b9c7d5; padding: .38rem; text-align: left; font-size: .7rem; }
+.ai-engineer textarea { box-sizing: border-box; width: 100%; margin-top: .6rem; resize: vertical; border: 1px solid #2d333b; border-radius: .35rem; background: #0a0d11; color: #f2f3f5; padding: .45rem; font: inherit; font-size: .75rem; }
+.ai-engineer button { width: 100%; margin-top: .4rem; border: 1px solid #48657c; border-radius: .35rem; background: #183044; color: #e9f4ff; padding: .45rem; font-size: .72rem; font-weight: 700; cursor: pointer; }.ai-engineer button:disabled { opacity: .55; cursor: not-allowed; }
+
 .leaderboard-hud__meta {
   margin: 0.45rem 0 0;
   color: #9aa5b1;
@@ -1006,6 +1019,16 @@ h1 {
   border-color: #ff5b4d;
   box-shadow: 0 0 0 2px rgb(255 91 77 / 24%);
 }
+
+.architecture-node--attention {
+  outline: 3px solid #77bdf2;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .architecture-node--attention { animation: architecture-attention-pulse 1.4s ease-in-out infinite; }
+}
+@keyframes architecture-attention-pulse { 50% { outline-offset: 6px; } }
 
 .architecture-node--healthy {
   border-color: #3f8f6b;
