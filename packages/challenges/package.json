@@ -2,5 +2,23 @@
   "name": "@faultline/challenges",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-tiny-api.mjs"
+  },
+  "dependencies": {
+    "@faultline/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
 }

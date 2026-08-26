@@ -2,5 +2,25 @@
   "name": "@faultline/simulator",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "verify": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm run build && node scripts/verify-validation.mjs"
+  },
+  "dependencies": {
+    "@faultline/challenges": "workspace:*",
+    "@faultline/component-catalog": "workspace:*",
+    "@faultline/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
 }

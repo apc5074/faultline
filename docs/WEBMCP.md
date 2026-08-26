@@ -18,4 +18,4 @@ Its `AbortController` signal is aborted on unmount. Invocation changes only the 
 
 Chrome origin-trial enrollment is configured with the browser-safe `NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN`. When present, the application emits it as `<meta http-equiv="origin-trial">`; configure it for the exact deployed origin in Vercel before testing. It is public by design and must be entered as Vercel Config, not Secret.
 
-**Not yet verified:** this environment has no compatible browser agent available to observe deployed discovery, invocation, structured output, or unmount behavior. Before adopting a Phase 6 adapter, manually verify those behaviors in a WebMCP-enabled browser and record its version, agent/client, and origin-trial/feature configuration here.
+**Verification — 2026-08-25:** the project owner verified the deployed spike in Chrome 150 after enabling Chrome's WebMCP testing feature. `document.modelContext` became available and the temporary tool worked. Before adopting a Phase 6 adapter, record the eventual client discovery, structured output, and lifecycle behavior against the final adapter.

@@ -38,3 +38,13 @@ Supabase will provide Postgres and Vercel AI Gateway will provide model access t
 Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Preview/Production settings. For the Phase 0 connectivity test, use `openai/gpt-5-nano`: it is the current low-cost model ID available through AI Gateway. No chat UI, agent loop, or capability implementation is included.
 
 **Verification — 2026-08-25:** an operator confirmed the local probe succeeds with the authorized Gateway configuration. The script's operator-only execution is the access control for this billable request.
+
+## Phase 0 completion
+
+**Phase 0 status — 2026-08-25:** verified by the project owner.
+
+- Production: Vercel deployment from `main`, operator verified (revision `0ef08d7`).
+- Preview: verified.
+- Supabase: verified.
+- AI Gateway: verified.
+- WebMCP spike: verified in Chrome 150 with WebMCP testing enabled.

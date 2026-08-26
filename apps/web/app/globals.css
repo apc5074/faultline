@@ -14,12 +14,8 @@ body {
 }
 
 main {
-  display: grid;
-  align-content: center;
   min-height: 100svh;
-  max-width: 48rem;
-  padding: 2rem;
-  margin: 0 auto;
+  padding: 1.25rem;
 }
 
 .wordmark {
@@ -31,11 +27,10 @@ main {
 }
 
 h1 {
-  max-width: 18ch;
   margin: 0;
-  font-size: clamp(2.5rem, 9vw, 5rem);
-  line-height: 0.98;
-  letter-spacing: -0.06em;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
 .status {
@@ -45,7 +40,136 @@ h1 {
 }
 
 .webmcp-status {
-  margin: 0.75rem 0 0;
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1rem;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #2d333b;
+  border-radius: 0.25rem;
+  background: #11151b;
   color: #adb5bd;
   font-size: 0.8rem;
+}
+
+.architecture-canvas {
+  display: grid;
+  grid-template-rows: auto minmax(32rem, calc(100svh - 2.5rem));
+  overflow: hidden;
+  border: 1px solid #2d333b;
+  border-radius: 0.5rem;
+  background: #0d1015;
+}
+
+.architecture-workspace {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  min-height: calc(100svh - 2.5rem);
+  gap: 1rem;
+}
+
+.component-palette {
+  align-self: stretch;
+  padding: 1rem;
+  border: 1px solid #2d333b;
+  border-radius: 0.5rem;
+  background: #0d1015;
+}
+
+.component-palette__title,
+.component-palette__hint {
+  margin: 0;
+}
+
+.component-palette__title {
+  font-weight: 700;
+}
+
+.component-palette__hint {
+  margin-top: 0.3rem;
+  color: #9aa5b1;
+  font-size: 0.75rem;
+}
+
+.component-palette__item {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #44505f;
+  border-radius: 0.35rem;
+  background: #151a22;
+  cursor: grab;
+}
+
+.component-palette__item:active { cursor: grabbing; }
+
+.component-palette__item span {
+  color: #9aa5b1;
+  font-size: 0.75rem;
+}
+
+.architecture-canvas__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #2d333b;
+}
+
+.architecture-canvas__header > p {
+  max-width: 40ch;
+  margin: 0;
+  color: #adb5bd;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.architecture-node {
+  position: relative;
+  min-width: 10rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #44505f;
+  border-radius: 0.35rem;
+  background: #151a22;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 20%);
+}
+
+.architecture-node--selected {
+  border-color: #ff5b4d;
+  box-shadow: 0 0 0 2px rgb(255 91 77 / 24%);
+}
+
+.architecture-node__eyebrow,
+.architecture-node span {
+  display: block;
+  margin: 0;
+  color: #9aa5b1;
+  font-size: 0.7rem;
+}
+
+.architecture-node strong {
+  display: block;
+  margin: 0.15rem 0;
+  font-size: 0.95rem;
+}
+
+.architecture-node__handle {
+  width: 0.55rem;
+  height: 0.55rem;
+  border: 2px solid #151a22;
+  background: #7bc4ff;
+}
+
+@media (width <= 640px) {
+  main { padding: 0.75rem; }
+  .architecture-workspace { grid-template-columns: 1fr; }
+  .component-palette { display: flex; align-items: center; gap: 0.5rem; overflow-x: auto; }
+  .component-palette__hint { display: none; }
+  .component-palette__item { min-width: 9rem; margin-top: 0; }
+  .architecture-canvas { grid-template-rows: auto minmax(28rem, calc(100svh - 1.5rem)); }
+  .architecture-canvas__header { align-items: start; flex-direction: column; gap: 0.75rem; }
+  .architecture-canvas__header > p { text-align: left; }
+  .webmcp-status { right: 0.75rem; }
 }
