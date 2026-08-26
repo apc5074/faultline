@@ -76,61 +76,67 @@ export function PlayerRankHud() {
   }
 
   return (
-    <aside className="player-rank-hud" aria-label="Your competition rank">
-      <p className="player-rank-hud__title">Your rank</p>
+    <aside className="hud-plate hud-plate--rank" aria-label="Your competition rank">
+      <div className="hud-plate__toolbar">
+        <p className="hud-plate__title">Your rank</p>
+        {state.status === "ranked" ? (
+          <button type="button" className="hud-plate__action" onClick={() => void refresh()}>
+            Refresh
+          </button>
+        ) : null}
+      </div>
 
       {state.status === "loading" ? (
-        <p className="player-rank-hud__empty">Loading rank…</p>
+        <p className="hud-plate__empty">Loading rank…</p>
       ) : null}
 
       {state.status === "guest" ? (
-        <p className="player-rank-hud__empty">Start an official attempt to earn a rank.</p>
+        <p className="hud-plate__empty">Start an official attempt to earn a rank.</p>
       ) : null}
 
       {state.status === "unranked" ? (
-        <p className="player-rank-hud__empty">
+        <p className="hud-plate__empty">
           {state.alias ? `${state.alias} — ` : ""}Unranked until a verified within-budget solve.
         </p>
       ) : null}
 
       {state.status === "unavailable" ? (
-        <p className="player-rank-hud__empty">{state.message}</p>
+        <p className="hud-plate__empty">{state.message}</p>
       ) : null}
 
       {state.status === "ranked" ? (
-        <div className="player-rank-hud__card">
-          <p className="player-rank-hud__verified">Verified</p>
-          <p className="player-rank-hud__alias">{state.alias}</p>
-          <dl className="player-rank-hud__metrics tabular">
-            <div>
-              <dt>Solve time</dt>
-              <dd>{formatSolveTime(state.fastestSolveMs)}</dd>
-            </div>
-            <div>
-              <dt>Cost at fastest</dt>
-              <dd>{formatLeaderboardCost(state.costAtFastest)}</dd>
-            </div>
-            <div>
-              <dt>Cheapest cost</dt>
-              <dd>{formatLeaderboardCost(state.cheapestCost)}</dd>
-            </div>
-            <div>
-              <dt>Time at cheapest</dt>
-              <dd>{formatSolveTime(state.solveTimeAtCheapestMs)}</dd>
-            </div>
-          </dl>
-          <div className="player-rank-hud__ranks tabular">
-            <p>
-              Fastest <strong>#{state.fastestRank}</strong>
-            </p>
-            <p>
-              Cheapest <strong>#{state.cheapestRank}</strong>
-            </p>
-          </div>
-          <button type="button" className="player-rank-hud__refresh" onClick={() => void refresh()}>
-            Refresh
-          </button>
-        </div>
+        <>
+          <p className="hud-plate__summary tabular">
+            <span className="hud-plate__mark" aria-hidden>
+              ✓
+            </span>{" "}
+            {state.alias}
+          </p>
+          <p className="hud-plate__meta tabular">
+            Fastest #{state.fastestRank} · Cheapest #{state.cheapestRank}
+          </p>
+          <details className="hud-plate__details">
+            <summary className="hud-plate__details-summary">Verified metrics</summary>
+            <dl className="hud-plate__spec tabular">
+              <div>
+                <dt>Solve time</dt>
+                <dd>{formatSolveTime(state.fastestSolveMs)}</dd>
+              </div>
+              <div>
+                <dt>Cost at fastest</dt>
+                <dd>{formatLeaderboardCost(state.costAtFastest)}</dd>
+              </div>
+              <div>
+                <dt>Cheapest cost</dt>
+                <dd>{formatLeaderboardCost(state.cheapestCost)}</dd>
+              </div>
+              <div>
+                <dt>Time at cheapest</dt>
+                <dd>{formatSolveTime(state.solveTimeAtCheapestMs)}</dd>
+              </div>
+            </dl>
+          </details>
+        </>
       ) : null}
     </aside>
   );

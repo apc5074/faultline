@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 
-import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import { BASELINE_READ_CAPABILITY_NAMES, createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
 
-import {
-  buildPhase6ReadSurface,
-  PHASE_6_READ_CAPABILITY_NAMES,
-} from "../dist/index.js";
+import { buildPhase6ReadSurface } from "../dist/index.js";
 
 function createLiveAgentContextFactory(source) {
   return () => createAgentContext(source.getArchitecture(), source.getChallenge());
@@ -168,7 +165,13 @@ async function buildSurface(getContext) {
 }
 
 const validSurface = await buildSurface(() => validContext);
-assert.equal(validSurface.tools.length, PHASE_6_READ_CAPABILITY_NAMES.length);
+assert.ok(validSurface.tools.length >= BASELINE_READ_CAPABILITY_NAMES.length);
+assert.deepEqual(
+  validSurface.resolvedNames.slice(0, BASELINE_READ_CAPABILITY_NAMES.length),
+  [...BASELINE_READ_CAPABILITY_NAMES],
+);
+assert.ok(validSurface.resolvedNames.includes("inspect_replication"));
+assert.ok(validSurface.resolvedNames.includes("inspect_regional_traffic"));
 
 for (const tool of validSurface.tools) {
   assertToolMetadataParity(tool);

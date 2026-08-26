@@ -20,6 +20,9 @@ function activityLabel(toolName: string, input: unknown): { label: string; compo
   if (toolName === "get_cost_breakdown") return { label: "Reviewing cost…" };
   if (toolName === "get_requirements") return { label: "Reviewing requirements…" };
   if (toolName === "inspect_component" && typeof input === "object" && input && typeof (input as { componentId?: unknown }).componentId === "string") { const componentId = (input as { componentId: string }).componentId; return { label: `Inspecting ${componentId}…`, componentId }; }
+  if (toolName === "inspect_cache") return { label: "Inspecting cache…" };
+  if (toolName === "inspect_replication") return { label: "Inspecting replication…" };
+  if (toolName === "inspect_regional_traffic") return { label: "Inspecting regional traffic…" };
   return null;
 }
 

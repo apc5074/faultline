@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 
 import {
+  BASELINE_READ_CAPABILITY_NAMES,
   createAgentCapabilityRegistry,
   createDefaultCapabilityRegistry,
   getChallengeCapability,
   noInputSchema,
+  resolveCapabilities,
 } from "@faultline/agent-capabilities";
 import {
   buildPhase6ReadSurface,
@@ -41,12 +43,17 @@ const registry = createDefaultCapabilityRegistry();
 
 const surface = await buildPhase6ReadSurface({ registry, getContext, development: true });
 
-assert.equal(surface.tools.length, PHASE_6_READ_CAPABILITY_NAMES.length);
+assert.equal(surface.tools.length, BASELINE_READ_CAPABILITY_NAMES.length);
+assert.deepEqual(surface.resolvedNames, [...BASELINE_READ_CAPABILITY_NAMES]);
 assert.deepEqual(
-  surface.tools.map((tool) => tool.name).sort(),
-  [...PHASE_6_READ_CAPABILITY_NAMES].sort(),
+  surface.tools.map((tool) => tool.name),
+  [...BASELINE_READ_CAPABILITY_NAMES],
 );
-assert.equal(surface.skipped.length, 0);
+assert.deepEqual(surface.skipped, [
+  { name: "inspect_cache", reason: "unavailable" },
+  { name: "inspect_replication", reason: "unavailable" },
+  { name: "inspect_regional_traffic", reason: "unavailable" },
+]);
 assert.equal(surface.tools.some((tool) => tool.name === "get_faultline_status"), false);
 
 for (const tool of surface.tools) {
@@ -54,6 +61,21 @@ for (const tool of surface.tools) {
   assert.equal(tool.annotations?.idempotentHint, true);
   assert.equal(tool.annotations?.destructiveHint, undefined);
 }
+
+const redisArchitecture = {
+  ...architecture,
+  components: [
+    ...architecture.components,
+    { id: "redis-1", type: "redis", config: { mode: "standalone" }, deployments: [], ui: { x: 1, y: 0 } },
+  ],
+};
+const redisContext = { ...context, architecture: redisArchitecture };
+const redisSurface = await buildPhase6ReadSurface({
+  registry,
+  getContext: () => redisContext,
+  development: true,
+});
+assert.deepEqual(redisSurface.resolvedNames, [...BASELINE_READ_CAPABILITY_NAMES, "inspect_cache"]);
 
 const experimentRegistry = createAgentCapabilityRegistry(
   registry.list().map((capability) =>
@@ -72,7 +94,7 @@ const missingRegistry = createAgentCapabilityRegistry(
 
 await assert.rejects(
   () => buildPhase6ReadSurface({ registry: missingRegistry, getContext, development: true }),
-  (error) => error instanceof Phase6SurfaceConfigurationError && /missing allowlisted capability "get_metrics"/.test(error.message),
+  (error) => error instanceof Phase6SurfaceConfigurationError && /get_metrics/.test(error.message),
 );
 
 const unsafeAnnotationsRegistry = createAgentCapabilityRegistry(
@@ -111,7 +133,18 @@ const productionMissing = await buildPhase6ReadSurface({
   getContext,
   development: false,
 });
-assert.equal(productionMissing.tools.length, PHASE_6_READ_CAPABILITY_NAMES.length - 1);
-assert.deepEqual(productionMissing.skipped, [{ name: "get_metrics", reason: "missing" }]);
+assert.equal(productionMissing.tools.length, BASELINE_READ_CAPABILITY_NAMES.length - 1);
+assert.deepEqual(productionMissing.skipped, [
+  { name: "get_metrics", reason: "missing" },
+  { name: "inspect_cache", reason: "unavailable" },
+  { name: "inspect_replication", reason: "unavailable" },
+  { name: "inspect_regional_traffic", reason: "unavailable" },
+]);
+
+assert.deepEqual(
+  surface.tools.map((tool) => tool.name),
+  resolveCapabilities(registry, context, { development: true }).names,
+);
+assert.deepEqual(PHASE_6_READ_CAPABILITY_NAMES, BASELINE_READ_CAPABILITY_NAMES);
 
 console.log("verify-phase6-read-surface: ok");

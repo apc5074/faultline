@@ -4,7 +4,7 @@ import type {
   AgentContext,
   CapabilityResult,
 } from "@faultline/agent-capabilities";
-import { capabilityCancelled, isCapabilityCancelled } from "@faultline/agent-capabilities";
+import { capabilityCancelled, capabilityError, isCapabilityCancelled } from "@faultline/agent-capabilities";
 
 import { toWebMcpAnnotations } from "./annotations.js";
 import { sanitizeWebMcpCapabilityResult, unexpectedWebMcpCapabilityFailure } from "./error-safety.js";
@@ -43,6 +43,13 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
         const context = await getContext();
         if (isCapabilityCancelled(executionContext.signal)) {
           return sanitizeWebMcpCapabilityResult(capabilityCancelled(), capability.name);
+        }
+
+        if (!capability.availableWhen(context)) {
+          return sanitizeWebMcpCapabilityResult(
+            capabilityError("NOT_FOUND", `Capability "${capability.name}" is not available for the current architecture.`),
+            capability.name,
+          );
         }
 
         const result = await registry.invoke(capability.name, context, input, {

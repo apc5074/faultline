@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm --filter @faultline/simulator build && pnpm --filter @faultline/agent-capabilities build && pnpm run build && node scripts/verify-to-webmcp-tool.mjs && node scripts/verify-phase6-read-surface.mjs && node scripts/verify-error-safety.mjs && node scripts/verify-cancellation-lifecycle.mjs && node scripts/verify-adapter-parity.mjs"
+    "verify": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm --filter @faultline/simulator build && pnpm --filter @faultline/agent-capabilities build && pnpm run build && node scripts/verify-to-webmcp-tool.mjs && node scripts/verify-phase6-read-surface.mjs && node scripts/verify-dynamic-surface-reconciliation.mjs && node scripts/verify-error-safety.mjs && node scripts/verify-cancellation-lifecycle.mjs && node scripts/verify-adapter-parity.mjs && node ../../apps/web/scripts/verify-dynamic-surface-parity.mjs"
   },
   "dependencies": {
     "@faultline/agent-capabilities": "workspace:*"

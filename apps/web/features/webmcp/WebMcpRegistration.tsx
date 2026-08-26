@@ -7,10 +7,10 @@ import { useEffect, useMemo } from "react";
 import { useAgentContextFactory } from "@/features/agent-context/AgentContextFactoryContext";
 
 /**
- * Registers the Phase 6 read-only WebMCP surface when the browser supports it.
+ * Registers the resolver-selected read-only WebMCP surface when the browser supports it.
  * Renders nothing; registration failures are contained and never affect gameplay.
  */
-export function WebMcpRegistration({ challengeKey }: { challengeKey: string }) {
+export function WebMcpRegistration({ reconciliationKey }: { reconciliationKey: string }) {
   const getContext = useAgentContextFactory();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
 
@@ -35,7 +35,7 @@ export function WebMcpRegistration({ challengeKey }: { challengeKey: string }) {
     return () => {
       controller.abort();
     };
-  }, [challengeKey, getContext, registry]);
+  }, [reconciliationKey, getContext, registry]);
 
   return null;
 }

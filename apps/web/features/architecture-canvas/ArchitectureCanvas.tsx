@@ -17,6 +17,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 
+import { architectureAvailabilityFingerprint } from "@faultline/agent-capabilities";
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
 import { LeaderboardHud } from "@/features/leaderboards/LeaderboardHud";
@@ -72,7 +73,9 @@ import {
 } from "@/features/architecture-canvas/region-enclosures";
 import { notifyPacketReroute } from "@/features/architecture-canvas/playground-packet-reroute";
 import { DataPlateInspector } from "@/features/architecture-canvas/DataPlateInspector";
+import { SimBar } from "@/features/architecture-canvas/SimBar";
 import { PlaygroundNode, type PlaygroundNodeData } from "@/features/architecture-canvas/PlaygroundNode";
+import { usePlaybackController, PlaybackPacketLayer } from "@/features/traffic-playback";
 import { glyphDimensionsForProps, glyphPropsFromComponent, MINI_GLYPH_SIZE, type GlyphSimulationResult } from "@/features/playground-glyphs";
 
 type PlaygroundFlowNode = Node<PlaygroundNodeData, "playground">;
@@ -158,6 +161,7 @@ function componentToNode(
   simulation: SuccessfulSimulation | null,
   resultIsStale: boolean,
   attentionComponentId: string | null,
+  playbackVisual: { processingCount: number; armAngle?: number; passCount?: number; state?: string } | undefined,
   interaction: {
     connectingFrom: ConnectingFrom | null;
     settlingNodeIds: ReadonlySet<string>;
@@ -217,6 +221,7 @@ function componentToNode(
       definition,
       simulation: simulationSnapshot(simulation),
       resultIsStale,
+      playbackVisual,
       attention: component.id === attentionComponentId,
       connectedPortIds: connectedPortIdsForComponent(component.id, connections),
       interactionPhase,
@@ -290,44 +295,43 @@ function BudgetHud({
   const overBudget = cost.monthlyTotal > budget;
 
   return (
-    <aside className={`budget-hud${overBudget ? " budget-hud--over" : ""}`} aria-label="Infrastructure budget">
-      <p className="budget-hud__title">Budget</p>
-      <p className="budget-hud__totals tabular">
+    <aside className="hud-plate hud-plate--budget" aria-label="Infrastructure budget">
+      <p className="hud-plate__title">Budget</p>
+      <p className={`hud-plate__totals tabular${overBudget ? " hud-plate__totals--over" : ""}`}>
         <strong>{formatCompactCost(cost.monthlyTotal)}</strong>
         <span>/ {formatCompactCost(budget)}</span>
       </p>
       {overBudget ? (
-        <p className="budget-hud__status" role="status">
+        <p className="hud-plate__meta" role="status">
           Over budget
         </p>
-      ) : (
-        <p className="budget-hud__status budget-hud__status--ok" role="status">
-          Within budget
-        </p>
-      )}
+      ) : null}
       {cost.lineItems.length > 0 ? (
-        <dl className="budget-hud__breakdown tabular">
-          {cost.lineItems.map((lineItem) => {
-            const component = architecture.components.find((candidate) => candidate.id === lineItem.componentId);
-            const label =
-              lineItem.label ??
-              (component && componentRegistry.has(component.type)
-                ? componentRegistry.get(component.type).label
-                : lineItem.componentId);
-            return (
-              <div key={lineItem.componentId}>
-                <dt>{label}</dt>
-                <dd>{formatCost(lineItem.amount)}</dd>
-              </div>
-            );
-          })}
-          <div className="budget-hud__total-row">
-            <dt>Total</dt>
-            <dd>{formatCost(cost.monthlyTotal)}</dd>
-          </div>
-        </dl>
+        <details className="hud-plate__details">
+          <summary className="hud-plate__details-summary">Breakdown</summary>
+          <dl className="hud-plate__spec tabular">
+            {cost.lineItems.map((lineItem) => {
+              const component = architecture.components.find((candidate) => candidate.id === lineItem.componentId);
+              const label =
+                lineItem.label ??
+                (component && componentRegistry.has(component.type)
+                  ? componentRegistry.get(component.type).label
+                  : lineItem.componentId);
+              return (
+                <div key={lineItem.componentId}>
+                  <dt>{label}</dt>
+                  <dd>{formatCost(lineItem.amount)}</dd>
+                </div>
+              );
+            })}
+            <div className="hud-plate__spec-total">
+              <dt>Total</dt>
+              <dd className={overBudget ? "hud-plate__spec-total--over" : undefined}>{formatCost(cost.monthlyTotal)}</dd>
+            </div>
+          </dl>
+        </details>
       ) : (
-        <p className="budget-hud__empty">Add components to estimate monthly cost.</p>
+        <p className="hud-plate__empty">Add components to estimate monthly cost.</p>
       )}
     </aside>
   );
@@ -379,31 +383,35 @@ function RequirementsHud({
 
   return (
     <aside
-      className={`requirements-hud${resultIsStale && showResults ? " requirements-hud--stale" : ""}`}
+      className={`hud-plate hud-plate--requirements${resultIsStale && showResults ? " hud-plate--stale" : ""}`}
       aria-label="Challenge requirements"
     >
-      <p className="requirements-hud__title">Requirements</p>
-      <p className="requirements-hud__challenge">{activeChallenge.title}</p>
-      <p className="requirements-hud__workload">
-        {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
-        {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec · {challengeReadWriteRatioLabel} ·{" "}
-        {challengeHotKeyLabel}
+      <p className="hud-plate__title">Requirements</p>
+      <p className="hud-plate__meta">{activeChallenge.title}</p>
+
+      <details className="hud-plate__details">
+        <summary className="hud-plate__details-summary">Challenge workload</summary>
+        <p className="hud-plate__meta hud-plate__meta--block tabular">
+          {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
+          {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec · {challengeReadWriteRatioLabel} ·{" "}
+          {challengeHotKeyLabel}
+        </p>
+      </details>
+
+      <p className="hud-plate__summary tabular" role="status">
+        {showResults ? (
+          <>
+            <span className={overallPass ? "hud-plate__mark" : "hud-plate__mark hud-plate__mark--fail"} aria-hidden>
+              {overallPass ? "✓" : "✕"}
+            </span>{" "}
+            {overallPass ? "All requirements pass" : "Requirements not met"}
+          </>
+        ) : (
+          "Run the system to evaluate"
+        )}
       </p>
 
-      {showResults ? (
-        <p
-          className={`requirements-hud__overall requirements-hud__overall--${overallPass ? "pass" : "fail"}`}
-          role="status"
-        >
-          {overallPass ? "System passes" : "Requirements not met"}
-        </p>
-      ) : (
-        <p className="requirements-hud__overall requirements-hud__overall--pending" role="status">
-          Run the system to evaluate
-        </p>
-      )}
-
-      <ul className="requirements-hud__list">
+      <ul className="hud-plate__list">
         {activeChallenge.requirements.map((requirement) => {
           const evaluated = showResults
             ? result.requirements.find((candidate) => candidate.id === requirement.id)
@@ -411,188 +419,75 @@ function RequirementsHud({
           const target = formatRequirementTarget(requirement);
 
           return (
-            <li
-              key={requirement.id}
-              className={`requirements-hud__item${
-                evaluated ? ` requirements-hud__item--${evaluated.passed ? "pass" : "fail"}` : ""
-              }`}
-            >
-              <div className="requirements-hud__item-header">
-                <strong>{requirement.label}</strong>
-                <span aria-hidden="true">
+            <li key={requirement.id} className="hud-plate__row">
+              <div className="hud-plate__row-header">
+                <span>{requirement.label}</span>
+                <span
+                  className={
+                    evaluated?.passed === false
+                      ? "hud-plate__mark hud-plate__mark--fail"
+                      : "hud-plate__mark"
+                  }
+                  aria-hidden
+                >
                   {evaluated ? (evaluated.passed ? "✓" : "✕") : "–"}
                 </span>
               </div>
-              {evaluated ? (
-                <>
-                  <p className="requirements-hud__values tabular">
-                    {formatRequirementActual(evaluated)} / {target}
-                  </p>
-                  <p className="requirements-hud__status">{evaluated.passed ? "Pass" : "Fail"}</p>
-                  {!evaluated.passed ? (
-                    <p className="requirements-hud__explanation">{evaluated.explanation}</p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="requirements-hud__values tabular">{target}</p>
-              )}
+              <p className="hud-plate__values tabular">
+                {evaluated ? `${formatRequirementActual(evaluated)} / ${target}` : target}
+              </p>
+              {evaluated && !evaluated.passed ? (
+                <p className="hud-plate__explanation">{evaluated.explanation}</p>
+              ) : null}
             </li>
           );
         })}
         {(activeChallenge.workload.hotKeyReadFraction ?? 0) > 0 ? (
-          <li
-            className={`requirements-hud__item${
-              showResults && result.hotKey.active
-                ? ` requirements-hud__item--${result.hotKey.passed ? "pass" : "fail"}`
-                : ""
-            }`}
-          >
-            <div className="requirements-hud__item-header">
-              <strong>Hot-key scenario</strong>
-              <span aria-hidden="true">
+          <li className="hud-plate__row">
+            <div className="hud-plate__row-header">
+              <span>Hot-key scenario</span>
+              <span
+                className={
+                  showResults && result.hotKey.active && !result.hotKey.passed
+                    ? "hud-plate__mark hud-plate__mark--fail"
+                    : "hud-plate__mark"
+                }
+                aria-hidden
+              >
                 {showResults && result.hotKey.active ? (result.hotKey.passed ? "✓" : "✕") : "–"}
               </span>
             </div>
             {showResults && result.hotKey.active ? (
               <>
-                <p className="requirements-hud__values tabular">
-                  {result.hotKey.viralRedirectRps.toLocaleString("en-US")} viral req/sec
-                  {" · "}
+                <p className="hud-plate__values tabular">
+                  {result.hotKey.viralRedirectRps.toLocaleString("en-US")} viral req/sec ·{" "}
                   {result.hotKey.viralReachingPostgresRps.toLocaleString("en-US")} to Postgres
                 </p>
-                <p className="requirements-hud__status">{result.hotKey.passed ? "Pass" : "Fail"}</p>
                 {!result.hotKey.passed ? (
-                  <p className="requirements-hud__explanation">{result.hotKey.explanation}</p>
+                  <p className="hud-plate__explanation">{result.hotKey.explanation}</p>
                 ) : null}
               </>
             ) : (
-              <p className="requirements-hud__values tabular">
+              <p className="hud-plate__values tabular">
                 {Math.round(challengeHotKeyFraction * 100)}% of redirects on one viral URL
               </p>
             )}
           </li>
         ) : null}
         {activeChallenge.unscoredTargets?.map((target) => (
-          <li key={target.id} className="requirements-hud__item requirements-hud__item--deferred">
-            <div className="requirements-hud__item-header">
-              <strong>{target.label}</strong>
-              <span aria-hidden="true">…</span>
+          <li key={target.id} className="hud-plate__row hud-plate__row--deferred">
+            <div className="hud-plate__row-header">
+              <span>{target.label}</span>
+              <span className="hud-plate__mark" aria-hidden>
+                …
+              </span>
             </div>
-            <p className="requirements-hud__values tabular">
-              ≥{(target.target * 100).toFixed(2)}% · not scored yet
-            </p>
-            <p className="requirements-hud__explanation">{target.reason}</p>
+            <p className="hud-plate__values tabular">≥{(target.target * 100).toFixed(2)}% · not scored yet</p>
+            <p className="hud-plate__explanation">{target.reason}</p>
           </li>
         ))}
       </ul>
     </aside>
-  );
-}
-
-function SimulationRunPanel({
-  runState,
-  resultIsStale,
-  errors,
-  unexpectedError,
-  result,
-  onRun,
-  officialActive,
-  onSubmitOfficial,
-  officialSubmitting,
-  officialSummary,
-}: {
-  runState: SimulationRunState;
-  resultIsStale: boolean;
-  errors: readonly SimulationValidationError[];
-  unexpectedError: string | null;
-  result: SuccessfulSimulation | null;
-  onRun: () => void;
-  officialActive: boolean;
-  onSubmitOfficial: () => void;
-  officialSubmitting: boolean;
-  officialSummary: string | null;
-}) {
-  const statusLabel =
-    runState === "running"
-      ? "Running"
-      : runState === "complete"
-        ? resultIsStale
-          ? "Stale"
-          : "Complete"
-        : runState === "error"
-          ? resultIsStale
-            ? "Stale"
-            : "Error"
-          : "Idle";
-
-  return (
-    <div className="simulation-run" aria-label="Simulation controls">
-      <div className="simulation-run__controls">
-        <button type="button" className="simulation-run__button" onClick={onRun} disabled={runState === "running" || officialSubmitting}>
-          {runState === "running" ? "Running…" : "Run system"}
-        </button>
-        {officialActive ? (
-          <button
-            type="button"
-            className="simulation-run__button simulation-run__button--official"
-            onClick={onSubmitOfficial}
-            disabled={runState === "running" || officialSubmitting}
-          >
-            {officialSubmitting ? "Submitting…" : "Submit Official"}
-          </button>
-        ) : null}
-        <p className={`simulation-run__status simulation-run__status--${runState}${resultIsStale ? " simulation-run__status--stale" : ""}`}>
-          {statusLabel}
-        </p>
-      </div>
-
-      {officialSummary ? (
-        <p className="simulation-run__official" role="status">
-          {officialSummary}
-        </p>
-      ) : null}
-
-      {resultIsStale ? (
-        <p className="simulation-run__stale" role="status">
-          Architecture changed since the last run. Results below are stale — run again for current truth.
-        </p>
-      ) : null}
-
-      {unexpectedError ? (
-        <p className="simulation-run__error" role="alert">
-          {unexpectedError}
-        </p>
-      ) : null}
-
-      {errors.length > 0 ? (
-        <ul className="simulation-run__errors" aria-label="Simulation validation errors">
-          {errors.map((error, index) => (
-            <li key={`${error.code}-${error.componentId ?? error.connectionId ?? index}`}>{error.message}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      {result && runState === "complete" ? (
-        <dl className={`simulation-run__result tabular${resultIsStale ? " simulation-run__result--stale" : ""}`} aria-label="Latest simulation result">
-          <div>
-            <dt>Outcome</dt>
-            <dd>{result.allRequirementsPass ? "All requirements passed" : "Requirements failed"}</dd>
-          </div>
-          <div>
-            <dt>p95 latency</dt>
-            <dd>{result.p95LatencyMs.toFixed(1)} ms</dd>
-          </div>
-          <div>
-            <dt>Headroom</dt>
-            <dd>{Math.round(result.headroom * 1000) / 10}%</dd>
-          </div>
-          <div>
-            <dt>Monthly cost</dt>
-            <dd>{formatCost(result.cost.monthlyTotal)}</dd>
-          </div>
-        </dl>
-      ) : null}
-    </div>
   );
 }
 
@@ -616,6 +511,7 @@ function connectionToEdge(
     trafficActive: boolean;
     resultIsStale: boolean;
     load: number;
+    playbackLoad: number;
     offset: number;
     hops: InkEdgeData["hops"];
     pulse: boolean;
@@ -623,7 +519,10 @@ function connectionToEdge(
     semanticZoomOut: boolean;
   },
 ): Edge<InkEdgeData, "ink"> {
-  const active = context.trafficActive && context.activeConnectionIds.has(connection.id);
+  const playbackLoad = context.playbackLoad;
+  const load = Math.max(context.load, playbackLoad);
+  const active =
+    (context.trafficActive && context.activeConnectionIds.has(connection.id)) || playbackLoad > 0;
   return {
     id: connection.id,
     type: "ink",
@@ -632,7 +531,7 @@ function connectionToEdge(
     target: connection.targetComponentId,
     targetHandle: connection.targetPortId,
     data: {
-      load: context.load,
+      load,
       active,
       stale: context.trafficActive && context.resultIsStale,
       offset: context.offset,
@@ -699,12 +598,17 @@ function ArchitectureWorkspace() {
   const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [semanticZoomOut, setSemanticZoomOut] = useState(false);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
+  const playback = usePlaybackController();
   const { screenToFlowPosition, fitView } = useReactFlow();
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
     [],
   );
   const getAgentContext = useLiveAgentContextFactory(architecture, activeChallenge);
+  const webMcpReconciliationKey = useMemo(
+    () => `${activeChallenge.slug}:${architectureAvailabilityFingerprint(architecture)}`,
+    [activeChallenge.slug, architecture],
+  );
   const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
   const resultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
   const showSimulationVisuals = simulationResult !== null && runState === "complete";
@@ -737,6 +641,27 @@ function ArchitectureWorkspace() {
     [enclosureRegions],
   );
 
+  const playbackVisualsActive = playback.playbackRunning;
+  const playbackVisualByComponent = useMemo(() => {
+    const map = new Map<
+      string,
+      { processingCount: number; armAngle?: number; passCount?: number; state?: string }
+    >();
+    if (!playbackVisualsActive) return map;
+    for (const visual of playback.frame.componentVisuals) {
+      map.set(visual.componentId, visual);
+    }
+    return map;
+  }, [playback.frame.componentVisuals, playbackVisualsActive]);
+  const playbackEdgeLoads = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!playbackVisualsActive) return map;
+    for (const edgeLoad of playback.frame.edgeLoads) {
+      map.set(edgeLoad.connectionId, edgeLoad.weight);
+    }
+    return map;
+  }, [playback.frame.edgeLoads, playbackVisualsActive]);
+
   const nodes = useMemo(
     () =>
       architecture.components.map((component) =>
@@ -747,6 +672,7 @@ function ArchitectureWorkspace() {
           showSimulationVisuals ? simulationResult : null,
           resultIsStale,
           attentionComponentId,
+          playbackVisualByComponent.get(component.id),
           {
             connectingFrom,
             settlingNodeIds,
@@ -772,6 +698,7 @@ function ArchitectureWorkspace() {
       isValidConnection,
       enclosureRegions,
       semanticZoomOut,
+      playbackVisualByComponent,
     ],
   );
   const edges = useMemo(() => {
@@ -795,9 +722,10 @@ function ArchitectureWorkspace() {
     return architecture.connections.map((connection) =>
       connectionToEdge(connection, {
         activeConnectionIds,
-        trafficActive: showSimulationVisuals,
+        trafficActive: showSimulationVisuals || playbackVisualsActive,
         resultIsStale,
         load: normalizeConnectionLoad(loads.get(connection.id) ?? 0, maxLoad),
+        playbackLoad: playbackEdgeLoads.get(connection.id) ?? 0,
         offset: offsets.get(connection.id) ?? 0,
         hops: hopMap.get(connection.id) ?? [],
         pulse: pulsingEdgeIds.has(connection.id),
@@ -812,11 +740,13 @@ function ArchitectureWorkspace() {
     architecture.components,
     activeConnectionIds,
     showSimulationVisuals,
+    playbackVisualsActive,
     resultIsStale,
     simulationResult?.events,
     pulsingEdgeIds,
     deletingNodeIds,
     semanticZoomOut,
+    playbackEdgeLoads,
   ]);
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
   const showCanvasEmptyState =
@@ -1075,6 +1005,46 @@ function ArchitectureWorkspace() {
     }, 0);
   }, [architecture]);
 
+  const handleSimBarStep = useCallback(() => {
+    playback.step(architecture);
+  }, [architecture, playback]);
+
+  useEffect(() => {
+    playback.syncArchitecture(architecture);
+  }, [architecture, playback.syncArchitecture]);
+
+  const handleSimBarRun = useCallback(() => {
+    if (playback.playbackPaused) {
+      playback.resume();
+      return;
+    }
+    if (playback.phase === "idle") {
+      playback.start(architecture);
+    }
+    if (runState !== "running") {
+      onRunSimulation();
+    }
+  }, [architecture, onRunSimulation, playback, runState]);
+
+  const handleSimBarReset = useCallback(() => {
+    playback.reset();
+    setSimulationResult(null);
+    setSimulationErrors([]);
+    setUnexpectedError(null);
+    setOfficialSummary(null);
+    setRunState("idle");
+  }, [playback]);
+
+  const handleViewModeChange = useCallback(
+    (mode: "logical" | "world") => {
+      setViewMode(mode);
+      if (mode === "world") {
+        setWorldSelection(worldSelectionForComponent(architecture, selectedComponentId));
+      }
+    },
+    [architecture, selectedComponentId],
+  );
+
   const onSubmitOfficial = useCallback(() => {
     if (!officialSession) return;
     const runKey = architectureSimulationKey(architecture);
@@ -1129,6 +1099,9 @@ function ArchitectureWorkspace() {
         setSimulationErrors([]);
         setSimulationResult(outcome);
         setRunState("complete");
+        if (playback.phase === "idle") {
+          playback.start(architecture);
+        }
 
         const solve =
           body.officialSolveMs !== null
@@ -1151,52 +1124,20 @@ function ArchitectureWorkspace() {
         setOfficialSubmitting(false);
       }
     })();
-  }, [architecture, officialSession, bumpRankRefresh]);
+  }, [architecture, officialSession, bumpRankRefresh, playback]);
 
   return (
     <AgentContextFactoryProvider factory={getAgentContext}>
-      <WebMcpRegistration challengeKey={activeChallenge.slug} />
+      <WebMcpRegistration reconciliationKey={webMcpReconciliationKey} />
     <section className="playground-shell" aria-label="Architecture workspace">
       <header className="playground-topbar">
         <p className="playground-topbar__wordmark">Faultline</p>
-        <p className="playground-topbar__view-label">
-          {viewMode === "logical" ? "Logical architecture" : "World map"}
-        </p>
         <div className="playground-topbar__hints">
-          {runState === "running" ? (
-            <span className="playground-topbar__hint">● running</span>
-          ) : null}
-          {resultIsStale && runState === "complete" ? (
-            <span className="playground-topbar__hint">results stale</span>
-          ) : null}
           <span className="playground-topbar__hint">
             {viewMode === "logical"
               ? "delete key removes selected"
               : "edit deployments in inspector"}
           </span>
-        </div>
-        <div className="playground-topbar__actions">
-          <div className="view-mode-toggle" role="group" aria-label="Architecture view">
-            <button
-              type="button"
-              className={viewMode === "logical" ? "view-mode-toggle__button view-mode-toggle__button--active" : "view-mode-toggle__button"}
-              aria-pressed={viewMode === "logical"}
-              onClick={() => setViewMode("logical")}
-            >
-              Logical
-            </button>
-            <button
-              type="button"
-              className={viewMode === "world" ? "view-mode-toggle__button view-mode-toggle__button--active" : "view-mode-toggle__button"}
-              aria-pressed={viewMode === "world"}
-              onClick={() => {
-                setViewMode("world");
-                setWorldSelection(worldSelectionForComponent(architecture, selectedComponentId));
-              }}
-            >
-              World
-            </button>
-          </div>
         </div>
       </header>
 
@@ -1253,6 +1194,13 @@ function ArchitectureWorkspace() {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#b8ae9e" />
               <RegionEnclosuresLayer regionIds={enclosureRegions} semanticZoomOut={semanticZoomOut} />
+              {playbackVisualsActive ? (
+                <PlaybackPacketLayer
+                  architecture={architecture}
+                  packets={playback.frame.packets}
+                  semanticZoomOut={semanticZoomOut}
+                />
+              ) : null}
               <Controls showInteractive={false} className="playground-flow__controls" position="bottom-left" />
             </ReactFlow>
           ) : (
@@ -1325,17 +1273,26 @@ function ArchitectureWorkspace() {
         </aside>
       </div>
 
-      <SimulationRunPanel
+      <SimBar
+        playbackRunning={playback.playbackRunning}
+        playbackPaused={playback.playbackPaused}
+        playbackSpeed={playback.speed}
         runState={runState}
         resultIsStale={resultIsStale}
         errors={simulationErrors}
         unexpectedError={unexpectedError}
         result={simulationResult}
-        onRun={onRunSimulation}
+        viewMode={viewMode}
         officialActive={officialSession !== null}
-        onSubmitOfficial={onSubmitOfficial}
         officialSubmitting={officialSubmitting}
         officialSummary={officialSummary}
+        onRun={handleSimBarRun}
+        onPause={playback.pause}
+        onStep={handleSimBarStep}
+        onReset={handleSimBarReset}
+        onSpeedChange={playback.setSpeed}
+        onViewModeChange={handleViewModeChange}
+        onSubmitOfficial={onSubmitOfficial}
       />
     </section>
     </AgentContextFactoryProvider>

@@ -1,9 +1,19 @@
-import type { AgentCapabilityMode, AgentCapabilityRegistry, CapabilityJsonSchema } from "@faultline/agent-capabilities";
+import type {
+  AgentCapabilityMode,
+  AgentCapabilityRegistry,
+  CapabilityJsonSchema,
+} from "@faultline/agent-capabilities";
+import {
+  isPhase7DynamicCapabilityName,
+  phase7DynamicCapabilityPredicate,
+  RESOLVED_CAPABILITY_NAME_ORDER,
+  type ResolvedCapabilityName,
+} from "@faultline/agent-capabilities";
+import type { Architecture } from "@faultline/core";
 
 import { getWebMcpModelContext } from "./model-context.js";
 import {
   buildPhase6ReadSurface,
-  PHASE_6_READ_CAPABILITY_NAMES,
   type Phase6ReadSurfaceSkipReason,
 } from "./phase6-read-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
@@ -12,7 +22,7 @@ import type { WebMcpTool, WebMcpToolAnnotations } from "./types.js";
 export type WebMcpRegistrationState = "unsupported" | "registered" | "rejected";
 
 export interface Phase6InspectorEntry {
-  readonly name: string;
+  readonly name: ResolvedCapabilityName;
   readonly description: string;
   readonly mode: AgentCapabilityMode;
   readonly available: boolean;
@@ -20,18 +30,27 @@ export interface Phase6InspectorEntry {
   readonly annotations?: WebMcpToolAnnotations;
   readonly registrationState: WebMcpRegistrationState | "skipped";
   readonly skipReason?: Phase6ReadSurfaceSkipReason;
+  readonly structuralPredicate?: string;
 }
 
 export interface Phase6InspectorSnapshot {
   readonly browserSupported: boolean;
   readonly entries: readonly Phase6InspectorEntry[];
   readonly tools: readonly WebMcpTool[];
+  readonly resolvedNames: readonly ResolvedCapabilityName[];
 }
 
 export interface BuildPhase6InspectorSnapshotOptions {
   readonly registry: AgentCapabilityRegistry;
   readonly getContext: WebMcpContextFactory;
   readonly development?: boolean;
+}
+
+function structuralPredicateLabel(name: ResolvedCapabilityName, architecture: Architecture): string | undefined {
+  if (!isPhase7DynamicCapabilityName(name)) return undefined;
+  return phase7DynamicCapabilityPredicate(name, architecture)
+    ? "architecture predicate satisfied"
+    : "architecture predicate not satisfied";
 }
 
 async function probeToolRegistration(
@@ -51,7 +70,7 @@ async function probeToolRegistration(
   }
 }
 
-/** Build a development inspector snapshot from the real Phase 6 surface builder. */
+/** Build a development inspector snapshot from the production resolver surface builder. */
 export async function buildPhase6InspectorSnapshot(
   options: BuildPhase6InspectorSnapshotOptions,
 ): Promise<Phase6InspectorSnapshot> {
@@ -63,8 +82,10 @@ export async function buildPhase6InspectorSnapshot(
   const skippedByName = new Map(surface.skipped.map((skip) => [skip.name, skip.reason]));
   const entries: Phase6InspectorEntry[] = [];
 
-  for (const name of PHASE_6_READ_CAPABILITY_NAMES) {
+  for (const name of RESOLVED_CAPABILITY_NAME_ORDER) {
     const skipReason = skippedByName.get(name);
+    const structuralPredicate = structuralPredicateLabel(name, context.architecture);
+
     if (skipReason) {
       const capability = registry.has(name) ? registry.get(name) : undefined;
       entries.push({
@@ -76,6 +97,7 @@ export async function buildPhase6InspectorSnapshot(
         annotations: capability ? toolsByName.get(name)?.annotations : undefined,
         registrationState: "skipped",
         skipReason,
+        ...(structuralPredicate ? { structuralPredicate } : {}),
       });
       continue;
     }
@@ -96,6 +118,7 @@ export async function buildPhase6InspectorSnapshot(
       inputSchema: tool.inputSchema,
       annotations: tool.annotations,
       registrationState,
+      ...(structuralPredicate ? { structuralPredicate } : {}),
     });
   }
 
@@ -103,10 +126,11 @@ export async function buildPhase6InspectorSnapshot(
     browserSupported,
     entries,
     tools: surface.tools,
+    resolvedNames: surface.resolvedNames,
   };
 }
 
-/** Invoke one adapted Phase 6 tool through the same WebMCP execute path used in production. */
+/** Invoke one adapted tool through the same WebMCP execute path used in production. */
 export async function invokePhase6InspectorTool(
   snapshot: Phase6InspectorSnapshot,
   toolName: string,
@@ -114,7 +138,7 @@ export async function invokePhase6InspectorTool(
 ): Promise<unknown> {
   const tool = snapshot.tools.find((candidate) => candidate.name === toolName);
   if (!tool) {
-    throw new Error(`Unknown Phase 6 tool "${toolName}".`);
+    throw new Error(`Unknown resolved tool "${toolName}".`);
   }
   return tool.execute(input, {});
 }

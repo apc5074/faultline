@@ -90,77 +90,71 @@ export function LeaderboardHud() {
   }, [mode, refresh]);
 
   return (
-    <aside className="leaderboard-hud" aria-label="Daily leaderboard">
-      <div className="leaderboard-hud__header">
-        <div className="leaderboard-hud__tabs" role="group" aria-label="Leaderboard mode">
-          <button
-            type="button"
-            className={
-              mode === "fastest"
-                ? "leaderboard-hud__tab leaderboard-hud__tab--active"
-                : "leaderboard-hud__tab"
-            }
-            aria-pressed={mode === "fastest"}
-            onClick={() => setMode("fastest")}
-          >
-            Fastest
-          </button>
-          <button
-            type="button"
-            className={
-              mode === "cheapest"
-                ? "leaderboard-hud__tab leaderboard-hud__tab--active"
-                : "leaderboard-hud__tab"
-            }
-            aria-pressed={mode === "cheapest"}
-            onClick={() => setMode("cheapest")}
-          >
-            Cheapest
-          </button>
-        </div>
-        <button type="button" className="leaderboard-hud__refresh" onClick={() => void refresh(mode)}>
+    <aside className="hud-plate hud-plate--leaderboard" aria-label="Daily leaderboard">
+      <div className="hud-plate__toolbar">
+        <p className="hud-plate__title">Leaderboard</p>
+        <button type="button" className="hud-plate__action" onClick={() => void refresh(mode)}>
           Refresh
         </button>
       </div>
 
+      <div className="hud-plate__segmented" role="group" aria-label="Leaderboard mode">
+        <button
+          type="button"
+          className={`hud-plate__segment${mode === "fastest" ? " hud-plate__segment--active" : ""}`}
+          aria-pressed={mode === "fastest"}
+          onClick={() => setMode("fastest")}
+        >
+          Fastest
+        </button>
+        <button
+          type="button"
+          className={`hud-plate__segment hud-plate__segment--joined${mode === "cheapest" ? " hud-plate__segment--active" : ""}`}
+          aria-pressed={mode === "cheapest"}
+          onClick={() => setMode("cheapest")}
+        >
+          Cheapest
+        </button>
+      </div>
+
       {state.status === "loading" ? (
-        <p className="leaderboard-hud__empty">Loading rankings…</p>
+        <p className="hud-plate__empty">Loading rankings…</p>
       ) : null}
 
       {state.status === "misconfigured" ? (
-        <p className="leaderboard-hud__empty">Competition storage is not configured.</p>
+        <p className="hud-plate__empty">Competition storage is not configured.</p>
       ) : null}
 
       {state.status === "unavailable" ? (
-        <p className="leaderboard-hud__empty">{state.message}</p>
+        <p className="hud-plate__empty">{state.message}</p>
       ) : null}
 
       {state.status === "empty" ? (
-        <p className="leaderboard-hud__empty">
+        <p className="hud-plate__empty">
           No verified solves yet for {state.challengeSlug} v{state.challengeVersion}.
         </p>
       ) : null}
 
       {state.status === "ready" ? (
         <>
-          <p className="leaderboard-hud__meta">
+          <p className="hud-plate__meta">
             {state.challengeSlug} v{state.challengeVersion}
             {state.mode === "cheapest" ? " · by cost" : " · by time"}
           </p>
-          <ol className="leaderboard-hud__list tabular">
+          <ol className="hud-plate__rank-list tabular">
             {state.rows.map((entry) => (
               <li key={`${state.mode}-${entry.rank}-${entry.alias}`}>
-                <span className="leaderboard-hud__rank">#{entry.rank}</span>
-                <span className="leaderboard-hud__alias">{entry.alias}</span>
+                <span className="hud-plate__rank">#{entry.rank}</span>
+                <span className="hud-plate__alias">{entry.alias}</span>
                 {state.mode === "fastest" ? (
                   <>
-                    <span className="leaderboard-hud__time">{formatSolveTime(entry.solveMs)}</span>
-                    <span className="leaderboard-hud__cost">{formatLeaderboardCost(entry.cost)}</span>
+                    <span className="hud-plate__metric">{formatSolveTime(entry.solveMs)}</span>
+                    <span className="hud-plate__metric">{formatLeaderboardCost(entry.cost)}</span>
                   </>
                 ) : (
                   <>
-                    <span className="leaderboard-hud__cost">{formatLeaderboardCost(entry.cost)}</span>
-                    <span className="leaderboard-hud__time">{formatSolveTime(entry.solveMs)}</span>
+                    <span className="hud-plate__metric">{formatLeaderboardCost(entry.cost)}</span>
+                    <span className="hud-plate__metric">{formatSolveTime(entry.solveMs)}</span>
                   </>
                 )}
               </li>

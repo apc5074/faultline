@@ -25,6 +25,12 @@ export type PlaygroundNodeData = {
   definition: ComponentDefinition;
   simulation: GlyphSimulationResult | null;
   resultIsStale: boolean;
+  playbackVisual?: {
+    processingCount: number;
+    armAngle?: number;
+    passCount?: number;
+    state?: string;
+  };
   attention: boolean;
   connectedPortIds: ReadonlySet<string>;
   interactionPhase: NodeInteractionPhase;
@@ -42,13 +48,31 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
   const dimensions = data.semanticZoomOut
     ? { width: MINI_GLYPH_SIZE, height: MINI_GLYPH_SIZE }
     : fullDimensions;
-  const glyphOptions = { resultIsStale: data.resultIsStale, selected };
-  const glyphState = deriveGlyphState(data.component.id, data.simulation, glyphOptions);
+  const playback = data.playbackVisual;
+  const glyphOptions = {
+    resultIsStale: data.resultIsStale,
+    selected,
+    processing:
+      playback?.state === "processing" ||
+      playback?.state === "overloaded" ||
+      (playback?.processingCount ?? 0) > 0,
+  };
+  const glyphStateFromSim = deriveGlyphState(data.component.id, data.simulation, glyphOptions);
+  const glyphState =
+    playback?.state === "overloaded"
+      ? "overloaded"
+      : playback?.state === "processing" || (playback?.processingCount ?? 0) > 0
+        ? "processing"
+        : glyphStateFromSim;
   const mechanism = data.semanticZoomOut
     ? {}
-    : deriveGlyphMechanismValues(data.component.id, data.simulation, {
-        resultIsStale: data.resultIsStale,
-      });
+    : playback && playback.processingCount > 0
+      ? { processingCount: Math.min(4, playback.processingCount) }
+      : deriveGlyphMechanismValues(data.component.id, data.simulation, {
+          resultIsStale: data.resultIsStale,
+        });
+  const armAngle = playback?.armAngle;
+  const passCount = playback?.passCount;
   const ariaLabel = glyphStateAriaLabel(data.component.id, data.simulation, glyphOptions);
   const portFailed = glyphState === "failed";
 
@@ -78,6 +102,8 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
           <ComponentGlyph
             {...glyphCatalog}
             {...mechanism}
+            {...(armAngle !== undefined ? { armAngle } : {})}
+            {...(passCount !== undefined ? { passCount } : {})}
             state={glyphState}
             width={dimensions.width}
             height={dimensions.height}

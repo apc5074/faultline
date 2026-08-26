@@ -135,7 +135,7 @@ export function WebMcpInspector() {
         <p className="playground-topbar__wordmark">Faultline</p>
         <h1 className="webmcp-inspector__title">WebMCP inspector</h1>
         <p className="webmcp-inspector__intro">
-          Development diagnostics for the Phase 6 external-agent surface. Not linked from normal navigation.
+          Development diagnostics for the resolver-selected external-agent surface. Not linked from normal navigation.
         </p>
       </header>
 
@@ -162,8 +162,8 @@ export function WebMcpInspector() {
             Browser WebMCP: {snapshot.browserSupported ? "supported" : "unsupported"}
           </p>
 
-          <section className="webmcp-inspector__panel" aria-label="Phase 6 tools">
-            <h2>Phase 6 tools</h2>
+          <section className="webmcp-inspector__panel" aria-label="Resolved tools">
+            <h2>Resolved tools ({snapshot.resolvedNames.length})</h2>
             <div className="webmcp-inspector__tool-list">
               {snapshot.entries.map((entry) => (
                 <article
@@ -195,6 +195,12 @@ export function WebMcpInspector() {
                       <div>
                         <dt>skip reason</dt>
                         <dd>{entry.skipReason}</dd>
+                      </div>
+                    ) : null}
+                    {entry.structuralPredicate ? (
+                      <div>
+                        <dt>structural predicate</dt>
+                        <dd>{entry.structuralPredicate}</dd>
                       </div>
                     ) : null}
                   </dl>

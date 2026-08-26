@@ -15,6 +15,7 @@
     "verify:phase-4": "node --experimental-strip-types scripts/verify-phase-4.mjs",
     "verify:phase-4-live": "pnpm run build:deps && node --experimental-strip-types scripts/verify-phase-4-live.mjs",
     "verify:ai-capabilities": "pnpm --filter @faultline/agent-capabilities build && node --experimental-strip-types scripts/verify-ai-capabilities.mjs",
+    "verify:dynamic-surface-parity": "pnpm --filter @faultline/agent-capabilities build && pnpm --filter @faultline/webmcp build && node --experimental-strip-types scripts/verify-dynamic-surface-parity.mjs",
     "verify:ai-model": "node --experimental-strip-types scripts/verify-ai-model.mjs",
     "verify:ai-limits": "node --experimental-strip-types scripts/verify-ai-limits.mjs",
     "verify:ai-usage": "node --experimental-strip-types scripts/verify-ai-usage.mjs",

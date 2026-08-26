@@ -1,10 +1,12 @@
 import { dynamicTool, jsonSchema, type Tool } from "ai";
-import type {
-  AgentCapability,
-  AgentCapabilityRegistry,
-  AgentContext,
-  CapabilityInputSchema,
-  CapabilityResult,
+import {
+  resolveCapabilities,
+  type AgentCapability,
+  type AgentCapabilityRegistry,
+  type AgentContext,
+  type CapabilityInputSchema,
+  type CapabilityResult,
+  type ResolveCapabilitiesOptions,
 } from "@faultline/agent-capabilities";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
@@ -39,12 +41,14 @@ export function toAISDKTool(
   });
 }
 
-/** Adapt every currently available semantic capability into one AI SDK tool set. */
+/** Adapt the resolver-selected semantic surface into one AI SDK tool set. */
 export function toAISDKTools(
   registry: AgentCapabilityRegistry,
   context: AgentContext,
+  options: ResolveCapabilitiesOptions = {},
 ): FaultlineAISDKTools {
+  const resolved = resolveCapabilities(registry, context, options);
   return Object.fromEntries(
-    registry.available(context).map((capability) => [capability.name, toAISDKTool(capability, registry, context)]),
+    resolved.capabilities.map((capability) => [capability.name, toAISDKTool(capability, registry, context)]),
   );
 }

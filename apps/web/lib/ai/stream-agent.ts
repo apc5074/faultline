@@ -53,7 +53,9 @@ export function streamFaultlineAgent({
     model,
     messages: [...messages],
     ...(instructions ? { instructions } : {}),
-    tools: toAISDKTools(registry, context),
+    tools: toAISDKTools(registry, context, {
+      development: process.env.NODE_ENV === "development",
+    }),
     stopWhen: stepCountIs(maxSteps),
     maxOutputTokens,
     ...(onEnd ? { onEnd } : {}),

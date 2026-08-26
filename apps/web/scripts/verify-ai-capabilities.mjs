@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 
-import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import {
+  BASELINE_READ_CAPABILITY_NAMES,
+  createDefaultCapabilityRegistry,
+  resolveCapabilities,
+} from "@faultline/agent-capabilities";
 
 import { toAISDKTools } from "../lib/ai/capabilities.ts";
 
@@ -13,41 +17,66 @@ const challenge = {
   workload: { requestsPerSecond: 124_000, readRatio: 0.9, writeRatio: 0.1 },
   requirements: [],
   monthlyBudget: 85_000,
-  allowedComponentTypes: ["service"],
+  allowedComponentTypes: ["service", "redis", "postgres"],
 };
 
-const architecture = {
+const baselineArchitecture = {
   version: 1,
   components: [{ id: "service-1", type: "service", config: {}, deployments: [], ui: { x: 0, y: 0 } }],
   connections: [],
 };
 
+const redisArchitecture = {
+  ...baselineArchitecture,
+  components: [
+    ...baselineArchitecture.components,
+    { id: "redis-1", type: "redis", config: { mode: "standalone" }, deployments: [], ui: { x: 1, y: 0 } },
+  ],
+};
+
 const registry = createDefaultCapabilityRegistry();
-const context = {
+const baselineContext = {
   challenge,
-  architecture,
+  architecture: baselineArchitecture,
   cost: { monthlyTotal: 24_000, lineItems: [{ componentId: "service-1", amount: 24_000 }] },
 };
-const tools = toAISDKTools(registry, context);
 
+const baselineResolved = resolveCapabilities(registry, baselineContext);
+const baselineTools = toAISDKTools(registry, baselineContext);
 
-assert.deepEqual(Object.keys(tools).sort(), registry.available(context).map((capability) => capability.name).sort());
-assert.equal(tools.get_challenge?.description, registry.get("get_challenge").description);
-assert.deepEqual(tools.inspect_component?.inputSchema.jsonSchema, {
+assert.deepEqual(Object.keys(baselineTools), [...baselineResolved.names]);
+assert.deepEqual(baselineResolved.names, [...BASELINE_READ_CAPABILITY_NAMES]);
+assert.equal("inspect_cache" in baselineTools, false);
+
+assert.equal(baselineTools.get_challenge?.description, registry.get("get_challenge").description);
+assert.deepEqual(baselineTools.inspect_component?.inputSchema.jsonSchema, {
   type: "object",
   properties: { componentId: { type: "string", minLength: 1 } },
   required: ["componentId"],
   additionalProperties: false,
 });
 
-const getChallenge = tools.get_challenge?.execute;
+const getChallenge = baselineTools.get_challenge?.execute;
 assert.ok(getChallenge);
 const result = await getChallenge(undefined, { toolCallId: "tool-1", messages: [], context: {} });
-assert.deepEqual(result, await registry.invoke("get_challenge", context, undefined));
+assert.deepEqual(result, await registry.invoke("get_challenge", baselineContext, undefined));
 
-const inspect = tools.inspect_component?.execute;
+const inspect = baselineTools.inspect_component?.execute;
 assert.ok(inspect);
 const inspected = await inspect({ componentId: "service-1" }, { toolCallId: "tool-2", messages: [], context: {} });
-assert.deepEqual(inspected, await registry.invoke("inspect_component", context, { componentId: "service-1" }));
+assert.deepEqual(inspected, await registry.invoke("inspect_component", baselineContext, { componentId: "service-1" }));
+
+const redisContext = { ...baselineContext, architecture: redisArchitecture };
+const redisResolved = resolveCapabilities(registry, redisContext);
+const redisTools = toAISDKTools(registry, redisContext);
+
+assert.deepEqual(Object.keys(redisTools), [...redisResolved.names]);
+assert.deepEqual(redisResolved.names, [...BASELINE_READ_CAPABILITY_NAMES, "inspect_cache"]);
+assert.equal(redisTools.inspect_cache?.description, registry.get("inspect_cache").description);
+
+const cacheInspect = redisTools.inspect_cache?.execute;
+assert.ok(cacheInspect);
+const cacheResult = await cacheInspect({}, { toolCallId: "tool-3", messages: [], context: {} });
+assert.deepEqual(cacheResult, await registry.invoke("inspect_cache", redisContext, {}));
 
 console.log("verify-ai-capabilities: ok");
