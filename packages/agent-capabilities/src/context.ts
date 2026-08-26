@@ -1,15 +1,68 @@
 import type { Architecture, ChallengeDefinition, CostResult } from "@faultline/core";
 
 /**
+ * One capacity resource projected from shared simulator output.
+ * Capabilities must not recompute instance×tier formulas — only present these facts.
+ */
+export interface AgentCapacityEntry {
+  readonly resource: string;
+  readonly capacity: number;
+  readonly load: number;
+  readonly utilization: number;
+  readonly headroom: number;
+}
+
+/** System-level outcome facts from a grounded simulation snapshot. */
+export interface AgentSystemMetrics {
+  readonly redirectP95Ms?: number;
+  readonly throughputPass?: boolean;
+  readonly minimumHeadroom?: number;
+}
+
+/** Scenario outcomes attached to the snapshot (e.g. viral hot-key). */
+export interface AgentScenarioEvidence {
+  readonly hotKey?: {
+    readonly active: boolean;
+    readonly passed: boolean;
+  };
+}
+
+/**
+ * Compact per-component simulator facts for one AgentContext snapshot.
+ * Populated server-side from the shared simulator — capabilities must not recompute formulas.
+ */
+export interface AgentComponentEvidence {
+  readonly metrics: Readonly<Record<string, number>>;
+  /** Capacity-band state when the simulator produced one. */
+  readonly state?: string;
+  /** Optional structured capacity rows; when omitted, estimate_capacity may project from metrics. */
+  readonly capacity?: readonly AgentCapacityEntry[];
+}
+
+/**
+ * Immutable simulation evidence attached to AgentContext.
+ * Absent or `available: false` means capabilities omit invented metrics.
+ */
+export type AgentSimulationEvidence =
+  | {
+      readonly available: true;
+      readonly components: Readonly<Record<string, AgentComponentEvidence>>;
+      readonly system?: AgentSystemMetrics;
+      readonly scenarios?: AgentScenarioEvidence;
+    }
+  | {
+      readonly available: false;
+      readonly validationErrors?: readonly string[];
+    };
+
+/**
  * Immutable per-request snapshot for capability execution.
  * Built once after architecture validation and challenge resolution.
- * Simulation/cost evidence is optional until the server grounds the request.
  */
 export interface AgentContext {
   readonly challenge: ChallengeDefinition;
   readonly architecture: Architecture;
-  /** Compact simulator evidence for this snapshot. Shape is refined by later CAP tickets. */
-  readonly simulation?: Readonly<Record<string, unknown>>;
+  readonly simulation?: AgentSimulationEvidence;
   readonly cost?: CostResult;
   readonly user?: {
     readonly authenticated: boolean;

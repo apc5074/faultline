@@ -17,5 +17,10 @@ Business logic must live beneath adapters: future AI SDK and WebMCP implementati
 | Name | Mode | Purpose |
 | --- | --- | --- |
 | `get_challenge` | read | Compact challenge problem statement: workload, special scenarios, budget. Never reveals solutions. |
+| `get_requirements` | read | Configured success criteria and deferred targets. Never evaluates pass/fail. |
+| `get_architecture` | read | Compact semantic architecture from canonical state (config, deployments, connections; no UI). |
+| `inspect_component` | read | One component: config, simulator metrics, and cost from AgentContext evidence. |
+| `estimate_capacity` | read | Capacity/load/headroom and bottleneck from simulator evidence (optional componentId). |
+| `get_metrics` | read | Compact simulator truth: system outcomes, component metrics, scenarios; explicit when unavailable. |
 
 No AI integration endpoint is implemented yet.

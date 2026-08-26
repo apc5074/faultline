@@ -8,6 +8,8 @@
     "build": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm --filter @faultline/simulator build && pnpm --filter @faultline/agent-capabilities build && pnpm --filter @faultline/web build",
     "verify:phase-1": "pnpm --filter @faultline/core verify && pnpm --filter @faultline/component-catalog verify && pnpm --filter @faultline/challenges verify && pnpm --filter @faultline/simulator verify && pnpm --filter @faultline/agent-capabilities typecheck && pnpm --filter @faultline/web typecheck",
     "verify:phase-3": "pnpm --filter @faultline/simulator build && node packages/simulator/scripts/verify-phase-3.mjs && pnpm --filter @faultline/web run verify:view-mode",
-    "probe:ai-gateway": "node scripts/probe-ai-gateway.mjs"
+    "verify:phase-4": "pnpm --filter @faultline/web run verify:alias && pnpm --filter @faultline/web run verify:fastest-leaderboard && pnpm --filter @faultline/web run verify:cheapest-leaderboard && pnpm --filter @faultline/web run verify:my-rank && pnpm --filter @faultline/web run verify:submission && pnpm --filter @faultline/web run verify:phase-4",
+    "probe:ai-gateway": "node scripts/probe-ai-gateway.mjs",
+    "verify:phase-4-live": "pnpm --filter @faultline/web run verify:phase-4-live"
   }
 }

@@ -66,11 +66,11 @@ assert.equal(noHotKey.budgetMonthly, 8_000);
 
 const registry = createDefaultCapabilityRegistry();
 assert.ok(registry.has("get_challenge"));
-assert.equal(registry.list().length, 1);
+assert.ok(registry.list().length >= 1);
 assert.equal(registry.get("get_challenge").name, "get_challenge");
 
 const context = { challenge: urlShortenerLike, architecture: emptyArchitecture };
-assert.equal(registry.available(context).length, 1);
+assert.ok(registry.available(context).some((capability) => capability.name === "get_challenge"));
 
 const invoked = await registry.invoke("get_challenge", context, undefined);
 assert.equal(invoked.ok, true);
