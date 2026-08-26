@@ -155,7 +155,7 @@ export function StartOfficialAttempt() {
           <p className="official-attempt__status official-attempt__status--ready" role="status">
             Playing as {state.alias}
           </p>
-          <p className="official-attempt__timer" aria-label="Official run elapsed time">
+          <p className="official-attempt__timer tabular" aria-label="Official run elapsed time">
             Official Run {formatElapsed(state.startedAt, nowMs)}
           </p>
           <p className="official-attempt__hint">Elapsed time is display-only; ranking uses server time.</p>

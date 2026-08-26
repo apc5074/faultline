@@ -1,4 +1,4 @@
-import type { AgentCapability } from "./capability.js";
+import type { AgentCapability, CapabilityExecutionOptions } from "./capability.js";
 import { noInputSchema } from "./schemas.js";
 
 interface ExampleContext {
@@ -12,7 +12,7 @@ const exampleCapability: AgentCapability<ExampleContext, undefined, { available:
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: (context) => context.enabled,
-  execute: (context) => ({ available: context.enabled }),
+  execute: (context, _input, _options?: CapabilityExecutionOptions) => ({ available: context.enabled }),
   annotations: { readOnlyHint: true },
 };
 

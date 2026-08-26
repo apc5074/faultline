@@ -101,7 +101,7 @@ export function PlayerRankHud() {
         <div className="player-rank-hud__card">
           <p className="player-rank-hud__verified">Verified</p>
           <p className="player-rank-hud__alias">{state.alias}</p>
-          <dl className="player-rank-hud__metrics">
+          <dl className="player-rank-hud__metrics tabular">
             <div>
               <dt>Solve time</dt>
               <dd>{formatSolveTime(state.fastestSolveMs)}</dd>
@@ -119,7 +119,7 @@ export function PlayerRankHud() {
               <dd>{formatSolveTime(state.solveTimeAtCheapestMs)}</dd>
             </div>
           </dl>
-          <div className="player-rank-hud__ranks">
+          <div className="player-rank-hud__ranks tabular">
             <p>
               Fastest <strong>#{state.fastestRank}</strong>
             </p>

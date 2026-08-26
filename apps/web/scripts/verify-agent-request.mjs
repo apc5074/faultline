@@ -1,5 +1,6 @@
 import { urlShortenerChallenge } from "@faultline/challenges";
-import { createAgentContext, parseAgentRequest } from "../lib/ai/agent-request.ts";
+import { createAgentContext } from "../lib/agent-context/create-agent-context.ts";
+import { parseAgentRequest } from "../lib/ai/agent-request.ts";
 
 const architecture = {
   version: 1,

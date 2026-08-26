@@ -1,6 +1,6 @@
-import type { AgentCapability } from "./capability.js";
+import type { AgentCapability, CapabilityExecutionOptions } from "./capability.js";
 import type { AgentContext } from "./context.js";
-import { capabilityError, type CapabilityResult } from "./result.js";
+import { capabilityCancelled, capabilityError, isCapabilityCancelled, type CapabilityResult } from "./result.js";
 
 export class DuplicateCapabilityError extends Error {
   override name = "DuplicateCapabilityError";
@@ -50,14 +50,32 @@ export class AgentCapabilityRegistry {
    * Validate input, then execute. Unexpected throws become a generic tool error shape.
    * Does not leak stack traces to adapters.
    */
-  async invoke(name: string, context: AgentContext, input: unknown): Promise<CapabilityResult<unknown>> {
+  async invoke(
+    name: string,
+    context: AgentContext,
+    input: unknown,
+    options?: CapabilityExecutionOptions,
+  ): Promise<CapabilityResult<unknown>> {
+    if (isCapabilityCancelled(options?.signal)) {
+      return capabilityCancelled();
+    }
+
     const capability = this.get(name);
     const parsed = capability.inputSchema.safeParse(input);
     if (!parsed.success) {
       return capabilityError("INVALID_INPUT", parsed.errors.join(" ") || "Invalid capability input.");
     }
+
+    if (isCapabilityCancelled(options?.signal)) {
+      return capabilityCancelled();
+    }
+
     try {
-      return await capability.execute(context, parsed.data);
+      const result = await capability.execute(context, parsed.data, options);
+      if (isCapabilityCancelled(options?.signal)) {
+        return capabilityCancelled();
+      }
+      return result;
     } catch {
       return capabilityError("INVALID_INPUT", `Capability "${name}" failed unexpectedly.`);
     }

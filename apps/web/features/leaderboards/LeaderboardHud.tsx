@@ -147,7 +147,7 @@ export function LeaderboardHud() {
             {state.challengeSlug} v{state.challengeVersion}
             {state.mode === "cheapest" ? " · by cost" : " · by time"}
           </p>
-          <ol className="leaderboard-hud__list">
+          <ol className="leaderboard-hud__list tabular">
             {state.rows.map((entry) => (
               <li key={`${state.mode}-${entry.rank}-${entry.alias}`}>
                 <span className="leaderboard-hud__rank">#{entry.rank}</span>

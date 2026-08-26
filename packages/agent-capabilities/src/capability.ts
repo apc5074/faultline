@@ -25,6 +25,11 @@ export interface CapabilityInputSchema<TInput> {
   safeParse(input: unknown): CapabilityInputValidationResult<TInput>;
 }
 
+/** Adapter-neutral execution options forwarded from AI SDK, WebMCP, and other adapters. */
+export interface CapabilityExecutionOptions {
+  readonly signal?: AbortSignal;
+}
+
 /** Optional metadata for an adapter to communicate safe invocation semantics. */
 export interface AgentCapabilityAnnotations {
   readOnlyHint?: boolean;
@@ -43,6 +48,10 @@ export interface AgentCapability<TContext, TInput, TOutput> {
   inputSchema: CapabilityInputSchema<TInput>;
   mode: AgentCapabilityMode;
   availableWhen(context: TContext): boolean;
-  execute(context: TContext, input: TInput): TOutput | Promise<TOutput>;
+  execute(
+    context: TContext,
+    input: TInput,
+    options?: CapabilityExecutionOptions,
+  ): TOutput | Promise<TOutput>;
   annotations?: AgentCapabilityAnnotations;
 }

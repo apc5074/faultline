@@ -4,6 +4,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasOnlyKeys(input: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
+  return Object.keys(input).every((key) => allowedKeys.includes(key));
+}
+
 /** Shared schema for read capabilities that take no tool arguments. */
 export const noInputSchema: CapabilityInputSchema<undefined> = {
   jsonSchema: {
@@ -40,6 +44,9 @@ export const inspectComponentInputSchema: CapabilityInputSchema<InspectComponent
     if (!isRecord(input)) {
       return { success: false as const, errors: ["inspect_component input must be an object."] };
     }
+    if (!hasOnlyKeys(input, ["componentId"])) {
+      return { success: false as const, errors: ["inspect_component input contains unknown properties."] };
+    }
     if (typeof input.componentId !== "string" || input.componentId.trim().length === 0) {
       return { success: false as const, errors: ["componentId must be a non-empty string."] };
     }
@@ -66,6 +73,9 @@ export const estimateCapacityInputSchema: CapabilityInputSchema<EstimateCapacity
     }
     if (!isRecord(input)) {
       return { success: false as const, errors: ["estimate_capacity input must be an object."] };
+    }
+    if (!hasOnlyKeys(input, ["componentId"])) {
+      return { success: false as const, errors: ["estimate_capacity input contains unknown properties."] };
     }
     if (input.componentId === undefined) {
       return { success: true as const, data: {} };

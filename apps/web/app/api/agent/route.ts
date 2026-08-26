@@ -1,7 +1,8 @@
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { NextResponse } from "next/server";
 
-import { parseAgentRequest, createAgentContext } from "@/lib/ai/agent-request";
+import { parseAgentRequest } from "@/lib/ai/agent-request";
+import { createAgentContext } from "@/lib/agent-context/create-agent-context";
 import { streamFaultlineGatewayAgent } from "@/lib/ai/stream-agent";
 import { resolveAgentModelId } from "@/lib/ai/model";
 import { AGENT_GUEST_COOKIE, completeAgentUsage, createAgentGuestId, isAgentGuestId, reserveAgentUsage } from "@/lib/ai/usage";

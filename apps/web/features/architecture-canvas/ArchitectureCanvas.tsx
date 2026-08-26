@@ -2,10 +2,8 @@
 
 import {
   Background,
+  BackgroundVariant,
   Controls,
-  Handle,
-  MiniMap,
-  Position,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -14,10 +12,9 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
-  type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
 
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
@@ -33,28 +30,29 @@ import { checkConnectionCompatibility, createRegionDeployment, getRegions, isVal
 import {
   estimateMonthlyCost,
   evaluateRequirements,
-  type PostgresCapacityMetrics,
   type RequirementsEvaluationResult,
-  type ServiceCapacityMetrics,
   type SimulationValidationError,
 } from "@faultline/simulator";
 
 import { WorldMap, type WorldMapSelection } from "@/features/world-map/WorldMap";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
-import { logicalCapacitySummary } from "@/features/architecture-canvas/view-mode";
+import { AgentContextFactoryProvider } from "@/features/agent-context/AgentContextFactoryContext";
+import { useLiveAgentContextFactory } from "@/lib/agent-context/use-live-agent-context-factory";
+import { PLAYGROUND_SNAP_GRID, snapPosition } from "@/features/architecture-canvas/canvas-grid";
+import { InkConnectionLine } from "@/features/architecture-canvas/InkConnectionLine";
+import { InkEdge, type InkEdgeData } from "@/features/architecture-canvas/InkEdge";
+import {
+  buildEdgePathsFromArchitecture,
+  computeHopMarkers,
+  computeParallelOffsets,
+  connectionLoadFromEvents,
+  normalizeConnectionLoad,
+} from "@/features/architecture-canvas/ink-edge-routing";
+import { playgroundNodeHeight } from "@/features/architecture-canvas/glyph-port-layout";
+import { PlaygroundNode, type PlaygroundNodeData } from "@/features/architecture-canvas/PlaygroundNode";
+import { glyphDimensionsForProps, glyphPropsFromComponent, type GlyphSimulationResult } from "@/features/playground-glyphs";
 
-type CapacityVisualState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
-
-type ArchitectureNodeData = {
-  component: ComponentInstance;
-  definition: ComponentDefinition;
-  serviceMetrics?: ServiceCapacityMetrics;
-  postgresMetrics?: PostgresCapacityMetrics;
-  resultIsStale: boolean;
-  attention: boolean;
-};
-
-type ArchitectureNode = Node<ArchitectureNodeData, "architecture">;
+type PlaygroundFlowNode = Node<PlaygroundNodeData, "playground">;
 
 type FlowConnectionLike = {
   source?: string | null;
@@ -108,117 +106,119 @@ function architectureSimulationKey(architecture: Architecture): string {
   });
 }
 
-function formatUtilization(ratio: number): string {
-  return `${Math.round(ratio * 100)}%`;
+function simulationSnapshot(simulation: SuccessfulSimulation | null): GlyphSimulationResult | null {
+  if (!simulation) return null;
+  return {
+    services: simulation.services,
+    postgres: simulation.postgres,
+    caches: simulation.caches,
+    events: simulation.events,
+  };
 }
 
-function utilizationBarFill(ratio: number): number {
-  return Math.min(Math.max(ratio, 0), 1) * 100;
+function connectedPortIdsForComponent(
+  componentId: string,
+  connections: readonly ArchitectureConnection[],
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const connection of connections) {
+    if (connection.sourceComponentId === componentId) ids.add(connection.sourcePortId);
+    if (connection.targetComponentId === componentId) ids.add(connection.targetPortId);
+  }
+  return ids;
 }
 
 function componentToNode(
   component: ComponentInstance,
+  connections: readonly ArchitectureConnection[],
   selectedComponentId: string | null,
   simulation: SuccessfulSimulation | null,
   resultIsStale: boolean,
   attentionComponentId: string | null,
-): ArchitectureNode {
+): PlaygroundFlowNode {
   const definition = componentRegistry.get(component.type);
+  const glyphCatalog = glyphPropsFromComponent(component, definition);
+  const dimensions = glyphDimensionsForProps(glyphCatalog);
   return {
     id: component.id,
-    type: "architecture",
+    type: "playground",
     position: component.ui,
+    width: dimensions.width,
+    height: playgroundNodeHeight(dimensions.height),
     data: {
       component,
       definition,
-      serviceMetrics: simulation?.services[component.id],
-      postgresMetrics: simulation?.postgres[component.id],
+      simulation: simulationSnapshot(simulation),
       resultIsStale,
       attention: component.id === attentionComponentId,
+      connectedPortIds: connectedPortIdsForComponent(component.id, connections),
     },
     selected: component.id === selectedComponentId,
   };
 }
 
-function CapacityMeter({
-  label,
-  ratio,
-  state,
-}: {
-  label: string;
-  ratio: number;
-  state: CapacityVisualState;
-}) {
-  return (
-    <div className={`capacity-meter capacity-meter--${state}`} aria-label={`${label} ${formatUtilization(ratio)}, ${state}`}>
-      <div className="capacity-meter__row">
-        <span>{label}</span>
-        <strong>{formatUtilization(ratio)}</strong>
-      </div>
-      <div className="capacity-meter__track" aria-hidden="true">
-        <div className="capacity-meter__fill" style={{ width: `${utilizationBarFill(ratio)}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
-  const state = data.serviceMetrics?.state ?? data.postgresMetrics?.state;
-  const stateClass = state ? ` architecture-node--${state}` : "";
-  const staleClass = data.resultIsStale && state ? " architecture-node--stale" : "";
-  const capacitySummary = logicalCapacitySummary(data.component);
-
-  return (
-    <article className={`architecture-node${stateClass}${staleClass}${selected ? " architecture-node--selected" : ""}${data.attention ? " architecture-node--attention" : ""}`}>
-      {data.definition.ports.map((port) => (
-        <Handle
-          key={port.id}
-          id={port.id}
-          className="architecture-node__handle"
-          type={port.direction === "input" ? "target" : "source"}
-          position={port.direction === "input" ? Position.Left : Position.Right}
-          aria-label={port.label}
-        />
-      ))}
-      <p className="architecture-node__eyebrow">{state ? state : "Component"}</p>
-      <strong>{data.definition.label}</strong>
-      <span>{data.component.id}</span>
-      {capacitySummary ? <span className="architecture-node__summary">{capacitySummary}</span> : null}
-      {data.serviceMetrics ? (
-        <CapacityMeter label="Utilization" ratio={data.serviceMetrics.utilization} state={data.serviceMetrics.state} />
-      ) : null}
-      {data.postgresMetrics ? (
-        <div className="architecture-node__meters">
-          <CapacityMeter label="Read" ratio={data.postgresMetrics.readUtilization} state={data.postgresMetrics.state} />
-          <CapacityMeter label="Write" ratio={data.postgresMetrics.writeUtilization} state={data.postgresMetrics.state} />
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-const nodeTypes = { architecture: ArchitectureNodeCard };
+const nodeTypes = { playground: PlaygroundNode };
+const edgeTypes = { ink: InkEdge };
 
 function ComponentPalette({ definitions }: { definitions: readonly ComponentDefinition[] }) {
+  const grouped = useMemo(() => {
+    const categories = new Map<string, ComponentDefinition[]>();
+    for (const definition of definitions) {
+      const items = categories.get(definition.category) ?? [];
+      items.push(definition);
+      categories.set(definition.category, items);
+    }
+    return [...categories.entries()];
+  }, [definitions]);
+
   return (
-    <aside className="component-palette" aria-label="Component palette">
-      <p className="component-palette__title">Components</p>
-      <p className="component-palette__hint">Drag onto the canvas</p>
-      {definitions.map((definition) => (
-        <div
-          key={definition.type}
-          className="component-palette__item"
-          draggable
-          onDragStart={(event) => {
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("application/faultline-component-type", definition.type);
-          }}
-        >
-          <strong>{definition.label}</strong>
-          <span>{definition.category}</span>
+    <aside className="component-rail" aria-label="Component palette">
+      {grouped.map(([category, items], index) => (
+        <div key={category} className="component-rail__group">
+          {index > 0 ? <div className="component-rail__divider" aria-hidden="true" /> : null}
+          <p className="component-rail__category">{category}</p>
+          {items.map((definition) => (
+            <div
+              key={definition.type}
+              className="component-rail__item"
+              draggable
+              title={definition.label}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("application/faultline-component-type", definition.type);
+              }}
+            >
+              <span>{definition.label}</span>
+            </div>
+          ))}
         </div>
       ))}
     </aside>
+  );
+}
+
+function PlaygroundDataPlates({
+  expanded,
+  onToggle,
+  children,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="playground-data-plates">
+      <button
+        type="button"
+        className="playground-data-plates__toggle"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        Challenge & competition
+        <span aria-hidden="true">{expanded ? " ▾" : " ▸"}</span>
+      </button>
+      {expanded ? <div className="playground-data-plates__content">{children}</div> : null}
+    </div>
   );
 }
 
@@ -257,7 +257,7 @@ function BudgetHud({
   return (
     <aside className={`budget-hud${overBudget ? " budget-hud--over" : ""}`} aria-label="Infrastructure budget">
       <p className="budget-hud__title">Budget</p>
-      <p className="budget-hud__totals">
+      <p className="budget-hud__totals tabular">
         <strong>{formatCompactCost(cost.monthlyTotal)}</strong>
         <span>/ {formatCompactCost(budget)}</span>
       </p>
@@ -271,7 +271,7 @@ function BudgetHud({
         </p>
       )}
       {cost.lineItems.length > 0 ? (
-        <dl className="budget-hud__breakdown">
+        <dl className="budget-hud__breakdown tabular">
           {cost.lineItems.map((lineItem) => {
             const component = architecture.components.find((candidate) => candidate.id === lineItem.componentId);
             const label =
@@ -390,7 +390,7 @@ function RequirementsHud({
               </div>
               {evaluated ? (
                 <>
-                  <p className="requirements-hud__values">
+                  <p className="requirements-hud__values tabular">
                     {formatRequirementActual(evaluated)} / {target}
                   </p>
                   <p className="requirements-hud__status">{evaluated.passed ? "Pass" : "Fail"}</p>
@@ -399,7 +399,7 @@ function RequirementsHud({
                   ) : null}
                 </>
               ) : (
-                <p className="requirements-hud__values">{target}</p>
+                <p className="requirements-hud__values tabular">{target}</p>
               )}
             </li>
           );
@@ -420,7 +420,7 @@ function RequirementsHud({
             </div>
             {showResults && result.hotKey.active ? (
               <>
-                <p className="requirements-hud__values">
+                <p className="requirements-hud__values tabular">
                   {result.hotKey.viralRedirectRps.toLocaleString("en-US")} viral req/sec
                   {" · "}
                   {result.hotKey.viralReachingPostgresRps.toLocaleString("en-US")} to Postgres
@@ -431,7 +431,7 @@ function RequirementsHud({
                 ) : null}
               </>
             ) : (
-              <p className="requirements-hud__values">
+              <p className="requirements-hud__values tabular">
                 {Math.round(challengeHotKeyFraction * 100)}% of redirects on one viral URL
               </p>
             )}
@@ -443,7 +443,7 @@ function RequirementsHud({
               <strong>{target.label}</strong>
               <span aria-hidden="true">…</span>
             </div>
-            <p className="requirements-hud__values">
+            <p className="requirements-hud__values tabular">
               ≥{(target.target * 100).toFixed(2)}% · not scored yet
             </p>
             <p className="requirements-hud__explanation">{target.reason}</p>
@@ -538,7 +538,7 @@ function SimulationRunPanel({
       ) : null}
 
       {result && runState === "complete" ? (
-        <dl className={`simulation-run__result${resultIsStale ? " simulation-run__result--stale" : ""}`} aria-label="Latest simulation result">
+        <dl className={`simulation-run__result tabular${resultIsStale ? " simulation-run__result--stale" : ""}`} aria-label="Latest simulation result">
           <div>
             <dt>Outcome</dt>
             <dd>{result.allRequirementsPass ? "All requirements passed" : "Requirements failed"}</dd>
@@ -653,7 +653,7 @@ function ComponentInspector({
             When any region is set, regional instances are the capacity source and must sum to the logical total.
           </p>
         </div>
-        <dl>
+        <dl className="tabular">
           <div><dt>Capacity / instance</dt><dd>{sizeModel.capacityPerInstance.toLocaleString()} req/sec</dd></div>
           <div><dt>Estimated capacity</dt><dd>{serviceCapacityForConfig({ size, instances }).toLocaleString()} req/sec</dd></div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
@@ -767,7 +767,7 @@ function ComponentInspector({
             Exactly one primary. Writes target the primary. Replica regions set readReplicaCount.
           </p>
         </div>
-        <dl>
+        <dl className="tabular">
           <div>
             <dt>Read capacity</dt>
             <dd>{postgresReadCapacityForConfig({ tier, readReplicaCount }).toLocaleString()} req/sec</dd>
@@ -867,7 +867,7 @@ function ComponentInspector({
             Each checked region is an independent Redis cache. Replicated mode is local HA, not cross-region sync.
           </p>
         </div>
-        <dl>
+        <dl className="tabular">
           <div><dt>Configured hit rate</dt><dd>{Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
           <div><dt>Throughput capacity</dt><dd>{effective.throughputRps.toLocaleString()} req/sec</dd></div>
           <div><dt>Hot-key capacity</dt><dd>{effective.hotKeyCapacityRps.toLocaleString()} req/sec</dd></div>
@@ -881,7 +881,7 @@ function ComponentInspector({
     return (
       <aside className="component-inspector" aria-label="Global Router inspector">
         <p className="component-inspector__eyebrow">Global Router</p>
-        <dl>
+        <dl className="tabular">
           <div><dt>Role</dt><dd>Logical request passthrough</dd></div>
           <div><dt>Geographic routing</dt><dd>Inactive</dd></div>
           <div><dt>Monthly cost</dt><dd>{formatCost(0)}</dd></div>
@@ -913,7 +913,7 @@ function ComponentInspector({
             ))}
           </select>
         </label>
-        <dl>
+        <dl className="tabular">
           <div><dt>Monthly cost</dt><dd>{formatCost(loadBalancerMonthlyCost)}</dd></div>
         </dl>
         <p className="component-inspector__hint">
@@ -974,7 +974,7 @@ function ComponentInspector({
             ))}
           </select>
         </label>
-        <dl>
+        <dl className="tabular">
           <div><dt>TTL hit rate</dt><dd>{Math.round(cdnHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
           <div>
             <dt>Configured hit intent</dt>
@@ -994,7 +994,7 @@ function ComponentInspector({
   return (
     <aside className="component-inspector" aria-label="Traffic Source inspector">
       <p className="component-inspector__eyebrow">Traffic Source</p>
-      <dl>
+      <dl className="tabular">
         <div>
           <dt>Workload</dt>
           <dd>
@@ -1028,32 +1028,30 @@ function createComponentInstance(definition: ComponentDefinition, position: { x:
 
 function connectionToEdge(
   connection: ArchitectureConnection,
-  activeConnectionIds: ReadonlySet<string>,
-  trafficActive: boolean,
-  resultIsStale: boolean,
-): Edge {
-  const active = trafficActive && activeConnectionIds.has(connection.id);
+  context: {
+    activeConnectionIds: ReadonlySet<string>;
+    trafficActive: boolean;
+    resultIsStale: boolean;
+    load: number;
+    offset: number;
+    hops: InkEdgeData["hops"];
+  },
+): Edge<InkEdgeData, "ink"> {
+  const active = context.trafficActive && context.activeConnectionIds.has(connection.id);
   return {
     id: connection.id,
+    type: "ink",
     source: connection.sourceComponentId,
     sourceHandle: connection.sourcePortId,
     target: connection.targetComponentId,
     targetHandle: connection.targetPortId,
-    label: connection.type,
-    animated: active && !resultIsStale,
-    className: [
-      "architecture-edge",
-      active ? "architecture-edge--active" : "",
-      active && resultIsStale ? "architecture-edge--stale" : "",
-    ]
-      .filter(Boolean)
-      .join(" "),
-    style: active
-      ? {
-          stroke: resultIsStale ? "#6b7280" : "#7bc4ff",
-          strokeWidth: 2.5,
-        }
-      : undefined,
+    data: {
+      load: context.load,
+      active,
+      stale: context.trafficActive && context.resultIsStale,
+      offset: context.offset,
+      hops: context.hops,
+    },
   };
 }
 
@@ -1105,11 +1103,13 @@ function ArchitectureWorkspace() {
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const [officialSubmitting, setOfficialSubmitting] = useState(false);
   const [officialSummary, setOfficialSummary] = useState<string | null>(null);
+  const [dataPlatesExpanded, setDataPlatesExpanded] = useState(true);
   const { screenToFlowPosition, fitView } = useReactFlow();
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
     [],
   );
+  const getAgentContext = useLiveAgentContextFactory(architecture, activeChallenge);
   const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
   const resultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
   const showSimulationVisuals = simulationResult !== null && runState === "complete";
@@ -1125,25 +1125,64 @@ function ArchitectureWorkspace() {
   const nodes = useMemo(
     () =>
       architecture.components.map((component) =>
-        componentToNode(component, selectedComponentId, showSimulationVisuals ? simulationResult : null, resultIsStale, attentionComponentId),
+        componentToNode(
+          component,
+          architecture.connections,
+          selectedComponentId,
+          showSimulationVisuals ? simulationResult : null,
+          resultIsStale,
+          attentionComponentId,
+        ),
       ),
-    [architecture.components, selectedComponentId, showSimulationVisuals, simulationResult, resultIsStale, attentionComponentId],
+    [
+      architecture.components,
+      architecture.connections,
+      selectedComponentId,
+      showSimulationVisuals,
+      simulationResult,
+      resultIsStale,
+      attentionComponentId,
+    ],
   );
-  const edges = useMemo(
-    () =>
-      architecture.connections.map((connection) =>
-        connectionToEdge(connection, activeConnectionIds, showSimulationVisuals, resultIsStale),
-      ),
-    [architecture.connections, activeConnectionIds, showSimulationVisuals, resultIsStale],
-  );
+  const edges = useMemo(() => {
+    const loads = connectionLoadFromEvents(simulationResult?.events);
+    const maxLoad = Math.max(...loads.values(), 0);
+    const offsets = computeParallelOffsets(
+      architecture.connections.map((connection) => ({
+        id: connection.id,
+        sourceId: connection.sourceComponentId,
+        targetId: connection.targetComponentId,
+      })),
+    );
+    const paths = buildEdgePathsFromArchitecture(
+      architecture.connections,
+      architecture.components,
+      (type) => componentRegistry.get(type),
+      offsets,
+    );
+    const hopMap = computeHopMarkers(paths);
+
+    return architecture.connections.map((connection) =>
+      connectionToEdge(connection, {
+        activeConnectionIds,
+        trafficActive: showSimulationVisuals,
+        resultIsStale,
+        load: normalizeConnectionLoad(loads.get(connection.id) ?? 0, maxLoad),
+        offset: offsets.get(connection.id) ?? 0,
+        hops: hopMap.get(connection.id) ?? [],
+      }),
+    );
+  }, [architecture.connections, architecture.components, activeConnectionIds, showSimulationVisuals, resultIsStale, simulationResult?.events]);
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
+  const showCanvasEmptyState =
+    viewMode === "logical" && architecture.components.length === 1 && architecture.components[0]?.type === "traffic-source";
   useEffect(() => {
     if (attentionComponentId && !architecture.components.some((component) => component.id === attentionComponentId)) {
       setAttentionComponentId(null);
     }
   }, [architecture.components, attentionComponentId]);
 
-  const onNodesChange = useCallback((changes: NodeChange<ArchitectureNode>[]) => {
+  const onNodesChange = useCallback((changes: NodeChange<PlaygroundFlowNode>[]) => {
     setArchitecture((current) => {
       let components = current.components;
 
@@ -1151,8 +1190,9 @@ function ArchitectureWorkspace() {
         if (change.type === "position") {
           const position = change.position;
           if (!position) continue;
+          const snapped = snapPosition(position);
           components = components.map((component) =>
-            component.id === change.id ? { ...component, ui: position } : component,
+            component.id === change.id ? { ...component, ui: snapped } : component,
           );
         }
 
@@ -1198,7 +1238,7 @@ function ArchitectureWorkspace() {
 
     const component = createComponentInstance(
       componentRegistry.get(type),
-      screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+      snapPosition(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
     );
     setArchitecture((current) => ({ ...current, components: [...current.components, component] }));
     setSelectedComponentId(component.id);
@@ -1400,15 +1440,27 @@ function ArchitectureWorkspace() {
   }, [architecture, officialSession, bumpRankRefresh]);
 
   return (
-    <section className="architecture-workspace" aria-label="Architecture workspace">
-      <ComponentPalette definitions={paletteDefinitions} />
-      <div className="architecture-canvas" aria-label={viewMode === "logical" ? "Logical architecture canvas" : "World architecture map"}>
-      <div className="architecture-canvas__header">
-        <div>
-          <p className="wordmark">FAULTLINE</p>
-          <h1>{viewMode === "logical" ? "Logical architecture" : "World map"}</h1>
+    <AgentContextFactoryProvider factory={getAgentContext}>
+    <section className="playground-shell" aria-label="Architecture workspace">
+      <header className="playground-topbar">
+        <p className="playground-topbar__wordmark">Faultline</p>
+        <p className="playground-topbar__view-label">
+          {viewMode === "logical" ? "Logical architecture" : "World map"}
+        </p>
+        <div className="playground-topbar__hints">
+          {runState === "running" ? (
+            <span className="playground-topbar__hint">● running</span>
+          ) : null}
+          {resultIsStale && runState === "complete" ? (
+            <span className="playground-topbar__hint">results stale</span>
+          ) : null}
+          <span className="playground-topbar__hint">
+            {viewMode === "logical"
+              ? "delete key removes selected"
+              : "edit deployments in inspector"}
+          </span>
         </div>
-        <div className="architecture-canvas__header-actions">
+        <div className="playground-topbar__actions">
           <div className="view-mode-toggle" role="group" aria-label="Architecture view">
             <button
               type="button"
@@ -1424,20 +1476,125 @@ function ArchitectureWorkspace() {
               aria-pressed={viewMode === "world"}
               onClick={() => {
                 setViewMode("world");
-                // Re-sync map highlight from shared component selection; do not touch Architecture or simulation.
                 setWorldSelection(worldSelectionForComponent(architecture, selectedComponentId));
               }}
             >
               World
             </button>
           </div>
-          <p>
-            {viewMode === "logical"
-              ? "Move components to shape the design. Select a node, then press Delete to remove it."
-              : "Same architecture, placed by region. Edit deployments in the inspector."}
-          </p>
         </div>
+      </header>
+
+      <div className="playground-body">
+        <ComponentPalette definitions={paletteDefinitions} />
+
+        <div
+          className="playground-canvas"
+          aria-label={viewMode === "logical" ? "Logical architecture canvas" : "World architecture map"}
+        >
+          {showCanvasEmptyState ? (
+            <p className="playground-canvas__empty-hint">
+              Drag components from the rail · Connect ports · Press Run
+            </p>
+          ) : null}
+          {viewMode === "logical" ? (
+            <ReactFlow
+              className="playground-flow"
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              defaultEdgeOptions={{ type: "ink" }}
+              connectionLineComponent={InkConnectionLine}
+              onNodesChange={onNodesChange}
+              onConnect={onConnect}
+              onEdgesChange={onEdgesChange}
+              isValidConnection={isValidConnection}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              fitView
+              fitViewOptions={{ padding: 0.35 }}
+              deleteKeyCode={["Backspace", "Delete"]}
+              minZoom={0.4}
+              maxZoom={1.8}
+              snapToGrid
+              snapGrid={PLAYGROUND_SNAP_GRID}
+              panOnScroll
+              selectionOnDrag={false}
+              panOnDrag={[1, 2]}
+              panActivationKeyCode="Space"
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#b8ae9e" />
+              <Controls showInteractive={false} className="playground-flow__controls" position="bottom-left" />
+            </ReactFlow>
+          ) : (
+            <WorldMap
+              architecture={architecture}
+              challenge={activeChallenge}
+              selectedComponentId={selectedComponentId}
+              selection={worldSelection}
+              geographicRoutes={
+                showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes ?? [] : []
+              }
+              routesActive={showSimulationVisuals && !resultIsStale}
+              onSelectComponent={(componentId, deploymentId) => {
+                setSelectedComponentId(componentId);
+                setWorldSelection(
+                  deploymentId
+                    ? { kind: "deployment", componentId, deploymentId }
+                    : worldSelectionForComponent(architecture, componentId),
+                );
+              }}
+              onSelectRegion={(regionId) => {
+                setWorldSelection({ kind: "region", regionId });
+                const deployed = architecture.components.find((component) =>
+                  component.deployments.some((deployment) => deployment.regionId === regionId),
+                );
+                if (deployed) setSelectedComponentId(deployed.id);
+              }}
+            />
+          )}
+        </div>
+
+        <aside className="playground-inspector-column">
+          <PlaygroundDataPlates
+            expanded={dataPlatesExpanded}
+            onToggle={() => setDataPlatesExpanded((current) => !current)}
+          >
+            <p className="sr-only" aria-live="polite">
+              {attentionComponentId ? `AI Engineer is inspecting ${attentionComponentId}.` : ""}
+            </p>
+            <RequirementsHud result={simulationResult} runState={runState} resultIsStale={resultIsStale} />
+            <BudgetHud
+              architecture={architecture}
+              traffic={showSimulationVisuals && !resultIsStale ? simulationResult?.traffic : undefined}
+              geographicRoutes={
+                showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes : undefined
+              }
+            />
+            <StartOfficialAttempt />
+            <PlayerRankHud />
+            <LeaderboardHud />
+            <AiEngineerPanel
+              architecture={architecture}
+              onAttention={setAttentionComponentId}
+              onShowOnCanvas={(componentId) => {
+                if (viewMode === "logical") fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 });
+              }}
+            />
+          </PlaygroundDataPlates>
+          <div className="playground-inspector">
+            <ComponentInspector
+              architecture={architecture}
+              component={selectedComponent}
+              onConfigChange={onConfigChange}
+              onDeploymentsChange={onDeploymentsChange}
+            />
+          </div>
+        </aside>
       </div>
+
       <SimulationRunPanel
         runState={runState}
         resultIsStale={resultIsStale}
@@ -1450,77 +1607,8 @@ function ArchitectureWorkspace() {
         officialSubmitting={officialSubmitting}
         officialSummary={officialSummary}
       />
-      {viewMode === "logical" ? (
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onConnect={onConnect}
-        onEdgesChange={onEdgesChange}
-        isValidConnection={isValidConnection}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        fitView
-        fitViewOptions={{ padding: 0.35 }}
-        deleteKeyCode={["Backspace", "Delete"]}
-        minZoom={0.4}
-        maxZoom={1.8}
-      >
-        <Background gap={24} size={1} />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable />
-      </ReactFlow>
-      ) : (
-        <WorldMap
-          architecture={architecture}
-          challenge={activeChallenge}
-          selectedComponentId={selectedComponentId}
-          selection={worldSelection}
-          geographicRoutes={
-            showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes ?? [] : []
-          }
-          routesActive={showSimulationVisuals && !resultIsStale}
-          onSelectComponent={(componentId, deploymentId) => {
-            setSelectedComponentId(componentId);
-            setWorldSelection(
-              deploymentId
-                ? { kind: "deployment", componentId, deploymentId }
-                : worldSelectionForComponent(architecture, componentId),
-            );
-          }}
-          onSelectRegion={(regionId) => {
-            setWorldSelection({ kind: "region", regionId });
-            const deployed = architecture.components.find((component) =>
-              component.deployments.some((deployment) => deployment.regionId === regionId),
-            );
-            if (deployed) setSelectedComponentId(deployed.id);
-          }}
-        />
-      )}
-      </div>
-      <div className="architecture-sidebar">
-        <p className="sr-only" aria-live="polite">{attentionComponentId ? `AI Engineer is inspecting ${attentionComponentId}.` : ""}</p>
-        <AiEngineerPanel architecture={architecture} onAttention={setAttentionComponentId} onShowOnCanvas={(componentId) => { if (viewMode === "logical") fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 }); }} />
-        <StartOfficialAttempt />
-        <PlayerRankHud />
-        <LeaderboardHud />
-        <BudgetHud
-          architecture={architecture}
-          traffic={showSimulationVisuals && !resultIsStale ? simulationResult?.traffic : undefined}
-          geographicRoutes={
-            showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes : undefined
-          }
-        />
-        <RequirementsHud result={simulationResult} runState={runState} resultIsStale={resultIsStale} />
-        <ComponentInspector
-          architecture={architecture}
-          component={selectedComponent}
-          onConfigChange={onConfigChange}
-          onDeploymentsChange={onDeploymentsChange}
-        />
-      </div>
     </section>
+    </AgentContextFactoryProvider>
   );
 }
 

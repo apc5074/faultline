@@ -1,5 +1,9 @@
 /** Controlled capability outcomes returned to adapters (AI SDK, WebMCP). */
-export type CapabilityErrorCode = "NOT_FOUND" | "SIMULATION_UNAVAILABLE" | "INVALID_INPUT";
+export type CapabilityErrorCode =
+  | "NOT_FOUND"
+  | "SIMULATION_UNAVAILABLE"
+  | "INVALID_INPUT"
+  | "CANCELLED";
 
 export type CapabilityResult<T> =
   | { ok: true; data: T }
@@ -14,4 +18,15 @@ export function capabilityError(
   message: string,
 ): CapabilityResult<never> {
   return { ok: false, code, message };
+}
+
+export function capabilityCancelled(
+  message = "Capability invocation was cancelled.",
+): CapabilityResult<never> {
+  return capabilityError("CANCELLED", message);
+}
+
+/** Returns true when an adapter supplied an already-aborted signal. */
+export function isCapabilityCancelled(signal?: AbortSignal): boolean {
+  return signal?.aborted === true;
 }

@@ -20,6 +20,7 @@
     "verify:ai-usage": "node --experimental-strip-types scripts/verify-ai-usage.mjs",
     "verify:coaching-policy": "pnpm run build:deps && node --experimental-strip-types scripts/verify-coaching-policy.mjs",
     "verify:agent-request": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-request.mjs",
+    "verify:live-agent-context-factory": "pnpm run build:deps && node --experimental-strip-types scripts/verify-live-agent-context-factory.mjs",
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
