@@ -1,0 +1,27 @@
+# Dependencies (including apps/web/node_modules pnpm symlinks)
+node_modules/
+**/node_modules/
+
+# Next.js / builds
+.next/
+**/.next/
+dist/
+**/dist/
+out/
+.vercel/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Tooling / caches
+supabase/.temp/
+*.tsbuildinfo
+*.log
+coverage/
+.pnpm-store/
+.turbo/
+
+# Local planning (not product source)
+plans/

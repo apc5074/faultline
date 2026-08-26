@@ -1,0 +1,30 @@
+{
+  "explorer.excludeGitIgnore": true,
+  "search.followSymlinks": false,
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/node_modules/**": true,
+    "**/.next": true,
+    "**/.next/**": true,
+    "**/dist": true,
+    "**/dist/**": true,
+    "**/.turbo": true,
+    "**/.pnpm-store": true,
+    "apps/web/node_modules": true,
+    "apps/web/.next": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/.turbo/**": true,
+    "**/.pnpm-store/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/node_modules/**": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/.pnpm-store": true
+  }
+}
