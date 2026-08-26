@@ -19,6 +19,9 @@ importers:
       '@faultline/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@faultline/simulator':
+        specifier: workspace:*
+        version: link:../../packages/simulator
       '@next/env':
         specifier: 16.1.6
         version: 16.1.6

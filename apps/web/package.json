@@ -11,6 +11,7 @@
     "@faultline/challenges": "workspace:*",
     "@faultline/component-catalog": "workspace:*",
     "@faultline/core": "workspace:*",
+    "@faultline/simulator": "workspace:*",
     "@next/env": "16.1.6",
     "@supabase/supabase-js": "^2.112.4",
     "@xyflow/react": "^12.11.5",

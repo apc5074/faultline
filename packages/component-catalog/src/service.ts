@@ -8,6 +8,11 @@ export interface ServiceConfig extends JsonObject {
   instances: number;
 }
 
+/** Shared capacity model used by the simulator and presentation adapters. */
+export function serviceCapacityForInstances(instances: number): number {
+  return instances * serviceCapacityPerInstance;
+}
+
 const serviceConfigSchema: ComponentConfigSchema<ServiceConfig> = {
   safeParse(input) {
     if (typeof input !== "object" || input === null || Array.isArray(input)) {

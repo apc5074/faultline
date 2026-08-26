@@ -64,6 +64,9 @@ export const postgresDefinition: ComponentDefinition<PostgresConfig> = {
     { id: "write_capacity", label: "Write capacity", unit: "requests/sec" },
     { id: "read_utilization", label: "Read utilization", unit: "ratio" },
     { id: "write_utilization", label: "Write utilization", unit: "ratio" },
+    { id: "effective_utilization", label: "Effective utilization", unit: "ratio" },
+    { id: "read_capacity_shortfall", label: "Read capacity shortfall", unit: "requests/sec" },
+    { id: "write_capacity_shortfall", label: "Write capacity shortfall", unit: "requests/sec" },
     { id: "p95_latency", label: "p95 latency", unit: "ms" },
   ],
   simulation: {

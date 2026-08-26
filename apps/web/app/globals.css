@@ -63,10 +63,29 @@ h1 {
 
 .architecture-workspace {
   display: grid;
-  grid-template-columns: 13rem minmax(0, 1fr);
+  grid-template-columns: 13rem minmax(0, 1fr) 15rem;
   min-height: calc(100svh - 2.5rem);
   gap: 1rem;
 }
+
+.component-inspector {
+  align-self: stretch;
+  padding: 1rem;
+  border: 1px solid #2d333b;
+  border-radius: 0.5rem;
+  background: #0d1015;
+}
+
+.component-inspector > p { margin: 0; color: #adb5bd; font-size: 0.85rem; }
+.component-inspector__eyebrow { color: #f2f3f5 !important; font-size: 0.95rem !important; font-weight: 700; }
+.component-inspector label { display: grid; gap: 0.4rem; margin-top: 1rem; color: #adb5bd; font-size: 0.8rem; }
+.component-inspector input,
+.component-inspector select { width: 100%; padding: 0.45rem; border: 1px solid #44505f; border-radius: 0.25rem; background: #151a22; color: #f2f3f5; }
+.component-inspector dl { margin: 1rem 0 0; }
+.component-inspector dl div { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0; border-top: 1px solid #2d333b; font-size: 0.8rem; }
+.component-inspector dt { color: #9aa5b1; }
+.component-inspector dd { margin: 0; text-align: right; }
+.component-inspector__hint { margin-top: 1rem !important; font-size: 0.75rem !important; }
 
 .component-palette {
   align-self: stretch;
