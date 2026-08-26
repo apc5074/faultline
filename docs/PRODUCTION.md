@@ -36,3 +36,5 @@ Supabase will provide Postgres and Vercel AI Gateway will provide model access t
 `pnpm probe:ai-gateway` is an operator-only server-side verification script. It uses AI Gateway's OpenAI-compatible Chat Completions API to make one tiny request, returns only `online`, `unauthorized`, `unavailable`, or `misconfigured`, and never prints a credential or model response. This script is deliberately not an HTTP route, so it cannot become an unauthenticated billable endpoint.
 
 Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Preview/Production settings. For the Phase 0 connectivity test, use `openai/gpt-5-nano`: it is the current low-cost model ID available through AI Gateway. No chat UI, agent loop, or capability implementation is included.
+
+**Verification — 2026-08-25:** an operator confirmed the local probe succeeds with the authorized Gateway configuration. The script's operator-only execution is the access control for this billable request.
