@@ -191,6 +191,13 @@ h1 {
   font-size: 0.75rem;
 }
 
+.requirements-hud__workload {
+  margin: 0.35rem 0 0;
+  color: #7d8794;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
 .requirements-hud__overall {
   margin: 0.85rem 0 0;
   padding: 0.5rem 0.65rem;
@@ -240,6 +247,11 @@ h1 {
 
 .requirements-hud__item--fail {
   border-color: #ff5b4d;
+}
+
+.requirements-hud__item--deferred {
+  border-color: #3a414c;
+  opacity: 0.85;
 }
 
 .requirements-hud__item-header {

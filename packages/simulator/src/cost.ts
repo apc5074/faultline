@@ -1,7 +1,7 @@
 import {
   cdnMonthlyCostForConfig,
   loadBalancerMonthlyCost,
-  postgresTierModels,
+  postgresMonthlyCostForConfig,
   redisMonthlyCostForConfig,
   serviceMonthlyCostForConfig,
   ComponentRegistry,
@@ -25,9 +25,18 @@ export class CostEstimationError extends Error {
 export interface CostEstimationInput {
   architecture: Architecture;
   registry: ComponentRegistry;
+  /**
+   * Optional per-component traffic used for usage-priced components (CDN).
+   * When omitted, CDN contributes tier base cost only.
+   */
+  traffic?: Readonly<Record<string, { readonly incomingRps: number }>>;
 }
 
-function priceComponent(component: ComponentInstance, registry: ComponentRegistry): CostLineItem | null {
+function priceComponent(
+  component: ComponentInstance,
+  registry: ComponentRegistry,
+  traffic: CostEstimationInput["traffic"],
+): CostLineItem | null {
   if (!registry.has(component.type)) {
     throw new CostEstimationError(`Component "${component.id}" uses unknown type "${component.type}" and cannot be priced.`);
   }
@@ -47,25 +56,27 @@ function priceComponent(component: ComponentInstance, registry: ComponentRegistr
     return { componentId: component.id, amount: serviceMonthlyCostForConfig(configResult.data as ServiceConfig) };
   }
   if (component.type === "postgres") {
-    const model = postgresTierModels[(configResult.data as PostgresConfig).tier];
-    if (!model) throw new CostEstimationError(`Component "${component.id}" has an unpriceable Postgres tier.`);
-    return { componentId: component.id, amount: model.monthlyCost };
+    return { componentId: component.id, amount: postgresMonthlyCostForConfig(configResult.data as PostgresConfig) };
   }
   if (component.type === "redis") {
     return { componentId: component.id, amount: redisMonthlyCostForConfig(configResult.data as RedisConfig) };
   }
   if (component.type === "cdn") {
-    return { componentId: component.id, amount: cdnMonthlyCostForConfig(configResult.data as CdnConfig) };
+    const incomingRps = traffic?.[component.id]?.incomingRps ?? 0;
+    return {
+      componentId: component.id,
+      amount: cdnMonthlyCostForConfig(configResult.data as CdnConfig, incomingRps),
+    };
   }
 
   throw new CostEstimationError(`Component "${component.id}" of type "${component.type}" has no cost model.`);
 }
 
 /** Simplified educational monthly infrastructure estimate from canonical state. */
-export function estimateMonthlyCost({ architecture: input, registry }: CostEstimationInput): CostResult {
+export function estimateMonthlyCost({ architecture: input, registry, traffic }: CostEstimationInput): CostResult {
   const architecture = parseArchitecture(input);
   const lineItems = architecture.components.flatMap((component) => {
-    const lineItem = priceComponent(component, registry);
+    const lineItem = priceComponent(component, registry, traffic);
     return lineItem ? [lineItem] : [];
   });
   return { monthlyTotal: lineItems.reduce((total, lineItem) => total + lineItem.amount, 0), lineItems };

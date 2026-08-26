@@ -33,7 +33,7 @@ export const postgresTierModels: Readonly<Record<PostgresTier, PostgresTierModel
   },
   large: {
     readCapacityRps: 20_000,
-    writeCapacityRps: 4_000,
+    writeCapacityRps: 5_000,
     replicaReadCapacityRps: 20_000,
     monthlyCost: 7_000,
     monthlyCostPerReplica: 5_000,
@@ -69,6 +69,33 @@ export function postgresReplicaReadCapacityEach(config: Pick<PostgresConfig, "ti
 export function postgresReadCapacityForConfig(config: Pick<PostgresConfig, "tier" | "readReplicaCount">): number {
   const model = postgresTierModels[config.tier];
   return model.readCapacityRps + config.readReplicaCount * model.replicaReadCapacityRps;
+}
+
+/** Educational monthly cost: primary tier + per-replica add-on. */
+export function postgresMonthlyCostForConfig(config: Pick<PostgresConfig, "tier" | "readReplicaCount">): number {
+  const model = postgresTierModels[config.tier];
+  return model.monthlyCost + config.readReplicaCount * model.monthlyCostPerReplica;
+}
+
+/**
+ * Capacity-proportional read split across primary + logical replicas.
+ * Writes are not distributed — callers keep them on primary only.
+ */
+export function distributePostgresReads(
+  readRps: number,
+  config: Pick<PostgresConfig, "tier" | "readReplicaCount">,
+): { primaryReadRps: number; replicaReadRps: number } {
+  const primaryCapacity = postgresPrimaryReadCapacity(config);
+  const replicaCapacityEach = postgresReplicaReadCapacityEach(config);
+  const totalCapacity = primaryCapacity + config.readReplicaCount * replicaCapacityEach;
+  if (readRps <= 0 || totalCapacity <= 0) {
+    return { primaryReadRps: 0, replicaReadRps: 0 };
+  }
+  const primaryReadRps = (readRps * primaryCapacity) / totalCapacity;
+  return {
+    primaryReadRps,
+    replicaReadRps: readRps - primaryReadRps,
+  };
 }
 
 const postgresConfigSchema: ComponentConfigSchema<PostgresConfig> = {

@@ -30,7 +30,7 @@ Do not add an `HA: true` checkbox. Resilience must come from structure the simul
 
 ## Current catalog notes
 
-`postgres` is the Phase 1 database primitive extended in Phase 2 with `readReplicaCount` (0–8). Tier models keep primary read capacity, write capacity, per-replica read capacity, and educational costs together. Reads scale with replicas; writes always hit the primary. Missing `readReplicaCount` defaults to 0 for Tiny API compatibility. Phase 3 may replace the count with region-assigned replica entries without changing the component type.
+`postgres` is the Phase 1 database primitive extended in Phase 2 with `readReplicaCount` (0–8). Tier models keep primary read capacity, write capacity, per-replica read capacity, and educational costs together. Reads are split capacity-proportionally across primary + replicas; writes always hit the primary. Cost is primary tier + `readReplicaCount × monthlyCostPerReplica`. Missing `readReplicaCount` defaults to 0 for Tiny API compatibility. Phase 3 may replace the count with region-assigned replica entries without changing the component type.
 
 `redis` is the Level 1 data-cache primitive. Player knobs are `mode` (`standalone` | `replicated`), `tier`, and `ttlBand`. Ports use `read_write` so `Service → Redis → Postgres` is a valid typed path. Replicated mode raises throughput/hot-key capacity and cost but does not cluster or shard a hot key. Redis must not absorb writes; hit/miss traffic reduction is applied by the simulator (SIM-007), not by the UI.
 

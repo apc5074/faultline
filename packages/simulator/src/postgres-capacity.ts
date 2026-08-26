@@ -1,5 +1,8 @@
 import {
+  distributePostgresReads,
+  postgresPrimaryReadCapacity,
   postgresReadCapacityForConfig,
+  postgresReplicaReadCapacityEach,
   postgresWriteCapacityForConfig,
   type PostgresConfig,
 } from "@faultline/component-catalog";
@@ -15,8 +18,16 @@ import {
 export type PostgresCapacityState = "healthy" | "warning" | "critical" | "saturated";
 
 export interface PostgresCapacityMetrics {
+  /** Total read demand reaching this Postgres deployment. */
   readRps: number;
+  /** Write demand — always primary-only. */
   writeRps: number;
+  /** Capacity-proportional share of reads served by the primary. */
+  primaryReadRps: number;
+  /** Remaining reads served by logical read replicas (never writes). */
+  replicaReadRps: number;
+  primaryReadCapacityRps: number;
+  replicaReadCapacityRps: number;
   readCapacityRps: number;
   writeCapacityRps: number;
   readReplicaCount: number;
@@ -52,6 +63,8 @@ function capacityEvents(componentId: string, metrics: PostgresCapacityMetrics): 
       data: {
         readRps: metrics.readRps,
         writeRps: metrics.writeRps,
+        primaryReadRps: metrics.primaryReadRps,
+        replicaReadRps: metrics.replicaReadRps,
         readUtilization: metrics.readUtilization,
         writeUtilization: metrics.writeUtilization,
         effectiveUtilization: metrics.effectiveUtilization,
@@ -79,7 +92,11 @@ function capacityEvents(componentId: string, metrics: PostgresCapacityMetrics): 
   return events;
 }
 
-/** Applies independent Postgres read/write capacity limits to propagated traffic. */
+/**
+ * Applies independent Postgres read/write capacity limits to propagated traffic.
+ * Reads are split capacity-proportionally across primary + logical replicas.
+ * Writes remain entirely on the primary.
+ */
 export function evaluatePostgresCapacity(input: TrafficPropagationInput): PostgresCapacityResult {
   const propagation = propagateTraffic(input);
   if (!propagation.valid) return propagation;
@@ -94,15 +111,23 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
     const parsed = input.registry.get(component.type).configSchema.safeParse(component.config);
     if (!parsed.success) continue;
     const config = parsed.data as PostgresConfig;
+    const primaryReadCapacityRps = postgresPrimaryReadCapacity(config);
+    const replicaReadCapacityEach = postgresReplicaReadCapacityEach(config);
+    const replicaReadCapacityRps = config.readReplicaCount * replicaReadCapacityEach;
     const readCapacityRps = postgresReadCapacityForConfig(config);
     const writeCapacityRps = postgresWriteCapacityForConfig(config);
     const traffic = propagation.traffic[component.id];
+    const { primaryReadRps, replicaReadRps } = distributePostgresReads(traffic.readRps, config);
     const readUtilization = traffic.readRps / readCapacityRps;
     const writeUtilization = traffic.writeRps / writeCapacityRps;
     const effectiveUtilization = Math.max(readUtilization, writeUtilization);
     const metrics: PostgresCapacityMetrics = {
       readRps: traffic.readRps,
       writeRps: traffic.writeRps,
+      primaryReadRps,
+      replicaReadRps,
+      primaryReadCapacityRps,
+      replicaReadCapacityRps,
       readCapacityRps,
       writeCapacityRps,
       readReplicaCount: config.readReplicaCount,
@@ -119,5 +144,12 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
     events.push(...capacityEvents(component.id, metrics));
   }
 
-  return { valid: true, traffic: propagation.traffic, caches: propagation.caches, events, postgres };
+  return {
+    valid: true,
+    traffic: propagation.traffic,
+    caches: propagation.caches,
+    regionalWorkload: propagation.regionalWorkload,
+    events,
+    postgres,
+  };
 }

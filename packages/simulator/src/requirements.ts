@@ -9,6 +9,7 @@ import type {
 } from "@faultline/core";
 
 import { estimateMonthlyCost } from "./cost.js";
+import { evaluateHotKeyScenario, type HotKeyScenarioResult } from "./hot-key.js";
 import { evaluatePathLatency } from "./latency.js";
 import type { PostgresCapacityMetrics } from "./postgres-capacity.js";
 import type { ServiceCapacityMetrics } from "./service-capacity.js";
@@ -28,6 +29,7 @@ export type RequirementsEvaluationResult =
       cost: CostResult;
       throughputRatio: number;
       headroom: number;
+      hotKey: HotKeyScenarioResult;
     })
   | Extract<TrafficPropagationResult, { valid: false }>;
 
@@ -209,11 +211,15 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
   const latency = evaluatePathLatency(input);
   if (!latency.valid) return latency;
 
+  const hotKeyResult = evaluateHotKeyScenario(input);
+  if (!hotKeyResult.valid) return hotKeyResult;
+
   const throughput = throughputFromCapacity(latency.services, latency.postgres);
   const headroom = headroomFromCapacity(latency.services, latency.postgres);
   const cost = estimateMonthlyCost({
     architecture: input.architecture as Architecture,
     registry: input.registry,
+    traffic: latency.traffic,
   });
   const snapshot: OutcomeSnapshot = {
     throughputRatio: throughput.ratio,
@@ -229,13 +235,28 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     const evaluator = evaluators[requirement.type];
     return evaluator(requirement, snapshot);
   });
-  const allRequirementsPass = requirements.every((requirement) => requirement.passed);
+  const requirementsPass = requirements.every((requirement) => requirement.passed);
+  const hotKey = hotKeyResult.hotKey;
+  const allRequirementsPass = requirementsPass && (!hotKey.active || hotKey.passed);
   const events = [...latency.events, ...requirements.map(requirementEvent)];
+  if (hotKey.active) {
+    events.push({
+      type: hotKey.passed ? "requirement_passed" : "requirement_failed",
+      data: {
+        requirementId: "hot-key",
+        type: "hot-key",
+        actual: hotKey.viralRedirectRps,
+        target: hotKey.viralRedirectRps,
+        explanation: hotKey.explanation,
+      },
+    });
+  }
 
   return {
     valid: true,
     traffic: latency.traffic,
     caches: latency.caches,
+    regionalWorkload: latency.regionalWorkload,
     events,
     services: latency.services,
     postgres: latency.postgres,
@@ -245,5 +266,6 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     cost,
     throughputRatio: throughput.ratio,
     headroom: headroom.headroom,
+    hotKey,
   };
 }

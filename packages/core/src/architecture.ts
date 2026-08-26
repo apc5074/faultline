@@ -11,7 +11,10 @@ export interface ComponentUIState {
   y: number;
 }
 
-/** Reserved for a later geography phase; Phase 1 does not simulate it. */
+/**
+ * Regional placement of a logical component instance.
+ * `regionId` must resolve through the region registry when geography is active.
+ */
 export interface RegionDeployment {
   regionId: string;
   replicas?: number;

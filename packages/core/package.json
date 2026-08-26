@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm run build && node scripts/verify-architecture-contract.mjs"
+    "verify": "pnpm run build && node scripts/verify-architecture-contract.mjs && node scripts/verify-region-registry.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3"

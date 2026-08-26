@@ -19,7 +19,11 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 
-import { tinyApiChallenge } from "@faultline/challenges";
+import {
+  urlShortenerChallenge,
+  urlShortenerRedirectRps,
+  urlShortenerWriteRps,
+} from "@faultline/challenges";
 import { componentRegistry, postgresTierModels, postgresReadCapacityForConfig, postgresReadReplicaBounds, postgresWriteCapacityForConfig, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels, loadBalancerMonthlyCost, loadBalancerPolicies, cdnConfiguredHitIntent, cdnHitRateForConfig, cdnMonthlyCostForConfig, cdnThroughputCapacityForConfig, cdnTtlHitRateBands, cdnTierModels } from "@faultline/component-catalog";
 import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
@@ -54,9 +58,20 @@ type SimulationRunState = "idle" | "running" | "complete" | "error";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
 
+/** Primary playable Level 1 challenge. Tiny API remains available for package regression. */
+const activeChallenge = urlShortenerChallenge;
+
 const initialArchitecture: Architecture = {
   version: 1,
-  components: [],
+  components: [
+    {
+      id: "traffic-source-start",
+      type: "traffic-source",
+      config: { label: "Incoming traffic" },
+      deployments: [],
+      ui: { x: 80, y: 180 },
+    },
+  ],
   connections: [],
 };
 
@@ -197,7 +212,7 @@ function formatCompactCost(amount: number): string {
 
 function BudgetHud({ architecture }: { architecture: Architecture }) {
   const cost = estimateMonthlyCost({ architecture, registry: componentRegistry });
-  const budget = tinyApiChallenge.monthlyBudget;
+  const budget = activeChallenge.monthlyBudget;
   const overBudget = cost.monthlyTotal > budget;
 
   return (
@@ -250,7 +265,7 @@ function formatComparator(comparator: RequirementDefinition["comparator"]): stri
 
 function formatRequirementTarget(requirement: RequirementDefinition): string {
   if (requirement.type === "throughput") {
-    return `${tinyApiChallenge.workload.requestsPerSecond.toLocaleString("en-US")} req/sec`;
+    return `${activeChallenge.workload.requestsPerSecond.toLocaleString("en-US")} req/sec`;
   }
   if (requirement.type === "latency") {
     return `${formatComparator(requirement.comparator)} ${requirement.target}ms`;
@@ -292,7 +307,11 @@ function RequirementsHud({
       aria-label="Challenge requirements"
     >
       <p className="requirements-hud__title">Requirements</p>
-      <p className="requirements-hud__challenge">{tinyApiChallenge.title}</p>
+      <p className="requirements-hud__challenge">{activeChallenge.title}</p>
+      <p className="requirements-hud__workload">
+        {urlShortenerRedirectRps.toLocaleString("en-US")} redirects/sec · {urlShortenerWriteRps.toLocaleString("en-US")}{" "}
+        writes/sec · 30:1 · 25% viral key
+      </p>
 
       {showResults ? (
         <p
@@ -308,7 +327,7 @@ function RequirementsHud({
       )}
 
       <ul className="requirements-hud__list">
-        {tinyApiChallenge.requirements.map((requirement) => {
+        {activeChallenge.requirements.map((requirement) => {
           const evaluated = showResults
             ? result.requirements.find((candidate) => candidate.id === requirement.id)
             : undefined;
@@ -343,6 +362,49 @@ function RequirementsHud({
             </li>
           );
         })}
+        {(activeChallenge.workload.hotKeyReadFraction ?? 0) > 0 ? (
+          <li
+            className={`requirements-hud__item${
+              showResults && result.hotKey.active
+                ? ` requirements-hud__item--${result.hotKey.passed ? "pass" : "fail"}`
+                : ""
+            }`}
+          >
+            <div className="requirements-hud__item-header">
+              <strong>Hot-key scenario</strong>
+              <span aria-hidden="true">
+                {showResults && result.hotKey.active ? (result.hotKey.passed ? "✓" : "✕") : "–"}
+              </span>
+            </div>
+            {showResults && result.hotKey.active ? (
+              <>
+                <p className="requirements-hud__values">
+                  {result.hotKey.viralRedirectRps.toLocaleString("en-US")} viral req/sec
+                  {" · "}
+                  {result.hotKey.viralReachingPostgresRps.toLocaleString("en-US")} to Postgres
+                </p>
+                <p className="requirements-hud__status">{result.hotKey.passed ? "Pass" : "Fail"}</p>
+                {!result.hotKey.passed ? (
+                  <p className="requirements-hud__explanation">{result.hotKey.explanation}</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="requirements-hud__values">25% of redirects on one viral URL</p>
+            )}
+          </li>
+        ) : null}
+        {activeChallenge.unscoredTargets?.map((target) => (
+          <li key={target.id} className="requirements-hud__item requirements-hud__item--deferred">
+            <div className="requirements-hud__item-header">
+              <strong>{target.label}</strong>
+              <span aria-hidden="true">…</span>
+            </div>
+            <p className="requirements-hud__values">
+              ≥{(target.target * 100).toFixed(2)}% · not scored yet
+            </p>
+            <p className="requirements-hud__explanation">{target.reason}</p>
+          </li>
+        ))}
       </ul>
     </aside>
   );
@@ -536,13 +598,17 @@ function ComponentInspector({
           </div>
           <div><dt>Primary read</dt><dd>{model.readCapacityRps.toLocaleString()} req/sec</dd></div>
           <div>
+            <dt>Replica read pool</dt>
+            <dd>{(model.replicaReadCapacityRps * readReplicaCount).toLocaleString()} req/sec</dd>
+          </div>
+          <div>
             <dt>Per replica read</dt>
             <dd>{model.replicaReadCapacityRps.toLocaleString()} req/sec</dd>
           </div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
         </dl>
         <p className="component-inspector__hint">
-          Replicas add read capacity only. Writes always hit the primary. Region assignment comes later.
+          Reads split across primary and replicas by capacity. Writes always hit the primary. Region assignment comes later.
         </p>
       </aside>
     );
@@ -724,7 +790,17 @@ function ComponentInspector({
     <aside className="component-inspector" aria-label="Traffic Source inspector">
       <p className="component-inspector__eyebrow">Traffic Source</p>
       <dl>
-        <div><dt>Workload</dt><dd>{tinyApiChallenge.workload.requestsPerSecond.toLocaleString()} req/sec</dd></div>
+        <div>
+          <dt>Workload</dt>
+          <dd>
+            {urlShortenerRedirectRps.toLocaleString("en-US")} redirects/sec ·{" "}
+            {urlShortenerWriteRps.toLocaleString("en-US")} writes/sec
+          </dd>
+        </div>
+        <div>
+          <dt>Geography</dt>
+          <dd>Configured for later phases — not simulated yet</dd>
+        </div>
         <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
       </dl>
       <p className="component-inspector__hint">Traffic is configured by the challenge and cannot be edited here.</p>
@@ -809,7 +885,7 @@ function ArchitectureWorkspace() {
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const paletteDefinitions = useMemo(
-    () => componentRegistry.list().filter((definition) => tinyApiChallenge.allowedComponentTypes.includes(definition.type)),
+    () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
     [],
   );
   const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
@@ -884,7 +960,7 @@ function ArchitectureWorkspace() {
   const onDrop = useCallback((event: DragEvent) => {
     event.preventDefault();
     const type = event.dataTransfer.getData("application/faultline-component-type");
-    if (!tinyApiChallenge.allowedComponentTypes.includes(type) || !componentRegistry.has(type)) return;
+    if (!activeChallenge.allowedComponentTypes.includes(type) || !componentRegistry.has(type)) return;
 
     const component = createComponentInstance(
       componentRegistry.get(type),
@@ -946,7 +1022,7 @@ function ArchitectureWorkspace() {
       try {
         const outcome = evaluateRequirements({
           architecture,
-          challenge: tinyApiChallenge,
+          challenge: activeChallenge,
           registry: componentRegistry,
         });
 

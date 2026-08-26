@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { cdnMonthlyCostForConfig, componentRegistry } from "@faultline/component-catalog";
+import {
+  cdnMonthlyCostForConfig,
+  cdnUsageMonthlyCost,
+  componentRegistry,
+} from "@faultline/component-catalog";
 import { tinyApiChallenge } from "@faultline/challenges";
 import { checkConnectionCompatibility } from "@faultline/core";
 import { estimateMonthlyCost, evaluateRequirements, validateArchitectureForSimulation } from "../dist/index.js";
@@ -124,13 +128,38 @@ assert.equal(withCdn.services["service-01"].incomingRps, 2_760);
 assert.ok(withCdn.services["service-01"].incomingRps < direct.services["service-01"].incomingRps);
 assert.ok(withCdn.postgres["postgres-01"].readRps < direct.postgres["postgres-01"].readRps);
 
-const cdnCost = cdnMonthlyCostForConfig({ tier: "medium" });
+const cdnIncomingRps = withCdn.traffic["cdn-01"].incomingRps;
+const cdnCost = cdnMonthlyCostForConfig({ tier: "medium" }, cdnIncomingRps);
+assert.equal(cdnCost, 5_000 + cdnUsageMonthlyCost(cdnIncomingRps));
+assert.ok(cdnUsageMonthlyCost(cdnIncomingRps) > 0);
 assert.equal(withCdn.cost.monthlyTotal, direct.cost.monthlyTotal + cdnCost);
 assert.ok(withCdn.cost.lineItems.some((lineItem) => lineItem.componentId === "cdn-01" && lineItem.amount === cdnCost));
 
-assert.deepEqual(estimateMonthlyCost({ architecture: cdnArchitecture, registry: componentRegistry }).lineItems.find((lineItem) => lineItem.componentId === "cdn-01"), {
-  componentId: "cdn-01",
-  amount: 5_000,
-});
+assert.deepEqual(
+  estimateMonthlyCost({ architecture: cdnArchitecture, registry: componentRegistry }).lineItems.find(
+    (lineItem) => lineItem.componentId === "cdn-01",
+  ),
+  { componentId: "cdn-01", amount: 5_000 },
+);
+assert.deepEqual(
+  estimateMonthlyCost({
+    architecture: cdnArchitecture,
+    registry: componentRegistry,
+    traffic: withCdn.traffic,
+  }).lineItems.find((lineItem) => lineItem.componentId === "cdn-01"),
+  { componentId: "cdn-01", amount: cdnCost },
+);
+assert.ok(
+  estimateMonthlyCost({
+    architecture: cdnArchitecture,
+    registry: componentRegistry,
+    traffic: { "cdn-01": { incomingRps: 12_000 } },
+  }).monthlyTotal >
+    estimateMonthlyCost({
+      architecture: cdnArchitecture,
+      registry: componentRegistry,
+      traffic: { "cdn-01": { incomingRps: 6_000 } },
+    }).monthlyTotal,
+);
 
 console.log("cdn component verified");

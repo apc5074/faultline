@@ -22,8 +22,20 @@ Simulation decides outcomes, including pass/fail; an LLM never does. Geography, 
 
 ## Latency
 
-`latencyForUtilization` is the shared pure curve used by Service and Postgres. Each component supplies only a base latency (Service 20ms, Postgres 30ms). Pressure stays near base through 70% utilization, rises moderately through 90%, rises rapidly through 100%, and becomes obviously unacceptable above 100%. `evaluatePathLatency` applies that curve to service utilization and Postgres effective utilization, then reports Phase 1 request p95 as the worst Traffic→Service→Postgres path of `serviceLatency + databaseLatency`. Reads and writes share the database's effective pressure; geographic network latency is not modelled.
+`latencyForUtilization` is the shared pure curve used by Service and Postgres. Each component supplies only a base latency (Service 20ms, Postgres 30ms). Pressure stays near base through 70% utilization, rises moderately through 90%, rises rapidly through 100%, and becomes obviously unacceptable above 100%. `evaluatePathLatency` applies that curve to service utilization and Postgres effective utilization, then reports Phase 1 request p95 as the worst Traffic→Service→Postgres path of `serviceLatency + databaseLatency`. Reads and writes share the database's effective pressure; geographic network latency is not modelled in that path evaluator yet.
+
+## Geographic latency
+
+`getRegionLatencyMs` is the centralized educational latency matrix between the six Phase 3 regions. Same-region hops are a small nonzero cost (10ms). Cross-region values are fixed, symmetric, and deterministic — for example US East → Europe is 80ms and US East → Singapore is 220ms. These are simplified educational latency assumptions, not real provider SLAs. Unknown region IDs throw rather than returning undefined/NaN. UI must consume simulator results; it must not duplicate these constants.
+
+## Geographic traffic distribution
+
+`deriveRegionalWorkload` turns challenge `geographicDistribution` fractions into per-region `redirectRps`, `writeRps`, and `hotKeyRedirectRps`. Totals match global redirect/write demand; hot-key remains `redirect × hotKeyReadFraction` applied per origin. Writes inherit the same geographic fractions until a challenge supplies a separate write map. Challenges without distribution (Tiny API) produce an inactive regional workload. Successful traffic and requirements results expose `regionalWorkload` so UI can render traffic origins without recalculating percentages.
 
 ## Requirement evaluation
 
 `evaluateRequirements` is configuration-driven and scores outcomes only. It derives throughput from the lowest handled-demand share across Services and Postgres, latency from path p95, headroom from the minimum of service headroom and `1 - postgresEffectiveUtilization`, and budget from `estimateMonthlyCost`. Each requirement returns actual, target, comparator, and a deterministic explanation; overall pass requires every requirement to pass. The run emits `requirement_passed` / `requirement_failed` events and never checks component names or prescribed topologies. Successful results also expose the Service and Postgres capacity metrics so the UI can render utilization and saturation state without recalculating thresholds.
+
+## Hot-key scenario
+
+`evaluateHotKeyScenario` models concentrated viral-key redirect traffic when `challenge.workload.hotKeyReadFraction` is set. Viral RPS is `requestsPerSecond × readRatio × hotKeyReadFraction`. That volume propagates through the real architecture (CDN → Service → Redis → Postgres) using the same request/`read_write` edges as aggregate traffic. CDN and Redis absorb viral volume through shared `evaluateCacheOffload` hit/capacity rules; Redis saturation uses per-key `hotKeyCapacityRps` so aggregate cache utilization cannot hide a single-key bottleneck. Postgres hot-key pressure is measured against primary read capacity only—read replicas do not shard one viral key. When the fraction is omitted or zero (Tiny API), the scenario is inactive and does not affect pass/fail. When active, overall pass also requires the hot-key scenario to pass.

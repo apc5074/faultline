@@ -13,6 +13,7 @@ import {
 import type { Architecture, ChallengeDefinition, Connection, JsonObject } from "@faultline/core";
 
 import { evaluateCacheOffload, type CacheResult } from "./cache.js";
+import { deriveRegionalWorkload, type RegionalWorkload } from "./regional-workload.js";
 import {
   validateArchitectureForSimulation,
   type SimulationValidationError,
@@ -51,6 +52,8 @@ export type TrafficPropagationResult =
       valid: true;
       traffic: Readonly<Record<string, ComponentTraffic>>;
       caches: Readonly<Record<string, CacheResult>>;
+      /** Challenge-derived traffic origins; empty/inactive when geography is unset. */
+      regionalWorkload: RegionalWorkload;
       events: readonly SimulationEvent[];
     }
   | { valid: false; errors: readonly SimulationValidationError[] };
@@ -343,5 +346,5 @@ export function propagateTraffic({ architecture: input, challenge, registry }: T
   }
 
   events.push({ type: "simulation_finished", data: { requestsPerSecond: challenge.workload.requestsPerSecond } });
-  return { valid: true, traffic, caches, events };
+  return { valid: true, traffic, caches, regionalWorkload: deriveRegionalWorkload(challenge), events };
 }

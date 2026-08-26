@@ -9,6 +9,7 @@ export type CdnTtlBand = (typeof cdnTtlBands)[number];
 export interface CdnTierModel {
   /** Edge throughput capacity for cacheable redirect traffic. */
   throughputRps: number;
+  /** Fixed educational monthly base cost for the tier (usage billed separately). */
   monthlyCost: number;
 }
 
@@ -21,6 +22,12 @@ export const cdnTierModels: Readonly<Record<CdnTier, CdnTierModel>> = {
   medium: { throughputRps: 100_000, monthlyCost: 5_000 },
   large: { throughputRps: 250_000, monthlyCost: 12_000 },
 };
+
+/** 30-day billing month used to project sustained RPS into monthly request volume. */
+export const secondsPerBillingMonth = 30 * 24 * 60 * 60;
+
+/** Educational CDN usage rate ($ per million projected monthly requests). */
+export const cdnUsageCostPerMillionRequests = 0.05;
 
 /**
  * Deterministic educational hit-rate bands for eligible redirect traffic.
@@ -60,8 +67,18 @@ export function cdnThroughputCapacityForConfig(config: Pick<CdnConfig, "tier">):
   return cdnTierModels[config.tier].throughputRps;
 }
 
-export function cdnMonthlyCostForConfig(config: Pick<CdnConfig, "tier">): number {
-  return cdnTierModels[config.tier].monthlyCost;
+/** Project sustained RPS into educational monthly CDN usage dollars. */
+export function cdnUsageMonthlyCost(incomingRps: number): number {
+  const rps = Math.max(0, incomingRps);
+  return Math.round((rps * secondsPerBillingMonth * cdnUsageCostPerMillionRequests) / 1_000_000);
+}
+
+/**
+ * Educational CDN monthly cost: tier base + optional usage from sustained incoming RPS.
+ * When `incomingRps` is omitted or 0, returns base only.
+ */
+export function cdnMonthlyCostForConfig(config: Pick<CdnConfig, "tier">, incomingRps = 0): number {
+  return cdnTierModels[config.tier].monthlyCost + cdnUsageMonthlyCost(incomingRps);
 }
 
 /**
@@ -144,6 +161,8 @@ export const cdnDefinition: ComponentDefinition<CdnConfig> = {
   cost: {
     educationalEstimate: true,
     tierModels: cdnTierModels as unknown as JsonObject,
+    secondsPerBillingMonth,
+    usageCostPerMillionRequests: cdnUsageCostPerMillionRequests,
   },
   regionSupport: false,
   replicationSupport: false,
