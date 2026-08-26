@@ -12,13 +12,13 @@ const globalRouterConfigSchema: ComponentConfigSchema<GlobalRouterConfig> = {
       return { success: false, errors: ["Global Router configuration must be an object."] };
     }
 
-    // Reject premature geography knobs so Phase 2 stays honest.
+    // Reject player-facing weighted / active-passive knobs; nearest-healthy is fixed policy.
     const record = input as Record<string, unknown>;
-    for (const forbidden of ["regionId", "regions", "latencyBias", "failoverPolicy"]) {
+    for (const forbidden of ["regionId", "regions", "latencyBias", "failoverPolicy", "weightedRouting", "activePassive"]) {
       if (record[forbidden] !== undefined) {
         return {
           success: false,
-          errors: [`Global Router does not accept "${forbidden}" until geographic routing is active.`],
+          errors: [`Global Router does not accept "${forbidden}". Routing uses nearest healthy region.`],
         };
       }
     }
@@ -30,11 +30,9 @@ const globalRouterConfigSchema: ComponentConfigSchema<GlobalRouterConfig> = {
 /**
  * Logical ingress/routing primitive for Level 1.
  *
- * Phase 2: deterministic request passthrough. Equal split across outbound
- * request edges. No nearest-region selection, no geographic latency, no
- * RegionRegistry dependency, zero monthly cost.
- *
- * Phase 3 will activate healthy-region routing on this same component type.
+ * Phase 3: when challenge geography and service deployments are active, request
+ * traffic uses nearest-healthy-region selection via the latency matrix.
+ * Config remains empty — no weighted or active/passive knobs.
  */
 export const globalRouterDefinition: ComponentDefinition<GlobalRouterConfig> = {
   type: "global-router",
@@ -63,8 +61,8 @@ export const globalRouterDefinition: ComponentDefinition<GlobalRouterConfig> = {
   simulation: {
     role: "global_router",
     forwardsRequests: true,
-    geographicRouting: false,
-    phase2Passthrough: true,
+    geographicRouting: true,
+    routingPolicy: "nearest_healthy_region",
   },
   cost: {
     fixedMonthlyCost: 0,

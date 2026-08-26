@@ -13,12 +13,22 @@ export interface ComponentUIState {
 
 /**
  * Regional placement of a logical component instance.
+ * Deployments live on the same Architecture — never a second world model.
  * `regionId` must resolve through the region registry when geography is active.
+ *
+ * Component-specific `config` examples:
+ * - service: `{ instances: number }`
+ * - redis: `{}` (one independent regional cache footprint)
+ * - postgres: `{ role: "primary" | "replica" }`
  */
 export interface RegionDeployment {
+  /** Stable identity within the component's deployments list. */
+  id: string;
   regionId: string;
-  replicas?: number;
+  config: JsonObject;
 }
+
+export type PostgresDeploymentRole = "primary" | "replica";
 
 export interface ComponentInstance {
   /** Stable identity, never derived from an array index. */
@@ -29,9 +39,9 @@ export interface ComponentInstance {
   ui: ComponentUIState;
 }
 
-/** The initial semantic edge types required by the Tiny API slice. */
-export const phaseOneConnectionTypes = ["request", "read_write"] as const;
-export type ConnectionType = (typeof phaseOneConnectionTypes)[number];
+/** Supported semantic edge types for architecture connections. */
+export const supportedConnectionTypes = ["request", "read_write"] as const;
+export type ConnectionType = (typeof supportedConnectionTypes)[number];
 
 export interface Connection {
   /** Stable identity, never derived from an array index. */
@@ -105,7 +115,7 @@ export type ArchitectureValidationResult =
   | { success: true; data: Architecture }
   | { success: false; errors: ArchitectureValidationIssue[] };
 
-const connectionTypes = new Set<ConnectionType>(phaseOneConnectionTypes);
+const connectionTypes = new Set<ConnectionType>(supportedConnectionTypes);
 
 export function isConnectionType(value: unknown): value is ConnectionType {
   return typeof value === "string" && connectionTypes.has(value as ConnectionType);
@@ -121,10 +131,6 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
 function isJsonValue(value: unknown): value is JsonValue {
@@ -190,8 +196,10 @@ function validateComponent(
 function isRegionDeployment(value: unknown): value is RegionDeployment {
   return (
     isRecord(value) &&
+    isNonEmptyString(value.id) &&
     isNonEmptyString(value.regionId) &&
-    (value.replicas === undefined || isNonNegativeInteger(value.replicas))
+    isRecord(value.config) &&
+    isJsonValue(value.config)
   );
 }
 

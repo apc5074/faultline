@@ -7,6 +7,8 @@ import {
   type ComponentInstance,
 } from "@faultline/core";
 
+import { validateComponentDeployments } from "./deployments.js";
+
 export type SimulationValidationErrorCode =
   | "ARCHITECTURE_SCHEMA_INVALID"
   | "UNKNOWN_COMPONENT_TYPE"
@@ -17,7 +19,11 @@ export type SimulationValidationErrorCode =
   | "UNKNOWN_PORT"
   | "INCOMPATIBLE_CONNECTION"
   | "MISSING_TRAFFIC_SOURCE"
-  | "MISSING_REQUEST_PATH";
+  | "MISSING_REQUEST_PATH"
+  | "INVALID_REGIONAL_DEPLOYMENT"
+  | "UNSUPPORTED_REGIONAL_DEPLOYMENT"
+  | "UNKNOWN_REGION"
+  | "DEPLOYMENT_CAPACITY_MISMATCH";
 
 export interface SimulationValidationError {
   code: SimulationValidationErrorCode;
@@ -105,6 +111,7 @@ export function validateArchitectureForSimulation({
     if (!definition.configSchema.safeParse(component.config).success) {
       error(errors, { code: "INVALID_COMPONENT_CONFIG", message: `Component "${component.id}" has invalid ${definition.label} configuration.`, componentId: component.id });
     }
+    validateComponentDeployments(component, registry, errors);
   }
 
   for (const connection of architecture.connections) {

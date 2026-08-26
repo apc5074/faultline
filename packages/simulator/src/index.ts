@@ -7,5 +7,7 @@ export * from "./postgres-capacity.js";
 export * from "./latency.js";
 export * from "./region-latency.js";
 export * from "./regional-workload.js";
+export * from "./geographic-routing.js";
+export * from "./deployments.js";
 export * from "./requirements.js";
 export * from "./validation.js";

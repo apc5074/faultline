@@ -149,6 +149,8 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
     traffic: propagation.traffic,
     caches: propagation.caches,
     regionalWorkload: propagation.regionalWorkload,
+    regionalTraffic: propagation.regionalTraffic,
+    geographicRoutes: propagation.geographicRoutes,
     events,
     postgres,
   };

@@ -326,6 +326,11 @@ h1 {
 .component-inspector dt { color: #9aa5b1; }
 .component-inspector dd { margin: 0; text-align: right; }
 .component-inspector__hint { margin-top: 1rem !important; font-size: 0.75rem !important; }
+.component-inspector__region-block { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #2d333b; }
+.component-inspector__region-title { margin: 0 0 0.35rem; color: #f2f3f5; font-size: 0.8rem; font-weight: 600; }
+.component-inspector__replica-list { margin-top: 0.75rem; display: grid; gap: 0.35rem; }
+.component-inspector__checkbox { display: flex !important; align-items: center; gap: 0.5rem; grid-template-columns: none !important; }
+.component-inspector__checkbox input { width: auto; }
 
 .component-palette {
   align-self: stretch;

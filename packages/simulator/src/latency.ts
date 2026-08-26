@@ -191,6 +191,8 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
     traffic: services.traffic,
     caches: services.caches,
     regionalWorkload: services.regionalWorkload,
+    regionalTraffic: services.regionalTraffic,
+    geographicRoutes: services.geographicRoutes,
     events,
     services: services.services,
     postgres: postgres.postgres,

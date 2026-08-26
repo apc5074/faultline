@@ -5,7 +5,7 @@
  * No live ping, jitter, time-of-day variation, or external latency APIs.
  */
 
-import { isValidRegion, regionIds, UnknownRegionError, type RegionId } from "@faultline/core";
+import { isValidRegion, UnknownRegionError, type RegionId } from "@faultline/core";
 
 /** Same-region hop cost. Nonzero so local traffic still pays a small network tax. */
 export const SAME_REGION_LATENCY_MS = 10;
@@ -89,9 +89,4 @@ export function getRegionLatencyMs(sourceRegionId: string, targetRegionId: strin
 /** Exposes the full matrix for verification and future routing diagnostics. */
 export function getRegionLatencyMatrix(): Readonly<Record<RegionId, Readonly<Record<RegionId, number>>>> {
   return REGION_LATENCY_MS;
-}
-
-/** Stable region order used when materializing the matrix. */
-export function getLatencyMatrixRegionIds(): readonly RegionId[] {
-  return regionIds;
 }

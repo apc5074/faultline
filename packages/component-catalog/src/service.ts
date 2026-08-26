@@ -125,7 +125,7 @@ export const serviceDefinition: ComponentDefinition<ServiceConfig> = {
   cost: {
     sizeModels: serviceSizeModels as unknown as JsonObject,
   },
-  regionSupport: false,
+  regionSupport: true,
   replicationSupport: false,
   clusteringSupport: false,
   agentCapabilities: [],

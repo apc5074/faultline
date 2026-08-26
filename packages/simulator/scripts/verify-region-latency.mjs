@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import { regionIds, UnknownRegionError } from "@faultline/core";
 import {
-  getLatencyMatrixRegionIds,
   getRegionLatencyMatrix,
   getRegionLatencyMs,
   SAME_REGION_LATENCY_MS,
 } from "../dist/index.js";
 
-assert.deepEqual([...getLatencyMatrixRegionIds()], [...regionIds]);
 assert.equal(SAME_REGION_LATENCY_MS, 10);
 
 const matrix = getRegionLatencyMatrix();
+assert.deepEqual(Object.keys(matrix).sort(), [...regionIds].sort());
 
 for (const source of regionIds) {
   for (const target of regionIds) {

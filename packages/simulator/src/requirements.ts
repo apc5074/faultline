@@ -257,6 +257,8 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     traffic: latency.traffic,
     caches: latency.caches,
     regionalWorkload: latency.regionalWorkload,
+    regionalTraffic: latency.regionalTraffic,
+    geographicRoutes: latency.geographicRoutes,
     events,
     services: latency.services,
     postgres: latency.postgres,

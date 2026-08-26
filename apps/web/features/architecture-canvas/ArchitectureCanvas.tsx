@@ -19,13 +19,9 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 
-import {
-  urlShortenerChallenge,
-  urlShortenerRedirectRps,
-  urlShortenerWriteRps,
-} from "@faultline/challenges";
+import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry, postgresTierModels, postgresReadCapacityForConfig, postgresReadReplicaBounds, postgresWriteCapacityForConfig, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels, loadBalancerMonthlyCost, loadBalancerPolicies, cdnConfiguredHitIntent, cdnHitRateForConfig, cdnMonthlyCostForConfig, cdnThroughputCapacityForConfig, cdnTtlHitRateBands, cdnTierModels } from "@faultline/component-catalog";
-import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RequirementDefinition, type RequirementResult } from "@faultline/core";
+import { checkConnectionCompatibility, createRegionDeployment, getRegions, isValidRegion, postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RegionDeployment, type RegionId, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
   estimateMonthlyCost,
   evaluateRequirements,
@@ -60,6 +56,18 @@ type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true 
 
 /** Primary playable Level 1 challenge. Tiny API remains available for package regression. */
 const activeChallenge = urlShortenerChallenge;
+
+const challengeRedirectRps =
+  activeChallenge.workload.requestsPerSecond * activeChallenge.workload.readRatio;
+const challengeWriteRps =
+  activeChallenge.workload.requestsPerSecond * activeChallenge.workload.writeRatio;
+const challengeHotKeyFraction = activeChallenge.workload.hotKeyReadFraction ?? 0;
+const challengeReadWriteRatioLabel =
+  challengeWriteRps > 0 ? `${Math.round(challengeRedirectRps / challengeWriteRps)}:1` : "reads only";
+const challengeHotKeyLabel =
+  challengeHotKeyFraction > 0
+    ? `${Math.round(challengeHotKeyFraction * 100)}% viral key`
+    : "no viral key";
 
 const initialArchitecture: Architecture = {
   version: 1,
@@ -210,8 +218,14 @@ function formatCompactCost(amount: number): string {
   return formatCost(amount);
 }
 
-function BudgetHud({ architecture }: { architecture: Architecture }) {
-  const cost = estimateMonthlyCost({ architecture, registry: componentRegistry });
+function BudgetHud({
+  architecture,
+  traffic,
+}: {
+  architecture: Architecture;
+  traffic?: SuccessfulSimulation["traffic"];
+}) {
+  const cost = estimateMonthlyCost({ architecture, registry: componentRegistry, traffic });
   const budget = activeChallenge.monthlyBudget;
   const overBudget = cost.monthlyTotal > budget;
 
@@ -309,8 +323,9 @@ function RequirementsHud({
       <p className="requirements-hud__title">Requirements</p>
       <p className="requirements-hud__challenge">{activeChallenge.title}</p>
       <p className="requirements-hud__workload">
-        {urlShortenerRedirectRps.toLocaleString("en-US")} redirects/sec · {urlShortenerWriteRps.toLocaleString("en-US")}{" "}
-        writes/sec · 30:1 · 25% viral key
+        {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
+        {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec · {challengeReadWriteRatioLabel} ·{" "}
+        {challengeHotKeyLabel}
       </p>
 
       {showResults ? (
@@ -389,7 +404,9 @@ function RequirementsHud({
                 ) : null}
               </>
             ) : (
-              <p className="requirements-hud__values">25% of redirects on one viral URL</p>
+              <p className="requirements-hud__values">
+                {Math.round(challengeHotKeyFraction * 100)}% of redirects on one viral URL
+              </p>
             )}
           </li>
         ) : null}
@@ -497,10 +514,12 @@ function ComponentInspector({
   architecture,
   component,
   onConfigChange,
+  onDeploymentsChange,
 }: {
   architecture: Architecture;
   component: ComponentInstance | undefined;
   onConfigChange: (componentId: string, config: unknown) => void;
+  onDeploymentsChange: (componentId: string, deployments: RegionDeployment[]) => void;
 }) {
   if (!component) {
     return <aside className="component-inspector"><p>Select a component to inspect its configuration.</p></aside>;
@@ -509,6 +528,7 @@ function ComponentInspector({
   const definition = componentRegistry.get(component.type);
   const cost = estimateMonthlyCost({ architecture, registry: componentRegistry });
   const monthlyCost = cost.lineItems.find((lineItem) => lineItem.componentId === component.id)?.amount ?? 0;
+  const regions = getRegions();
 
   if (component.type === "service") {
     const parsed = definition.configSchema.safeParse(component.config);
@@ -516,6 +536,25 @@ function ComponentInspector({
     const size = parsed.data.size as keyof typeof serviceSizeModels;
     const instances = parsed.data.instances as number;
     const sizeModel = serviceSizeModels[size];
+    const regional = component.deployments.length > 0;
+    const instancesByRegion = Object.fromEntries(
+      regions.map((region) => {
+        const deployment = component.deployments.find((entry) => entry.regionId === region.id);
+        const count = deployment ? Number(deployment.config.instances ?? 0) : 0;
+        return [region.id, Number.isFinite(count) ? count : 0];
+      }),
+    ) as Record<string, number>;
+
+    const setRegionalInstances = (regionId: string, nextCount: number) => {
+      const nextCounts = { ...instancesByRegion, [regionId]: Math.max(0, Math.floor(nextCount)) };
+      const nextDeployments: RegionDeployment[] = regions
+        .filter((region) => (nextCounts[region.id] ?? 0) > 0)
+        .map((region) =>
+          createRegionDeployment(region.id, { instances: nextCounts[region.id] }, `dep-${component.id}-${region.id}`),
+        );
+      onDeploymentsChange(component.id, nextDeployments);
+    };
+
     return (
       <aside className="component-inspector" aria-label="Stateless Service inspector">
         <p className="component-inspector__eyebrow">Stateless Service</p>
@@ -533,16 +572,36 @@ function ComponentInspector({
           </select>
         </label>
         <label>
-          Instances
+          Instances {regional ? "(from regions)" : ""}
           <input
             type="number"
             min="1"
             max="10"
             step="1"
             value={instances}
+            disabled={regional}
             onChange={(event) => onConfigChange(component.id, { size, instances: Number(event.target.value) })}
           />
         </label>
+        <div className="component-inspector__region-block">
+          <p className="component-inspector__region-title">Regional instances</p>
+          {regions.map((region) => (
+            <label key={region.id}>
+              {region.label}
+              <input
+                type="number"
+                min="0"
+                max="10"
+                step="1"
+                value={instancesByRegion[region.id] ?? 0}
+                onChange={(event) => setRegionalInstances(region.id, Number(event.target.value))}
+              />
+            </label>
+          ))}
+          <p className="component-inspector__hint">
+            When any region is set, regional instances are the capacity source and must sum to the logical total.
+          </p>
+        </div>
         <dl>
           <div><dt>Capacity / instance</dt><dd>{sizeModel.capacityPerInstance.toLocaleString()} req/sec</dd></div>
           <div><dt>Estimated capacity</dt><dd>{serviceCapacityForConfig({ size, instances }).toLocaleString()} req/sec</dd></div>
@@ -558,6 +617,43 @@ function ComponentInspector({
     const tier = parsed.data.tier as keyof typeof postgresTierModels;
     const readReplicaCount = parsed.data.readReplicaCount as number;
     const model = postgresTierModels[tier];
+    const primary = component.deployments.find((deployment) => deployment.config.role === "primary");
+    const replicaRegionIds = new Set(
+      component.deployments.filter((deployment) => deployment.config.role === "replica").map((deployment) => deployment.regionId),
+    );
+    const regional = component.deployments.length > 0;
+
+    const setPrimaryRegion = (regionId: string) => {
+      if (!regionId || !isValidRegion(regionId)) {
+        onDeploymentsChange(component.id, []);
+        return;
+      }
+      const primaryRegionId: RegionId = regionId;
+      const replicas = regions
+        .filter((region) => replicaRegionIds.has(region.id) && region.id !== primaryRegionId)
+        .map((region) => createRegionDeployment(region.id, { role: "replica" }, `dep-${component.id}-${region.id}-replica`));
+      onDeploymentsChange(component.id, [
+        createRegionDeployment(primaryRegionId, { role: "primary" }, `dep-${component.id}-${primaryRegionId}-primary`),
+        ...replicas,
+      ]);
+    };
+
+    const toggleReplicaRegion = (regionId: string, enabled: boolean) => {
+      const primaryRegionId = primary?.regionId;
+      if (!primaryRegionId || !isValidRegion(primaryRegionId) || !isValidRegion(regionId)) return;
+      const nextReplicaIds = new Set(replicaRegionIds);
+      if (enabled) nextReplicaIds.add(regionId);
+      else nextReplicaIds.delete(regionId);
+      onDeploymentsChange(component.id, [
+        createRegionDeployment(primaryRegionId, { role: "primary" }, `dep-${component.id}-${primaryRegionId}-primary`),
+        ...regions
+          .filter((region) => nextReplicaIds.has(region.id))
+          .map((region) =>
+            createRegionDeployment(region.id, { role: "replica" }, `dep-${component.id}-${region.id}-replica`),
+          ),
+      ]);
+    };
+
     return (
       <aside className="component-inspector" aria-label="Postgres inspector">
         <p className="component-inspector__eyebrow">Postgres</p>
@@ -575,18 +671,51 @@ function ComponentInspector({
           </select>
         </label>
         <label>
-          Read replicas
+          Read replicas {regional ? "(from regions)" : ""}
           <input
             type="number"
             min={postgresReadReplicaBounds.minimum}
             max={postgresReadReplicaBounds.maximum}
             step="1"
             value={readReplicaCount}
+            disabled={regional}
             onChange={(event) =>
               onConfigChange(component.id, { tier, readReplicaCount: Number(event.target.value) })
             }
           />
         </label>
+        <div className="component-inspector__region-block">
+          <p className="component-inspector__region-title">Regional placement</p>
+          <label>
+            Primary region
+            <select value={primary?.regionId ?? ""} onChange={(event) => setPrimaryRegion(event.target.value)}>
+              <option value="">Logical only (no region)</option>
+              {regions.map((region) => (
+                <option key={region.id} value={region.id}>
+                  {region.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {primary ? (
+            <div className="component-inspector__replica-list">
+              <p className="component-inspector__region-title">Read replica regions</p>
+              {regions.map((region) => (
+                <label key={region.id} className="component-inspector__checkbox">
+                  <input
+                    type="checkbox"
+                    checked={replicaRegionIds.has(region.id)}
+                    onChange={(event) => toggleReplicaRegion(region.id, event.target.checked)}
+                  />
+                  {region.label}
+                </label>
+              ))}
+            </div>
+          ) : null}
+          <p className="component-inspector__hint">
+            Exactly one primary. Writes target the primary. Replica regions set readReplicaCount.
+          </p>
+        </div>
         <dl>
           <div>
             <dt>Read capacity</dt>
@@ -607,9 +736,6 @@ function ComponentInspector({
           </div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
         </dl>
-        <p className="component-inspector__hint">
-          Reads split across primary and replicas by capacity. Writes always hit the primary. Region assignment comes later.
-        </p>
       </aside>
     );
   }
@@ -621,6 +747,20 @@ function ComponentInspector({
     const tier = parsed.data.tier as keyof typeof redisTierModels;
     const ttlBand = parsed.data.ttlBand as keyof typeof redisTtlHitRateBands;
     const effective = redisEffectiveModel({ mode, tier });
+    const placed = new Set(component.deployments.map((deployment) => deployment.regionId));
+
+    const toggleRegion = (regionId: string, enabled: boolean) => {
+      const next = new Set(placed);
+      if (enabled) next.add(regionId);
+      else next.delete(regionId);
+      onDeploymentsChange(
+        component.id,
+        regions
+          .filter((region) => next.has(region.id))
+          .map((region) => createRegionDeployment(region.id, {}, `dep-${component.id}-${region.id}`)),
+      );
+    };
+
     return (
       <aside className="component-inspector" aria-label="Redis inspector">
         <p className="component-inspector__eyebrow">Redis</p>
@@ -660,15 +800,28 @@ function ComponentInspector({
             ))}
           </select>
         </label>
+        <div className="component-inspector__region-block">
+          <p className="component-inspector__region-title">Regional placement</p>
+          {regions.map((region) => (
+            <label key={region.id} className="component-inspector__checkbox">
+              <input
+                type="checkbox"
+                checked={placed.has(region.id)}
+                onChange={(event) => toggleRegion(region.id, event.target.checked)}
+              />
+              {region.label}
+            </label>
+          ))}
+          <p className="component-inspector__hint">
+            Each checked region is an independent Redis cache. Replicated mode is local HA, not cross-region sync.
+          </p>
+        </div>
         <dl>
           <div><dt>Configured hit rate</dt><dd>{Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
           <div><dt>Throughput capacity</dt><dd>{effective.throughputRps.toLocaleString()} req/sec</dd></div>
           <div><dt>Hot-key capacity</dt><dd>{effective.hotKeyCapacityRps.toLocaleString()} req/sec</dd></div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
         </dl>
-        <p className="component-inspector__hint">
-          Cache hits reduce Postgres reads once cache simulation is active. Writes always reach Postgres.
-        </p>
       </aside>
     );
   }
@@ -678,7 +831,7 @@ function ComponentInspector({
       <aside className="component-inspector" aria-label="Global Router inspector">
         <p className="component-inspector__eyebrow">Global Router</p>
         <dl>
-          <div><dt>Phase 2 role</dt><dd>Logical request passthrough</dd></div>
+          <div><dt>Role</dt><dd>Logical request passthrough</dd></div>
           <div><dt>Geographic routing</dt><dd>Inactive</dd></div>
           <div><dt>Monthly cost</dt><dd>{formatCost(0)}</dd></div>
         </dl>
@@ -777,10 +930,11 @@ function ComponentInspector({
             <dd>{Math.round(cdnConfiguredHitIntent({ coverage, ttlBand, tier }) * 100)}%</dd>
           </div>
           <div><dt>Edge capacity</dt><dd>{cdnThroughputCapacityForConfig({ tier }).toLocaleString()} req/sec</dd></div>
-          <div><dt>Monthly cost</dt><dd>{formatCost(cdnMonthlyCostForConfig({ tier }))}</dd></div>
+          <div><dt>Base monthly cost</dt><dd>{formatCost(cdnMonthlyCostForConfig({ tier }))}</dd></div>
         </dl>
         <p className="component-inspector__hint">
-          Reduces origin redirect traffic once cache simulation is active. Writes always miss and reach origin. Coverage is logical, not geographic.
+          Reduces origin redirect traffic via cache hit/miss offload. Writes always miss and reach origin. Coverage is
+          logical, not geographic.
         </p>
       </aside>
     );
@@ -793,13 +947,13 @@ function ComponentInspector({
         <div>
           <dt>Workload</dt>
           <dd>
-            {urlShortenerRedirectRps.toLocaleString("en-US")} redirects/sec ·{" "}
-            {urlShortenerWriteRps.toLocaleString("en-US")} writes/sec
+            {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
+            {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec
           </dd>
         </div>
         <div>
           <dt>Geography</dt>
-          <dd>Configured for later phases — not simulated yet</dd>
+          <dd>Origins from challenge geographic distribution; place capacity via component deployments</dd>
         </div>
         <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
       </dl>
@@ -983,6 +1137,43 @@ function ArchitectureWorkspace() {
     });
   }, []);
 
+  const onDeploymentsChange = useCallback((componentId: string, deployments: RegionDeployment[]) => {
+    setArchitecture((current) => {
+      const component = current.components.find((candidate) => candidate.id === componentId);
+      if (!component || !componentRegistry.has(component.type)) return current;
+
+      let nextConfig = component.config;
+      if (component.type === "service") {
+        if (deployments.length === 0) {
+          // Leave logical instances unchanged when clearing geography.
+        } else {
+          const instances = totalServiceInstancesFromDeployments(deployments);
+          const parsed = componentRegistry.get(component.type).configSchema.safeParse({
+            ...component.config,
+            instances,
+          });
+          if (!parsed.success) return current;
+          nextConfig = parsed.data;
+        }
+      } else if (component.type === "postgres") {
+        const readReplicaCount = postgresReplicaDeployments(deployments).length;
+        const parsed = componentRegistry.get(component.type).configSchema.safeParse({
+          ...component.config,
+          readReplicaCount,
+        });
+        if (!parsed.success) return current;
+        nextConfig = parsed.data;
+      }
+
+      return {
+        ...current,
+        components: current.components.map((candidate) =>
+          candidate.id === componentId ? { ...candidate, config: nextConfig, deployments } : candidate,
+        ),
+      };
+    });
+  }, []);
+
   const isValidConnection = useCallback(
     (connection: FlowConnection | Edge) => connectionFromFlow(connection, architecture.components) !== null,
     [architecture.components],
@@ -1089,9 +1280,17 @@ function ArchitectureWorkspace() {
       </ReactFlow>
       </div>
       <div className="architecture-sidebar">
-        <BudgetHud architecture={architecture} />
+        <BudgetHud
+          architecture={architecture}
+          traffic={showSimulationVisuals && !resultIsStale ? simulationResult?.traffic : undefined}
+        />
         <RequirementsHud result={simulationResult} runState={runState} resultIsStale={resultIsStale} />
-        <ComponentInspector architecture={architecture} component={selectedComponent} onConfigChange={onConfigChange} />
+        <ComponentInspector
+          architecture={architecture}
+          component={selectedComponent}
+          onConfigChange={onConfigChange}
+          onDeploymentsChange={onDeploymentsChange}
+        />
       </div>
     </section>
   );

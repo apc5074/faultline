@@ -8,9 +8,11 @@ Supabase, Vercel, AI providers, and browser APIs are adapters around these bound
 
 ## Canonical architecture
 
-`Architecture` in `@faultline/core` is the single serializable domain representation. It has an explicit `version`, stable component and connection IDs, component configuration, reserved region deployment data, and presentation-only `ui` coordinates. UI coordinates never belong to simulation input.
+`Architecture` in `@faultline/core` is the single serializable domain representation. It has an explicit `version`, stable component and connection IDs, component configuration, regional `deployments[]` on each component instance, and presentation-only `ui` coordinates. UI coordinates never belong to simulation input.
 
-Use `validateArchitecture` or `parseArchitecture` when architecture-shaped data crosses an untrusted boundary. This first validation layer checks the serializable shape, version, identity uniqueness, and initial semantic connection fields. Later tickets add component, port, graph, and challenge validation without introducing a second architecture model.
+`RegionDeployment` carries a stable `id`, `regionId`, and component-specific `config` (service instances, Redis regional footprint, Postgres `primary`/`replica` role). Deployments are physical placement of the same logical component — never a second architecture model. Empty `deployments` keeps Phase 1/2 logical-only behavior. When deployments are present, they are the capacity source of truth and logical totals (`instances`, `readReplicaCount`) must match.
+
+Use `validateArchitecture` or `parseArchitecture` when architecture-shaped data crosses an untrusted boundary. This first validation layer checks the serializable shape, version, identity uniqueness, and initial semantic connection fields. Simulation validation additionally rejects unknown regions, unsupported placement, capacity mismatches, and multiple Postgres primaries.
 
 ## Typed connections
 

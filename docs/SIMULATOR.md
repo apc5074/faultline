@@ -6,23 +6,23 @@ Simulation decides outcomes, including pass/fail; an LLM never does. Geography, 
 
 ## Validation before simulation
 
-`validateArchitectureForSimulation` is the Phase 1 entry boundary. It first validates canonical architecture shape, then checks registered component types/configuration, allowed challenge types, endpoint existence, self-connections, catalog port existence, semantic port compatibility, and a viable request path from a Traffic Source. It returns structured errors for ordinary player mistakes and does not silently ignore invalid graph data. Traffic propagation and performance calculations arrive in later simulator tickets.
+`validateArchitectureForSimulation` is the shared entry boundary. It first validates canonical architecture shape, then checks registered component types/configuration, allowed challenge types, endpoint existence, self-connections, catalog port existence, semantic port compatibility, deployment consistency when present, and a viable request path from a Traffic Source. It returns structured errors for ordinary player mistakes and does not silently ignore invalid graph data.
 
 ## Traffic propagation
 
-`propagateTraffic` validates first, then deterministically sorts IDs before routing workload. Tiny API workload is divided across Traffic Sources and their actual `request` edges. Each Service forwards its received request volume across actual `read_write` database edges using the challenge read/write ratios. The result reports component traffic and initial `simulation_started`, `traffic_routed`, and `simulation_finished` events. It does not calculate capacity, saturation, latency, or cost.
+`propagateTraffic` validates first, then deterministically sorts IDs before routing workload. Challenge workload is divided across Traffic Sources and their actual `request` edges. Passthrough forwarders (Global Router, Load Balancer, CDN) move request traffic along `request` edges; CDN can absorb eligible redirect hits. Each Service forwards received volume across actual `read_write` database edges using the challenge read/write ratios. Redis can absorb eligible read hits before Postgres. The result reports component traffic, optional cache metrics, regional workload metadata, and `simulation_started` / `traffic_routed` / `simulation_finished` events. It does not calculate capacity, saturation, latency, or cost.
 
 ## Service capacity
 
-`evaluateServiceCapacity` uses the Service definition's central capacity-per-instance value. Utilization is `incomingRps / capacityRps`; headroom is `(capacityRps - incomingRps) / capacityRps` and remains negative during overload to expose the shortfall. Its deterministic bands are healthy through 70%, warning through 90%, critical through 100%, and saturated above 100%. The result reports handled and unmet RPS and emits component load, warning, or saturation events.
+`evaluateServiceCapacity` uses the Service definition's size × instances capacity model. Utilization is `incomingRps / capacityRps`; headroom is `(capacityRps - incomingRps) / capacityRps` and remains negative during overload to expose the shortfall. Its deterministic bands are healthy through 70%, warning through 90%, critical through 100%, and saturated above 100%. The result reports handled and unmet RPS and emits component load, warning, or saturation events.
 
 ## Postgres capacity
 
-`evaluatePostgresCapacity` applies the Postgres tier's independent read and write capacities to the `readRps` and `writeRps` produced by `propagateTraffic`. It reports both utilization values, handled RPS, and capacity shortfalls. Effective database pressure is `max(readUtilization, writeUtilization)`; this Phase 1 simplification gives one deterministic state and the latency model a single pressure value without combining unlike operations. A database is saturated when either utilization exceeds 1. No replica or other read-scaling logic exists in this phase.
+`evaluatePostgresCapacity` applies the Postgres tier's independent read and write capacities to the `readRps` and `writeRps` produced by `propagateTraffic`. Read capacity includes logical `readReplicaCount`; writes remain primary-only. It reports both utilization values, handled RPS, and capacity shortfalls. Effective database pressure is `max(readUtilization, writeUtilization)`, giving the latency model a single pressure value. A database is saturated when either utilization exceeds 1.
 
 ## Latency
 
-`latencyForUtilization` is the shared pure curve used by Service and Postgres. Each component supplies only a base latency (Service 20ms, Postgres 30ms). Pressure stays near base through 70% utilization, rises moderately through 90%, rises rapidly through 100%, and becomes obviously unacceptable above 100%. `evaluatePathLatency` applies that curve to service utilization and Postgres effective utilization, then reports Phase 1 request p95 as the worst Traffic→Service→Postgres path of `serviceLatency + databaseLatency`. Reads and writes share the database's effective pressure; geographic network latency is not modelled in that path evaluator yet.
+`latencyForUtilization` is the shared pure curve used by Service and Postgres. Each component supplies only a base latency (Service 20ms, Postgres 30ms). Pressure stays near base through 70% utilization, rises moderately through 90%, rises rapidly through 100%, and becomes obviously unacceptable above 100%. `evaluatePathLatency` applies that curve to service utilization and Postgres effective utilization, then reports request p95 as the worst Traffic→Service→Postgres path of `serviceLatency + databaseLatency`. Reads and writes share the database's effective pressure; geographic network latency is not modelled in that path evaluator yet.
 
 ## Geographic latency
 
@@ -31,6 +31,14 @@ Simulation decides outcomes, including pass/fail; an LLM never does. Geography, 
 ## Geographic traffic distribution
 
 `deriveRegionalWorkload` turns challenge `geographicDistribution` fractions into per-region `redirectRps`, `writeRps`, and `hotKeyRedirectRps`. Totals match global redirect/write demand; hot-key remains `redirect × hotKeyReadFraction` applied per origin. Writes inherit the same geographic fractions until a challenge supplies a separate write map. Challenges without distribution (Tiny API) produce an inactive regional workload. Successful traffic and requirements results expose `regionalWorkload` so UI can render traffic origins without recalculating percentages.
+
+## Geographic routing
+
+When challenge geography is active and at least one Service has regional deployments, `propagateTraffic` uses nearest-healthy-region selection (Global Router policy). For each traffic origin it finds services reachable over the logical request graph, ignores unhealthy regions, picks the lowest `getRegionLatencyMs` deployment, and breaks ties by `componentId` then `deploymentId`. Writes follow logical edges but always land on the Postgres primary deployment; reads prefer a same-region Redis deployment and same-region Postgres replica when present. Results expose `geographicRoutes` and `regionalTraffic` for visualization. Regional service overload uses per-deployment capacity so a hot nearest region can saturate even when total instances look fine. Logical-only architectures (no service deployments) keep Phase 1/2 forwarding.
+
+## Regional deployments
+
+`ComponentInstance.deployments[]` places capacity for region-supporting components (Service, Redis, Postgres) without creating a second architecture model. Empty deployments keep logical-only Phase 1/2 behavior. When present, deployments are the physical capacity source: Service regional `instances` must sum to `config.instances`; Postgres requires exactly one `primary` and replica deployments must match `readReplicaCount`; Redis deployments are independent regional cache footprints (`mode: replicated` is local HA, not cross-region sync). Simulation validation rejects unknown regions, unsupported types, duplicate deployment IDs, and capacity mismatches.
 
 ## Requirement evaluation
 

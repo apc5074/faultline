@@ -168,13 +168,13 @@ export const postgresDefinition: ComponentDefinition<PostgresConfig> = {
     readAndWriteCapacityAreIndependent: true,
     writesTargetPrimaryOnly: true,
     readReplicaExtensionPoint:
-      "Phase 3 may replace readReplicaCount with region-assigned replica entries without changing the postgres component type.",
+      "Regional deployments assign primary and replica regions on the same postgres component; readReplicaCount must match replica deployment count when geography is active.",
   },
   cost: {
     educationalEstimate: true,
     tierModels: postgresTierModels as unknown as JsonObject,
   },
-  regionSupport: false,
+  regionSupport: true,
   replicationSupport: true,
   clusteringSupport: false,
   agentCapabilities: [],

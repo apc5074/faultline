@@ -1,5 +1,9 @@
-import { serviceCapacityForConfig, type ServiceConfig } from "@faultline/component-catalog";
-import type { Architecture } from "@faultline/core";
+import {
+  serviceCapacityForConfig,
+  serviceSizeModels,
+  type ServiceConfig,
+} from "@faultline/component-catalog";
+import { serviceInstancesFromDeployment, type Architecture } from "@faultline/core";
 
 import {
   propagateTraffic,
@@ -16,6 +20,15 @@ export const serviceUtilizationBands = {
   criticalMaximum: 1,
 } as const;
 
+export interface ServiceRegionalCapacityMetrics {
+  regionId: string;
+  deploymentId: string;
+  incomingRps: number;
+  capacityRps: number;
+  utilization: number;
+  state: ServiceCapacityState;
+}
+
 export interface ServiceCapacityMetrics {
   incomingRps: number;
   capacityRps: number;
@@ -25,6 +38,8 @@ export interface ServiceCapacityMetrics {
   /** May be negative when overloaded so the shortfall remains visible. */
   headroom: number;
   state: ServiceCapacityState;
+  /** Present when geographic deployments received traffic. */
+  regions?: readonly ServiceRegionalCapacityMetrics[];
 }
 
 export type ServiceCapacityResult =
@@ -68,6 +83,49 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
     const config = parsed.data as ServiceConfig;
     const incomingRps = propagation.traffic[component.id].incomingRps;
     const capacityRps = serviceCapacityForConfig(config);
+
+    const regionalIncoming = propagation.regionalTraffic[component.id];
+    if (component.deployments.length > 0 && regionalIncoming) {
+      const perInstance = serviceSizeModels[config.size].capacityPerInstance;
+      const regions: ServiceRegionalCapacityMetrics[] = [];
+      let handledRps = 0;
+      let unmetRps = 0;
+      let worstUtilization = 0;
+
+      for (const deployment of [...component.deployments].sort((left, right) => left.id.localeCompare(right.id))) {
+        const instances = serviceInstancesFromDeployment(deployment) ?? 0;
+        const regionCapacity = instances * perInstance;
+        const regionIncoming = regionalIncoming[deployment.regionId]?.incomingRps ?? 0;
+        const utilization = regionCapacity > 0 ? regionIncoming / regionCapacity : regionIncoming > 0 ? Number.POSITIVE_INFINITY : 0;
+        const state = stateForUtilization(utilization === Number.POSITIVE_INFINITY ? 2 : utilization);
+        regions.push({
+          regionId: deployment.regionId,
+          deploymentId: deployment.id,
+          incomingRps: regionIncoming,
+          capacityRps: regionCapacity,
+          utilization: utilization === Number.POSITIVE_INFINITY ? regionIncoming : utilization,
+          state,
+        });
+        handledRps += Math.min(regionIncoming, regionCapacity);
+        unmetRps += Math.max(0, regionIncoming - regionCapacity);
+        worstUtilization = Math.max(worstUtilization, utilization === Number.POSITIVE_INFINITY ? 2 : utilization);
+      }
+
+      const metrics: ServiceCapacityMetrics = {
+        incomingRps,
+        capacityRps,
+        handledRps,
+        unmetRps,
+        utilization: worstUtilization,
+        headroom: capacityRps > 0 ? (capacityRps - incomingRps) / capacityRps : 0,
+        state: stateForUtilization(worstUtilization),
+        regions,
+      };
+      services[component.id] = metrics;
+      events.push(...capacityEvents(component.id, metrics));
+      continue;
+    }
+
     const utilization = incomingRps / capacityRps;
     const metrics: ServiceCapacityMetrics = {
       incomingRps,
@@ -87,6 +145,8 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
     traffic: propagation.traffic,
     caches: propagation.caches,
     regionalWorkload: propagation.regionalWorkload,
+    regionalTraffic: propagation.regionalTraffic,
+    geographicRoutes: propagation.geographicRoutes,
     events,
     services,
   };

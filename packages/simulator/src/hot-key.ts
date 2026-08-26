@@ -116,13 +116,11 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
   if (!validation.valid) return validation;
 
   const challenge = input.challenge as ChallengeDefinition;
-  const fraction = challenge.workload.hotKeyReadFraction ?? 0;
-  if (fraction <= 0) return { valid: true, hotKey: inactiveResult() };
+  const viralRedirectRps = viralRedirectRpsForChallenge(challenge);
+  if (viralRedirectRps <= 0) return { valid: true, hotKey: inactiveResult() };
 
   const architecture = validation.architecture;
   const registry = input.registry;
-  const viralRedirectRps =
-    challenge.workload.requestsPerSecond * challenge.workload.readRatio * fraction;
 
   const incoming = Object.fromEntries(architecture.components.map((component) => [component.id, 0])) as Record<
     string,

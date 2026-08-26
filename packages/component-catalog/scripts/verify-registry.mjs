@@ -147,7 +147,8 @@ assert.deepEqual(globalRouterDefinition.defaultConfig, {});
 assert.equal(globalRouterDefinition.configSchema.safeParse({}).success, true);
 assert.equal(globalRouterDefinition.configSchema.safeParse({ regionId: "us-east" }).success, false);
 assert.equal(globalRouterDefinition.simulation.forwardsRequests, true);
-assert.equal(globalRouterDefinition.simulation.geographicRouting, false);
+assert.equal(globalRouterDefinition.simulation.geographicRouting, true);
+assert.equal(globalRouterDefinition.simulation.routingPolicy, "nearest_healthy_region");
 assert.equal(globalRouterDefinition.cost.fixedMonthlyCost, 0);
 assert.deepEqual(globalRouterDefinition.ports, [
   { id: "request_in", label: "Requests", direction: "input", connectionTypes: ["request"] },

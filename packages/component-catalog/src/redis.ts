@@ -19,7 +19,7 @@ export interface RedisTierModel {
 
 /**
  * Educational Redis tiers. Values are Level 1 tuning constants, not cloud pricing.
- * Hit-rate application against traffic is SIM-007; this package owns the dials and models.
+ * The simulator applies hit-rate against eligible reads; this package owns the dials and models.
  */
 export const redisTierModels: Readonly<Record<RedisTier, RedisTierModel>> = {
   small: { throughputRps: 20_000, hotKeyCapacityRps: 5_000, monthlyCost: 1_500 },
@@ -29,7 +29,7 @@ export const redisTierModels: Readonly<Record<RedisTier, RedisTierModel>> = {
 
 /**
  * Deterministic educational hit-rate bands for eligible redirect reads.
- * SIM-007 consumes these; capacity saturation can still limit realized hits.
+ * Capacity saturation can still limit realized hits in the simulator.
  */
 export const redisTtlHitRateBands: Readonly<Record<RedisTtlBand, number>> = {
   short: 0.55,
@@ -109,8 +109,8 @@ const redisConfigSchema: ComponentConfigSchema<RedisConfig> = {
  * Data-cache primitive placed on the Service → Postgres path.
  *
  * Ports stay on the existing `read_write` connection type so
- * Service → Redis → Postgres is a valid typed graph. Cache hits are a
- * simulation concern (SIM-007); they are not a separate edge type.
+ * Service → Redis → Postgres is a valid typed graph. Cache hits are applied
+ * by the simulator; they are not a separate edge type.
  *
  * Replicated mode: one logical dataset with higher read/hot-path capacity
  * and higher cost. It is not clustering and does not split one hot key
@@ -160,7 +160,7 @@ export const redisDefinition: ComponentDefinition<RedisConfig> = {
     tierModels: redisTierModels as unknown as JsonObject,
     replicatedMultipliers: redisReplicatedMultipliers as unknown as JsonObject,
   },
-  regionSupport: false,
+  regionSupport: true,
   replicationSupport: true,
   clusteringSupport: false,
   agentCapabilities: [],

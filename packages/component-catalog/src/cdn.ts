@@ -14,7 +14,7 @@ export interface CdnTierModel {
 }
 
 /**
- * Educational CDN tiers. Hit/miss application is SIM-007; this package owns dials and models.
+ * Educational CDN tiers. Hit/miss application lives in the simulator; this package owns dials and models.
  * Distinct from Redis: CDN reduces origin/application redirect RPS, not Postgres reads.
  */
 export const cdnTierModels: Readonly<Record<CdnTier, CdnTierModel>> = {
@@ -32,7 +32,7 @@ export const cdnUsageCostPerMillionRequests = 0.05;
 /**
  * Deterministic educational hit-rate bands for eligible redirect traffic.
  * Documented beside Redis `ttlBand` with the same short/medium/long vocabulary.
- * SIM-007 applies these to coverage-eligible redirects only; writes always miss.
+ * The simulator applies these to coverage-eligible redirects only; writes always miss.
  */
 export const cdnTtlHitRateBands: Readonly<Record<CdnTtlBand, number>> = {
   short: 0.55,
@@ -82,7 +82,7 @@ export function cdnMonthlyCostForConfig(config: Pick<CdnConfig, "tier">, incomin
 }
 
 /**
- * Effective configured hit intent before capacity saturation (SIM-007).
+ * Effective configured hit intent before capacity saturation.
  * `coverage × ttl hit rate` — writes are never included.
  */
 export function cdnConfiguredHitIntent(config: CdnConfig): number {
@@ -116,8 +116,8 @@ const cdnConfigSchema: ComponentConfigSchema<CdnConfig> = {
 /**
  * Edge-cache primitive on the request path: Traffic → CDN → origin (Service).
  *
- * Phase 2 forwards all requests to origin until SIM-007 applies hit/miss offload.
- * Writes must never be reported as CDN hits. Geography/POPs are not modelled.
+ * Simulator applies coverage × TTL hit-rate offload (writes always miss).
+ * Geography/POPs are not modelled.
  */
 export const cdnDefinition: ComponentDefinition<CdnConfig> = {
   type: "cdn",

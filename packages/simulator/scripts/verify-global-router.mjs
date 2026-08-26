@@ -16,8 +16,10 @@ const serviceIn = service.ports.find((port) => port.id === "request_in");
 assert.ok(trafficOut && routerIn && routerOut && serviceIn);
 assert.equal(checkConnectionCompatibility(trafficOut, routerIn, "request").valid, true);
 assert.equal(checkConnectionCompatibility(routerOut, serviceIn, "request").valid, true);
-assert.equal(router.simulation.geographicRouting, false);
+assert.equal(router.simulation.geographicRouting, true);
+assert.equal(router.simulation.routingPolicy, "nearest_healthy_region");
 assert.equal(router.simulation.forwardsRequests, true);
+assert.equal(router.configSchema.safeParse({ weightedRouting: true }).success, false);
 
 const directArchitecture = {
   version: 1,
