@@ -24,6 +24,7 @@ assert.deepEqual(result.postgres["postgres-01"], {
   writeRps: 600,
   readCapacityRps: 5000,
   writeCapacityRps: 800,
+  readReplicaCount: 0,
   readUtilization: 1.08,
   writeUtilization: 0.75,
   effectiveUtilization: 1.08,
@@ -35,14 +36,36 @@ assert.deepEqual(result.postgres["postgres-01"], {
 });
 assert.equal(result.events.some((event) => event.type === "component_saturated"), true);
 
+const withReplicas = evaluatePostgresCapacity({
+  architecture: {
+    ...architecture,
+    components: architecture.components.map((component) =>
+      component.id === "postgres-01" ? { ...component, config: { tier: "small", readReplicaCount: 1 } } : component,
+    ),
+  },
+  challenge: tinyApiChallenge,
+  registry: componentRegistry,
+});
+assert.equal(withReplicas.valid, true);
+if (!withReplicas.valid) throw new Error("Expected valid architecture.");
+assert.equal(withReplicas.postgres["postgres-01"].readCapacityRps, 10_000);
+assert.equal(withReplicas.postgres["postgres-01"].writeCapacityRps, 800);
+assert.equal(withReplicas.postgres["postgres-01"].readReplicaCount, 1);
+assert.equal(withReplicas.postgres["postgres-01"].readUtilization, 0.54);
+assert.equal(withReplicas.postgres["postgres-01"].writeUtilization, 0.75);
+assert.equal(withReplicas.postgres["postgres-01"].readCapacityShortfallRps, 0);
+assert.equal(withReplicas.postgres["postgres-01"].state, "warning");
+
 const writeHeavy = evaluatePostgresCapacity({
-  architecture: { ...architecture, components: architecture.components.map((component) => component.id === "postgres-01" ? { ...component, config: { tier: "large" } } : component) },
+  architecture: { ...architecture, components: architecture.components.map((component) => component.id === "postgres-01" ? { ...component, config: { tier: "large", readReplicaCount: 3 } } : component) },
   challenge: { ...tinyApiChallenge, workload: { ...tinyApiChallenge.workload, readRatio: 0.1, writeRatio: 0.9 } },
   registry: componentRegistry,
 });
 assert.equal(writeHeavy.valid, true);
 if (!writeHeavy.valid) throw new Error("Expected valid architecture.");
-assert.equal(writeHeavy.postgres["postgres-01"].readUtilization, 0.03);
+assert.equal(writeHeavy.postgres["postgres-01"].readCapacityRps, 80_000);
+assert.equal(writeHeavy.postgres["postgres-01"].writeCapacityRps, 4_000);
+assert.equal(writeHeavy.postgres["postgres-01"].readUtilization, 0.0075);
 assert.equal(writeHeavy.postgres["postgres-01"].writeUtilization, 1.35);
 assert.equal(writeHeavy.postgres["postgres-01"].readCapacityShortfallRps, 0);
 assert.equal(writeHeavy.postgres["postgres-01"].writeCapacityShortfallRps, 1400);

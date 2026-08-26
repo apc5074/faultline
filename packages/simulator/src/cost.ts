@@ -1,8 +1,11 @@
 import {
+  cdnMonthlyCostForConfig,
+  loadBalancerMonthlyCost,
   postgresTierModels,
   redisMonthlyCostForConfig,
   serviceMonthlyCostForConfig,
   ComponentRegistry,
+  type CdnConfig,
   type PostgresConfig,
   type RedisConfig,
   type ServiceConfig,
@@ -37,6 +40,9 @@ function priceComponent(component: ComponentInstance, registry: ComponentRegistr
 
   if (component.type === "traffic-source") return null;
   if (component.type === "global-router") return null;
+  if (component.type === "load-balancer") {
+    return { componentId: component.id, amount: loadBalancerMonthlyCost };
+  }
   if (component.type === "service") {
     return { componentId: component.id, amount: serviceMonthlyCostForConfig(configResult.data as ServiceConfig) };
   }
@@ -47,6 +53,9 @@ function priceComponent(component: ComponentInstance, registry: ComponentRegistr
   }
   if (component.type === "redis") {
     return { componentId: component.id, amount: redisMonthlyCostForConfig(configResult.data as RedisConfig) };
+  }
+  if (component.type === "cdn") {
+    return { componentId: component.id, amount: cdnMonthlyCostForConfig(configResult.data as CdnConfig) };
   }
 
   throw new CostEstimationError(`Component "${component.id}" of type "${component.type}" has no cost model.`);

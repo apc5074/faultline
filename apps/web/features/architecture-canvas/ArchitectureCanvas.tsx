@@ -20,7 +20,7 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 
 import { tinyApiChallenge } from "@faultline/challenges";
-import { componentRegistry, postgresTierModels, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels } from "@faultline/component-catalog";
+import { componentRegistry, postgresTierModels, postgresReadCapacityForConfig, postgresReadReplicaBounds, postgresWriteCapacityForConfig, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels, loadBalancerMonthlyCost, loadBalancerPolicies, cdnConfiguredHitIntent, cdnHitRateForConfig, cdnMonthlyCostForConfig, cdnThroughputCapacityForConfig, cdnTtlHitRateBands, cdnTierModels } from "@faultline/component-catalog";
 import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
   estimateMonthlyCost,
@@ -494,21 +494,56 @@ function ComponentInspector({
     const parsed = definition.configSchema.safeParse(component.config);
     if (!parsed.success) return null;
     const tier = parsed.data.tier as keyof typeof postgresTierModels;
+    const readReplicaCount = parsed.data.readReplicaCount as number;
     const model = postgresTierModels[tier];
     return (
       <aside className="component-inspector" aria-label="Postgres inspector">
         <p className="component-inspector__eyebrow">Postgres</p>
         <label>
           Tier
-          <select value={tier} onChange={(event) => onConfigChange(component.id, { tier: event.target.value })}>
-            {Object.keys(postgresTierModels).map((option) => <option key={option} value={option}>{option}</option>)}
+          <select
+            value={tier}
+            onChange={(event) => onConfigChange(component.id, { tier: event.target.value, readReplicaCount })}
+          >
+            {Object.keys(postgresTierModels).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
         </label>
+        <label>
+          Read replicas
+          <input
+            type="number"
+            min={postgresReadReplicaBounds.minimum}
+            max={postgresReadReplicaBounds.maximum}
+            step="1"
+            value={readReplicaCount}
+            onChange={(event) =>
+              onConfigChange(component.id, { tier, readReplicaCount: Number(event.target.value) })
+            }
+          />
+        </label>
         <dl>
-          <div><dt>Read capacity</dt><dd>{model.readCapacityRps.toLocaleString()} req/sec</dd></div>
-          <div><dt>Write capacity</dt><dd>{model.writeCapacityRps.toLocaleString()} req/sec</dd></div>
+          <div>
+            <dt>Read capacity</dt>
+            <dd>{postgresReadCapacityForConfig({ tier, readReplicaCount }).toLocaleString()} req/sec</dd>
+          </div>
+          <div>
+            <dt>Write capacity</dt>
+            <dd>{postgresWriteCapacityForConfig({ tier }).toLocaleString()} req/sec</dd>
+          </div>
+          <div><dt>Primary read</dt><dd>{model.readCapacityRps.toLocaleString()} req/sec</dd></div>
+          <div>
+            <dt>Per replica read</dt>
+            <dd>{model.replicaReadCapacityRps.toLocaleString()} req/sec</dd>
+          </div>
           <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
         </dl>
+        <p className="component-inspector__hint">
+          Replicas add read capacity only. Writes always hit the primary. Region assignment comes later.
+        </p>
       </aside>
     );
   }
@@ -583,6 +618,103 @@ function ComponentInspector({
         </dl>
         <p className="component-inspector__hint">
           Forwards traffic without changing volume. Nearest healthy region routing activates when geography is enabled.
+        </p>
+      </aside>
+    );
+  }
+
+  if (component.type === "load-balancer") {
+    const parsed = definition.configSchema.safeParse(component.config);
+    if (!parsed.success) return null;
+    const policy = parsed.data.policy as (typeof loadBalancerPolicies)[number];
+    return (
+      <aside className="component-inspector" aria-label="Load Balancer inspector">
+        <p className="component-inspector__eyebrow">Load Balancer</p>
+        <label>
+          Policy
+          <select
+            value={policy}
+            onChange={(event) => onConfigChange(component.id, { policy: event.target.value })}
+          >
+            {loadBalancerPolicies.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <dl>
+          <div><dt>Monthly cost</dt><dd>{formatCost(loadBalancerMonthlyCost)}</dd></div>
+        </dl>
+        <p className="component-inspector__hint">
+          {policy === "equal"
+            ? "Splits requests evenly across connected services."
+            : "Splits requests by each service's configured capacity."}{" "}
+          Failed backends are not excluded yet; health-aware redistribution comes with failure injection.
+        </p>
+      </aside>
+    );
+  }
+
+  if (component.type === "cdn") {
+    const parsed = definition.configSchema.safeParse(component.config);
+    if (!parsed.success) return null;
+    const coverage = parsed.data.coverage as number;
+    const ttlBand = parsed.data.ttlBand as keyof typeof cdnTtlHitRateBands;
+    const tier = parsed.data.tier as keyof typeof cdnTierModels;
+    return (
+      <aside className="component-inspector" aria-label="CDN inspector">
+        <p className="component-inspector__eyebrow">CDN</p>
+        <label>
+          Coverage
+          <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.05"
+            value={coverage}
+            onChange={(event) =>
+              onConfigChange(component.id, { coverage: Number(event.target.value), ttlBand, tier })
+            }
+          />
+        </label>
+        <label>
+          TTL band
+          <select
+            value={ttlBand}
+            onChange={(event) => onConfigChange(component.id, { coverage, ttlBand: event.target.value, tier })}
+          >
+            {Object.keys(cdnTtlHitRateBands).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Tier
+          <select
+            value={tier}
+            onChange={(event) => onConfigChange(component.id, { coverage, ttlBand, tier: event.target.value })}
+          >
+            {Object.keys(cdnTierModels).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <dl>
+          <div><dt>TTL hit rate</dt><dd>{Math.round(cdnHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
+          <div>
+            <dt>Configured hit intent</dt>
+            <dd>{Math.round(cdnConfiguredHitIntent({ coverage, ttlBand, tier }) * 100)}%</dd>
+          </div>
+          <div><dt>Edge capacity</dt><dd>{cdnThroughputCapacityForConfig({ tier }).toLocaleString()} req/sec</dd></div>
+          <div><dt>Monthly cost</dt><dd>{formatCost(cdnMonthlyCostForConfig({ tier }))}</dd></div>
+        </dl>
+        <p className="component-inspector__hint">
+          Reduces origin redirect traffic once cache simulation is active. Writes always miss and reach origin. Coverage is logical, not geographic.
         </p>
       </aside>
     );

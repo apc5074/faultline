@@ -1,12 +1,16 @@
 export * from "./registry.js";
+export * from "./cdn.js";
 export * from "./global-router.js";
+export * from "./load-balancer.js";
 export * from "./postgres.js";
 export * from "./redis.js";
 export * from "./service.js";
 export * from "./traffic-source.js";
 
 import { createComponentRegistry } from "./registry.js";
+import { cdnDefinition } from "./cdn.js";
 import { globalRouterDefinition } from "./global-router.js";
+import { loadBalancerDefinition } from "./load-balancer.js";
 import { postgresDefinition } from "./postgres.js";
 import { redisDefinition } from "./redis.js";
 import { serviceDefinition } from "./service.js";
@@ -19,4 +23,6 @@ export const componentRegistry = createComponentRegistry([
   postgresDefinition,
   redisDefinition,
   globalRouterDefinition,
+  loadBalancerDefinition,
+  cdnDefinition,
 ]);

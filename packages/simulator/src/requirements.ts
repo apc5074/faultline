@@ -235,6 +235,7 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
   return {
     valid: true,
     traffic: latency.traffic,
+    caches: latency.caches,
     events,
     services: latency.services,
     postgres: latency.postgres,

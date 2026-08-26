@@ -1,6 +1,6 @@
 # Production
 
-The Vercel project deploys `apps/web`. Its production branch is `main`; all other Git branches receive Vercel Preview deployments. The project uses the repository workspace: install with `pnpm install` and build with `pnpm build`. The Vercel-generated public production and Preview URLs are maintained in the Vercel project rather than committed to the repository.
+The Vercel project deploys `apps/web` (Root Directory). Its production branch is `main`; all other Git branches receive Vercel Preview deployments. The project uses the repository workspace: install with `pnpm install` and build with `pnpm build` from `apps/web`. That web `build` script first compiles workspace package `dist/` outputs (`@faultline/core`, `component-catalog`, `challenges`, `simulator`) and then runs `next build`. A bare `next build` on a fresh clone fails because package exports resolve to `dist/`, which is not committed. The Vercel-generated public production and Preview URLs are maintained in the Vercel project rather than committed to the repository.
 
 **Verification — 2026-08-25:** an operator confirmed that the public production deployment renders the Faultline shell and that a distinct Preview deployment works without changing production. Builds run from the connected Git repository.
 

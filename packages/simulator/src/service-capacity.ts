@@ -82,5 +82,5 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
     events.push(...capacityEvents(component.id, metrics));
   }
 
-  return { valid: true, traffic: propagation.traffic, events, services };
+  return { valid: true, traffic: propagation.traffic, caches: propagation.caches, events, services };
 }

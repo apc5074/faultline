@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "typecheck": "tsc --noEmit",
-    "build": "next build"
+    "build:deps": "pnpm --filter \"@faultline/web^...\" build",
+    "build": "pnpm run build:deps && next build"
   },
   "dependencies": {
     "@faultline/challenges": "workspace:*",

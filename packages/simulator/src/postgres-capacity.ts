@@ -1,7 +1,7 @@
 import {
-  postgresTierModels,
+  postgresReadCapacityForConfig,
+  postgresWriteCapacityForConfig,
   type PostgresConfig,
-  type PostgresTier,
 } from "@faultline/component-catalog";
 import type { Architecture } from "@faultline/core";
 
@@ -19,6 +19,7 @@ export interface PostgresCapacityMetrics {
   writeRps: number;
   readCapacityRps: number;
   writeCapacityRps: number;
+  readReplicaCount: number;
   readUtilization: number;
   writeUtilization: number;
   /** Effective database pressure is the larger of read and write utilization. */
@@ -54,6 +55,7 @@ function capacityEvents(componentId: string, metrics: PostgresCapacityMetrics): 
         readUtilization: metrics.readUtilization,
         writeUtilization: metrics.writeUtilization,
         effectiveUtilization: metrics.effectiveUtilization,
+        readReplicaCount: metrics.readReplicaCount,
       },
     },
   ];
@@ -89,29 +91,33 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
   for (const component of architecture.components
     .filter((candidate) => candidate.type === "postgres")
     .sort((left, right) => left.id.localeCompare(right.id))) {
-    const config = component.config as PostgresConfig;
-    const model = postgresTierModels[config.tier as PostgresTier];
+    const parsed = input.registry.get(component.type).configSchema.safeParse(component.config);
+    if (!parsed.success) continue;
+    const config = parsed.data as PostgresConfig;
+    const readCapacityRps = postgresReadCapacityForConfig(config);
+    const writeCapacityRps = postgresWriteCapacityForConfig(config);
     const traffic = propagation.traffic[component.id];
-    const readUtilization = traffic.readRps / model.readCapacityRps;
-    const writeUtilization = traffic.writeRps / model.writeCapacityRps;
+    const readUtilization = traffic.readRps / readCapacityRps;
+    const writeUtilization = traffic.writeRps / writeCapacityRps;
     const effectiveUtilization = Math.max(readUtilization, writeUtilization);
     const metrics: PostgresCapacityMetrics = {
       readRps: traffic.readRps,
       writeRps: traffic.writeRps,
-      readCapacityRps: model.readCapacityRps,
-      writeCapacityRps: model.writeCapacityRps,
+      readCapacityRps,
+      writeCapacityRps,
+      readReplicaCount: config.readReplicaCount,
       readUtilization,
       writeUtilization,
       effectiveUtilization,
-      readHandledRps: Math.min(traffic.readRps, model.readCapacityRps),
-      writeHandledRps: Math.min(traffic.writeRps, model.writeCapacityRps),
-      readCapacityShortfallRps: Math.max(0, traffic.readRps - model.readCapacityRps),
-      writeCapacityShortfallRps: Math.max(0, traffic.writeRps - model.writeCapacityRps),
+      readHandledRps: Math.min(traffic.readRps, readCapacityRps),
+      writeHandledRps: Math.min(traffic.writeRps, writeCapacityRps),
+      readCapacityShortfallRps: Math.max(0, traffic.readRps - readCapacityRps),
+      writeCapacityShortfallRps: Math.max(0, traffic.writeRps - writeCapacityRps),
       state: stateForUtilization(effectiveUtilization),
     };
     postgres[component.id] = metrics;
     events.push(...capacityEvents(component.id, metrics));
   }
 
-  return { valid: true, traffic: propagation.traffic, events, postgres };
+  return { valid: true, traffic: propagation.traffic, caches: propagation.caches, events, postgres };
 }

@@ -189,6 +189,7 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
   return {
     valid: true,
     traffic: services.traffic,
+    caches: services.caches,
     events,
     services: services.services,
     postgres: postgres.postgres,
