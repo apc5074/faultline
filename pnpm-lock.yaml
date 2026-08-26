@@ -25,6 +25,9 @@ importers:
       '@faultline/simulator':
         specifier: workspace:*
         version: link:../../packages/simulator
+      '@faultline/webmcp':
+        specifier: workspace:*
+        version: link:../../packages/webmcp
       '@next/env':
         specifier: 16.1.6
         version: 16.1.6
@@ -127,6 +130,18 @@ importers:
         specifier: workspace:*
         version: link:../agent-capabilities
     devDependencies:
+      '@faultline/challenges':
+        specifier: workspace:*
+        version: link:../challenges
+      '@faultline/component-catalog':
+        specifier: workspace:*
+        version: link:../component-catalog
+      '@faultline/core':
+        specifier: workspace:*
+        version: link:../core
+      '@faultline/simulator':
+        specifier: workspace:*
+        version: link:../simulator
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1

@@ -1,5 +1,8 @@
 import { createAgentCapabilityRegistry, type AgentCapabilityRegistry } from "../registry.js";
 
+import { inspectCacheCapability } from "./inspect-cache.js";
+import { inspectReplicationCapability } from "./inspect-replication.js";
+import { inspectRegionalTrafficCapability } from "./inspect-regional-traffic.js";
 import { estimateCapacityCapability } from "./estimate-capacity.js";
 import { getArchitectureCapability } from "./get-architecture.js";
 import { getChallengeCapability } from "./get-challenge.js";
@@ -33,6 +36,15 @@ export type {
 export { inspectComponentCapability, inspectComponent } from "./inspect-component.js";
 export type { InspectComponentOutput } from "./inspect-component.js";
 
+export { inspectCacheCapability, inspectCache } from "./inspect-cache.js";
+export type { InspectCacheOutput } from "./inspect-cache.js";
+
+export { inspectReplicationCapability, inspectReplication } from "./inspect-replication.js";
+export type { InspectReplicationOutput, ReplicationPrimaryPlacement } from "./inspect-replication.js";
+
+export { inspectRegionalTrafficCapability, inspectRegionalTraffic } from "./inspect-regional-traffic.js";
+export type { InspectRegionalTrafficOutput } from "./inspect-regional-traffic.js";
+
 export {
   estimateCapacityCapability,
   estimateCapacity,
@@ -64,5 +76,8 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     estimateCapacityCapability,
     getMetricsCapability,
     getCostBreakdownCapability,
+    inspectCacheCapability,
+    inspectReplicationCapability,
+    inspectRegionalTrafficCapability,
   ]);
 }

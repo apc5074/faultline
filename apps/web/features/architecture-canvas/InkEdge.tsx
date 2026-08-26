@@ -10,6 +10,9 @@ export type InkEdgeData = {
   stale: boolean;
   offset: number;
   hops?: HopMarker[];
+  pulse?: boolean;
+  peeling?: boolean;
+  semanticZoomOut?: boolean;
 };
 
 type InkFlowEdge = Edge<InkEdgeData, "ink">;
@@ -27,15 +30,27 @@ export function InkEdge({
   const load = data?.load ?? 0;
   const active = data?.active ?? false;
   const stale = data?.stale ?? false;
-  const strokeWidth = strokeWidthForLoad(load, active && !stale);
+  const semanticZoomOut = data?.semanticZoomOut ?? false;
+  const strokeWidth = semanticZoomOut
+    ? active
+      ? 1 + load * 1.5
+      : 1
+    : strokeWidthForLoad(load, active && !stale);
   const stroke = stale ? "var(--color-ink-hairline)" : "var(--color-ink)";
-  const opacity = stale ? 0.45 : 1;
+  const opacity = stale ? 0.45 : data?.peeling ? 0.35 : 1;
 
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
+        className={[
+          data?.peeling ? "ink-edge--peeling" : "",
+          data?.pulse && !semanticZoomOut ? "ink-edge--pulse" : "",
+          semanticZoomOut ? "ink-edge--stream" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{
           stroke,
           strokeWidth,
@@ -44,17 +59,28 @@ export function InkEdge({
           opacity,
         }}
       />
-      {(data?.hops ?? []).map((hop, index) => (
+      {data?.pulse && !semanticZoomOut ? (
         <path
-          key={`${id}-hop-${index}`}
-          d={hopArcPath(hop.x, hop.y)}
+          d={path}
+          className="ink-edge__travel-pulse"
           fill="none"
           stroke={stroke}
-          strokeWidth={strokeWidth}
-          opacity={opacity}
-          strokeLinecap="round"
+          strokeWidth={Math.max(strokeWidth, 1.5)}
+          pathLength={100}
         />
-      ))}
+      ) : null}
+      {!semanticZoomOut &&
+        (data?.hops ?? []).map((hop, index) => (
+          <path
+            key={`${id}-hop-${index}`}
+            d={hopArcPath(hop.x, hop.y)}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={strokeWidth}
+            opacity={opacity}
+            strokeLinecap="round"
+          />
+        ))}
     </>
   );
 }

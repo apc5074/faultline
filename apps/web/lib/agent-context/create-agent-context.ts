@@ -1,4 +1,5 @@
 import type { AgentContext, AgentSimulationEvidence } from "@faultline/agent-capabilities";
+import { buildAgentRegionalEvidence } from "@faultline/agent-capabilities";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { evaluateRequirements, type RequirementsEvaluationResult } from "@faultline/simulator";
@@ -37,6 +38,10 @@ function simulationEvidence(result: RequirementsEvaluationResult): AgentSimulati
       minimumHeadroom: result.headroom,
     },
     scenarios: { hotKey: { active: result.hotKey.active, passed: result.hotKey.passed } },
+    regional: buildAgentRegionalEvidence({
+      regionalWorkload: result.regionalWorkload,
+      geographicRoutes: result.geographicRoutes,
+    }),
   };
 }
 

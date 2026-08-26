@@ -13,8 +13,12 @@ import {
   glyphDimensionsForProps,
   glyphPropsFromComponent,
   glyphStateAriaLabel,
+  MINI_GLYPH_SIZE,
   type GlyphSimulationResult,
 } from "@/features/playground-glyphs";
+
+import type { HandleConnectHint } from "@/features/architecture-canvas/playground-connect-hints";
+import type { NodeInteractionPhase } from "@/features/architecture-canvas/playground-interaction";
 
 export type PlaygroundNodeData = {
   component: ComponentInstance;
@@ -23,18 +27,28 @@ export type PlaygroundNodeData = {
   resultIsStale: boolean;
   attention: boolean;
   connectedPortIds: ReadonlySet<string>;
+  interactionPhase: NodeInteractionPhase;
+  connectDimmed: boolean;
+  portConnectHints: Readonly<Record<string, HandleConnectHint>>;
+  regionBelonging: boolean;
+  semanticZoomOut: boolean;
 };
 
 type PlaygroundFlowNode = Node<PlaygroundNodeData, "playground">;
 
 export function PlaygroundNode({ data, selected, dragging }: NodeProps<PlaygroundFlowNode>) {
   const glyphCatalog = glyphPropsFromComponent(data.component, data.definition);
-  const dimensions = glyphDimensionsForProps(glyphCatalog);
+  const fullDimensions = glyphDimensionsForProps(glyphCatalog);
+  const dimensions = data.semanticZoomOut
+    ? { width: MINI_GLYPH_SIZE, height: MINI_GLYPH_SIZE }
+    : fullDimensions;
   const glyphOptions = { resultIsStale: data.resultIsStale, selected };
   const glyphState = deriveGlyphState(data.component.id, data.simulation, glyphOptions);
-  const mechanism = deriveGlyphMechanismValues(data.component.id, data.simulation, {
-    resultIsStale: data.resultIsStale,
-  });
+  const mechanism = data.semanticZoomOut
+    ? {}
+    : deriveGlyphMechanismValues(data.component.id, data.simulation, {
+        resultIsStale: data.resultIsStale,
+      });
   const ariaLabel = glyphStateAriaLabel(data.component.id, data.simulation, glyphOptions);
   const portFailed = glyphState === "failed";
 
@@ -45,6 +59,11 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
         data.resultIsStale && data.simulation ? "playground-node--stale" : "",
         data.attention ? "playground-node--attention" : "",
         dragging ? "playground-node--dragging" : "",
+        data.interactionPhase === "settling" ? "playground-node--settling" : "",
+        data.interactionPhase === "deleting" ? "playground-node--deleting" : "",
+        data.connectDimmed ? "playground-node--connect-dimmed" : "",
+        data.regionBelonging ? "playground-node--region-belong" : "",
+        data.semanticZoomOut ? "playground-node--semantic-out" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -62,6 +81,7 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
             state={glyphState}
             width={dimensions.width}
             height={dimensions.height}
+            mini={data.semanticZoomOut}
           />
         </div>
         {data.definition.ports.map((port) => {
@@ -75,13 +95,15 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
               position={isInput ? Position.Left : Position.Right}
               connected={data.connectedPortIds.has(port.id)}
               failed={portFailed}
+              connectHint={data.portConnectHints[port.id] ?? "none"}
+              portsHidden={data.interactionPhase === "settling" || data.semanticZoomOut}
               aria-label={port.label}
               style={{ top: py }}
             />
           );
         })}
       </div>
-      <p className="playground-node__label">{data.definition.label}</p>
+      {!data.semanticZoomOut ? <p className="playground-node__label">{data.definition.label}</p> : null}
     </article>
   );
 }

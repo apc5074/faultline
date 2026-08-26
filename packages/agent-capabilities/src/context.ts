@@ -1,5 +1,7 @@
 import type { Architecture, ChallengeDefinition, CostResult } from "@faultline/core";
 
+import type { AgentRegionalEvidence } from "./regional-evidence.js";
+
 /**
  * One capacity resource projected from shared simulator output.
  * Capabilities must not recompute instance×tier formulas — only present these facts.
@@ -49,6 +51,7 @@ export type AgentSimulationEvidence =
       readonly components: Readonly<Record<string, AgentComponentEvidence>>;
       readonly system?: AgentSystemMetrics;
       readonly scenarios?: AgentScenarioEvidence;
+      readonly regional?: AgentRegionalEvidence;
     }
   | {
       readonly available: false;

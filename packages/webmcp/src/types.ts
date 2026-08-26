@@ -24,7 +24,12 @@ export interface WebMcpTool {
   ) => unknown | Promise<unknown>;
 }
 
+/** Registration options supported by the Phase 6 adapter. Cross-origin exposure is intentionally omitted. */
+export interface WebMcpRegisterToolOptions {
+  readonly signal: AbortSignal;
+}
+
 /** Minimal document.modelContext surface used by the Faultline WebMCP adapter. */
 export interface WebMcpModelContext {
-  registerTool(tool: WebMcpTool, options: { signal: AbortSignal }): Promise<void>;
+  registerTool(tool: WebMcpTool, options: WebMcpRegisterToolOptions): Promise<void>;
 }

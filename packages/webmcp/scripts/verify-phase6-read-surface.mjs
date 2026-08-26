@@ -52,7 +52,7 @@ assert.equal(surface.tools.some((tool) => tool.name === "get_faultline_status"),
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, true);
   assert.equal(tool.annotations?.idempotentHint, true);
-  assert.notEqual(tool.annotations?.destructiveHint, true);
+  assert.equal(tool.annotations?.destructiveHint, undefined);
 }
 
 const experimentRegistry = createAgentCapabilityRegistry(

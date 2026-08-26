@@ -13,12 +13,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/agent-capabilities build && pnpm run build && node scripts/verify-to-webmcp-tool.mjs && node scripts/verify-phase6-read-surface.mjs"
+    "verify": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm --filter @faultline/simulator build && pnpm --filter @faultline/agent-capabilities build && pnpm run build && node scripts/verify-to-webmcp-tool.mjs && node scripts/verify-phase6-read-surface.mjs && node scripts/verify-error-safety.mjs && node scripts/verify-cancellation-lifecycle.mjs && node scripts/verify-adapter-parity.mjs"
   },
   "dependencies": {
     "@faultline/agent-capabilities": "workspace:*"
   },
   "devDependencies": {
+    "@faultline/challenges": "workspace:*",
+    "@faultline/component-catalog": "workspace:*",
+    "@faultline/core": "workspace:*",
+    "@faultline/simulator": "workspace:*",
     "@types/node": "24.10.1",
     "typescript": "5.9.3"
   }

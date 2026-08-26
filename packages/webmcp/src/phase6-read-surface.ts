@@ -93,7 +93,7 @@ export async function buildPhase6ReadSurface(
       continue;
     }
 
-    tools.push(toWebMcpTool(capability, { registry, getContext }));
+    tools.push(toWebMcpTool(capability, { registry, getContext, development }));
   }
 
   return { tools, skipped };

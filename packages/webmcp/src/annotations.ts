@@ -2,7 +2,10 @@ import type { AgentCapabilityAnnotations } from "@faultline/agent-capabilities";
 
 import type { WebMcpToolAnnotations } from "./types.js";
 
-/** Map shared capability annotations onto the supported WebMCP annotation fields. */
+/**
+ * Map shared read-only capability annotations onto supported WebMCP fields.
+ * Unknown or state-changing annotations stay unexposed until explicitly reviewed.
+ */
 export function toWebMcpAnnotations(
   annotations: AgentCapabilityAnnotations | undefined,
 ): WebMcpToolAnnotations | undefined {
@@ -10,7 +13,6 @@ export function toWebMcpAnnotations(
 
   const mapped = {
     ...(annotations.readOnlyHint !== undefined ? { readOnlyHint: annotations.readOnlyHint } : {}),
-    ...(annotations.destructiveHint !== undefined ? { destructiveHint: annotations.destructiveHint } : {}),
     ...(annotations.idempotentHint !== undefined ? { idempotentHint: annotations.idempotentHint } : {}),
   } satisfies WebMcpToolAnnotations;
 

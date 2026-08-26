@@ -63,7 +63,9 @@ for (const capability of registry.list()) {
   assert.equal(tool.name, capability.name);
   assert.equal(tool.description, capability.description);
   assert.deepEqual(tool.inputSchema, capability.inputSchema.jsonSchema);
-  assert.deepEqual(tool.annotations, capability.annotations);
+  assert.equal(tool.annotations?.readOnlyHint, capability.annotations?.readOnlyHint);
+  assert.equal(tool.annotations?.idempotentHint, capability.annotations?.idempotentHint);
+  assert.equal(tool.annotations?.destructiveHint, undefined);
   assert.equal(typeof tool.execute, "function");
 }
 

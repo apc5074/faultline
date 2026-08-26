@@ -1,0 +1,47 @@
+import type { CapabilityErrorCode, CapabilityResult } from "@faultline/agent-capabilities";
+import { capabilityError } from "@faultline/agent-capabilities";
+
+const CONTROLLED_ERROR_CODES = new Set<CapabilityErrorCode>([
+  "NOT_FOUND",
+  "SIMULATION_UNAVAILABLE",
+  "INVALID_INPUT",
+  "CANCELLED",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** True when a value matches the controlled capability result contract. */
+export function isControlledCapabilityResult(value: unknown): value is CapabilityResult<unknown> {
+  if (!isRecord(value) || typeof value.ok !== "boolean") return false;
+  if (value.ok === true) return "data" in value;
+  return typeof value.code === "string" && typeof value.message === "string" && !("stack" in value);
+}
+
+/** Strip unknown fields and coerce unsafe error codes before returning to an external agent. */
+export function sanitizeWebMcpCapabilityResult(
+  result: unknown,
+  toolName: string,
+): CapabilityResult<unknown> {
+  if (!isControlledCapabilityResult(result)) {
+    return capabilityError("INVALID_INPUT", `Capability "${toolName}" failed unexpectedly.`);
+  }
+  if (result.ok) {
+    return { ok: true, data: result.data };
+  }
+  const code = CONTROLLED_ERROR_CODES.has(result.code) ? result.code : "INVALID_INPUT";
+  return { ok: false, code, message: result.message };
+}
+
+/** Generic adapter failure with optional development-only diagnostics. */
+export function unexpectedWebMcpCapabilityFailure(
+  toolName: string,
+  error: unknown,
+  development: boolean,
+): CapabilityResult<never> {
+  if (development) {
+    console.error(`[WebMCP] Unexpected failure in "${toolName}".`, error);
+  }
+  return capabilityError("INVALID_INPUT", `Capability "${toolName}" failed unexpectedly.`);
+}

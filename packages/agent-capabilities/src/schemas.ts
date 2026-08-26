@@ -58,8 +58,11 @@ export interface EstimateCapacityInput {
   readonly componentId?: string;
 }
 
-/** Optional componentId; omit / empty object = architecture-wide capacity summary. */
-export const estimateCapacityInputSchema: CapabilityInputSchema<EstimateCapacityInput> = {
+/** Optional componentId selector shared by architecture-scoped inspection tools. */
+export type OptionalComponentIdInput = EstimateCapacityInput;
+
+/** Optional componentId; omit / empty object selects the sole eligible resource when unambiguous. */
+export const optionalComponentIdInputSchema: CapabilityInputSchema<OptionalComponentIdInput> = {
   jsonSchema: {
     type: "object",
     properties: {
@@ -72,10 +75,10 @@ export const estimateCapacityInputSchema: CapabilityInputSchema<EstimateCapacity
       return { success: true as const, data: {} };
     }
     if (!isRecord(input)) {
-      return { success: false as const, errors: ["estimate_capacity input must be an object."] };
+      return { success: false as const, errors: ["Input must be an object."] };
     }
     if (!hasOnlyKeys(input, ["componentId"])) {
-      return { success: false as const, errors: ["estimate_capacity input contains unknown properties."] };
+      return { success: false as const, errors: ["Input contains unknown properties."] };
     }
     if (input.componentId === undefined) {
       return { success: true as const, data: {} };
@@ -84,5 +87,58 @@ export const estimateCapacityInputSchema: CapabilityInputSchema<EstimateCapacity
       return { success: false as const, errors: ["componentId must be a non-empty string when provided."] };
     }
     return { success: true as const, data: { componentId: input.componentId } };
+  },
+};
+
+/** Optional componentId; omit / empty object = architecture-wide capacity summary. */
+export const estimateCapacityInputSchema: CapabilityInputSchema<EstimateCapacityInput> = {
+  jsonSchema: optionalComponentIdInputSchema.jsonSchema,
+  safeParse(input: unknown) {
+    const parsed = optionalComponentIdInputSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false as const,
+        errors: parsed.errors.map((error) => error.replace(/^Input/, "estimate_capacity input")),
+      };
+    }
+    return parsed;
+  },
+};
+
+export interface InspectCacheInput {
+  readonly componentId?: string;
+}
+
+export interface InspectReplicationInput {
+  readonly componentId?: string;
+}
+
+/** Runtime-validated input for inspect_replication. */
+export const inspectReplicationInputSchema: CapabilityInputSchema<InspectReplicationInput> = {
+  jsonSchema: optionalComponentIdInputSchema.jsonSchema,
+  safeParse(input: unknown) {
+    const parsed = optionalComponentIdInputSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false as const,
+        errors: parsed.errors.map((error) => error.replace(/^Input/, "inspect_replication input")),
+      };
+    }
+    return parsed;
+  },
+};
+
+/** Runtime-validated input for inspect_cache. */
+export const inspectCacheInputSchema: CapabilityInputSchema<InspectCacheInput> = {
+  jsonSchema: optionalComponentIdInputSchema.jsonSchema,
+  safeParse(input: unknown) {
+    const parsed = optionalComponentIdInputSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false as const,
+        errors: parsed.errors.map((error) => error.replace(/^Input/, "inspect_cache input")),
+      };
+    }
+    return parsed;
   },
 };

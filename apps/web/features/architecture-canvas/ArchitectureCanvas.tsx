@@ -12,9 +12,10 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  type OnConnectStart,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
@@ -25,8 +26,8 @@ import {
   useOfficialAttempt,
 } from "@/features/official-attempt/OfficialAttemptContext";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
-import { componentRegistry, postgresTierModels, postgresReadCapacityForConfig, postgresReadReplicaBounds, postgresWriteCapacityForConfig, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels, loadBalancerMonthlyCost, loadBalancerPolicies, cdnConfiguredHitIntent, cdnHitRateForConfig, cdnMonthlyCostForConfig, cdnThroughputCapacityForConfig, cdnTtlHitRateBands, cdnTierModels } from "@faultline/component-catalog";
-import { checkConnectionCompatibility, createRegionDeployment, getRegions, isValidRegion, postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RegionDeployment, type RegionId, type RequirementDefinition, type RequirementResult } from "@faultline/core";
+import { componentRegistry } from "@faultline/component-catalog";
+import { checkConnectionCompatibility, postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RegionDeployment, type RegionId, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
   estimateMonthlyCost,
   evaluateRequirements,
@@ -37,7 +38,9 @@ import {
 import { WorldMap, type WorldMapSelection } from "@/features/world-map/WorldMap";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentContextFactoryProvider } from "@/features/agent-context/AgentContextFactoryContext";
+import { WebMcpRegistration } from "@/features/webmcp/WebMcpRegistration";
 import { useLiveAgentContextFactory } from "@/lib/agent-context/use-live-agent-context-factory";
+import { ComponentRail } from "@/features/architecture-canvas/ComponentRail";
 import { PLAYGROUND_SNAP_GRID, snapPosition } from "@/features/architecture-canvas/canvas-grid";
 import { InkConnectionLine } from "@/features/architecture-canvas/InkConnectionLine";
 import { InkEdge, type InkEdgeData } from "@/features/architecture-canvas/InkEdge";
@@ -49,8 +52,28 @@ import {
   normalizeConnectionLoad,
 } from "@/features/architecture-canvas/ink-edge-routing";
 import { playgroundNodeHeight } from "@/features/architecture-canvas/glyph-port-layout";
+import {
+  connectHintForPort,
+  nodeHasCompatiblePort,
+  type ConnectingFrom,
+} from "@/features/architecture-canvas/playground-connect-hints";
+import {
+  PLAYGROUND_DELETE_MS,
+  PLAYGROUND_EDGE_PULSE_MS,
+  PLAYGROUND_SETTLE_MS,
+  type NodeInteractionPhase,
+} from "@/features/architecture-canvas/playground-interaction";
+import { RegionEnclosuresLayer } from "@/features/architecture-canvas/RegionEnclosuresLayer";
+import { isSemanticZoomOut } from "@/features/architecture-canvas/semantic-zoom";
+import {
+  applyRegionPlacementFromPosition,
+  componentBelongsInEnclosure,
+  enclosureRegionsForArchitecture,
+} from "@/features/architecture-canvas/region-enclosures";
+import { notifyPacketReroute } from "@/features/architecture-canvas/playground-packet-reroute";
+import { DataPlateInspector } from "@/features/architecture-canvas/DataPlateInspector";
 import { PlaygroundNode, type PlaygroundNodeData } from "@/features/architecture-canvas/PlaygroundNode";
-import { glyphDimensionsForProps, glyphPropsFromComponent, type GlyphSimulationResult } from "@/features/playground-glyphs";
+import { glyphDimensionsForProps, glyphPropsFromComponent, MINI_GLYPH_SIZE, type GlyphSimulationResult } from "@/features/playground-glyphs";
 
 type PlaygroundFlowNode = Node<PlaygroundNodeData, "playground">;
 
@@ -135,16 +158,60 @@ function componentToNode(
   simulation: SuccessfulSimulation | null,
   resultIsStale: boolean,
   attentionComponentId: string | null,
+  interaction: {
+    connectingFrom: ConnectingFrom | null;
+    settlingNodeIds: ReadonlySet<string>;
+    deletingNodeIds: ReadonlySet<string>;
+    components: readonly ComponentInstance[];
+    isValidConnection: (connection: FlowConnectionLike) => boolean;
+    enclosureRegions: readonly RegionId[];
+    semanticZoomOut: boolean;
+  },
 ): PlaygroundFlowNode {
   const definition = componentRegistry.get(component.type);
   const glyphCatalog = glyphPropsFromComponent(component, definition);
   const dimensions = glyphDimensionsForProps(glyphCatalog);
+  const displayWidth = interaction.semanticZoomOut ? MINI_GLYPH_SIZE : dimensions.width;
+  const displayHeight = interaction.semanticZoomOut ? MINI_GLYPH_SIZE : playgroundNodeHeight(dimensions.height);
+
+  const portConnectHints = Object.fromEntries(
+    definition.ports.map((port) => [
+      port.id,
+      connectHintForPort(
+        interaction.connectingFrom,
+        component.id,
+        port.id,
+        port.direction,
+        interaction.components,
+        interaction.isValidConnection,
+      ),
+    ]),
+  );
+
+  const connectDimmed =
+    interaction.connectingFrom !== null &&
+    !nodeHasCompatiblePort(
+      interaction.connectingFrom,
+      component.id,
+      definition.ports,
+      interaction.components,
+      interaction.isValidConnection,
+    );
+
+  let interactionPhase: NodeInteractionPhase = "idle";
+  if (interaction.deletingNodeIds.has(component.id)) interactionPhase = "deleting";
+  else if (interaction.settlingNodeIds.has(component.id)) interactionPhase = "settling";
+
+  const regionBelonging =
+    interaction.enclosureRegions.length > 0 &&
+    componentBelongsInEnclosure(component, dimensions, interaction.enclosureRegions);
+
   return {
     id: component.id,
     type: "playground",
     position: component.ui,
-    width: dimensions.width,
-    height: playgroundNodeHeight(dimensions.height),
+    width: displayWidth,
+    height: displayHeight,
     data: {
       component,
       definition,
@@ -152,6 +219,11 @@ function componentToNode(
       resultIsStale,
       attention: component.id === attentionComponentId,
       connectedPortIds: connectedPortIdsForComponent(component.id, connections),
+      interactionPhase,
+      connectDimmed,
+      portConnectHints,
+      regionBelonging,
+      semanticZoomOut: interaction.semanticZoomOut,
     },
     selected: component.id === selectedComponentId,
   };
@@ -159,43 +231,6 @@ function componentToNode(
 
 const nodeTypes = { playground: PlaygroundNode };
 const edgeTypes = { ink: InkEdge };
-
-function ComponentPalette({ definitions }: { definitions: readonly ComponentDefinition[] }) {
-  const grouped = useMemo(() => {
-    const categories = new Map<string, ComponentDefinition[]>();
-    for (const definition of definitions) {
-      const items = categories.get(definition.category) ?? [];
-      items.push(definition);
-      categories.set(definition.category, items);
-    }
-    return [...categories.entries()];
-  }, [definitions]);
-
-  return (
-    <aside className="component-rail" aria-label="Component palette">
-      {grouped.map(([category, items], index) => (
-        <div key={category} className="component-rail__group">
-          {index > 0 ? <div className="component-rail__divider" aria-hidden="true" /> : null}
-          <p className="component-rail__category">{category}</p>
-          {items.map((definition) => (
-            <div
-              key={definition.type}
-              className="component-rail__item"
-              draggable
-              title={definition.label}
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("application/faultline-component-type", definition.type);
-              }}
-            >
-              <span>{definition.label}</span>
-            </div>
-          ))}
-        </div>
-      ))}
-    </aside>
-  );
-}
 
 function PlaygroundDataPlates({
   expanded,
@@ -561,458 +596,6 @@ function SimulationRunPanel({
   );
 }
 
-function ComponentInspector({
-  architecture,
-  component,
-  onConfigChange,
-  onDeploymentsChange,
-}: {
-  architecture: Architecture;
-  component: ComponentInstance | undefined;
-  onConfigChange: (componentId: string, config: unknown) => void;
-  onDeploymentsChange: (componentId: string, deployments: RegionDeployment[]) => void;
-}) {
-  if (!component) {
-    return <aside className="component-inspector"><p>Select a component to inspect its configuration.</p></aside>;
-  }
-
-  const definition = componentRegistry.get(component.type);
-  const cost = estimateMonthlyCost({ architecture, registry: componentRegistry });
-  const monthlyCost = cost.lineItems.find((lineItem) => lineItem.componentId === component.id)?.amount ?? 0;
-  const regions = getRegions();
-
-  if (component.type === "service") {
-    const parsed = definition.configSchema.safeParse(component.config);
-    if (!parsed.success) return null;
-    const size = parsed.data.size as keyof typeof serviceSizeModels;
-    const instances = parsed.data.instances as number;
-    const sizeModel = serviceSizeModels[size];
-    const regional = component.deployments.length > 0;
-    const instancesByRegion = Object.fromEntries(
-      regions.map((region) => {
-        const deployment = component.deployments.find((entry) => entry.regionId === region.id);
-        const count = deployment ? Number(deployment.config.instances ?? 0) : 0;
-        return [region.id, Number.isFinite(count) ? count : 0];
-      }),
-    ) as Record<string, number>;
-
-    const setRegionalInstances = (regionId: string, nextCount: number) => {
-      const nextCounts = { ...instancesByRegion, [regionId]: Math.max(0, Math.floor(nextCount)) };
-      const nextDeployments: RegionDeployment[] = regions
-        .filter((region) => (nextCounts[region.id] ?? 0) > 0)
-        .map((region) =>
-          createRegionDeployment(region.id, { instances: nextCounts[region.id] }, `dep-${component.id}-${region.id}`),
-        );
-      onDeploymentsChange(component.id, nextDeployments);
-    };
-
-    return (
-      <aside className="component-inspector" aria-label="Stateless Service inspector">
-        <p className="component-inspector__eyebrow">Stateless Service</p>
-        <label>
-          Size
-          <select
-            value={size}
-            onChange={(event) => onConfigChange(component.id, { size: event.target.value, instances })}
-          >
-            {Object.keys(serviceSizeModels).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Instances {regional ? "(from regions)" : ""}
-          <input
-            type="number"
-            min="1"
-            max="10"
-            step="1"
-            value={instances}
-            disabled={regional}
-            onChange={(event) => onConfigChange(component.id, { size, instances: Number(event.target.value) })}
-          />
-        </label>
-        <div className="component-inspector__region-block">
-          <p className="component-inspector__region-title">Regional instances</p>
-          {regions.map((region) => (
-            <label key={region.id}>
-              {region.label}
-              <input
-                type="number"
-                min="0"
-                max="10"
-                step="1"
-                value={instancesByRegion[region.id] ?? 0}
-                onChange={(event) => setRegionalInstances(region.id, Number(event.target.value))}
-              />
-            </label>
-          ))}
-          <p className="component-inspector__hint">
-            When any region is set, regional instances are the capacity source and must sum to the logical total.
-          </p>
-        </div>
-        <dl className="tabular">
-          <div><dt>Capacity / instance</dt><dd>{sizeModel.capacityPerInstance.toLocaleString()} req/sec</dd></div>
-          <div><dt>Estimated capacity</dt><dd>{serviceCapacityForConfig({ size, instances }).toLocaleString()} req/sec</dd></div>
-          <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
-        </dl>
-      </aside>
-    );
-  }
-
-  if (component.type === "postgres") {
-    const parsed = definition.configSchema.safeParse(component.config);
-    if (!parsed.success) return null;
-    const tier = parsed.data.tier as keyof typeof postgresTierModels;
-    const readReplicaCount = parsed.data.readReplicaCount as number;
-    const model = postgresTierModels[tier];
-    const primary = component.deployments.find((deployment) => deployment.config.role === "primary");
-    const replicaRegionIds = new Set(
-      component.deployments.filter((deployment) => deployment.config.role === "replica").map((deployment) => deployment.regionId),
-    );
-    const regional = component.deployments.length > 0;
-
-    const setPrimaryRegion = (regionId: string) => {
-      if (!regionId || !isValidRegion(regionId)) {
-        onDeploymentsChange(component.id, []);
-        return;
-      }
-      const primaryRegionId: RegionId = regionId;
-      const replicas = regions
-        .filter((region) => replicaRegionIds.has(region.id) && region.id !== primaryRegionId)
-        .map((region) => createRegionDeployment(region.id, { role: "replica" }, `dep-${component.id}-${region.id}-replica`));
-      onDeploymentsChange(component.id, [
-        createRegionDeployment(primaryRegionId, { role: "primary" }, `dep-${component.id}-${primaryRegionId}-primary`),
-        ...replicas,
-      ]);
-    };
-
-    const toggleReplicaRegion = (regionId: string, enabled: boolean) => {
-      const primaryRegionId = primary?.regionId;
-      if (!primaryRegionId || !isValidRegion(primaryRegionId) || !isValidRegion(regionId)) return;
-      const nextReplicaIds = new Set(replicaRegionIds);
-      if (enabled) nextReplicaIds.add(regionId);
-      else nextReplicaIds.delete(regionId);
-      onDeploymentsChange(component.id, [
-        createRegionDeployment(primaryRegionId, { role: "primary" }, `dep-${component.id}-${primaryRegionId}-primary`),
-        ...regions
-          .filter((region) => nextReplicaIds.has(region.id))
-          .map((region) =>
-            createRegionDeployment(region.id, { role: "replica" }, `dep-${component.id}-${region.id}-replica`),
-          ),
-      ]);
-    };
-
-    return (
-      <aside className="component-inspector" aria-label="Postgres inspector">
-        <p className="component-inspector__eyebrow">Postgres</p>
-        <label>
-          Tier
-          <select
-            value={tier}
-            onChange={(event) => onConfigChange(component.id, { tier: event.target.value, readReplicaCount })}
-          >
-            {Object.keys(postgresTierModels).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Read replicas {regional ? "(from regions)" : ""}
-          <input
-            type="number"
-            min={postgresReadReplicaBounds.minimum}
-            max={postgresReadReplicaBounds.maximum}
-            step="1"
-            value={readReplicaCount}
-            disabled={regional}
-            onChange={(event) =>
-              onConfigChange(component.id, { tier, readReplicaCount: Number(event.target.value) })
-            }
-          />
-        </label>
-        <div className="component-inspector__region-block">
-          <p className="component-inspector__region-title">Regional placement</p>
-          <label>
-            Primary region
-            <select value={primary?.regionId ?? ""} onChange={(event) => setPrimaryRegion(event.target.value)}>
-              <option value="">Logical only (no region)</option>
-              {regions.map((region) => (
-                <option key={region.id} value={region.id}>
-                  {region.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {primary ? (
-            <div className="component-inspector__replica-list">
-              <p className="component-inspector__region-title">Read replica regions</p>
-              {regions.map((region) => (
-                <label key={region.id} className="component-inspector__checkbox">
-                  <input
-                    type="checkbox"
-                    checked={replicaRegionIds.has(region.id)}
-                    onChange={(event) => toggleReplicaRegion(region.id, event.target.checked)}
-                  />
-                  {region.label}
-                </label>
-              ))}
-            </div>
-          ) : null}
-          <p className="component-inspector__hint">
-            Exactly one primary. Writes target the primary. Replica regions set readReplicaCount.
-          </p>
-        </div>
-        <dl className="tabular">
-          <div>
-            <dt>Read capacity</dt>
-            <dd>{postgresReadCapacityForConfig({ tier, readReplicaCount }).toLocaleString()} req/sec</dd>
-          </div>
-          <div>
-            <dt>Write capacity</dt>
-            <dd>{postgresWriteCapacityForConfig({ tier }).toLocaleString()} req/sec</dd>
-          </div>
-          <div><dt>Primary read</dt><dd>{model.readCapacityRps.toLocaleString()} req/sec</dd></div>
-          <div>
-            <dt>Replica read pool</dt>
-            <dd>{(model.replicaReadCapacityRps * readReplicaCount).toLocaleString()} req/sec</dd>
-          </div>
-          <div>
-            <dt>Per replica read</dt>
-            <dd>{model.replicaReadCapacityRps.toLocaleString()} req/sec</dd>
-          </div>
-          <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
-        </dl>
-      </aside>
-    );
-  }
-
-  if (component.type === "redis") {
-    const parsed = definition.configSchema.safeParse(component.config);
-    if (!parsed.success) return null;
-    const mode = parsed.data.mode as "standalone" | "replicated";
-    const tier = parsed.data.tier as keyof typeof redisTierModels;
-    const ttlBand = parsed.data.ttlBand as keyof typeof redisTtlHitRateBands;
-    const effective = redisEffectiveModel({ mode, tier });
-    const placed = new Set(component.deployments.map((deployment) => deployment.regionId));
-
-    const toggleRegion = (regionId: string, enabled: boolean) => {
-      const next = new Set(placed);
-      if (enabled) next.add(regionId);
-      else next.delete(regionId);
-      onDeploymentsChange(
-        component.id,
-        regions
-          .filter((region) => next.has(region.id))
-          .map((region) => createRegionDeployment(region.id, {}, `dep-${component.id}-${region.id}`)),
-      );
-    };
-
-    return (
-      <aside className="component-inspector" aria-label="Redis inspector">
-        <p className="component-inspector__eyebrow">Redis</p>
-        <label>
-          Mode
-          <select
-            value={mode}
-            onChange={(event) => onConfigChange(component.id, { mode: event.target.value, tier, ttlBand })}
-          >
-            <option value="standalone">standalone</option>
-            <option value="replicated">replicated</option>
-          </select>
-        </label>
-        <label>
-          Tier
-          <select
-            value={tier}
-            onChange={(event) => onConfigChange(component.id, { mode, tier: event.target.value, ttlBand })}
-          >
-            {Object.keys(redisTierModels).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          TTL band
-          <select
-            value={ttlBand}
-            onChange={(event) => onConfigChange(component.id, { mode, tier, ttlBand: event.target.value })}
-          >
-            {Object.keys(redisTtlHitRateBands).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="component-inspector__region-block">
-          <p className="component-inspector__region-title">Regional placement</p>
-          {regions.map((region) => (
-            <label key={region.id} className="component-inspector__checkbox">
-              <input
-                type="checkbox"
-                checked={placed.has(region.id)}
-                onChange={(event) => toggleRegion(region.id, event.target.checked)}
-              />
-              {region.label}
-            </label>
-          ))}
-          <p className="component-inspector__hint">
-            Each checked region is an independent Redis cache. Replicated mode is local HA, not cross-region sync.
-          </p>
-        </div>
-        <dl className="tabular">
-          <div><dt>Configured hit rate</dt><dd>{Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
-          <div><dt>Throughput capacity</dt><dd>{effective.throughputRps.toLocaleString()} req/sec</dd></div>
-          <div><dt>Hot-key capacity</dt><dd>{effective.hotKeyCapacityRps.toLocaleString()} req/sec</dd></div>
-          <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
-        </dl>
-      </aside>
-    );
-  }
-
-  if (component.type === "global-router") {
-    return (
-      <aside className="component-inspector" aria-label="Global Router inspector">
-        <p className="component-inspector__eyebrow">Global Router</p>
-        <dl className="tabular">
-          <div><dt>Role</dt><dd>Logical request passthrough</dd></div>
-          <div><dt>Geographic routing</dt><dd>Inactive</dd></div>
-          <div><dt>Monthly cost</dt><dd>{formatCost(0)}</dd></div>
-        </dl>
-        <p className="component-inspector__hint">
-          Forwards traffic without changing volume. Nearest healthy region routing activates when geography is enabled.
-        </p>
-      </aside>
-    );
-  }
-
-  if (component.type === "load-balancer") {
-    const parsed = definition.configSchema.safeParse(component.config);
-    if (!parsed.success) return null;
-    const policy = parsed.data.policy as (typeof loadBalancerPolicies)[number];
-    return (
-      <aside className="component-inspector" aria-label="Load Balancer inspector">
-        <p className="component-inspector__eyebrow">Load Balancer</p>
-        <label>
-          Policy
-          <select
-            value={policy}
-            onChange={(event) => onConfigChange(component.id, { policy: event.target.value })}
-          >
-            {loadBalancerPolicies.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <dl className="tabular">
-          <div><dt>Monthly cost</dt><dd>{formatCost(loadBalancerMonthlyCost)}</dd></div>
-        </dl>
-        <p className="component-inspector__hint">
-          {policy === "equal"
-            ? "Splits requests evenly across connected services."
-            : "Splits requests by each service's configured capacity."}{" "}
-          Failed backends are not excluded yet; health-aware redistribution comes with failure injection.
-        </p>
-      </aside>
-    );
-  }
-
-  if (component.type === "cdn") {
-    const parsed = definition.configSchema.safeParse(component.config);
-    if (!parsed.success) return null;
-    const coverage = parsed.data.coverage as number;
-    const ttlBand = parsed.data.ttlBand as keyof typeof cdnTtlHitRateBands;
-    const tier = parsed.data.tier as keyof typeof cdnTierModels;
-    return (
-      <aside className="component-inspector" aria-label="CDN inspector">
-        <p className="component-inspector__eyebrow">CDN</p>
-        <label>
-          Coverage
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            value={coverage}
-            onChange={(event) =>
-              onConfigChange(component.id, { coverage: Number(event.target.value), ttlBand, tier })
-            }
-          />
-        </label>
-        <label>
-          TTL band
-          <select
-            value={ttlBand}
-            onChange={(event) => onConfigChange(component.id, { coverage, ttlBand: event.target.value, tier })}
-          >
-            {Object.keys(cdnTtlHitRateBands).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Tier
-          <select
-            value={tier}
-            onChange={(event) => onConfigChange(component.id, { coverage, ttlBand, tier: event.target.value })}
-          >
-            {Object.keys(cdnTierModels).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <dl className="tabular">
-          <div><dt>TTL hit rate</dt><dd>{Math.round(cdnHitRateForConfig({ ttlBand }) * 100)}%</dd></div>
-          <div>
-            <dt>Configured hit intent</dt>
-            <dd>{Math.round(cdnConfiguredHitIntent({ coverage, ttlBand, tier }) * 100)}%</dd>
-          </div>
-          <div><dt>Edge capacity</dt><dd>{cdnThroughputCapacityForConfig({ tier }).toLocaleString()} req/sec</dd></div>
-          <div><dt>Base monthly cost</dt><dd>{formatCost(cdnMonthlyCostForConfig({ tier }))}</dd></div>
-        </dl>
-        <p className="component-inspector__hint">
-          Reduces origin redirect traffic via cache hit/miss offload. Writes always miss and reach origin. Coverage is
-          logical, not geographic.
-        </p>
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="component-inspector" aria-label="Traffic Source inspector">
-      <p className="component-inspector__eyebrow">Traffic Source</p>
-      <dl className="tabular">
-        <div>
-          <dt>Workload</dt>
-          <dd>
-            {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
-            {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec
-          </dd>
-        </div>
-        <div>
-          <dt>Geography</dt>
-          <dd>Origins from challenge geographic distribution; place capacity via component deployments</dd>
-        </div>
-        <div><dt>Monthly cost</dt><dd>{formatCost(monthlyCost)}</dd></div>
-      </dl>
-      <p className="component-inspector__hint">Traffic is configured by the challenge and cannot be edited here.</p>
-    </aside>
-  );
-}
-
 function createComponentInstance(definition: ComponentDefinition, position: { x: number; y: number }): ComponentInstance {
   const parsedConfig = definition.configSchema.safeParse(structuredClone(definition.defaultConfig));
   if (!parsedConfig.success) throw new Error(`Default configuration for ${definition.type} is invalid.`);
@@ -1035,6 +618,9 @@ function connectionToEdge(
     load: number;
     offset: number;
     hops: InkEdgeData["hops"];
+    pulse: boolean;
+    peeling: boolean;
+    semanticZoomOut: boolean;
   },
 ): Edge<InkEdgeData, "ink"> {
   const active = context.trafficActive && context.activeConnectionIds.has(connection.id);
@@ -1051,6 +637,9 @@ function connectionToEdge(
       stale: context.trafficActive && context.resultIsStale,
       offset: context.offset,
       hops: context.hops,
+      pulse: context.pulse,
+      peeling: context.peeling,
+      semanticZoomOut: context.semanticZoomOut,
     },
   };
 }
@@ -1104,6 +693,12 @@ function ArchitectureWorkspace() {
   const [officialSubmitting, setOfficialSubmitting] = useState(false);
   const [officialSummary, setOfficialSummary] = useState<string | null>(null);
   const [dataPlatesExpanded, setDataPlatesExpanded] = useState(true);
+  const [connectingFrom, setConnectingFrom] = useState<ConnectingFrom | null>(null);
+  const [settlingNodeIds, setSettlingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [semanticZoomOut, setSemanticZoomOut] = useState(false);
+  const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const { screenToFlowPosition, fitView } = useReactFlow();
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
@@ -1122,6 +717,26 @@ function ArchitectureWorkspace() {
     );
   }, [simulationResult]);
 
+  const isValidConnection = useCallback(
+    (connection: FlowConnection | Edge | FlowConnectionLike) => connectionFromFlow(connection, architecture.components) !== null,
+    [architecture.components],
+  );
+  const enclosureRegions = useMemo(
+    () => enclosureRegionsForArchitecture(architecture, activeChallenge),
+    [architecture],
+  );
+
+  const applyRegionalPlacement = useCallback(
+    (component: ComponentInstance, position: { x: number; y: number }): ComponentInstance => {
+      if (enclosureRegions.length === 0) return component;
+      const definition = componentRegistry.get(component.type);
+      const glyphCatalog = glyphPropsFromComponent(component, definition);
+      const dimensions = glyphDimensionsForProps(glyphCatalog);
+      return applyRegionPlacementFromPosition(component, position, dimensions, enclosureRegions);
+    },
+    [enclosureRegions],
+  );
+
   const nodes = useMemo(
     () =>
       architecture.components.map((component) =>
@@ -1132,6 +747,15 @@ function ArchitectureWorkspace() {
           showSimulationVisuals ? simulationResult : null,
           resultIsStale,
           attentionComponentId,
+          {
+            connectingFrom,
+            settlingNodeIds,
+            deletingNodeIds,
+            components: architecture.components,
+            isValidConnection,
+            enclosureRegions,
+            semanticZoomOut,
+          },
         ),
       ),
     [
@@ -1142,6 +766,12 @@ function ArchitectureWorkspace() {
       simulationResult,
       resultIsStale,
       attentionComponentId,
+      connectingFrom,
+      settlingNodeIds,
+      deletingNodeIds,
+      isValidConnection,
+      enclosureRegions,
+      semanticZoomOut,
     ],
   );
   const edges = useMemo(() => {
@@ -1170,9 +800,24 @@ function ArchitectureWorkspace() {
         load: normalizeConnectionLoad(loads.get(connection.id) ?? 0, maxLoad),
         offset: offsets.get(connection.id) ?? 0,
         hops: hopMap.get(connection.id) ?? [],
+        pulse: pulsingEdgeIds.has(connection.id),
+        peeling:
+          deletingNodeIds.has(connection.sourceComponentId) ||
+          deletingNodeIds.has(connection.targetComponentId),
+        semanticZoomOut,
       }),
     );
-  }, [architecture.connections, architecture.components, activeConnectionIds, showSimulationVisuals, resultIsStale, simulationResult?.events]);
+  }, [
+    architecture.connections,
+    architecture.components,
+    activeConnectionIds,
+    showSimulationVisuals,
+    resultIsStale,
+    simulationResult?.events,
+    pulsingEdgeIds,
+    deletingNodeIds,
+    semanticZoomOut,
+  ]);
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
   const showCanvasEmptyState =
     viewMode === "logical" && architecture.components.length === 1 && architecture.components[0]?.type === "traffic-source";
@@ -1183,35 +828,69 @@ function ArchitectureWorkspace() {
   }, [architecture.components, attentionComponentId]);
 
   const onNodesChange = useCallback((changes: NodeChange<PlaygroundFlowNode>[]) => {
-    setArchitecture((current) => {
-      let components = current.components;
+    const structuralChanges = changes.filter((change) => change.type !== "remove");
 
-      for (const change of changes) {
-        if (change.type === "position") {
-          const position = change.position;
-          if (!position) continue;
-          const snapped = snapPosition(position);
-          components = components.map((component) =>
-            component.id === change.id ? { ...component, ui: snapped } : component,
-          );
+    if (structuralChanges.length > 0) {
+      setArchitecture((current) => {
+        let components = current.components;
+
+        for (const change of structuralChanges) {
+          if (change.type === "position") {
+            const position = change.position;
+            if (!position) continue;
+            const snapped = snapPosition(position);
+            components = components.map((component) => {
+              if (component.id !== change.id) return component;
+              const placed = { ...component, ui: snapped };
+              if (change.dragging === false) {
+                return applyRegionalPlacement(placed, snapped);
+              }
+              return placed;
+            });
+          }
         }
 
-        if (change.type === "remove") {
-          components = components.filter((component) => component.id !== change.id);
-        }
-      }
+        if (components === current.components) return current;
+        return { ...current, components };
+      });
+    }
 
-      if (components === current.components) return current;
+    for (const change of changes) {
+      if (change.type !== "remove") continue;
+      if (pendingDeleteIdsRef.current.has(change.id)) continue;
 
-      const componentIds = new Set(components.map((component) => component.id));
-      return {
-        ...current,
-        components,
-        connections: current.connections.filter(
-          (connection) => componentIds.has(connection.sourceComponentId) && componentIds.has(connection.targetComponentId),
-        ),
-      };
-    });
+      pendingDeleteIdsRef.current.add(change.id);
+      setDeletingNodeIds((current) => new Set(current).add(change.id));
+
+      const connectionIds = architecture.connections
+        .filter(
+          (connection) =>
+            connection.sourceComponentId === change.id || connection.targetComponentId === change.id,
+        )
+        .map((connection) => connection.id);
+      notifyPacketReroute({ componentId: change.id, connectionIds });
+
+      window.setTimeout(() => {
+        setArchitecture((current) => {
+          const components = current.components.filter((component) => component.id !== change.id);
+          const componentIds = new Set(components.map((component) => component.id));
+          return {
+            ...current,
+            components,
+            connections: current.connections.filter(
+              (connection) =>
+                componentIds.has(connection.sourceComponentId) && componentIds.has(connection.targetComponentId),
+            ),
+          };
+        });
+        setDeletingNodeIds((current) => {
+          const next = new Set(current);
+          next.delete(change.id);
+          return next;
+        });
+        pendingDeleteIdsRef.current.delete(change.id);
+      }, PLAYGROUND_DELETE_MS);
+    }
 
     for (const change of changes) {
       if (change.type === "select") {
@@ -1224,7 +903,7 @@ function ArchitectureWorkspace() {
         setWorldSelection(null);
       }
     }
-  }, [architecture, selectedComponentId]);
+  }, [architecture, selectedComponentId, applyRegionalPlacement]);
 
   const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault();
@@ -1240,10 +919,19 @@ function ArchitectureWorkspace() {
       componentRegistry.get(type),
       snapPosition(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
     );
-    setArchitecture((current) => ({ ...current, components: [...current.components, component] }));
-    setSelectedComponentId(component.id);
+    const placed = applyRegionalPlacement(component, component.ui);
+    setArchitecture((current) => ({ ...current, components: [...current.components, placed] }));
+    setSelectedComponentId(placed.id);
     setWorldSelection(null);
-  }, [screenToFlowPosition]);
+    setSettlingNodeIds((current) => new Set(current).add(placed.id));
+    window.setTimeout(() => {
+      setSettlingNodeIds((current) => {
+        const next = new Set(current);
+        next.delete(placed.id);
+        return next;
+      });
+    }, PLAYGROUND_SETTLE_MS);
+  }, [screenToFlowPosition, applyRegionalPlacement]);
 
   const onConfigChange = useCallback((componentId: string, config: unknown) => {
     setArchitecture((current) => {
@@ -1295,24 +983,50 @@ function ArchitectureWorkspace() {
     });
   }, []);
 
-  const isValidConnection = useCallback(
-    (connection: FlowConnection | Edge) => connectionFromFlow(connection, architecture.components) !== null,
-    [architecture.components],
-  );
+  const onConnectStart: OnConnectStart = useCallback((_event, params) => {
+    if (!params.nodeId || !params.handleId || !params.handleType) return;
+    setConnectingFrom({
+      nodeId: params.nodeId,
+      handleId: params.handleId,
+      handleType: params.handleType,
+    });
+  }, []);
+
+  const onConnectEnd = useCallback(() => {
+    setConnectingFrom(null);
+  }, []);
 
   const onConnect = useCallback((connection: FlowConnection) => {
+    setConnectingFrom(null);
+    let createdConnectionId: string | null = null;
+
     setArchitecture((current) => {
       const canonicalConnection = connectionFromFlow(connection, current.components);
       if (!canonicalConnection) return current;
-      const isDuplicate = current.connections.some((existing) =>
-        existing.sourceComponentId === canonicalConnection.sourceComponentId &&
-        existing.sourcePortId === canonicalConnection.sourcePortId &&
-        existing.targetComponentId === canonicalConnection.targetComponentId &&
-        existing.targetPortId === canonicalConnection.targetPortId &&
-        existing.type === canonicalConnection.type,
+      const isDuplicate = current.connections.some(
+        (existing) =>
+          existing.sourceComponentId === canonicalConnection.sourceComponentId &&
+          existing.sourcePortId === canonicalConnection.sourcePortId &&
+          existing.targetComponentId === canonicalConnection.targetComponentId &&
+          existing.targetPortId === canonicalConnection.targetPortId &&
+          existing.type === canonicalConnection.type,
       );
-      return isDuplicate ? current : { ...current, connections: [...current.connections, canonicalConnection] };
+      if (isDuplicate) return current;
+      createdConnectionId = canonicalConnection.id;
+      return { ...current, connections: [...current.connections, canonicalConnection] };
     });
+
+    if (!createdConnectionId) return;
+
+    const pulseConnectionId = createdConnectionId;
+    setPulsingEdgeIds((current) => new Set(current).add(pulseConnectionId));
+    window.setTimeout(() => {
+      setPulsingEdgeIds((current) => {
+        const next = new Set(current);
+        next.delete(pulseConnectionId);
+        return next;
+      });
+    }, PLAYGROUND_EDGE_PULSE_MS);
   }, []);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
@@ -1441,6 +1155,7 @@ function ArchitectureWorkspace() {
 
   return (
     <AgentContextFactoryProvider factory={getAgentContext}>
+      <WebMcpRegistration challengeKey={activeChallenge.slug} />
     <section className="playground-shell" aria-label="Architecture workspace">
       <header className="playground-topbar">
         <p className="playground-topbar__wordmark">Faultline</p>
@@ -1486,7 +1201,7 @@ function ArchitectureWorkspace() {
       </header>
 
       <div className="playground-body">
-        <ComponentPalette definitions={paletteDefinitions} />
+        <ComponentRail definitions={paletteDefinitions} />
 
         <div
           className="playground-canvas"
@@ -1499,7 +1214,7 @@ function ArchitectureWorkspace() {
           ) : null}
           {viewMode === "logical" ? (
             <ReactFlow
-              className="playground-flow"
+              className={semanticZoomOut ? "playground-flow playground-flow--semantic-out" : "playground-flow"}
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
@@ -1508,10 +1223,21 @@ function ArchitectureWorkspace() {
               connectionLineComponent={InkConnectionLine}
               onNodesChange={onNodesChange}
               onConnect={onConnect}
+              onConnectStart={onConnectStart}
+              onConnectEnd={onConnectEnd}
               onEdgesChange={onEdgesChange}
               isValidConnection={isValidConnection}
               onDragOver={onDragOver}
               onDrop={onDrop}
+              onInit={(instance) => {
+                setSemanticZoomOut(isSemanticZoomOut(instance.getZoom()));
+              }}
+              onMove={(_event, viewport) => {
+                setSemanticZoomOut((current) => {
+                  const next = isSemanticZoomOut(viewport.zoom);
+                  return current === next ? current : next;
+                });
+              }}
               fitView
               fitViewOptions={{ padding: 0.35 }}
               deleteKeyCode={["Backspace", "Delete"]}
@@ -1526,6 +1252,7 @@ function ArchitectureWorkspace() {
               proOptions={{ hideAttribution: true }}
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#b8ae9e" />
+              <RegionEnclosuresLayer regionIds={enclosureRegions} semanticZoomOut={semanticZoomOut} />
               <Controls showInteractive={false} className="playground-flow__controls" position="bottom-left" />
             </ReactFlow>
           ) : (
@@ -1585,9 +1312,12 @@ function ArchitectureWorkspace() {
             />
           </PlaygroundDataPlates>
           <div className="playground-inspector">
-            <ComponentInspector
+            <DataPlateInspector
               architecture={architecture}
               component={selectedComponent}
+              simulation={simulationResult}
+              simulationStale={resultIsStale}
+              runComplete={runState === "complete"}
               onConfigChange={onConfigChange}
               onDeploymentsChange={onDeploymentsChange}
             />
