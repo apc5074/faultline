@@ -21,6 +21,13 @@ import { useCallback, useMemo, useState, type DragEvent } from "react";
 
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
+import { LeaderboardHud } from "@/features/leaderboards/LeaderboardHud";
+import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
+import {
+  OfficialAttemptProvider,
+  useOfficialAttempt,
+} from "@/features/official-attempt/OfficialAttemptContext";
+import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import { componentRegistry, postgresTierModels, postgresReadCapacityForConfig, postgresReadReplicaBounds, postgresWriteCapacityForConfig, serviceCapacityForConfig, serviceSizeModels, redisEffectiveModel, redisHitRateForConfig, redisTtlHitRateBands, redisTierModels, loadBalancerMonthlyCost, loadBalancerPolicies, cdnConfiguredHitIntent, cdnHitRateForConfig, cdnMonthlyCostForConfig, cdnThroughputCapacityForConfig, cdnTtlHitRateBands, cdnTierModels } from "@faultline/component-catalog";
 import { checkConnectionCompatibility, createRegionDeployment, getRegions, isValidRegion, postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RegionDeployment, type RegionId, type RequirementDefinition, type RequirementResult } from "@faultline/core";
 import {
@@ -450,6 +457,10 @@ function SimulationRunPanel({
   unexpectedError,
   result,
   onRun,
+  officialActive,
+  onSubmitOfficial,
+  officialSubmitting,
+  officialSummary,
 }: {
   runState: SimulationRunState;
   resultIsStale: boolean;
@@ -457,6 +468,10 @@ function SimulationRunPanel({
   unexpectedError: string | null;
   result: SuccessfulSimulation | null;
   onRun: () => void;
+  officialActive: boolean;
+  onSubmitOfficial: () => void;
+  officialSubmitting: boolean;
+  officialSummary: string | null;
 }) {
   const statusLabel =
     runState === "running"
@@ -474,13 +489,29 @@ function SimulationRunPanel({
   return (
     <div className="simulation-run" aria-label="Simulation controls">
       <div className="simulation-run__controls">
-        <button type="button" className="simulation-run__button" onClick={onRun} disabled={runState === "running"}>
+        <button type="button" className="simulation-run__button" onClick={onRun} disabled={runState === "running" || officialSubmitting}>
           {runState === "running" ? "Running…" : "Run system"}
         </button>
+        {officialActive ? (
+          <button
+            type="button"
+            className="simulation-run__button simulation-run__button--official"
+            onClick={onSubmitOfficial}
+            disabled={runState === "running" || officialSubmitting}
+          >
+            {officialSubmitting ? "Submitting…" : "Submit Official"}
+          </button>
+        ) : null}
         <p className={`simulation-run__status simulation-run__status--${runState}${resultIsStale ? " simulation-run__status--stale" : ""}`}>
           {statusLabel}
         </p>
       </div>
+
+      {officialSummary ? (
+        <p className="simulation-run__official" role="status">
+          {officialSummary}
+        </p>
+      ) : null}
 
       {resultIsStale ? (
         <p className="simulation-run__stale" role="status">
@@ -1057,6 +1088,7 @@ function worldSelectionForComponent(
 }
 
 function ArchitectureWorkspace() {
+  const { session: officialSession, bumpRankRefresh } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(initialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
@@ -1066,6 +1098,8 @@ function ArchitectureWorkspace() {
   const [simulationErrors, setSimulationErrors] = useState<readonly SimulationValidationError[]>([]);
   const [unexpectedError, setUnexpectedError] = useState<string | null>(null);
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
+  const [officialSubmitting, setOfficialSubmitting] = useState(false);
+  const [officialSummary, setOfficialSummary] = useState<string | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
@@ -1244,6 +1278,7 @@ function ArchitectureWorkspace() {
     const runKey = architectureSimulationKey(architecture);
     setRunState("running");
     setUnexpectedError(null);
+    setOfficialSummary(null);
 
     // Defer so the running state can paint before the synchronous simulator returns.
     window.setTimeout(() => {
@@ -1275,6 +1310,84 @@ function ArchitectureWorkspace() {
       }
     }, 0);
   }, [architecture]);
+
+  const onSubmitOfficial = useCallback(() => {
+    if (!officialSession) return;
+    const runKey = architectureSimulationKey(architecture);
+    setOfficialSubmitting(true);
+    setUnexpectedError(null);
+    setOfficialSummary(null);
+    setSimulationErrors([]);
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/submissions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({
+            attemptId: officialSession.attemptId,
+            challengeVersion: officialSession.challengeVersion,
+            architecture,
+          }),
+        });
+        const body = (await response.json()) as SubmitOfficialResponse;
+        setLastRunKey(runKey);
+
+        if (!body.ok) {
+          if (body.code === "invalid_architecture" && Array.isArray(body.details)) {
+            setSimulationResult(null);
+            setSimulationErrors(body.details as SimulationValidationError[]);
+            setRunState("error");
+            setOfficialSummary(null);
+          } else {
+            setSimulationResult(null);
+            setRunState("error");
+            setUnexpectedError(body.error);
+          }
+          return;
+        }
+
+        // Local evaluate fills canvas meters; competition-relevant fields match server verify.
+        const outcome = evaluateRequirements({
+          architecture,
+          challenge: activeChallenge,
+          registry: componentRegistry,
+        });
+        if (!outcome.valid) {
+          setSimulationResult(null);
+          setSimulationErrors(outcome.errors);
+          setRunState("error");
+          setUnexpectedError("Server accepted submission but local replay failed validation.");
+          return;
+        }
+
+        setSimulationErrors([]);
+        setSimulationResult(outcome);
+        setRunState("complete");
+
+        const solve =
+          body.officialSolveMs !== null
+            ? ` · official solve ${Math.round(body.officialSolveMs / 1000)}s`
+            : "";
+        const rank = body.eligible
+          ? `Eligible${solve}`
+          : body.withinBudget
+            ? "Verified — requirements failed (not ranked)"
+            : "Verified — over budget (not ranked)";
+        const best = body.dailyBest
+          ? ` · best ${Math.round(body.dailyBest.fastestSolveMs / 1000)}s / ${formatCost(body.dailyBest.cheapestCost)}`
+          : "";
+        setOfficialSummary(`Server verified · ${rank}${best}`);
+        bumpRankRefresh();
+      } catch {
+        setUnexpectedError("Could not submit official architecture.");
+        setRunState("error");
+      } finally {
+        setOfficialSubmitting(false);
+      }
+    })();
+  }, [architecture, officialSession, bumpRankRefresh]);
 
   return (
     <section className="architecture-workspace" aria-label="Architecture workspace">
@@ -1322,6 +1435,10 @@ function ArchitectureWorkspace() {
         unexpectedError={unexpectedError}
         result={simulationResult}
         onRun={onRunSimulation}
+        officialActive={officialSession !== null}
+        onSubmitOfficial={onSubmitOfficial}
+        officialSubmitting={officialSubmitting}
+        officialSummary={officialSummary}
       />
       {viewMode === "logical" ? (
       <ReactFlow
@@ -1374,6 +1491,8 @@ function ArchitectureWorkspace() {
       </div>
       <div className="architecture-sidebar">
         <StartOfficialAttempt />
+        <PlayerRankHud />
+        <LeaderboardHud />
         <BudgetHud
           architecture={architecture}
           traffic={showSimulationVisuals && !resultIsStale ? simulationResult?.traffic : undefined}
@@ -1395,8 +1514,10 @@ function ArchitectureWorkspace() {
 
 export function ArchitectureCanvas() {
   return (
-    <ReactFlowProvider>
-      <ArchitectureWorkspace />
-    </ReactFlowProvider>
+    <OfficialAttemptProvider>
+      <ReactFlowProvider>
+        <ArchitectureWorkspace />
+      </ReactFlowProvider>
+    </OfficialAttemptProvider>
   );
 }

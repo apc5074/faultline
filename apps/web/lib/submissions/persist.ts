@@ -3,13 +3,10 @@ import "server-only";
 import { hashArchitecture } from "@faultline/challenges";
 import type { Architecture, CostResult, RequirementResult } from "@faultline/core";
 
+import type { VerifiedCompetitionMetrics } from "@/lib/competition/verify-submission";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
-export type VerifiedCompetitionMetrics = {
-  p95LatencyMs: number;
-  throughputRatio: number;
-  headroom: number;
-};
+export type { VerifiedCompetitionMetrics };
 
 export type PersistVerifiedSubmissionInput = {
   userId: string;

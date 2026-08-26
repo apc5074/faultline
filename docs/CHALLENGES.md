@@ -2,7 +2,7 @@
 
 `packages/challenges` owns configured scenarios, objectives, and constraints. Challenges score outcomes rather than prescribed technologies.
 
-Challenge configuration uses the canonical architecture model and simulator evidence. Daily scheduling and attempts are server-authored; verified submissions are stored append-only with server-computed architecture hashes (`submissions`). Ranking uses the `daily_best` projection (first valid locks fastest; later eligible may improve cheapest), updated only by the service-role `commit_verified_submission` RPC.
+Challenge configuration uses the canonical architecture model and simulator evidence. Daily scheduling and attempts are server-authored; verified submissions are stored append-only with server-computed architecture hashes (`submissions`). Ranking uses the `daily_best` projection (first valid locks fastest; later eligible may improve cheapest), updated only by the service-role `commit_verified_submission` RPC. Official verification runs through `apps/web/lib/competition/verify-submission.ts` using the shared simulator — never client metrics.
 
 ## Global URL Shortener
 

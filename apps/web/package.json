@@ -9,6 +9,10 @@
     "build": "pnpm run build:deps && next build",
     "verify:alias": "node --experimental-strip-types scripts/verify-alias.ts",
     "verify:view-mode": "node --experimental-strip-types scripts/verify-view-mode.mjs",
+    "verify:fastest-leaderboard": "node --experimental-strip-types scripts/verify-fastest-leaderboard.mjs",
+    "verify:cheapest-leaderboard": "node --experimental-strip-types scripts/verify-cheapest-leaderboard.mjs",
+    "verify:my-rank": "node --experimental-strip-types scripts/verify-my-rank.mjs",
+    "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
   "dependencies": {

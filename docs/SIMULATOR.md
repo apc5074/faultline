@@ -40,6 +40,10 @@ When challenge geography is active and at least one Service has regional deploym
 
 The World view is a lightweight SVG map in `apps/web` driven by the same canonical `Architecture` and challenge geographic distribution. Region markers use `RegionRegistry` coordinates; traffic origin labels come from challenge fractions/RPS; deployment chips come from `ComponentInstance.deployments[]` (Service counts, Redis, Postgres primary vs replica). After a successful simulation, traffic arcs are drawn from `geographicRoutes` (aggregated by origin→destination→kind) with educational stroke weight for volume — never invented decorative paths. Animation is CSS-only; the simulator does not depend on it. The map does not own separate world domain state or call external map providers. Placement editing stays in the existing inspector.
 
+## Phase 3 verification
+
+`packages/simulator/scripts/verify-phase-3.mjs` (also `pnpm verify:phase-3`) is the small geography reality gate: one Architecture serialize round-trip, centralized US East placement (origins, cross-region latency + transfer), move capacity to Europe (route + network latency + cost change), Europe read replica (local reads, writes still to primary), plus Tiny API regression. It is not a large geography suite.
+
 ## Regional deployments
 
 `ComponentInstance.deployments[]` places capacity for region-supporting components (Service, Redis, Postgres) without creating a second architecture model. Empty deployments keep logical-only Phase 1/2 behavior. When present, deployments are the physical capacity source: Service regional `instances` must sum to `config.instances`; Postgres requires exactly one `primary` and replica deployments must match `readReplicaCount`; Redis deployments are independent regional cache footprints (`mode: replicated` is local HA, not cross-region sync). Simulation validation rejects unknown regions, unsupported types, duplicate deployment IDs, and capacity mismatches.

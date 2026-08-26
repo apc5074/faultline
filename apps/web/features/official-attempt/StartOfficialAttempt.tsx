@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 
 import type { CurrentAttemptResponse } from "@/app/api/attempts/current/route";
 import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
+import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptContext";
 
 type PanelState =
   | { status: "loading" }
   | { status: "idle"; alias: string | null }
-  | { status: "active"; alias: string; attemptId: string; startedAt: string }
+  | { status: "active"; alias: string; attemptId: string; startedAt: string; challengeVersion: number }
   | { status: "misconfigured" }
   | { status: "error"; message: string };
 
@@ -31,15 +32,30 @@ function formatElapsed(startedAt: string, nowMs: number): string {
  * Client elapsed time is display-only.
  */
 export function StartOfficialAttempt() {
+  const { setSession } = useOfficialAttempt();
   const [state, setState] = useState<PanelState>({ status: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
+
+  const applyActive = useCallback(
+    (input: { alias: string; attemptId: string; startedAt: string; challengeVersion: number }) => {
+      setState({ status: "active", ...input });
+      setSession({
+        attemptId: input.attemptId,
+        challengeVersion: input.challengeVersion,
+        alias: input.alias,
+        startedAt: input.startedAt,
+      });
+    },
+    [setSession],
+  );
 
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/attempts/current", { method: "GET", cache: "no-store" });
       const body = (await response.json()) as CurrentAttemptResponse;
       if (!body.ok) {
+        setSession(null);
         setState(
           body.code === "misconfigured"
             ? { status: "misconfigured" }
@@ -48,6 +64,7 @@ export function StartOfficialAttempt() {
         return;
       }
       if (!body.active) {
+        setSession(null);
         if (body.reason === "no_active_challenge") {
           setState({ status: "error", message: "No active daily challenge." });
           return;
@@ -58,16 +75,17 @@ export function StartOfficialAttempt() {
         });
         return;
       }
-      setState({
-        status: "active",
+      applyActive({
         alias: body.alias ?? "Player",
         attemptId: body.attemptId,
         startedAt: body.startedAt,
+        challengeVersion: body.challengeVersion,
       });
     } catch {
+      setSession(null);
       setState({ status: "idle", alias: null });
     }
-  }, []);
+  }, [applyActive, setSession]);
 
   useEffect(() => {
     void refresh();
@@ -88,6 +106,7 @@ export function StartOfficialAttempt() {
         });
         const body = (await response.json()) as StartAttemptResponse;
         if (!body.ok) {
+          setSession(null);
           if (body.code === "misconfigured") {
             setState({ status: "misconfigured" });
           } else if (body.code === "no_active_challenge") {
@@ -97,13 +116,14 @@ export function StartOfficialAttempt() {
           }
           return;
         }
-        setState({
-          status: "active",
+        applyActive({
           alias: body.alias,
           attemptId: body.attemptId,
           startedAt: body.startedAt,
+          challengeVersion: body.challengeVersion,
         });
       } catch {
+        setSession(null);
         setState({ status: "error", message: "Could not start official attempt." });
       }
     });

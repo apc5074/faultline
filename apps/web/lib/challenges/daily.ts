@@ -123,3 +123,30 @@ export async function getActiveDailyChallenge(now: Date = new Date()): Promise<A
     challengeVersion: asChallengeVersion(versionRow),
   };
 }
+
+/**
+ * Loads an immutable challenge version by id (trusted DB row only).
+ * Used by official submission verification — never accept client challenge JSON.
+ */
+export async function getChallengeVersionById(challengeVersionId: string): Promise<ChallengeVersionRecord> {
+  const config = getSupabasePublicConfig();
+  if (!config) {
+    throw new ActiveDailyChallengeError("Supabase is not configured.", "misconfigured");
+  }
+
+  const supabase = await createSupabaseServerClient(config);
+  const { data, error } = await supabase
+    .from("challenge_versions")
+    .select("id, slug, version, config_json, config_hash, simulator_version, created_at")
+    .eq("id", challengeVersionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new ActiveDailyChallengeError(error.message, "not_found");
+  }
+  if (!data) {
+    throw new ActiveDailyChallengeError("Challenge version not found.", "not_found");
+  }
+
+  return asChallengeVersion(data as ChallengeVersionRow);
+}

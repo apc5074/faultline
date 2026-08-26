@@ -12,9 +12,14 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-get-challenge.mjs"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1"
+  },
+  "dependencies": {
+    "@faultline/core": "workspace:*"
   }
 }

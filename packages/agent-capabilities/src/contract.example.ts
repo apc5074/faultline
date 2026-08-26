@@ -1,16 +1,9 @@
 import type { AgentCapability } from "./capability.js";
+import { noInputSchema } from "./schemas.js";
 
 interface ExampleContext {
   enabled: boolean;
 }
-
-const noInputSchema = {
-  safeParse(input: unknown) {
-    return input === undefined
-      ? { success: true as const, data: undefined }
-      : { success: false as const, errors: ["This capability accepts no input."] };
-  },
-};
 
 // Compile-only contract check; this is not registered or exposed as a tool.
 const exampleCapability: AgentCapability<ExampleContext, undefined, { available: boolean }> = {
