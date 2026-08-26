@@ -8,6 +8,7 @@
     "build:deps": "pnpm --filter \"@faultline/web^...\" build",
     "build": "pnpm run build:deps && next build",
     "verify:alias": "node --experimental-strip-types scripts/verify-alias.ts",
+    "verify:view-mode": "node --experimental-strip-types scripts/verify-view-mode.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
   "dependencies": {

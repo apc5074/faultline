@@ -197,7 +197,7 @@ export function WorldMap({
   /** Simulator geographicRoutes — only drawn when routesActive. */
   geographicRoutes: readonly GeographicRoute[];
   routesActive: boolean;
-  onSelectComponent: (componentId: string) => void;
+  onSelectComponent: (componentId: string, deploymentId?: string) => void;
   onSelectRegion: (regionId: RegionId) => void;
 }) {
   const regions = getRegions();
@@ -371,7 +371,7 @@ export function WorldMap({
                 .filter(Boolean)
                 .join(" ")}
               transform={`translate(${point.cx + 36} ${point.cy - 18 + stackOffset})`}
-              onClick={() => onSelectComponent(marker.componentId)}
+              onClick={() => onSelectComponent(marker.componentId, marker.deploymentId)}
             >
               <rect className="world-map__deployment-chip" x={0} y={-10} rx={4} ry={4} width={108} height={20} />
               <text className="world-map__deployment-label" x={8} y={4}>

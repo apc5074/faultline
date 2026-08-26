@@ -33,3 +33,21 @@ round(incomingRps × secondsPerBillingMonth / 1,000,000 × cdnUsageCostPerMillio
 ```
 
 plus the tier base. Without traffic metrics, CDN cost is base-only so architecture-only estimates stay valid.
+## Cross-region transfer (Phase 3)
+
+Transfer cost is driven by simulated `geographicRoutes`, not an arbitrary multi-region penalty.
+
+```text
+monthly $ = round(bytes/sec × secondsPerBillingMonth / 1e9 × $/GB)
+```
+
+- Same-region: `$0/GB`
+- Cross-region: flat educational `$0.02/GB` (not provider region-pair pricing)
+- Payload sizes come from challenge `transferPayload` (redirect / write / DB read / DB write / replication bytes)
+- Request-path bytes blend `readRatio × redirectResponseBytes + writeRatio × writeRequestBytes`
+- Replication: primary write RPS × `replicationBytesPerWrite` to each remote replica region
+- Line items group by region pair (`Transfer · …`, `Replication · …`) and enter shared `CostResult`
+
+### CDN vs transfer
+
+CDN usage prices **edge request volume** (Phase 2). Cross-region transfer prices **byte movement across region boundaries** on geographic routes and replication. CDN edge hits are not re-billed as transfer; origin-bound geographic hops that appear in `geographicRoutes` can still incur transfer when they cross regions.

@@ -37,6 +37,17 @@ export const urlShortenerChallenge: ChallengeDefinition = {
     { regionId: "singapore", fraction: 0.1 },
     { regionId: "tokyo", fraction: 0.1 },
   ],
+  /**
+   * Educational payload sizes for COST-005 cross-region transfer projection.
+   * Documented tuning assumptions — not measured production traffic.
+   */
+  transferPayload: {
+    redirectResponseBytes: 800,
+    writeRequestBytes: 1_200,
+    databaseReadBytes: 1_024,
+    databaseWriteBytes: 512,
+    replicationBytesPerWrite: 512,
+  },
   unscoredTargets: [
     {
       id: "availability",

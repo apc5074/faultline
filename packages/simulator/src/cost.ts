@@ -13,10 +13,14 @@ import {
 import {
   parseArchitecture,
   type Architecture,
+  type ChallengeDefinition,
   type ComponentInstance,
   type CostLineItem,
   type CostResult,
 } from "@faultline/core";
+
+import type { GeographicRoute } from "./geographic-routing.js";
+import { estimateCrossRegionTransferCost } from "./transfer-cost.js";
 
 export class CostEstimationError extends Error {
   override name = "CostEstimationError";
@@ -30,6 +34,13 @@ export interface CostEstimationInput {
    * When omitted, CDN contributes tier base cost only.
    */
   traffic?: Readonly<Record<string, { readonly incomingRps: number }>>;
+  /**
+   * Optional geographic routes from a successful simulation.
+   * When present, cross-region byte transfer and replication enter CostResult.
+   */
+  geographicRoutes?: readonly GeographicRoute[];
+  /** Challenge workload ratios + transferPayload for transfer projection. */
+  challenge?: Pick<ChallengeDefinition, "workload" | "transferPayload">;
 }
 
 function priceComponent(
@@ -73,11 +84,23 @@ function priceComponent(
 }
 
 /** Simplified educational monthly infrastructure estimate from canonical state. */
-export function estimateMonthlyCost({ architecture: input, registry, traffic }: CostEstimationInput): CostResult {
+export function estimateMonthlyCost({
+  architecture: input,
+  registry,
+  traffic,
+  geographicRoutes,
+  challenge,
+}: CostEstimationInput): CostResult {
   const architecture = parseArchitecture(input);
-  const lineItems = architecture.components.flatMap((component) => {
+  const componentItems = architecture.components.flatMap((component) => {
     const lineItem = priceComponent(component, registry, traffic);
     return lineItem ? [lineItem] : [];
   });
+  const transferItems = estimateCrossRegionTransferCost({
+    architecture,
+    challenge,
+    geographicRoutes,
+  });
+  const lineItems = [...componentItems, ...transferItems];
   return { monthlyTotal: lineItems.reduce((total, lineItem) => total + lineItem.amount, 0), lineItems };
 }

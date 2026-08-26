@@ -221,6 +221,24 @@ h1 {
   line-height: 1.35;
 }
 
+.official-attempt__timer {
+  margin: 0.45rem 0 0;
+  color: #e8eef5;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.official-attempt__active-label {
+  margin: 0.75rem 0 0;
+  color: #7dcea0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .requirements-hud {
   padding: 1rem;
   border: 1px solid #2d333b;
@@ -788,6 +806,14 @@ h1 {
   margin: 0;
   color: #9aa5b1;
   font-size: 0.7rem;
+}
+
+.architecture-node__summary {
+  display: block;
+  margin: 0.2rem 0 0;
+  color: #c5cdd6;
+  font-size: 0.72rem;
+  line-height: 1.25;
 }
 
 .architecture-node--healthy .architecture-node__eyebrow { color: #7dcea0; text-transform: capitalize; }

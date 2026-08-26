@@ -33,6 +33,7 @@ import {
 } from "@faultline/simulator";
 
 import { WorldMap, type WorldMapSelection } from "@/features/world-map/WorldMap";
+import { logicalCapacitySummary } from "@/features/architecture-canvas/view-mode";
 
 type CapacityVisualState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
 
@@ -154,6 +155,7 @@ function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
   const state = data.serviceMetrics?.state ?? data.postgresMetrics?.state;
   const stateClass = state ? ` architecture-node--${state}` : "";
   const staleClass = data.resultIsStale && state ? " architecture-node--stale" : "";
+  const capacitySummary = logicalCapacitySummary(data.component);
 
   return (
     <article className={`architecture-node${stateClass}${staleClass}${selected ? " architecture-node--selected" : ""}`}>
@@ -170,6 +172,7 @@ function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
       <p className="architecture-node__eyebrow">{state ? state : "Component"}</p>
       <strong>{data.definition.label}</strong>
       <span>{data.component.id}</span>
+      {capacitySummary ? <span className="architecture-node__summary">{capacitySummary}</span> : null}
       {data.serviceMetrics ? (
         <CapacityMeter label="Utilization" ratio={data.serviceMetrics.utilization} state={data.serviceMetrics.state} />
       ) : null}
@@ -224,11 +227,19 @@ function formatCompactCost(amount: number): string {
 function BudgetHud({
   architecture,
   traffic,
+  geographicRoutes,
 }: {
   architecture: Architecture;
   traffic?: SuccessfulSimulation["traffic"];
+  geographicRoutes?: SuccessfulSimulation["geographicRoutes"];
 }) {
-  const cost = estimateMonthlyCost({ architecture, registry: componentRegistry, traffic });
+  const cost = estimateMonthlyCost({
+    architecture,
+    registry: componentRegistry,
+    traffic,
+    geographicRoutes,
+    challenge: activeChallenge,
+  });
   const budget = activeChallenge.monthlyBudget;
   const overBudget = cost.monthlyTotal > budget;
 
@@ -252,9 +263,11 @@ function BudgetHud({
         <dl className="budget-hud__breakdown">
           {cost.lineItems.map((lineItem) => {
             const component = architecture.components.find((candidate) => candidate.id === lineItem.componentId);
-            const label = component && componentRegistry.has(component.type)
-              ? componentRegistry.get(component.type).label
-              : lineItem.componentId;
+            const label =
+              lineItem.label ??
+              (component && componentRegistry.has(component.type)
+                ? componentRegistry.get(component.type).label
+                : lineItem.componentId);
             return (
               <div key={lineItem.componentId}>
                 <dt>{label}</dt>
@@ -1032,6 +1045,17 @@ function connectionFromFlow(connection: FlowConnectionLike, components: readonly
   };
 }
 
+function worldSelectionForComponent(
+  architecture: Architecture,
+  componentId: string | null,
+): WorldMapSelection {
+  if (!componentId) return null;
+  const component = architecture.components.find((entry) => entry.id === componentId);
+  const deployment = component?.deployments[0];
+  if (!deployment) return null;
+  return { kind: "deployment", componentId, deploymentId: deployment.id };
+}
+
 function ArchitectureWorkspace() {
   const [architecture, setArchitecture] = useState<Architecture>(initialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -1106,10 +1130,17 @@ function ArchitectureWorkspace() {
     });
 
     for (const change of changes) {
-      if (change.type === "select") setSelectedComponentId(change.selected ? change.id : null);
-      if (change.type === "remove" && change.id === selectedComponentId) setSelectedComponentId(null);
+      if (change.type === "select") {
+        const nextId = change.selected ? change.id : null;
+        setSelectedComponentId(nextId);
+        setWorldSelection(worldSelectionForComponent(architecture, nextId));
+      }
+      if (change.type === "remove" && change.id === selectedComponentId) {
+        setSelectedComponentId(null);
+        setWorldSelection(null);
+      }
     }
-  }, [selectedComponentId]);
+  }, [architecture, selectedComponentId]);
 
   const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault();
@@ -1127,6 +1158,7 @@ function ArchitectureWorkspace() {
     );
     setArchitecture((current) => ({ ...current, components: [...current.components, component] }));
     setSelectedComponentId(component.id);
+    setWorldSelection(null);
   }, [screenToFlowPosition]);
 
   const onConfigChange = useCallback((componentId: string, config: unknown) => {
@@ -1267,7 +1299,11 @@ function ArchitectureWorkspace() {
               type="button"
               className={viewMode === "world" ? "view-mode-toggle__button view-mode-toggle__button--active" : "view-mode-toggle__button"}
               aria-pressed={viewMode === "world"}
-              onClick={() => setViewMode("world")}
+              onClick={() => {
+                setViewMode("world");
+                // Re-sync map highlight from shared component selection; do not touch Architecture or simulation.
+                setWorldSelection(worldSelectionForComponent(architecture, selectedComponentId));
+              }}
             >
               World
             </button>
@@ -1318,14 +1354,12 @@ function ArchitectureWorkspace() {
             showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes ?? [] : []
           }
           routesActive={showSimulationVisuals && !resultIsStale}
-          onSelectComponent={(componentId) => {
+          onSelectComponent={(componentId, deploymentId) => {
             setSelectedComponentId(componentId);
-            const component = architecture.components.find((entry) => entry.id === componentId);
-            const deployment = component?.deployments[0];
             setWorldSelection(
-              deployment
-                ? { kind: "deployment", componentId, deploymentId: deployment.id }
-                : null,
+              deploymentId
+                ? { kind: "deployment", componentId, deploymentId }
+                : worldSelectionForComponent(architecture, componentId),
             );
           }}
           onSelectRegion={(regionId) => {
@@ -1343,6 +1377,9 @@ function ArchitectureWorkspace() {
         <BudgetHud
           architecture={architecture}
           traffic={showSimulationVisuals && !resultIsStale ? simulationResult?.traffic : undefined}
+          geographicRoutes={
+            showSimulationVisuals && !resultIsStale ? simulationResult?.geographicRoutes : undefined
+          }
         />
         <RequirementsHud result={simulationResult} runState={runState} resultIsStale={resultIsStale} />
         <ComponentInspector

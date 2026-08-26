@@ -12,7 +12,7 @@ Supabase, Vercel, AI providers, and browser APIs are adapters around these bound
 
 `RegionDeployment` carries a stable `id`, `regionId`, and component-specific `config` (service instances, Redis regional footprint, Postgres `primary`/`replica` role). Deployments are physical placement of the same logical component — never a second architecture model. Empty `deployments` keeps Phase 1/2 logical-only behavior. When deployments are present, they are the capacity source of truth and logical totals (`instances`, `readReplicaCount`) must match.
 
-The Logical canvas and World SVG map are two presentation views of that same `Architecture`. View mode is UI state only; the world map never persists separate `worldNodes` / `worldEdges` domain data.
+The Logical canvas and World SVG map are two presentation views of that same `Architecture`. View mode (`logical` | `world`) is React UI state only — it is never serialized into Architecture, never sent to `evaluateRequirements` / `propagateTraffic`, and never creates a second architecture store. Logical nodes may show a compact capacity summary (e.g. `9 instances · 3 regions`); World shows region markers, traffic origins, deployments, and simulated arcs. Both views share component IDs; the inspector edits regional placement for either view.
 
 Use `validateArchitecture` or `parseArchitecture` when architecture-shaped data crosses an untrusted boundary. This first validation layer checks the serializable shape, version, identity uniqueness, and initial semantic connection fields. Simulation validation additionally rejects unknown regions, unsupported placement, capacity mismatches, and multiple Postgres primaries.
 

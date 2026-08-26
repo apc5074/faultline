@@ -120,6 +120,27 @@ export function assertChallengeDefinition(definition: unknown): asserts definiti
     }
   }
 
+  if (definition.transferPayload !== undefined) {
+    if (!isRecord(definition.transferPayload)) {
+      throw new ChallengeDefinitionError(`Challenge "${definition.slug}" transferPayload must be an object when set.`);
+    }
+    const keys = [
+      "redirectResponseBytes",
+      "writeRequestBytes",
+      "databaseReadBytes",
+      "databaseWriteBytes",
+      "replicationBytesPerWrite",
+    ] as const;
+    for (const key of keys) {
+      const value = definition.transferPayload[key];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        throw new ChallengeDefinitionError(
+          `Challenge "${definition.slug}" transferPayload.${key} must be a non-negative finite number.`,
+        );
+      }
+    }
+  }
+
   if (definition.unscoredTargets !== undefined) {
     if (!Array.isArray(definition.unscoredTargets)) {
       throw new ChallengeDefinitionError(`Challenge "${definition.slug}" unscoredTargets must be an array when set.`);

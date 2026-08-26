@@ -54,6 +54,23 @@ export interface UnscoredChallengeTarget {
   reason: string;
 }
 
+/**
+ * Educational byte sizes for projecting cross-region transfer cost.
+ * Challenge-owned tuning assumptions — not real measured payloads.
+ */
+export interface TransferPayloadAssumptions {
+  /** Typical redirect / read response over the request path. */
+  redirectResponseBytes: number;
+  /** Typical new-link / write request over the request path. */
+  writeRequestBytes: number;
+  /** Typical database read payload (Service/Redis → Postgres or Redis). */
+  databaseReadBytes: number;
+  /** Typical database write payload (Service → Postgres primary). */
+  databaseWriteBytes: number;
+  /** Bytes replicated from primary → each remote replica per write. */
+  replicationBytesPerWrite: number;
+}
+
 /** Challenge-owned configuration consumed by the simulator and UI. */
 export interface ChallengeDefinition {
   slug: string;
@@ -68,6 +85,11 @@ export interface ChallengeDefinition {
    * Phase 3 activates these fractions via `deriveRegionalWorkload` for traffic origins.
    */
   geographicDistribution?: readonly GeographicTrafficShare[];
+  /**
+   * Centralized educational payload sizes for transfer cost.
+   * Required for truthful cross-region billing when geographic routes exist.
+   */
+  transferPayload?: TransferPayloadAssumptions;
   /** Deferred targets (e.g. availability) preserved without dishonest scoring. */
   unscoredTargets?: readonly UnscoredChallengeTarget[];
   requirements: readonly RequirementDefinition[];

@@ -220,6 +220,8 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     architecture: input.architecture as Architecture,
     registry: input.registry,
     traffic: latency.traffic,
+    geographicRoutes: latency.geographicRoutes,
+    challenge: input.challenge as ChallengeDefinition,
   });
   const snapshot: OutcomeSnapshot = {
     throughputRatio: throughput.ratio,
