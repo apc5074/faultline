@@ -21,12 +21,24 @@ import { useCallback, useMemo, useState, type DragEvent } from "react";
 
 import { tinyApiChallenge } from "@faultline/challenges";
 import { componentRegistry, postgresTierModels, serviceCapacityForInstances, serviceCapacityPerInstance } from "@faultline/component-catalog";
-import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection } from "@faultline/core";
-import { estimateMonthlyCost } from "@faultline/simulator";
+import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection, type RequirementDefinition, type RequirementResult } from "@faultline/core";
+import {
+  estimateMonthlyCost,
+  evaluateRequirements,
+  type PostgresCapacityMetrics,
+  type RequirementsEvaluationResult,
+  type ServiceCapacityMetrics,
+  type SimulationValidationError,
+} from "@faultline/simulator";
+
+type CapacityVisualState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
 
 type ArchitectureNodeData = {
   component: ComponentInstance;
   definition: ComponentDefinition;
+  serviceMetrics?: ServiceCapacityMetrics;
+  postgresMetrics?: PostgresCapacityMetrics;
+  resultIsStale: boolean;
 };
 
 type ArchitectureNode = Node<ArchitectureNodeData, "architecture">;
@@ -38,26 +50,87 @@ type FlowConnectionLike = {
   targetHandle?: string | null;
 };
 
+type SimulationRunState = "idle" | "running" | "complete" | "error";
+
+type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
+
 const initialArchitecture: Architecture = {
   version: 1,
   components: [],
   connections: [],
 };
 
-function componentToNode(component: ComponentInstance, selectedComponentId: string | null): ArchitectureNode {
+/** Simulation-relevant architecture fingerprint; UI position changes do not invalidate results. */
+function architectureSimulationKey(architecture: Architecture): string {
+  return JSON.stringify({
+    components: architecture.components.map((component) => ({
+      id: component.id,
+      type: component.type,
+      config: component.config,
+    })),
+    connections: architecture.connections,
+  });
+}
+
+function formatUtilization(ratio: number): string {
+  return `${Math.round(ratio * 100)}%`;
+}
+
+function utilizationBarFill(ratio: number): number {
+  return Math.min(Math.max(ratio, 0), 1) * 100;
+}
+
+function componentToNode(
+  component: ComponentInstance,
+  selectedComponentId: string | null,
+  simulation: SuccessfulSimulation | null,
+  resultIsStale: boolean,
+): ArchitectureNode {
   const definition = componentRegistry.get(component.type);
   return {
     id: component.id,
     type: "architecture",
     position: component.ui,
-    data: { component, definition },
+    data: {
+      component,
+      definition,
+      serviceMetrics: simulation?.services[component.id],
+      postgresMetrics: simulation?.postgres[component.id],
+      resultIsStale,
+    },
     selected: component.id === selectedComponentId,
   };
 }
 
-function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
+function CapacityMeter({
+  label,
+  ratio,
+  state,
+}: {
+  label: string;
+  ratio: number;
+  state: CapacityVisualState;
+}) {
   return (
-    <article className={`architecture-node ${selected ? "architecture-node--selected" : ""}`}>
+    <div className={`capacity-meter capacity-meter--${state}`} aria-label={`${label} ${formatUtilization(ratio)}, ${state}`}>
+      <div className="capacity-meter__row">
+        <span>{label}</span>
+        <strong>{formatUtilization(ratio)}</strong>
+      </div>
+      <div className="capacity-meter__track" aria-hidden="true">
+        <div className="capacity-meter__fill" style={{ width: `${utilizationBarFill(ratio)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
+  const state = data.serviceMetrics?.state ?? data.postgresMetrics?.state;
+  const stateClass = state ? ` architecture-node--${state}` : "";
+  const staleClass = data.resultIsStale && state ? " architecture-node--stale" : "";
+
+  return (
+    <article className={`architecture-node${stateClass}${staleClass}${selected ? " architecture-node--selected" : ""}`}>
       {data.definition.ports.map((port) => (
         <Handle
           key={port.id}
@@ -68,9 +141,18 @@ function ArchitectureNodeCard({ data, selected }: NodeProps<ArchitectureNode>) {
           aria-label={port.label}
         />
       ))}
-      <p className="architecture-node__eyebrow">Component</p>
+      <p className="architecture-node__eyebrow">{state ? state : "Component"}</p>
       <strong>{data.definition.label}</strong>
       <span>{data.component.id}</span>
+      {data.serviceMetrics ? (
+        <CapacityMeter label="Utilization" ratio={data.serviceMetrics.utilization} state={data.serviceMetrics.state} />
+      ) : null}
+      {data.postgresMetrics ? (
+        <div className="architecture-node__meters">
+          <CapacityMeter label="Read" ratio={data.postgresMetrics.readUtilization} state={data.postgresMetrics.state} />
+          <CapacityMeter label="Write" ratio={data.postgresMetrics.writeUtilization} state={data.postgresMetrics.state} />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -102,6 +184,251 @@ function ComponentPalette({ definitions }: { definitions: readonly ComponentDefi
 
 function formatCost(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
+}
+
+function formatCompactCost(amount: number): string {
+  if (amount >= 1_000) {
+    const thousands = amount / 1_000;
+    const rounded = Math.round(thousands * 10) / 10;
+    return `$${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}k`;
+  }
+  return formatCost(amount);
+}
+
+function BudgetHud({ architecture }: { architecture: Architecture }) {
+  const cost = estimateMonthlyCost({ architecture, registry: componentRegistry });
+  const budget = tinyApiChallenge.monthlyBudget;
+  const overBudget = cost.monthlyTotal > budget;
+
+  return (
+    <aside className={`budget-hud${overBudget ? " budget-hud--over" : ""}`} aria-label="Infrastructure budget">
+      <p className="budget-hud__title">Budget</p>
+      <p className="budget-hud__totals">
+        <strong>{formatCompactCost(cost.monthlyTotal)}</strong>
+        <span>/ {formatCompactCost(budget)}</span>
+      </p>
+      {overBudget ? (
+        <p className="budget-hud__status" role="status">
+          Over budget
+        </p>
+      ) : (
+        <p className="budget-hud__status budget-hud__status--ok" role="status">
+          Within budget
+        </p>
+      )}
+      {cost.lineItems.length > 0 ? (
+        <dl className="budget-hud__breakdown">
+          {cost.lineItems.map((lineItem) => {
+            const component = architecture.components.find((candidate) => candidate.id === lineItem.componentId);
+            const label = component && componentRegistry.has(component.type)
+              ? componentRegistry.get(component.type).label
+              : lineItem.componentId;
+            return (
+              <div key={lineItem.componentId}>
+                <dt>{label}</dt>
+                <dd>{formatCost(lineItem.amount)}</dd>
+              </div>
+            );
+          })}
+          <div className="budget-hud__total-row">
+            <dt>Total</dt>
+            <dd>{formatCost(cost.monthlyTotal)}</dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="budget-hud__empty">Add components to estimate monthly cost.</p>
+      )}
+    </aside>
+  );
+}
+
+function formatComparator(comparator: RequirementDefinition["comparator"]): string {
+  if (comparator === "gte") return ">=";
+  if (comparator === "lte") return "<=";
+  return "<";
+}
+
+function formatRequirementTarget(requirement: RequirementDefinition): string {
+  if (requirement.type === "throughput") {
+    return `${tinyApiChallenge.workload.requestsPerSecond.toLocaleString("en-US")} req/sec`;
+  }
+  if (requirement.type === "latency") {
+    return `${formatComparator(requirement.comparator)} ${requirement.target}ms`;
+  }
+  if (requirement.type === "headroom") {
+    return `${formatComparator(requirement.comparator)} ${Math.round(requirement.target * 100)}%`;
+  }
+  return `${formatComparator(requirement.comparator)} ${formatCost(requirement.target)}`;
+}
+
+function formatRequirementActual(result: RequirementResult): string {
+  if (result.type === "throughput") {
+    return `${Math.round(result.actual * 100)}% handled`;
+  }
+  if (result.type === "latency") {
+    return `${result.actual.toFixed(1)}ms`;
+  }
+  if (result.type === "headroom") {
+    return `${Math.round(result.actual * 1000) / 10}%`;
+  }
+  return formatCost(result.actual);
+}
+
+function RequirementsHud({
+  result,
+  runState,
+  resultIsStale,
+}: {
+  result: SuccessfulSimulation | null;
+  runState: SimulationRunState;
+  resultIsStale: boolean;
+}) {
+  const showResults = result !== null && runState === "complete";
+  const overallPass = showResults && result.allRequirementsPass;
+
+  return (
+    <aside
+      className={`requirements-hud${resultIsStale && showResults ? " requirements-hud--stale" : ""}`}
+      aria-label="Challenge requirements"
+    >
+      <p className="requirements-hud__title">Requirements</p>
+      <p className="requirements-hud__challenge">{tinyApiChallenge.title}</p>
+
+      {showResults ? (
+        <p
+          className={`requirements-hud__overall requirements-hud__overall--${overallPass ? "pass" : "fail"}`}
+          role="status"
+        >
+          {overallPass ? "System passes" : "Requirements not met"}
+        </p>
+      ) : (
+        <p className="requirements-hud__overall requirements-hud__overall--pending" role="status">
+          Run the system to evaluate
+        </p>
+      )}
+
+      <ul className="requirements-hud__list">
+        {tinyApiChallenge.requirements.map((requirement) => {
+          const evaluated = showResults
+            ? result.requirements.find((candidate) => candidate.id === requirement.id)
+            : undefined;
+          const target = formatRequirementTarget(requirement);
+
+          return (
+            <li
+              key={requirement.id}
+              className={`requirements-hud__item${
+                evaluated ? ` requirements-hud__item--${evaluated.passed ? "pass" : "fail"}` : ""
+              }`}
+            >
+              <div className="requirements-hud__item-header">
+                <strong>{requirement.label}</strong>
+                <span aria-hidden="true">
+                  {evaluated ? (evaluated.passed ? "✓" : "✕") : "–"}
+                </span>
+              </div>
+              {evaluated ? (
+                <>
+                  <p className="requirements-hud__values">
+                    {formatRequirementActual(evaluated)} / {target}
+                  </p>
+                  <p className="requirements-hud__status">{evaluated.passed ? "Pass" : "Fail"}</p>
+                  {!evaluated.passed ? (
+                    <p className="requirements-hud__explanation">{evaluated.explanation}</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="requirements-hud__values">{target}</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
+  );
+}
+
+function SimulationRunPanel({
+  runState,
+  resultIsStale,
+  errors,
+  unexpectedError,
+  result,
+  onRun,
+}: {
+  runState: SimulationRunState;
+  resultIsStale: boolean;
+  errors: readonly SimulationValidationError[];
+  unexpectedError: string | null;
+  result: SuccessfulSimulation | null;
+  onRun: () => void;
+}) {
+  const statusLabel =
+    runState === "running"
+      ? "Running"
+      : runState === "complete"
+        ? resultIsStale
+          ? "Stale"
+          : "Complete"
+        : runState === "error"
+          ? resultIsStale
+            ? "Stale"
+            : "Error"
+          : "Idle";
+
+  return (
+    <div className="simulation-run" aria-label="Simulation controls">
+      <div className="simulation-run__controls">
+        <button type="button" className="simulation-run__button" onClick={onRun} disabled={runState === "running"}>
+          {runState === "running" ? "Running…" : "Run system"}
+        </button>
+        <p className={`simulation-run__status simulation-run__status--${runState}${resultIsStale ? " simulation-run__status--stale" : ""}`}>
+          {statusLabel}
+        </p>
+      </div>
+
+      {resultIsStale ? (
+        <p className="simulation-run__stale" role="status">
+          Architecture changed since the last run. Results below are stale — run again for current truth.
+        </p>
+      ) : null}
+
+      {unexpectedError ? (
+        <p className="simulation-run__error" role="alert">
+          {unexpectedError}
+        </p>
+      ) : null}
+
+      {errors.length > 0 ? (
+        <ul className="simulation-run__errors" aria-label="Simulation validation errors">
+          {errors.map((error, index) => (
+            <li key={`${error.code}-${error.componentId ?? error.connectionId ?? index}`}>{error.message}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      {result && runState === "complete" ? (
+        <dl className={`simulation-run__result${resultIsStale ? " simulation-run__result--stale" : ""}`} aria-label="Latest simulation result">
+          <div>
+            <dt>Outcome</dt>
+            <dd>{result.allRequirementsPass ? "All requirements passed" : "Requirements failed"}</dd>
+          </div>
+          <div>
+            <dt>p95 latency</dt>
+            <dd>{result.p95LatencyMs.toFixed(1)} ms</dd>
+          </div>
+          <div>
+            <dt>Headroom</dt>
+            <dd>{Math.round(result.headroom * 1000) / 10}%</dd>
+          </div>
+          <div>
+            <dt>Monthly cost</dt>
+            <dd>{formatCost(result.cost.monthlyTotal)}</dd>
+          </div>
+        </dl>
+      ) : null}
+    </div>
+  );
 }
 
 function ComponentInspector({
@@ -196,7 +523,13 @@ function createComponentInstance(definition: ComponentDefinition, position: { x:
   };
 }
 
-function connectionToEdge(connection: ArchitectureConnection): Edge {
+function connectionToEdge(
+  connection: ArchitectureConnection,
+  activeConnectionIds: ReadonlySet<string>,
+  trafficActive: boolean,
+  resultIsStale: boolean,
+): Edge {
+  const active = trafficActive && activeConnectionIds.has(connection.id);
   return {
     id: connection.id,
     source: connection.sourceComponentId,
@@ -204,6 +537,20 @@ function connectionToEdge(connection: ArchitectureConnection): Edge {
     target: connection.targetComponentId,
     targetHandle: connection.targetPortId,
     label: connection.type,
+    animated: active && !resultIsStale,
+    className: [
+      "architecture-edge",
+      active ? "architecture-edge--active" : "",
+      active && resultIsStale ? "architecture-edge--stale" : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    style: active
+      ? {
+          stroke: resultIsStale ? "#6b7280" : "#7bc4ff",
+          strokeWidth: 2.5,
+        }
+      : undefined,
   };
 }
 
@@ -233,17 +580,42 @@ function connectionFromFlow(connection: FlowConnectionLike, components: readonly
 function ArchitectureWorkspace() {
   const [architecture, setArchitecture] = useState<Architecture>(initialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [runState, setRunState] = useState<SimulationRunState>("idle");
+  const [simulationResult, setSimulationResult] = useState<SuccessfulSimulation | null>(null);
+  const [simulationErrors, setSimulationErrors] = useState<readonly SimulationValidationError[]>([]);
+  const [unexpectedError, setUnexpectedError] = useState<string | null>(null);
+  const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => tinyApiChallenge.allowedComponentTypes.includes(definition.type)),
     [],
   );
+  const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
+  const resultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
+  const showSimulationVisuals = simulationResult !== null && runState === "complete";
+  const activeConnectionIds = useMemo(() => {
+    if (!simulationResult) return new Set<string>();
+    return new Set(
+      simulationResult.events
+        .filter((event) => event.type === "traffic_routed" && event.connectionId)
+        .map((event) => event.connectionId as string),
+    );
+  }, [simulationResult]);
 
   const nodes = useMemo(
-    () => architecture.components.map((component) => componentToNode(component, selectedComponentId)),
-    [architecture.components, selectedComponentId],
+    () =>
+      architecture.components.map((component) =>
+        componentToNode(component, selectedComponentId, showSimulationVisuals ? simulationResult : null, resultIsStale),
+      ),
+    [architecture.components, selectedComponentId, showSimulationVisuals, simulationResult, resultIsStale],
   );
-  const edges = useMemo(() => architecture.connections.map(connectionToEdge), [architecture.connections]);
+  const edges = useMemo(
+    () =>
+      architecture.connections.map((connection) =>
+        connectionToEdge(connection, activeConnectionIds, showSimulationVisuals, resultIsStale),
+      ),
+    [architecture.connections, activeConnectionIds, showSimulationVisuals, resultIsStale],
+  );
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
 
   const onNodesChange = useCallback((changes: NodeChange<ArchitectureNode>[]) => {
@@ -342,6 +714,42 @@ function ArchitectureWorkspace() {
     }));
   }, []);
 
+  const onRunSimulation = useCallback(() => {
+    const runKey = architectureSimulationKey(architecture);
+    setRunState("running");
+    setUnexpectedError(null);
+
+    // Defer so the running state can paint before the synchronous simulator returns.
+    window.setTimeout(() => {
+      try {
+        const outcome = evaluateRequirements({
+          architecture,
+          challenge: tinyApiChallenge,
+          registry: componentRegistry,
+        });
+
+        setLastRunKey(runKey);
+
+        if (!outcome.valid) {
+          setSimulationResult(null);
+          setSimulationErrors(outcome.errors);
+          setRunState("error");
+          return;
+        }
+
+        setSimulationErrors([]);
+        setSimulationResult(outcome);
+        setRunState("complete");
+      } catch (error) {
+        setSimulationResult(null);
+        setSimulationErrors([]);
+        setLastRunKey(runKey);
+        setUnexpectedError(error instanceof Error ? error.message : "Simulation failed unexpectedly.");
+        setRunState("error");
+      }
+    }, 0);
+  }, [architecture]);
+
   return (
     <section className="architecture-workspace" aria-label="Logical architecture workspace">
       <ComponentPalette definitions={paletteDefinitions} />
@@ -353,6 +761,14 @@ function ArchitectureWorkspace() {
         </div>
         <p>Move components to shape the design. Select a node, then press Delete to remove it.</p>
       </div>
+      <SimulationRunPanel
+        runState={runState}
+        resultIsStale={resultIsStale}
+        errors={simulationErrors}
+        unexpectedError={unexpectedError}
+        result={simulationResult}
+        onRun={onRunSimulation}
+      />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -374,7 +790,11 @@ function ArchitectureWorkspace() {
         <MiniMap pannable zoomable />
       </ReactFlow>
       </div>
-      <ComponentInspector architecture={architecture} component={selectedComponent} onConfigChange={onConfigChange} />
+      <div className="architecture-sidebar">
+        <BudgetHud architecture={architecture} />
+        <RequirementsHud result={simulationResult} runState={runState} resultIsStale={resultIsStale} />
+        <ComponentInspector architecture={architecture} component={selectedComponent} onConfigChange={onConfigChange} />
+      </div>
     </section>
   );
 }

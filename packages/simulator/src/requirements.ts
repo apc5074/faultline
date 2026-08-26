@@ -20,6 +20,8 @@ import type {
 
 export type RequirementsEvaluationResult =
   | (Extract<TrafficPropagationResult, { valid: true }> & {
+      services: Readonly<Record<string, ServiceCapacityMetrics>>;
+      postgres: Readonly<Record<string, PostgresCapacityMetrics>>;
       requirements: readonly RequirementResult[];
       allRequirementsPass: boolean;
       p95LatencyMs: number;
@@ -234,6 +236,8 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     valid: true,
     traffic: latency.traffic,
     events,
+    services: latency.services,
+    postgres: latency.postgres,
     requirements,
     allRequirementsPass,
     p95LatencyMs: latency.p95LatencyMs,

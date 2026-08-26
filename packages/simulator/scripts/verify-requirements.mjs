@@ -59,6 +59,8 @@ assert.deepEqual(
 assert.equal(valid.cost.monthlyTotal, 8_000);
 assert.ok(valid.p95LatencyMs < 200);
 assert.ok(valid.headroom >= 0.2);
+assert.equal(valid.services["service-01"].state, "warning");
+assert.equal(valid.postgres["postgres-01"].state, "healthy");
 assert.ok(valid.events.some((event) => event.type === "requirement_passed"));
 assert.equal(valid.events.some((event) => event.type === "requirement_failed"), false);
 
