@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter @faultline/web dev",
     "typecheck": "pnpm --filter @faultline/web typecheck",
-    "build": "pnpm --filter @faultline/web build"
+    "build": "pnpm --filter @faultline/web build",
+    "probe:ai-gateway": "node scripts/probe-ai-gateway.mjs"
   }
 }

@@ -1,7 +1,38 @@
 # Production
 
-The production application is `apps/web`, deployed on Vercel. `main` will be the production branch and other branches will use Vercel Preview deployments once configured.
+The Vercel project deploys `apps/web`. Its production branch is `main`; all other Git branches receive Vercel Preview deployments. The project uses the repository workspace: install with `pnpm install` and build with `pnpm build`. The Vercel-generated public production and Preview URLs are maintained in the Vercel project rather than committed to the repository.
+
+**Verification — 2026-08-25:** an operator confirmed that the public production deployment renders the Faultline shell and that a distinct Preview deployment works without changing production. Builds run from the connected Git repository.
+
+## Environment contract
+
+`.env.example` is the complete non-secret environment contract. It contains placeholders only. Local development reads the repository-root `.env` through `apps/web/next.config.ts`; the server probe also has a development-only compatibility fallback for a flattened local environment file. Preview and Production values belong in Vercel environment settings. The shell has no environment dependency, so configuration access is intentionally deferred until an integration first needs it.
+
+| Variable | Scope | Required now | Location |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe | Optional legacy fallback | Local `.env`; Vercel Preview/Production environment settings |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only | No | Local `.env`; Vercel Preview/Production environment settings |
+| `AI_GATEWAY_API_KEY` | Server-only | No; P0-006 | Local `.env`; Vercel Preview/Production environment settings |
+| `FAULTLINE_AGENT_MODEL` | Server-only | No; P0-006 | Local `.env`; Vercel Preview/Production environment settings |
+
+Only `NEXT_PUBLIC_*` variables may be exposed to browser code. Server-only values must be read by server-side code only and must never be copied into a `NEXT_PUBLIC_*` variable or returned in a response. Legacy or provider-specific variable names are not part of this contract.
+
+## Supabase migrations and probe
+
+`supabase/migrations/` is the source of truth for schema changes; `supabase/seed/` is for local or non-production seed data. Create a migration with `supabase migration new <descriptive_name>`, test it locally with `supabase db reset`, and commit the generated timestamped SQL file. Do not make schema changes directly in the hosted dashboard after this workflow starts.
+
+To connect a clean checkout to the hosted project, install the current Supabase CLI, run `supabase login`, then run `supabase link --project-ref <project-ref>`. The CLI prompts for the database password; linkage state stays in ignored `supabase/.temp/`. Before applying a remote migration, run `supabase db push --dry-run`; then run `supabase db push`. Never use `supabase db reset --linked` against production, and never use `--include-seed` for production.
+
+`GET /api/health/supabase` is a server-side, table-free reachability probe. It requests Supabase Auth's documented `auth/v1/health` endpoint using `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy anon-key fallback). `next.config.ts` loads the root local environment and passes only these browser-safe values to Next; it does not expose server-only values. The route returns only `online`, `unavailable`, or `misconfigured`; it never returns credentials or provider payloads. The shell does not call this route and remains available when configuration is absent.
+
+**Verification — 2026-08-25:** local `GET /api/health/supabase` returned `online` against the hosted project. Configure the same browser-safe values in Vercel Preview and Production before invoking the deployed probe.
 
 Supabase will provide Postgres and Vercel AI Gateway will provide model access through server-only configuration. Official submissions will be re-simulated server-side before they can be ranked.
 
-Deployment configuration, environment locations, migration workflow, provider setup, and verification dates are not yet recorded; they will be added by the corresponding Phase 0 tickets.
+## AI Gateway probe
+
+`pnpm probe:ai-gateway` is an operator-only server-side verification script. It uses AI Gateway's OpenAI-compatible Chat Completions API to make one tiny request, returns only `online`, `unauthorized`, `unavailable`, or `misconfigured`, and never prints a credential or model response. This script is deliberately not an HTTP route, so it cannot become an unauthenticated billable endpoint.
+
+Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Preview/Production settings. For the Phase 0 connectivity test, use `openai/gpt-5-nano`: it is the current low-cost model ID available through AI Gateway. No chat UI, agent loop, or capability implementation is included.

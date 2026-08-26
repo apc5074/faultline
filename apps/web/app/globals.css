@@ -43,3 +43,9 @@ h1 {
   color: #adb5bd;
   font-size: 1rem;
 }
+
+.webmcp-status {
+  margin: 0.75rem 0 0;
+  color: #adb5bd;
+  font-size: 0.8rem;
+}

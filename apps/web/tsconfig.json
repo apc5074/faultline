@@ -14,6 +14,10 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
