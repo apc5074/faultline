@@ -1,9 +1,17 @@
-/** Stub for T-16 playback — U-turn in-flight packets when architecture changes mid-run. */
+/** Packet reroute when architecture changes mid-playback (T-18). */
 export type PacketRerouteRequest = {
   componentId: string;
   connectionIds: readonly string[];
 };
 
-export function notifyPacketReroute(_request: PacketRerouteRequest): void {
-  // No-op until traffic playback lands in T-16.
+type PacketRerouteHandler = (request: PacketRerouteRequest) => void;
+
+let rerouteHandler: PacketRerouteHandler | null = null;
+
+export function registerPacketRerouteHandler(handler: PacketRerouteHandler | null): void {
+  rerouteHandler = handler;
+}
+
+export function notifyPacketReroute(request: PacketRerouteRequest): void {
+  rerouteHandler?.(request);
 }

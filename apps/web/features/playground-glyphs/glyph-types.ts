@@ -47,6 +47,8 @@ export interface ComponentGlyphProps {
   armAngle?: number;
   passCount?: number;
   processingCount?: number;
+  cacheHitFlash?: boolean;
+  writeBands?: number;
 }
 
 /** Props derived from catalog state — visual dimensions and runtime state are applied by callers. */

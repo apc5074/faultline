@@ -158,6 +158,7 @@ function CacheGlyph({
   h,
   capacity = 16,
   processingCount = 0,
+  cacheHitFlash = false,
   mini = false,
 }: {
   state: GlyphState;
@@ -165,6 +166,7 @@ function CacheGlyph({
   h: number;
   capacity?: number;
   processingCount?: number;
+  cacheHitFlash?: boolean;
   mini?: boolean;
 }) {
   const op = outlineProps(state);
@@ -202,6 +204,9 @@ function CacheGlyph({
               strokeWidth={0.5}
             />
           ))}
+          {cacheHitFlash ? (
+            <rect x={4 + 1.5} y={4 + 1.5} width={cw - 3} height={ch - 3} fill={GLYPH_INK.ink} />
+          ) : null}
           {Array.from({ length: filled }).map((_, idx) => {
             const r = Math.floor(idx / cols);
             const c = idx % cols;
@@ -230,6 +235,7 @@ function SqlDbGlyph({
   h,
   replicas = 0,
   processingCount = 0,
+  writeBands = 0,
   mini = false,
 }: {
   state: GlyphState;
@@ -237,6 +243,7 @@ function SqlDbGlyph({
   h: number;
   replicas?: number;
   processingCount?: number;
+  writeBands?: number;
   mini?: boolean;
 }) {
   const op = outlineProps(state);
@@ -246,7 +253,8 @@ function SqlDbGlyph({
   const cx = 4 + w / 2;
   const bands = 4;
   const bandH = bodyH / bands;
-  const lit = Math.min(processingCount, bands);
+  const readLit = Math.min(processingCount, bands);
+  const writeLit = Math.min(writeBands, bands);
   const topY = 4 + ry;
   const bottomY = 4 + ry + bodyH;
   const rimArc = (y: number) => `M 4 ${y} A ${rx} ${ry} 0 0 0 ${4 + w} ${y}`;
@@ -265,9 +273,19 @@ function SqlDbGlyph({
         ))}
       <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
       {!mini &&
-        Array.from({ length: bands }).map((_, i) =>
-          i < lit ? <path key={i} d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)} fill={GLYPH_INK.ink} /> : null,
-        )}
+        Array.from({ length: bands }).map((_, i) => {
+          const isWrite = i >= bands - writeLit;
+          const isRead = i < readLit && !isWrite;
+          if (!isWrite && !isRead) return null;
+          return (
+            <path
+              key={i}
+              d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
+              fill={GLYPH_INK.ink}
+              className={isRead ? "sql-read-lift" : undefined}
+            />
+          );
+        })}
       <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
       {state === "failed" && <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />}
       {!mini &&
@@ -276,8 +294,8 @@ function SqlDbGlyph({
             key={i}
             d={rimArc(topY + (i + 1) * bandH)}
             fill="none"
-            stroke={i < lit ? GLYPH_INK.paper : GLYPH_INK.ink}
-            strokeWidth={i < lit ? 1 : 0.75}
+            stroke={i < readLit || i >= bands - writeLit ? GLYPH_INK.paper : GLYPH_INK.ink}
+            strokeWidth={i < readLit || i >= bands - writeLit ? 1 : 0.75}
           />
         ))}
       <path d={rimArc(bottomY)} fill="none" stroke={op.stroke} strokeWidth={op.strokeWidth * 1.25} />
@@ -812,6 +830,8 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
     armAngle = 0,
     passCount = 0,
     processingCount = 0,
+    cacheHitFlash = false,
+    writeBands = 0,
   } = props;
 
   const w = width - 8;
@@ -825,8 +845,22 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
         <ServerGlyph {...shared} instances={instances} processingCount={processingCount} />
       )}
       {type === "load_balancer" && <LoadBalancerGlyph {...shared} armAngle={armAngle} />}
-      {type === "cache" && <CacheGlyph {...shared} capacity={capacity} processingCount={processingCount} />}
-      {type === "sql_db" && <SqlDbGlyph {...shared} replicas={replicas} processingCount={processingCount} />}
+      {type === "cache" && (
+        <CacheGlyph
+          {...shared}
+          capacity={capacity}
+          processingCount={processingCount}
+          cacheHitFlash={cacheHitFlash}
+        />
+      )}
+      {type === "sql_db" && (
+        <SqlDbGlyph
+          {...shared}
+          replicas={replicas}
+          processingCount={processingCount}
+          writeBands={writeBands}
+        />
+      )}
       {type === "nosql_db" && <NosqlDbGlyph {...shared} processingCount={processingCount} />}
       {type === "queue" && <QueueGlyph {...shared} depth={depth} queueDepth={processingCount} />}
       {type === "pubsub" && <PubSubGlyph {...shared} processingCount={processingCount} />}

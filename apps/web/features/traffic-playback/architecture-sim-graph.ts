@@ -96,10 +96,12 @@ export function mergeSimVisuals(
     })),
     componentVisuals: tickResult.components.map((component) => ({
       componentId: component.id,
-      processingCount: component.processingPackets.length,
+      processingCount: component.mechanismCount ?? component.processingPackets.length,
       armAngle: component.armAngle,
       passCount: component.passCount,
       state: component.state,
+      cacheHitFlash: component.cacheHitFlash,
+      writeBands: component.writeBands,
     })),
   };
 }

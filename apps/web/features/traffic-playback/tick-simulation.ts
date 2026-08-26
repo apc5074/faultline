@@ -3,7 +3,7 @@
  * Visual motion only — does not decide routing truth (simulator remains canonical).
  */
 
-import type { SimComponent, SimConnection, SimPacket, SimComponentType, PacketShape } from "./sim-types";
+import type { SimComponent, SimConnection, SimPacket, SimComponentType, PacketShape, SimTickResult } from "./sim-types";
 
 let packetCounter = 0;
 const newId = () => `pkt-${++packetCounter}`;
@@ -12,6 +12,8 @@ const lbCursors = new Map<string, number>();
 const lbArmAngles = new Map<string, number>();
 const pubsubFlashes = new Map<string, number>();
 const cdnPassCounts = new Map<string, number>();
+const cacheHitFlashes = new Map<string, number>();
+const sqlWriteBands = new Map<string, number>();
 
 const DWELL_TYPES: SimComponentType[] = [
   "server",
@@ -82,12 +84,62 @@ function rejectAt(packet: SimPacket, compId: string): SimPacket {
   return { ...packet, shape: "rejected", progress: 1, dwellComponentId: compId, dwellProgress: 0.4 };
 }
 
+function appendTrail(packet: SimPacket, connectionId: string): SimPacket {
+  const trail = packet.trailConnectionIds ?? [];
+  if (trail.includes(connectionId)) return packet;
+  return { ...packet, trailConnectionIds: [...trail, connectionId] };
+}
+
+function hopPacket(packet: SimPacket, connectionId: string, reverse: boolean): SimPacket {
+  return appendTrail(
+    {
+      ...packet,
+      connectionId,
+      progress: 0,
+      reverse,
+      dwellComponentId: undefined,
+      dwellProgress: undefined,
+    },
+    connectionId,
+  );
+}
+
+function rerouteFromFailedTarget(
+  packet: SimPacket,
+  conn: SimConnection,
+  toComp: SimComponent,
+  components: SimComponent[],
+  connections: SimConnection[],
+): SimPacket[] {
+  const fromComp = components.find((candidate) => candidate.id === conn.fromComponentId);
+  if (fromComp?.type === "load_balancer") {
+    const alternates = liveOutgoing(fromComp, connections, components).filter(
+      (outbound) => outbound.toComponentId !== toComp.id,
+    );
+    if (alternates.length > 0) {
+      const next = pickOutbound(fromComp, alternates);
+      swingArm(fromComp, next);
+      return [hopPacket(packet, next.id, false)];
+    }
+  }
+  return [rejectAt(packet, toComp.id)];
+}
+
+function completeRoundTrip(packet: SimPacket, newRouteLingers: string[]): void {
+  const trail = [...(packet.trailConnectionIds ?? []), packet.connectionId];
+  for (const connectionId of trail) {
+    newRouteLingers.push(connectionId);
+  }
+}
+
 export function resetTickSimulationState(): void {
   packetCounter = 0;
   lbCursors.clear();
   lbArmAngles.clear();
   pubsubFlashes.clear();
   cdnPassCounts.clear();
+  cacheHitFlashes.clear();
+  sqlWriteBands.clear();
 }
 
 export function tickSimulation(
@@ -96,60 +148,65 @@ export function tickSimulation(
   packets: SimPacket[],
   speed: number,
   tick: number,
-): { components: SimComponent[]; connections: SimConnection[]; packets: SimPacket[] } {
+): SimTickResult {
   const dt = speed * 0.016;
+  const newRouteLingers: string[] = [];
 
   const updatedPackets = packets.flatMap((packet) => {
-    if (packet.dwellComponentId !== undefined) {
-      if (packet.shape === "rejected") {
-        const dwell = (packet.dwellProgress ?? 0) + dt * 1.5;
-        return dwell >= 1 ? [] : [{ ...packet, dwellProgress: dwell }];
+    const traveling = appendTrail(packet, packet.connectionId);
+
+    if (traveling.dwellComponentId !== undefined) {
+      if (traveling.shape === "rejected") {
+        const dwell = (traveling.dwellProgress ?? 0) + dt * 1.5;
+        return dwell >= 1 ? [] : [{ ...traveling, dwellProgress: dwell }];
       }
-      const comp = components.find((candidate) => candidate.id === packet.dwellComponentId);
+      const comp = components.find((candidate) => candidate.id === traveling.dwellComponentId);
       if (!comp || comp.state === "failed") {
-        return [rejectAt(packet, packet.dwellComponentId)];
+        return [rejectAt(traveling, traveling.dwellComponentId)];
       }
       const rate = DWELL_RATE[comp.type] ?? 1.2;
-      const dwell = (packet.dwellProgress ?? 0) + dt * rate;
-      if (dwell < 1) return [{ ...packet, dwellProgress: dwell }];
+      const dwell = (traveling.dwellProgress ?? 0) + dt * rate;
+      if (dwell < 1) return [{ ...traveling, dwellProgress: dwell }];
 
       const outs = liveOutgoing(comp, connections, components);
-      if (packet.shape === "request" && shouldForward(comp, outs)) {
+      if (traveling.shape === "request" && shouldForward(comp, outs)) {
         const next = pickOutbound(comp, outs);
-        return [
-          {
-            ...packet,
-            connectionId: next.id,
-            progress: 0,
-            reverse: false,
-            dwellComponentId: undefined,
-            dwellProgress: undefined,
-          },
-        ];
+        return [hopPacket(traveling, next.id, false)];
       }
-      return [respondBack(packet)];
+      if (comp.type === "cache") {
+        cacheHitFlashes.set(comp.id, tick);
+      }
+      if (comp.type === "sql_db" && traveling.shape === "write") {
+        sqlWriteBands.set(comp.id, Math.min(4, (sqlWriteBands.get(comp.id) ?? 0) + 1));
+      }
+      return [respondBack(traveling)];
     }
 
-    const newProgress = packet.progress + dt * 0.8;
-    if (newProgress < 1) return [{ ...packet, progress: newProgress }];
+    const newProgress = traveling.progress + dt * 0.8;
+    if (newProgress < 1) return [{ ...traveling, progress: newProgress }];
 
-    const conn = connections.find((candidate) => candidate.id === packet.connectionId);
+    const conn = connections.find((candidate) => candidate.id === traveling.connectionId);
     if (!conn) return [];
     const toComp = components.find((candidate) =>
-      candidate.id === (packet.reverse ? conn.fromComponentId : conn.toComponentId),
+      candidate.id === (traveling.reverse ? conn.fromComponentId : conn.toComponentId),
     );
     if (!toComp) return [];
 
-    if (toComp.state === "failed") return [rejectAt(packet, toComp.id)];
+    if (toComp.state === "failed") {
+      return rerouteFromFailedTarget(traveling, conn, toComp, components, connections);
+    }
 
-    if (packet.shape === "response") {
-      if (toComp.type === "user") return [];
+    if (traveling.shape === "response") {
+      if (toComp.type === "user") {
+        completeRoundTrip(traveling, newRouteLingers);
+        return [];
+      }
       const inbound = connections.filter(
         (candidate) => candidate.toComponentId === toComp.id && candidate.id !== conn.id,
       );
       if (inbound.length === 0) return [];
       const next = inbound[Math.floor(Math.random() * inbound.length)];
-      return [{ ...packet, connectionId: next.id, progress: 0, reverse: true }];
+      return [hopPacket(traveling, next.id, true)];
     }
 
     if (toComp.type === "user") return [];
@@ -157,29 +214,25 @@ export function tickSimulation(
     if (toComp.type === "cdn") {
       cdnPassCounts.set(toComp.id, (cdnPassCounts.get(toComp.id) ?? 0) + 1);
       const outs = liveOutgoing(toComp, connections, components);
-      if (Math.random() < 0.55 || outs.length === 0) return [respondBack(packet)];
-      return [{ ...packet, connectionId: outs[0].id, progress: 0, reverse: false }];
+      if (Math.random() < 0.55 || outs.length === 0) return [respondBack(traveling)];
+      return [hopPacket(traveling, outs[0].id, false)];
     }
 
     if (toComp.type === "load_balancer") {
       const outs = liveOutgoing(toComp, connections, components);
-      if (outs.length === 0) return [respondBack(packet)];
+      if (outs.length === 0) return [respondBack(traveling)];
       const next = pickOutbound(toComp, outs);
       swingArm(toComp, next);
-      return [{ ...packet, connectionId: next.id, progress: 0, reverse: false }];
+      return [hopPacket(traveling, next.id, false)];
     }
 
     if (toComp.type === "pubsub") {
       const outs = liveOutgoing(toComp, connections, components);
-      if (outs.length === 0) return [respondBack(packet)];
+      if (outs.length === 0) return [respondBack(traveling)];
       pubsubFlashes.set(toComp.id, tick);
-      return outs.map((outbound) => ({
-        ...packet,
-        id: newId(),
-        connectionId: outbound.id,
-        progress: 0,
-        reverse: false,
-      }));
+      return outs.map((outbound) =>
+        hopPacket({ ...traveling, id: newId() }, outbound.id, false),
+      );
     }
 
     if (DWELL_TYPES.includes(toComp.type)) {
@@ -187,9 +240,13 @@ export function tickSimulation(
         const occupying = packets.filter(
           (candidate) => candidate.dwellComponentId === toComp.id && candidate.shape !== "rejected",
         ).length;
-        if (occupying >= toComp.depth) return [rejectAt(packet, toComp.id)];
+        if (occupying >= toComp.depth) return [rejectAt(traveling, toComp.id)];
       }
-      return [{ ...packet, progress: 1, dwellComponentId: toComp.id, dwellProgress: 0 }];
+      let entering = traveling;
+      if (toComp.type === "sql_db" && traveling.shape === "request" && Math.random() < 0.22) {
+        entering = { ...traveling, shape: "write" };
+      }
+      return [{ ...entering, progress: 1, dwellComponentId: toComp.id, dwellProgress: 0 }];
     }
 
     return [];
@@ -212,6 +269,7 @@ export function tickSimulation(
           shape: "request",
           connectionId: conn.id,
           progress: 0,
+          trailConnectionIds: [],
         });
       }
     }
@@ -247,13 +305,31 @@ export function tickSimulation(
     const armAngle =
       comp.type === "load_balancer" ? (lbArmAngles.get(comp.id) ?? comp.armAngle ?? 0) : comp.armAngle;
 
-    return { ...comp, state, processingPackets, armAngle, passCount };
+    const cacheHitFlash =
+      comp.type === "cache" && tick - (cacheHitFlashes.get(comp.id) ?? -Infinity) < 12;
+    const writeBands = comp.type === "sql_db" ? (sqlWriteBands.get(comp.id) ?? 0) : undefined;
+    const mechanismCount =
+      comp.type === "sql_db"
+        ? dwellers.filter((packet) => packet.shape !== "write").length
+        : processingPackets.length;
+
+    return {
+      ...comp,
+      state,
+      processingPackets,
+      armAngle,
+      passCount,
+      cacheHitFlash,
+      writeBands,
+      mechanismCount,
+    };
   });
 
   return {
     components: updatedComponents,
     connections: updatedConnections,
     packets: [...updatedPackets, ...newPackets],
+    newRouteLingers,
   };
 }
 

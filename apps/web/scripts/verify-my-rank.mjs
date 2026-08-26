@@ -25,9 +25,12 @@ assert.doesNotMatch(ui, /\buserId\b|\buser_id\b/);
 assert.match(ui, /status: "unranked"/);
 assert.doesNotMatch(ui, /fastestRank:\s*0|cheapestRank:\s*0/);
 
-const canvas = readFileSync(join(root, "features/architecture-canvas/ArchitectureCanvas.tsx"), "utf8");
+const canvas = [
+  readFileSync(join(root, "features/architecture-canvas/ArchitectureCanvas.tsx"), "utf8"),
+  readFileSync(join(root, "features/architecture-canvas/usePlaygroundWorkspace.ts"), "utf8"),
+].join("\n");
 assert.match(canvas, /bumpRankRefresh/);
-assert.match(canvas, /PlayerRankHud/);
+assert.match(readFileSync(join(root, "features/architecture-canvas/ArchitectureCanvas.tsx"), "utf8"), /PlayerRankHud/);
 
 const migration = readFileSync(
   join(root, "../../supabase/migrations/20260826166000_my_leaderboard_ranks.sql"),

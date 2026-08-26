@@ -37,6 +37,9 @@ export interface SimComponent {
   processingPackets: string[];
   armAngle?: number;
   passCount?: number;
+  cacheHitFlash?: boolean;
+  writeBands?: number;
+  mechanismCount?: number;
 }
 
 export interface SimConnection {
@@ -56,12 +59,16 @@ export interface SimPacket {
   reverse?: boolean;
   dwellComponentId?: string;
   dwellProgress?: number;
+  /** Connections traversed this round trip — used for route linger ghosts. */
+  trailConnectionIds?: string[];
 }
 
 export interface SimTickResult {
   components: SimComponent[];
   connections: SimConnection[];
   packets: SimPacket[];
+  /** Connection ids that completed a round trip this tick. */
+  newRouteLingers: string[];
 }
 
 export function catalogTypeToSimType(type: ComponentInstance["type"]): SimComponentType | null {

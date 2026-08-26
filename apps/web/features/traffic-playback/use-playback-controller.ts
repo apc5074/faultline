@@ -4,9 +4,10 @@ import type { Architecture } from "@faultline/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { buildSimGraph } from "./architecture-sim-graph";
+import { createRouteLingers, mergeRouteLingers, pruneRouteLingers } from "./route-linger";
 import type { SimComponent, SimConnection, SimPacket } from "./sim-types";
 import { resetTickSimulationState, tickSimulation } from "./tick-simulation";
-import type { PlaybackFrame, PlaybackSpeed } from "./types";
+import type { PlaybackFrame, PlaybackSpeed, RouteLinger } from "./types";
 
 export type PlaybackPhase = "idle" | "playing" | "paused";
 
@@ -14,6 +15,7 @@ const EMPTY_FRAME: PlaybackFrame = {
   packets: [],
   edgeLoads: [],
   componentVisuals: [],
+  routeLingers: [],
   tick: 0,
 };
 
@@ -32,6 +34,7 @@ export function usePlaybackController() {
   const simComponentsRef = useRef<SimComponent[]>([]);
   const simConnectionsRef = useRef<SimConnection[]>([]);
   const packetsRef = useRef<SimPacket[]>([]);
+  const routeLingersRef = useRef<RouteLinger[]>([]);
 
   phaseRef.current = phase;
   speedRef.current = speed;
@@ -58,6 +61,9 @@ export function usePlaybackController() {
     simComponentsRef.current = result.components;
     simConnectionsRef.current = result.connections;
     packetsRef.current = result.packets;
+    routeLingersRef.current = pruneRouteLingers(
+      mergeRouteLingers(routeLingersRef.current, createRouteLingers(result.newRouteLingers)),
+    );
     setFrame({
       packets: result.packets,
       edgeLoads: result.connections.map((connection) => ({
@@ -66,11 +72,14 @@ export function usePlaybackController() {
       })),
       componentVisuals: result.components.map((component) => ({
         componentId: component.id,
-        processingCount: component.processingPackets.length,
+        processingCount: component.mechanismCount ?? component.processingPackets.length,
         armAngle: component.armAngle,
         passCount: component.passCount,
         state: component.state,
+        cacheHitFlash: component.cacheHitFlash,
+        writeBands: component.writeBands,
       })),
+      routeLingers: routeLingersRef.current,
       tick: tickRef.current,
     });
   }, []);
@@ -99,12 +108,41 @@ export function usePlaybackController() {
 
   useEffect(() => () => stopLoop(), [stopLoop]);
 
+  useEffect(() => {
+    if (routeLingersRef.current.length === 0) return;
+    let raf = 0;
+    const prune = () => {
+      const pruned = pruneRouteLingers(routeLingersRef.current);
+      if (pruned.length !== routeLingersRef.current.length) {
+        routeLingersRef.current = pruned;
+        setFrame((current) => ({ ...current, routeLingers: pruned }));
+      }
+      if (pruned.length > 0) {
+        raf = requestAnimationFrame(prune);
+      }
+    };
+    raf = requestAnimationFrame(prune);
+    return () => cancelAnimationFrame(raf);
+  }, [frame.routeLingers.length]);
+
+  const markComponentFailed = useCallback(
+    (componentId: string) => {
+      if (phaseRef.current === "idle") return;
+      simComponentsRef.current = simComponentsRef.current.map((component) =>
+        component.id === componentId ? { ...component, state: "failed" } : component,
+      );
+      publishFromTick();
+    },
+    [publishFromTick],
+  );
+
   const start = useCallback(
     (architecture: Architecture) => {
       architectureRef.current = architecture;
       resetTickSimulationState();
       tickRef.current = 0;
       packetsRef.current = [];
+      routeLingersRef.current = [];
       const graph = buildSimGraph(architecture);
       simComponentsRef.current = graph.components;
       simConnectionsRef.current = graph.connections;
@@ -137,6 +175,7 @@ export function usePlaybackController() {
         resetTickSimulationState();
         tickRef.current = 0;
         packetsRef.current = [];
+        routeLingersRef.current = [];
         const graph = buildSimGraph(architecture);
         simComponentsRef.current = graph.components;
         simConnectionsRef.current = graph.connections;
@@ -159,6 +198,7 @@ export function usePlaybackController() {
     simComponentsRef.current = [];
     simConnectionsRef.current = [];
     packetsRef.current = [];
+    routeLingersRef.current = [];
     tickRef.current = 0;
     resetTickSimulationState();
     phaseRef.current = "idle";
@@ -188,6 +228,7 @@ export function usePlaybackController() {
     reset,
     setSpeed,
     syncArchitecture,
+    markComponentFailed,
   };
 }
 

@@ -16,6 +16,11 @@ import {
   MINI_GLYPH_SIZE,
   type GlyphSimulationResult,
 } from "@/features/playground-glyphs";
+import {
+  glyphStateFromPlayback,
+  mechanismPropsFromPlayback,
+  type ComponentPlaybackVisual,
+} from "@/features/traffic-playback";
 
 import type { HandleConnectHint } from "@/features/architecture-canvas/playground-connect-hints";
 import type { NodeInteractionPhase } from "@/features/architecture-canvas/playground-interaction";
@@ -25,12 +30,8 @@ export type PlaygroundNodeData = {
   definition: ComponentDefinition;
   simulation: GlyphSimulationResult | null;
   resultIsStale: boolean;
-  playbackVisual?: {
-    processingCount: number;
-    armAngle?: number;
-    passCount?: number;
-    state?: string;
-  };
+  playbackVisual?: ComponentPlaybackVisual;
+  playbackActive?: boolean;
   attention: boolean;
   connectedPortIds: ReadonlySet<string>;
   interactionPhase: NodeInteractionPhase;
@@ -48,31 +49,39 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
   const dimensions = data.semanticZoomOut
     ? { width: MINI_GLYPH_SIZE, height: MINI_GLYPH_SIZE }
     : fullDimensions;
-  const playback = data.playbackVisual;
+
+  const playbackActive = data.playbackActive ?? false;
+  const playbackMechanism = playbackActive
+    ? mechanismPropsFromPlayback(data.playbackVisual, glyphCatalog)
+    : null;
+
   const glyphOptions = {
     resultIsStale: data.resultIsStale,
     selected,
-    processing:
-      playback?.state === "processing" ||
-      playback?.state === "overloaded" ||
-      (playback?.processingCount ?? 0) > 0,
+    processing: playbackActive
+      ? glyphStateFromPlayback(data.playbackVisual) === "processing"
+      : false,
   };
+
   const glyphStateFromSim = deriveGlyphState(data.component.id, data.simulation, glyphOptions);
-  const glyphState =
-    playback?.state === "overloaded"
+  const playbackDrivenState = playbackActive ? glyphStateFromPlayback(data.playbackVisual) : null;
+
+  const glyphState = selected
+    ? "selected"
+    : playbackDrivenState === "overloaded"
       ? "overloaded"
-      : playback?.state === "processing" || (playback?.processingCount ?? 0) > 0
+      : playbackDrivenState === "processing"
         ? "processing"
         : glyphStateFromSim;
-  const mechanism = data.semanticZoomOut
-    ? {}
-    : playback && playback.processingCount > 0
-      ? { processingCount: Math.min(4, playback.processingCount) }
+
+  const simMechanism =
+    playbackActive || data.semanticZoomOut
+      ? {}
       : deriveGlyphMechanismValues(data.component.id, data.simulation, {
           resultIsStale: data.resultIsStale,
         });
-  const armAngle = playback?.armAngle;
-  const passCount = playback?.passCount;
+
+  const mechanism = playbackMechanism ?? simMechanism;
   const ariaLabel = glyphStateAriaLabel(data.component.id, data.simulation, glyphOptions);
   const portFailed = glyphState === "failed";
 
@@ -102,8 +111,6 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
           <ComponentGlyph
             {...glyphCatalog}
             {...mechanism}
-            {...(armAngle !== undefined ? { armAngle } : {})}
-            {...(passCount !== undefined ? { passCount } : {})}
             state={glyphState}
             width={dimensions.width}
             height={dimensions.height}

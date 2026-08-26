@@ -170,7 +170,10 @@ export function connectionLoadFromEvents(
 
   for (const event of events) {
     if (event.type !== "traffic_routed" || !event.connectionId) continue;
-    const rps = typeof event.data.requestsPerSecond === "number" ? event.data.requestsPerSecond : 0;
+    const directRps = typeof event.data.requestsPerSecond === "number" ? event.data.requestsPerSecond : 0;
+    const readRps = typeof event.data.readRequestsPerSecond === "number" ? event.data.readRequestsPerSecond : 0;
+    const writeRps = typeof event.data.writeRequestsPerSecond === "number" ? event.data.writeRequestsPerSecond : 0;
+    const rps = directRps > 0 ? directRps : readRps + writeRps;
     loads.set(event.connectionId, (loads.get(event.connectionId) ?? 0) + rps);
   }
 

@@ -18,6 +18,10 @@ export interface ComponentPlaybackVisual {
   armAngle?: number;
   passCount?: number;
   state: "idle" | "processing" | "overloaded" | "failed";
+  /** Redis: brief solid fill on cache hit (no flicker). */
+  cacheHitFlash?: boolean;
+  /** Postgres: permanent bands from completed writes. */
+  writeBands?: number;
 }
 
 export interface EdgeLoad {
@@ -25,9 +29,16 @@ export interface EdgeLoad {
   weight: number;
 }
 
+export interface RouteLinger {
+  id: string;
+  connectionId: string;
+  startedAt: number;
+}
+
 export interface PlaybackFrame {
   packets: readonly PlaybackPacket[];
   edgeLoads: readonly EdgeLoad[];
   componentVisuals: readonly ComponentPlaybackVisual[];
+  routeLingers: readonly RouteLinger[];
   tick: number;
 }

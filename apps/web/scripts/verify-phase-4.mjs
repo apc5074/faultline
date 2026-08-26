@@ -57,10 +57,13 @@ const page = assertFile("apps/web/app/page.tsx");
 assert.match(page, /ArchitectureCanvas/);
 assert.doesNotMatch(page, /Sign in to play|Sign in with|GitHub OAuth/i);
 
-const canvas = assertFile("apps/web/features/architecture-canvas/ArchitectureCanvas.tsx");
+const canvas = [
+  assertFile("apps/web/features/architecture-canvas/ArchitectureCanvas.tsx"),
+  assertFile("apps/web/features/architecture-canvas/usePlaygroundWorkspace.ts"),
+].join("\n");
 assert.match(canvas, /evaluateRequirements/);
 assert.match(canvas, /Submit Official|onSubmitOfficial/);
-assert.match(canvas, /StartOfficialAttempt|LeaderboardHud|PlayerRankHud/);
+assert.match(assertFile("apps/web/features/architecture-canvas/ArchitectureCanvas.tsx"), /StartOfficialAttempt|LeaderboardHud|PlayerRankHud/);
 assert.doesNotMatch(canvas, /Sign in to play/);
 
 const submissions = assertFile("apps/web/app/api/submissions/route.ts");

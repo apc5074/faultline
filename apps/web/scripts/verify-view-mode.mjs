@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 import { logicalCapacitySummary } from "../features/architecture-canvas/view-mode.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const canvasDir = join(root, "features/architecture-canvas");
+
+function readCanvasModule(name) {
+  return readFileSync(join(canvasDir, name), "utf8");
+}
 
 const serviceLogical = {
   id: "service-01",
@@ -51,20 +56,29 @@ const redis = {
 };
 assert.equal(logicalCapacitySummary(redis), "2 regions");
 
-const canvasSource = readFileSync(join(root, "features/architecture-canvas/ArchitectureCanvas.tsx"), "utf8");
-assert.match(canvasSource, /Logical/);
-assert.match(canvasSource, /World/);
-assert.match(canvasSource, /useState<"logical" \| "world">/);
-assert.match(canvasSource, /<WorldMap/);
-const evaluateCall = canvasSource.match(/evaluateRequirements\(\{[\s\S]*?\}\);/);
+const playgroundSource = [
+  "ArchitectureCanvas.tsx",
+  "PlaygroundCanvas.tsx",
+  "usePlaygroundWorkspace.ts",
+]
+  .map(readCanvasModule)
+  .join("\n");
+
+assert.match(playgroundSource, /Logical/);
+assert.match(playgroundSource, /World/);
+assert.match(playgroundSource, /useState<"logical" \| "world">/);
+assert.match(playgroundSource, /<WorldMap|<PlaygroundCanvas/);
+const evaluateCall = playgroundSource.match(/evaluateRequirements\(\{[\s\S]*?\}\);/);
 assert.ok(evaluateCall, "expected evaluateRequirements call site");
 assert.doesNotMatch(evaluateCall[0], /viewMode/);
 assert.match(evaluateCall[0], /architecture,/);
 assert.match(evaluateCall[0], /challenge:/);
 assert.match(evaluateCall[0], /registry:/);
-assert.doesNotMatch(canvasSource, /WorldArchitecture/);
-assert.doesNotMatch(canvasSource, /worldNodes/);
-assert.doesNotMatch(canvasSource, /setArchitecture\(\s*world/);
+assert.doesNotMatch(playgroundSource, /WorldArchitecture/);
+assert.doesNotMatch(playgroundSource, /worldNodes/);
+assert.doesNotMatch(playgroundSource, /setArchitecture\(\s*world/);
+assert.match(readCanvasModule("ArchitectureCanvas.tsx"), /playground-shell/);
+assert.doesNotMatch(readFileSync(join(root, "app/globals.css"), "utf8"), /\.architecture-canvas|\.simulation-run|\.component-inspector|\.view-mode-toggle/);
 
 const worldSource = readFileSync(join(root, "features/world-map/WorldMap.tsx"), "utf8");
 assert.match(worldSource, /architecture: Architecture/);
