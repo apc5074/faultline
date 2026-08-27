@@ -17,7 +17,12 @@ plan or package source code.
   share visuals). **Geography completeness:** `plans/geo.md` (GEO-01…05 shipped —
   absorb-then-route, CDN offload, miss-path LB/Router, regional Service capacity,
   independent regional Redis footprints, Postgres primary/replica geo rules, geo
-  latency under absorb; next **GEO-08** hot-key geo path). Older phase plans under
+  latency under absorb, hot-key geo path, geo transfer cost, geo requirements
+  aggregation, Service scaling UX, Router/LB inspector teaching, Traffic Source
+  origin hardening, Postgres/Redis regional controls, World map arcs; next
+  logical playback under geo, geo failure / trace hooks, docs sync; next
+  **GEO-20** geo verification umbrella).
+  Older phase plans under
   `plans/phase N/` apply only when the ticket points there.
 - The worktree may contain unfinished user changes. Run `git status` first and
   preserve unrelated edits.
@@ -104,6 +109,7 @@ repository typecheck/build when the change crosses packages.
 | Agent capabilities | `pnpm --filter @faultline/agent-capabilities verify` | `pnpm typecheck` |
 | WebMCP adapter | `pnpm --filter @faultline/webmcp verify` | `pnpm typecheck` |
 | Web UI behavior | the matching `apps/web` `verify:*` script | `pnpm build` |
+| Geography completeness | `pnpm verify:geo` | `pnpm build` |
 
 Useful focused web checks include `verify:agent-session`,
 `verify:dynamic-surface-parity`, `verify:workload-evidence`,

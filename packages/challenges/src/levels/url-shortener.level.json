@@ -9,7 +9,7 @@
   },
   "narrative": {
     "hook": "You're handed LinkVault's startup MVP (~12k RPS) the day #MegaDrop2026 goes viral. Traffic is now 124k RPS sustained on an $85k/mo board \u2014 fix and scale it.",
-    "stakes": "The inherited MVP fails on first Run. That fail-first arc is the point: scale what exists, learn why placement and caches matter, and earn a passing design under budget \u2014 not a blank-canvas cold start.",
+    "stakes": "The inherited MVP fails on first Run. Scale what is already on the canvas until every scored target passes.",
     "briefingBeats": [
       "Demand is global: six regions share 120k redirects/sec; latency is traffic-weighted p95, so one continent is not enough.",
       "A viral short code concentrates 30k redirect RPS on one key \u2014 hot-key pressure is separate from aggregate throughput.",
@@ -215,7 +215,7 @@
         "label": "Capacity headroom",
         "type": "headroom",
         "comparator": "gte",
-        "target": 0.2,
+        "target": 0.1,
         "unit": "ratio"
       },
       {

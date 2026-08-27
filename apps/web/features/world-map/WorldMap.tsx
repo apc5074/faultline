@@ -18,6 +18,7 @@ import type { TraceRequestOutput } from "@faultline/agent-capabilities";
 import { enclosureRegionsForArchitecture } from "@/features/architecture-canvas/region-enclosures";
 
 import { WorldMapDeploymentGlyph } from "./WorldMapDeploymentGlyph";
+import { aggregateRoutes, type TrafficArc } from "./geo-route-aggregation";
 import type { RegionFailurePresentation } from "./region-failure-presentation";
 
 const MAP_WIDTH = 1000;
@@ -35,18 +36,6 @@ type DeploymentMarker = {
   deploymentId: string;
   regionId: RegionId;
   offsetIndex: number;
-};
-
-/** Aggregated arc for rendering — derived from simulator routes, not invented. */
-type TrafficArc = {
-  key: string;
-  originRegion: RegionId;
-  destinationRegion: RegionId;
-  kind: GeographicRoute["kind"];
-  rps: number;
-  componentIds: readonly string[];
-  deploymentIds: readonly string[];
-  crossRegion: boolean;
 };
 
 const COASTLINE_ELLIPSES: ReadonlyArray<{ cx: number; cy: number; rx: number; ry: number }> = [
@@ -90,42 +79,6 @@ function collectDeployments(architecture: Architecture): DeploymentMarker[] {
   }
 
   return markers;
-}
-
-/** Merge identical origin→destination→kind routes so the map stays readable. */
-function aggregateRoutes(routes: readonly GeographicRoute[]): TrafficArc[] {
-  const byKey = new Map<string, TrafficArc>();
-
-  for (const route of routes) {
-    if (route.rps <= 0) continue;
-    const key = `${route.originRegion}|${route.destinationRegion}|${route.kind}`;
-    const existing = byKey.get(key);
-    if (existing) {
-      byKey.set(key, {
-        ...existing,
-        rps: existing.rps + route.rps,
-        componentIds: existing.componentIds.includes(route.componentId)
-          ? existing.componentIds
-          : [...existing.componentIds, route.componentId],
-        deploymentIds: existing.deploymentIds.includes(route.deploymentId)
-          ? existing.deploymentIds
-          : [...existing.deploymentIds, route.deploymentId],
-      });
-      continue;
-    }
-    byKey.set(key, {
-      key,
-      originRegion: route.originRegion,
-      destinationRegion: route.destinationRegion,
-      kind: route.kind,
-      rps: route.rps,
-      componentIds: [route.componentId],
-      deploymentIds: [route.deploymentId],
-      crossRegion: route.originRegion !== route.destinationRegion,
-    });
-  }
-
-  return [...byKey.values()].sort((left, right) => right.rps - left.rps);
 }
 
 function arcPath(origin: RegionId, destination: RegionId, kind: GeographicRoute["kind"]): string {

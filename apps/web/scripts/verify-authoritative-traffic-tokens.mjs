@@ -8,6 +8,10 @@ import assert from "node:assert/strict";
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
+import {
+  createSevenComponentArchitecture,
+  level1CompositionChallenge,
+} from "../../../packages/simulator/scripts/fixtures/level1-composition.mjs";
 
 import {
   advanceAuthoritativeSpawns,
@@ -411,5 +415,35 @@ for (let tick = 0; tick < 400 && !sawPierceWrite; tick += 1) {
   );
 }
 assert.ok(sawPierceWrite, "authoritative playback eventually shows write pierce tokens");
+
+console.log("Check — geo authoritative playback quiets CDN origin edges and preserves write pierce");
+const geoSimulation = evaluateRequirements({
+  architecture: createSevenComponentArchitecture({ regional: true }),
+  challenge: level1CompositionChallenge,
+  registry: componentRegistry,
+});
+assert.equal(geoSimulation.valid, true);
+if (!geoSimulation.valid) throw new Error("expected valid regional simulation");
+const geoRates = edgeRatesFromTrafficEvents(geoSimulation.events);
+const geoIngress = geoRates.get("traffic-cdn");
+const geoOrigin = geoRates.get("cdn-router");
+const geoPierce = geoRates.get("redis-postgres");
+assert.ok(geoIngress && geoIngress.forwardRps > 0, "geo ingress edge has demand");
+assert.ok(geoOrigin && geoOrigin.forwardRps < geoIngress.forwardRps, "geo CDN origin edge must be quieter than ingress");
+assert.ok(geoPierce && geoPierce.writeRps > 0, "geo write pierce must remain visible");
+
+const geoPlan = {
+  rates: geoRates,
+  redirectRps: level1CompositionChallenge.workload.requestsPerSecond * level1CompositionChallenge.workload.readRatio,
+};
+const geoSpawns = [];
+const geoAccumulators = new Map();
+for (let tick = 0; tick < 400; tick += 1) {
+  geoSpawns.push(...advanceAuthoritativeSpawns(geoPlan, geoAccumulators, 0));
+}
+assert.ok(
+  geoSpawns.some((spawn) => spawn.connectionId === "redis-postgres" && spawn.shape === "write"),
+  "geo authoritative playback must spawn a write token on the pierce edge",
+);
 
 console.log("authoritative traffic tokens verified");

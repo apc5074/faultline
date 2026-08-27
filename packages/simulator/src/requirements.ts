@@ -52,9 +52,13 @@ function formatRatioPercent(ratio: number): string {
   return `${Math.round(ratio * 1000) / 10}%`;
 }
 
+/** Near-equality for RPS shares so float split noise does not fail a full-handle path. */
+const THROUGHPUT_SHARE_EPSILON = 1e-6;
+
 function handledShare(handled: number, demand: number): number {
   if (demand <= 0) return 1;
-  return handled / demand;
+  if (handled + THROUGHPUT_SHARE_EPSILON >= demand) return 1;
+  return Math.min(1, handled / demand);
 }
 
 function throughputFromCapacity(
@@ -63,16 +67,22 @@ function throughputFromCapacity(
   unroutableRps: number,
   totalDemandRps: number,
 ): { ratio: number; focus: string } {
-  let ratio = totalDemandRps > 0 ? Math.max(0, (totalDemandRps - unroutableRps) / totalDemandRps) : 1;
-  let focus = unroutableRps > 0
-    ? `${unroutableRps.toLocaleString("en-US")} requests/sec had no healthy reachable Service`
-    : "All services and databases handle the required workload.";
+  let ratio =
+    totalDemandRps > 0
+      ? Math.max(0, (totalDemandRps - Math.max(0, unroutableRps)) / totalDemandRps)
+      : 1;
+  if (ratio + THROUGHPUT_SHARE_EPSILON >= 1) ratio = 1;
+
+  let focus =
+    unroutableRps > THROUGHPUT_SHARE_EPSILON
+      ? `${Math.round(unroutableRps).toLocaleString("en-US")} requests/sec had no healthy reachable Service`
+      : "All services and databases handle the required workload.";
 
   for (const [componentId, metrics] of Object.entries(services)) {
     const share = handledShare(metrics.handledRps, metrics.incomingRps);
     if (share < ratio) {
       ratio = share;
-      focus = `Service "${componentId}" handled ${metrics.handledRps.toLocaleString("en-US")} of ${metrics.incomingRps.toLocaleString("en-US")} requests/sec`;
+      focus = `Service "${componentId}" handled ${Math.round(metrics.handledRps).toLocaleString("en-US")} of ${Math.round(metrics.incomingRps).toLocaleString("en-US")} requests/sec`;
     }
   }
 
@@ -83,11 +93,16 @@ function throughputFromCapacity(
     if (share < ratio) {
       ratio = share;
       if (readShare <= writeShare) {
-        focus = `Postgres "${componentId}" handled ${metrics.readHandledRps.toLocaleString("en-US")} of ${metrics.readRps.toLocaleString("en-US")} read requests/sec`;
+        focus = `Postgres "${componentId}" handled ${Math.round(metrics.readHandledRps).toLocaleString("en-US")} of ${Math.round(metrics.readRps).toLocaleString("en-US")} read requests/sec`;
       } else {
-        focus = `Postgres "${componentId}" handled ${metrics.writeHandledRps.toLocaleString("en-US")} of ${metrics.writeRps.toLocaleString("en-US")} write requests/sec`;
+        focus = `Postgres "${componentId}" handled ${Math.round(metrics.writeHandledRps).toLocaleString("en-US")} of ${Math.round(metrics.writeRps).toLocaleString("en-US")} write requests/sec`;
       }
     }
+  }
+
+  if (ratio + THROUGHPUT_SHARE_EPSILON >= 1) {
+    ratio = 1;
+    focus = "All services and databases handle the required workload.";
   }
 
   return { ratio, focus };

@@ -6,7 +6,7 @@ import type { Architecture, Connection } from "@faultline/core";
  * Traffic → CDN → LB → Service A + Service B → Postgres
  *
  * CDN large + long TTL + full coverage offloads most redirects; two large
- * service pools (5+5 instances) clear miss/write capacity + 20% headroom;
+ * service pools (5+5 instances) clear miss/write capacity + 10% headroom;
  * Postgres large with one read replica clears store pressure under $85k.
  *
  * Used by the playground "Load (our) Answer" control.

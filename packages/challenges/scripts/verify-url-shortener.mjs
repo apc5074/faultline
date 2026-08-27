@@ -21,7 +21,7 @@ assert.equal(urlShortenerRedirectRps / urlShortenerWriteRps, 30);
 assert.equal(urlShortenerChallenge.workload.hotKeyReadFraction, 0.25);
 assert.equal(urlShortenerChallenge.monthlyBudget, 85_000);
 assert.equal(urlShortenerChallenge.requirements.find((requirement) => requirement.id === "latency")?.target, 150);
-assert.equal(urlShortenerChallenge.requirements.find((requirement) => requirement.id === "headroom")?.target, 0.2);
+assert.equal(urlShortenerChallenge.requirements.find((requirement) => requirement.id === "headroom")?.target, 0.1);
 assert.equal(urlShortenerChallenge.requirements.find((requirement) => requirement.id === "budget")?.target, 85_000);
 assert.ok(!urlShortenerChallenge.requirements.some((requirement) => requirement.id === "availability"));
 assert.equal(urlShortenerChallenge.unscoredTargets?.[0]?.id, "availability");

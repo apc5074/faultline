@@ -281,10 +281,15 @@ function SqlDbGlyph({
   const lit = Math.max(readLit, writeLit);
   const topY = 4 + ry;
   const bottomY = 4 + ry + bodyH;
+  const inset = 1.5;
+  const left = 4 + inset;
+  const right = 4 + w - inset;
+  const arx = rx - inset;
   const rimArc = (y: number) => `M 4 ${y} A ${rx} ${ry} 0 0 0 ${4 + w} ${y}`;
   const bodyPath = `M 4 ${topY} L 4 ${bottomY} A ${rx} ${ry} 0 0 0 ${4 + w} ${bottomY} L ${4 + w} ${topY} Z`;
+  // Cylinder slices need elliptical top and bottom — never a straight chord across the body.
   const bandPath = (y0: number, y1: number) =>
-    `M 5.5 ${y0} L ${4 + w - 1.5} ${y0} L ${4 + w - 1.5} ${y1} A ${rx - 1.5} ${ry} 0 0 1 5.5 ${y1} Z`;
+    `M ${left} ${y0} A ${arx} ${ry} 0 0 0 ${right} ${y0} L ${right} ${y1} A ${arx} ${ry} 0 0 1 ${left} ${y1} Z`;
 
   return (
     <g>
@@ -298,33 +303,16 @@ function SqlDbGlyph({
       <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
       {!mini &&
         Array.from({ length: bands }).map((_, i) => {
-          if (i >= lit && i >= readLit && i >= writeLit) return null;
-          const readOn = i < readLit;
-          const writeOn = i < writeLit;
-          return (
-            <g key={i}>
-              {readOn ? (
-                <path
-                  d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
-                  fill="url(#postgres-read-meter)"
-                />
-              ) : null}
-              {writeOn ? (
-                <path
-                  d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
-                  fill="url(#postgres-write-meter)"
-                />
-              ) : null}
-            </g>
-          );
+          // Fill from the bottom of the cylinder upward.
+          const fromBottom = bands - 1 - i;
+          if (fromBottom >= lit) return null;
+          const y0 = topY + i * bandH;
+          const y1 = topY + (i + 1) * bandH;
+          return <path key={i} d={bandPath(y0, y1)} fill="url(#postgres-pressure-meter)" />;
         })}
-      {!mini && (readLit > 0 || writeLit > 0) ? (
+      {!mini && lit > 0 ? (
         <defs>
-          <pattern id="postgres-read-meter" width="4" height="4" patternUnits="userSpaceOnUse">
-            <rect width="4" height="4" fill={GLYPH_INK.paper} />
-            <path d="M 0 1.25 H 4" fill="none" stroke={GLYPH_INK.ink} strokeWidth="0.8" />
-          </pattern>
-          <pattern id="postgres-write-meter" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <pattern id="postgres-pressure-meter" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width="4" height="4" fill={GLYPH_INK.paper} />
             <path d="M 0 1.25 H 4" fill="none" stroke={GLYPH_INK.ink} strokeWidth="0.8" />
           </pattern>
@@ -333,15 +321,20 @@ function SqlDbGlyph({
       <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
       {state === "failed" && <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />}
       {!mini &&
-        Array.from({ length: bands - 1 }).map((_, i) => (
-          <path
-            key={i}
-            d={rimArc(topY + (i + 1) * bandH)}
-            fill="none"
-            stroke={i < lit ? GLYPH_INK.paper : GLYPH_INK.ink}
-            strokeWidth={i < lit ? 1 : 0.75}
-          />
-        ))}
+        Array.from({ length: bands - 1 }).map((_, i) => {
+          // Skip rims buried inside the bottom-up fill — paper chords looked like
+          // horizontal lines through the cylinder during a run.
+          if (lit > 0 && i >= bands - lit) return null;
+          return (
+            <path
+              key={i}
+              d={rimArc(topY + (i + 1) * bandH)}
+              fill="none"
+              stroke={GLYPH_INK.ink}
+              strokeWidth={0.75}
+            />
+          );
+        })}
       <path d={rimArc(bottomY)} fill="none" stroke={op.stroke} strokeWidth={op.strokeWidth * 1.25} />
       {state === "selected" && <CornerTicks x={4} y={4} w={w} h={bodyH + ry * 2} />}
     </g>

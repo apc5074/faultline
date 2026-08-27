@@ -163,7 +163,7 @@ assert.equal(spread.services.svc.unmetRps, 0);
 assert.ok(spread.services.svc.headroom > hotSvc.headroom);
 assert.ok(spread.services.svc.utilization < 1);
 
-console.log("Check — lean geo passer: CDN + regional spread + headroom ≥20%");
+console.log("Check — lean geo passer: CDN + regional spread + headroom ≥10%");
 const lean = evaluateRequirements({
   architecture: leanGeoPasser(),
   challenge: urlShortenerChallenge,
@@ -171,7 +171,7 @@ const lean = evaluateRequirements({
 });
 assert.equal(lean.valid, true);
 assert.equal(lean.allRequirementsPass, true);
-assert.ok(lean.headroom >= 0.2, `lean headroom ${lean.headroom} must be ≥20%`);
+assert.ok(lean.headroom >= 0.1, `lean headroom ${lean.headroom} must be ≥10%`);
 assert.ok(lean.cost.monthlyTotal <= 85_000, `lean cost ${lean.cost.monthlyTotal} must stay ≤$85k`);
 assert.equal(lean.hotKey.passed, true);
 assert.ok(lean.caches.cdn.hitRps > 50_000, "lean passer still relies on CDN absorb");

@@ -61,7 +61,7 @@ Otherwise `propagateTraffic` keeps Phase 1/2 **logical** forwarding (CDN/LB/Rout
 | **6. Geo attribution** | Post-absorb hop RPS | Emit `geographicRoutes` + `regionalTraffic` using **post-absorb** volumes only |
 | **7. Store path** | Service outgoing read/write shares on `read_write` edges | Redis: absorb eligible reads (prefer same-region footprint); **writes pierce**. Postgres: writes → primary; ordinary reads prefer same-region replica when present; hot-key reads still pressure **primary** |
 
-**Deprecated (fixed by GEO-02):** attribute full origin RPS to Services, then compute CDN hit/miss only as metrics. Geo mode now evaluates CDN on path ingress and forwards only `incoming − hitRps` to Services.
+**Historical behavior, fixed by GEO-02:** the simulator once attributed full origin RPS to Services and computed CDN hit/miss only as metrics. Current geo mode evaluates CDN on path ingress and forwards only `incoming − hitRps` to Services.
 
 ### Level 1 component responsibilities under geo
 
@@ -83,9 +83,11 @@ Otherwise `propagateTraffic` keeps Phase 1/2 **logical** forwarding (CDN/LB/Rout
 
 For each traffic origin, candidates are Services reachable over the logical request graph. Unhealthy regions are ignored. Selection uses lowest `getRegionLatencyMs`, ties by `componentId` then `deploymentId`. Results expose `geographicRoutes` and `regionalTraffic` for visualization. Regional service overload uses per-deployment capacity.
 
+Trace and failure presentation preserve the simulator's geographic identities (`componentId`, `deploymentId`, origin/destination region). A simulated region failure reports only emitted unavailable/reroute evidence; it never promotes replicas or invents a failover event.
+
 ## World map
 
-The World view is a lightweight SVG map in `apps/web` driven by the same canonical `Architecture` and challenge geographic distribution. Region markers use `RegionRegistry` coordinates; traffic origin labels come from challenge fractions/RPS; deployment chips come from `ComponentInstance.deployments[]` (Service counts, Redis, Postgres primary vs replica). After a successful simulation, traffic arcs are drawn from `geographicRoutes` (aggregated by origin→destination→kind) with educational stroke weight for volume — never invented decorative paths. Animation is CSS-only; the simulator does not depend on it. The map does not own separate world domain state or call external map providers. Placement editing stays in the existing inspector.
+The World view is a lightweight SVG map in `apps/web` driven by the same canonical `Architecture` and challenge geographic distribution. Region markers use `RegionRegistry` coordinates; traffic origin labels come from challenge fractions/RPS; deployment chips come from `ComponentInstance.deployments[]` (Service counts, Redis, Postgres primary vs replica). After a successful simulation, traffic arcs are drawn from `geographicRoutes` (aggregated by origin→destination→kind) with educational stroke weight for volume — never invented decorative paths. Logical canvas playback likewise consumes authoritative post-absorb `traffic_routed` rates: CDN origin lanes are quieter than ingress when traffic is absorbed, while write-pierce lanes remain visible. Animation is CSS-only; the simulator does not depend on it. The map does not own separate world domain state or call external map providers. Placement editing stays in the existing inspector.
 
 ## Phase 3 verification
 
@@ -97,7 +99,7 @@ The World view is a lightweight SVG map in `apps/web` driven by the same canonic
 
 ## Requirement evaluation
 
-`evaluateRequirements` is configuration-driven and scores outcomes only. It derives throughput from the lowest handled-demand share across Services and Postgres, latency from path p95, headroom from the minimum of service headroom and `1 - postgresEffectiveUtilization`, and budget from `estimateMonthlyCost` (component prices plus optional cross-region transfer/replication when `geographicRoutes` are present). Each requirement returns actual, target, comparator, and a deterministic explanation; overall pass requires every requirement to pass. The run emits `requirement_passed` / `requirement_failed` events and never checks component names or prescribed topologies. Successful results also expose the Service and Postgres capacity metrics so the UI can render utilization and saturation state without recalculating thresholds.
+`evaluateRequirements` is configuration-driven and scores outcomes only. It derives throughput from the lowest handled-demand share across Services and Postgres, latency from path p95, headroom from the minimum of service headroom and `1 - postgresEffectiveUtilization`, and budget from `estimateMonthlyCost` (component prices plus CDN usage from simulated ingress and optional cross-region transfer/replication when `geographicRoutes` are present). Each requirement returns actual, target, comparator, and a deterministic explanation; overall pass requires every requirement to pass. The run emits `requirement_passed` / `requirement_failed` events and never checks component names or prescribed topologies. Successful results also expose the Service and Postgres capacity metrics so the UI can render utilization and saturation state without recalculating thresholds.
 
 ## Hot-key scenario
 
@@ -173,7 +175,7 @@ Do not invent a second client-side “display hit rate” from challenge tables 
 
 ### Hot-key interaction
 
-Viral redirect RPS may be scaled by authored cache `reuseConcentration` (`data_cache` preferred, else `edge_cache`; default `1.0`). CDN/Redis still use the same placement-aware hit-rate path as aggregate traffic. Redis hot-key saturation uses per-key `hotKeyCapacityRps`.
+Viral redirect RPS may be scaled by authored cache `reuseConcentration` (`data_cache` preferred, else `edge_cache`; default `1.0`). CDN/Redis still use the same placement-aware hit-rate path as aggregate traffic. Under geographic routing, independent Redis footprints contribute their per-key capacity for their regional shares; replicated mode still does not shard one key. Redis hot-key saturation uses per-key `hotKeyCapacityRps`, while Postgres hot-key pressure remains primary-only.
 
 ### Traffic volume + event fields visuals consume
 

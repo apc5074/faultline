@@ -80,7 +80,8 @@ function formatRequirementTarget(requirement: RequirementDefinition): string {
 
 function formatRequirementActual(result: RequirementResult): string {
   if (result.type === "throughput") {
-    return `${Math.round(result.actual * 100)}% handled`;
+    // Match simulator percent formatting so 0.995 does not round up to a fake "100%".
+    return `${Math.round(result.actual * 1000) / 10}% handled`;
   }
   if (result.type === "latency") {
     return `${result.actual.toFixed(1)}ms`;

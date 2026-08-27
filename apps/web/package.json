@@ -47,6 +47,12 @@
     "verify:competition-config": "pnpm run build:deps && node --experimental-strip-types scripts/verify-competition-config.mjs",
     "verify:workload-evidence": "pnpm run build:deps && node --experimental-strip-types scripts/verify-workload-evidence.mjs",
     "verify:approx-origin-traffic": "pnpm run build:deps && node --experimental-strip-types scripts/verify-approx-origin-traffic.mjs",
+    "verify:service-region-seeding": "pnpm run build:deps && node --experimental-strip-types scripts/verify-service-region-seeding.mjs",
+    "verify:geo-inspector-teaching": "node --experimental-strip-types scripts/verify-geo-inspector-teaching.mjs",
+    "verify:geo-origins": "node --experimental-strip-types scripts/verify-geo-origins.mjs",
+    "verify:geo-store-controls": "node --experimental-strip-types scripts/verify-geo-store-controls.mjs",
+    "verify:geo-world-map": "pnpm run build:deps && node --experimental-strip-types scripts/verify-geo-world-map.mjs",
+    "verify:geo-failure-trace": "pnpm run build:deps && node --experimental-strip-types scripts/verify-geo-failure-trace.mjs",
     "verify:submission-limit": "node --experimental-strip-types scripts/verify-submission-limit.mjs",
     "verify:security-headers": "node --experimental-strip-types scripts/verify-security-headers.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"

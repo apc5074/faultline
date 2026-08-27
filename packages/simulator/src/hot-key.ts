@@ -19,10 +19,8 @@ import {
   hotKeyViralRedirectRpsWithReuseConcentration,
   resolveCacheConfiguredHitRate,
 } from "./workload-affinity.js";
-import {
-  validateArchitectureForSimulation,
-  type SimulationValidationError,
-} from "./validation.js";
+import { architectureHasServiceDeployments } from "./geographic-routing.js";
+import { validateArchitectureForSimulation, type SimulationValidationError } from "./validation.js";
 
 export interface HotKeyHop {
   componentId: string;
@@ -126,6 +124,8 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
 
   const architecture = validation.architecture;
   const registry = input.registry;
+  const geographicRoutingActive =
+    challenge.geographicDistribution !== undefined && architectureHasServiceDeployments(architecture);
 
   const incoming = Object.fromEntries(architecture.components.map((component) => [component.id, 0])) as Record<
     string,
@@ -187,7 +187,10 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
         if (parsed.success) {
           const config = parsed.data as RedisConfig;
           const model = redisEffectiveModel(config);
-          hotKeyCapacityRps = model.hotKeyCapacityRps;
+          const footprintCount = geographicRoutingActive ? Math.max(1, component.deployments.length) : 1;
+          // Regional Redis footprints receive independent origin shares. Their
+          // hot-key capacity sums; replicated mode still does not shard a key.
+          hotKeyCapacityRps = model.hotKeyCapacityRps * footprintCount;
           hotKeyUtilization = hotKeyCapacityRps > 0 ? pending / hotKeyCapacityRps : null;
           saturated = pending > model.hotKeyCapacityRps;
           const { finalConfiguredHitRate } = resolveCacheConfiguredHitRate({
@@ -200,7 +203,7 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
           const cache = evaluateCacheOffload({
             eligibleRps: pending,
             configuredHitRate: finalConfiguredHitRate,
-            capacityRps: Math.min(model.throughputRps, model.hotKeyCapacityRps),
+            capacityRps: Math.min(model.throughputRps, model.hotKeyCapacityRps) * footprintCount,
           });
           absorbed = cache.hitRps;
           forward = cache.missRps;

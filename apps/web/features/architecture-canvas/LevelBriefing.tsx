@@ -37,6 +37,7 @@ function formatRequirementTarget(type: string, target: number, unit: string): st
 }
 
 const REQUIREMENT_HELP: Record<string, string> = {
+  throughput: "Your design must handle the full sustained peak without dropping work.",
   latency:
     "How fast redirects feel for nearly all users. Under this limit means most people reach the destination quickly.",
   headroom:
@@ -130,9 +131,6 @@ type LevelBriefingProps = {
 export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingProps) {
   const titleId = useId();
   const primaryButtonRef = useRef<HTMLButtonElement>(null);
-  const latency = activeChallenge.requirements.find((requirement) => requirement.id === "latency");
-  const headroom = activeChallenge.requirements.find((requirement) => requirement.id === "headroom");
-  const budget = activeChallenge.requirements.find((requirement) => requirement.id === "budget");
   const isHowTo = step === "how-to";
 
   useEffect(() => {
@@ -218,6 +216,7 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
               <p className="level-briefing__scenario">{activeLevelCurriculum.hook}</p>
               <p className="level-briefing__hint">{activeLevelCurriculum.stakes}</p>
 
+              <p className="level-briefing__section-label">Workload</p>
               <dl className="level-briefing__traffic">
                 <div>
                   <dt>Redirects</dt>
@@ -237,60 +236,24 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
                 </div>
               </dl>
 
-              <ul className="level-briefing__howto level-briefing__beats">
-                {activeLevelCurriculum.briefingBeats.map((beat, index) => (
-                  <li key={beat}>
-                    <span className="level-briefing__howto-num">{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <p>{beat}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {(["cdn", "redis"] as const).some((type) => activeLevelCurriculum.componentCards[type]) ? (
-                <div className="level-briefing__placement">
-                  <p className="level-briefing__section-label">Placement education</p>
-                  <ul className="level-briefing__placement-list">
-                    {(["cdn", "redis"] as const).map((type) => {
-                      const card = activeLevelCurriculum.componentCards[type];
-                      if (!card) return null;
-                      return (
-                        <li key={type}>
-                          <strong>{type === "cdn" ? "CDN" : "Redis"}</strong>
-                          <span>{card.placementIntent}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ) : null}
-
-              <p className="level-briefing__hint">{activeLevelCurriculum.firstRunSummary}</p>
-
               <p className="level-briefing__section-label">Pass when</p>
               <ul className="level-briefing__targets">
-                {latency ? (
+                {activeChallenge.requirements.map((requirement) => (
                   <RequirementRow
-                    label={latency.label}
-                    value={formatRequirementTarget(latency.type, latency.target, latency.unit)}
-                    help={REQUIREMENT_HELP.latency}
+                    key={requirement.id}
+                    label={requirement.type === "budget" ? "Monthly budget" : requirement.label}
+                    value={formatRequirementTarget(
+                      requirement.type,
+                      requirement.target,
+                      requirement.unit,
+                    )}
+                    help={
+                      REQUIREMENT_HELP[requirement.type] ??
+                      REQUIREMENT_HELP[requirement.id] ??
+                      "Scored outcome for this level."
+                    }
                   />
-                ) : null}
-                {headroom ? (
-                  <RequirementRow
-                    label={headroom.label}
-                    value={formatRequirementTarget(headroom.type, headroom.target, headroom.unit)}
-                    help={REQUIREMENT_HELP.headroom}
-                  />
-                ) : null}
-                {budget ? (
-                  <RequirementRow
-                    label="Monthly budget"
-                    value={formatRequirementTarget(budget.type, budget.target, budget.unit)}
-                    help={REQUIREMENT_HELP.budget}
-                  />
-                ) : null}
+                ))}
               </ul>
 
               <p className="level-briefing__hint">

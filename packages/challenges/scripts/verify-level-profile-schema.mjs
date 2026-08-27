@@ -93,7 +93,7 @@ function minimalProfile(overrides = {}) {
       requirements: [
         { id: "throughput", label: "Throughput", type: "throughput", comparator: "gte", target: 1, unit: "ratio" },
         { id: "latency", label: "Redirect p95 latency", type: "latency", comparator: "lt", target: 150, unit: "ms" },
-        { id: "headroom", label: "Capacity headroom", type: "headroom", comparator: "gte", target: 0.2, unit: "ratio" },
+        { id: "headroom", label: "Capacity headroom", type: "headroom", comparator: "gte", target: 0.1, unit: "ratio" },
         {
           id: "budget",
           label: "Monthly infrastructure budget",

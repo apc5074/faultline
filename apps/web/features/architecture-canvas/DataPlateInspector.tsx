@@ -51,6 +51,7 @@ import {
   approximateOriginTraffic,
   formatApproxRps,
 } from "@/features/architecture-canvas/approximate-origin-traffic";
+import { seedServiceDeploymentsByOrigin } from "@/features/architecture-canvas/region-enclosures";
 import {
   buildWorkloadEvidencePanel,
   type WorkloadEvidencePanel,
@@ -610,8 +611,26 @@ export function DataPlateInspector({
           </div>
           <div className="data-plate-inspector__region-block">
             <p className="data-plate-inspector__region-title">
-              Regional instances
+              Regional instances {regional ? "" : "(optional)"}
             </p>
+            {!regional ? (
+              <button
+                type="button"
+                className="sim-bar__button"
+                onClick={() =>
+                  onDeploymentsChange(
+                    component.id,
+                    seedServiceDeploymentsByOrigin(
+                      instances,
+                      component.id,
+                      activeChallenge.geographicDistribution,
+                    ),
+                  )
+                }
+              >
+                Distribute by origin
+              </button>
+            ) : null}
             {regions.map((region) => (
               <InspectorStepper
                 key={region.id}
@@ -623,8 +642,9 @@ export function DataPlateInspector({
               />
             ))}
             <PlateHint>
-              Total is the sum of regional instances. Adjust capacity per
-              region.
+              {regional
+                ? "Total is the sum of regional instances. CDN absorbs at the edge; regions handle miss traffic."
+                : "Keep this logical for a single-region design, or distribute capacity by the challenge's origin mix."}
             </PlateHint>
           </div>
           <SpecList>
@@ -735,7 +755,7 @@ export function DataPlateInspector({
             aria-label="Postgres primary and replica regions"
           >
             <div className="data-plate-inspector__role-col">
-              <p className="data-plate-inspector__role-col-title">Primary zone</p>
+              <p className="data-plate-inspector__role-col-title">Primary zone (writes)</p>
               <ul className="data-plate-inspector__role-list">
                 {regions.map((region) => (
                   <li key={`primary-${region.id}`}>
@@ -753,7 +773,7 @@ export function DataPlateInspector({
               </ul>
             </div>
             <div className="data-plate-inspector__role-col">
-              <p className="data-plate-inspector__role-col-title">Replica</p>
+              <p className="data-plate-inspector__role-col-title">Replica regions (reads)</p>
               <ul className="data-plate-inspector__role-list">
                 {regions.map((region) => {
                   const isPrimary = displayPrimaryId === region.id;
@@ -779,8 +799,9 @@ export function DataPlateInspector({
             </div>
           </div>
           <PlateHint>
-            One primary holds writes. Replicas add read capacity in other zones —
-            total replicas is their count.
+            Exactly one primary holds writes. Replicas add ordinary read capacity
+            in other zones; total replicas must match the configured count. The
+            simulator rejects invalid placements and never auto-promotes.
           </PlateHint>
         </div>
         <SpecList>
@@ -873,7 +894,8 @@ export function DataPlateInspector({
             ))}
             <PlateHint>
               Each checked region is an independent Redis cache. Replicated mode
-              is local HA, not cross-region sync.
+              is local HA, not cross-region sync. Unchecked everywhere keeps the
+              logical single-cache path.
             </PlateHint>
           </div>
         </DataPlateSection>
@@ -921,17 +943,26 @@ export function DataPlateInspector({
   }
 
   if (component.type === "global-router") {
+    const hasRegionalServices =
+      activeChallenge.geographicDistribution !== undefined &&
+      architecture.components.some(
+        (candidate) => candidate.type === "service" && candidate.deployments.length > 0,
+      );
     return shell(
       "Global Router inspector",
       <DataPlateSection title="Reference">
         <SpecList>
           <SpecRow label="Role" value="Logical request passthrough" />
-          <SpecRow label="Geographic routing" value="Inactive" />
+          <SpecRow
+            label="Geographic routing"
+            value={hasRegionalServices ? "Active" : "Inactive"}
+          />
           <SpecRow label="Monthly cost" value={formatCost(0)} />
         </SpecList>
         <PlateHint>
-          Forwards traffic without changing volume. Nearest healthy region
-          routing activates when geography is enabled.
+          Needs regional Services to steer post-CDN miss traffic to the nearest
+          healthy deployment. Otherwise it is a passthrough and does not
+          change volume.
         </PlateHint>
       </DataPlateSection>,
     );
@@ -941,6 +972,10 @@ export function DataPlateInspector({
     const parsed = definition.configSchema.safeParse(component.config);
     if (!parsed.success) return null;
     const policy = parsed.data.policy as (typeof loadBalancerPolicies)[number];
+    const upstreamCount = architecture.connections.filter(
+      (connection) =>
+        connection.sourceComponentId === component.id && connection.type === "request",
+    ).length;
 
     return shell(
       "Load Balancer inspector",
@@ -967,10 +1002,13 @@ export function DataPlateInspector({
           </SpecList>
           <PlateHint>
             {policy === "equal"
-              ? "Splits requests evenly across connected services."
-              : "Splits requests by each service's configured capacity."}{" "}
-            Failed backends are not excluded yet; health-aware redistribution
-            comes with failure injection.
+              ? "Splits post-CDN miss traffic evenly across connected services."
+              : "Splits post-CDN miss traffic by each service's configured capacity."}{" "}
+            {upstreamCount <= 1
+              ? "One connected Service gives the balancer no fan-out leverage."
+              : "More connected Service pools create fan-out leverage."}{" "}
+            Failure experiments provide simulated evidence; this inspector
+            does not promise automatic repair.
           </PlateHint>
         </DataPlateSection>
       </>,
@@ -1099,9 +1137,10 @@ export function DataPlateInspector({
               ))}
             </ul>
             <PlateHint>
-              Ballpark challenge demand by user region — rounded on purpose.
-              Exact paths after Run depend on your design (CDN, router, regional
-              capacity).
+              Ballpark challenge demand by user region — rounded on purpose,
+              not simulator evidence. After Run, World map arcs are the
+              authoritative paths; they depend on your CDN, router, and
+              regional capacity.
             </PlateHint>
           </>
         )}
