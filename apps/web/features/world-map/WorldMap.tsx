@@ -13,7 +13,6 @@ import {
   type RegionId,
 } from "@faultline/core";
 import type { GeographicRoute } from "@faultline/simulator";
-import type { TraceRequestOutput } from "@faultline/agent-capabilities";
 
 import { enclosureRegionsForArchitecture } from "@/features/architecture-canvas/region-enclosures";
 
@@ -123,19 +122,7 @@ function arcHighlighted(
   arc: TrafficArc,
   selection: WorldMapSelection,
   selectedComponentId: string | null,
-  highlightedTrace: TraceRequestOutput | null,
 ): boolean {
-  if (highlightedTrace?.geographic) {
-    const traceMatch = highlightedTrace.hops.some(
-      (hop) =>
-        hop.componentId !== undefined &&
-        arc.componentIds.includes(hop.componentId) &&
-        (hop.deploymentId === undefined || arc.deploymentIds.includes(hop.deploymentId)) &&
-        hop.originRegionId === arc.originRegion &&
-        hop.destinationRegionId === arc.destinationRegion,
-    );
-    if (traceMatch) return true;
-  }
   if (selectedComponentId && arc.componentIds.includes(selectedComponentId)) return true;
   if (selection?.kind === "region") {
     return arc.originRegion === selection.regionId || arc.destinationRegion === selection.regionId;
@@ -154,7 +141,6 @@ export function WorldMap({
   challenge,
   selectedComponentId,
   selection,
-  highlightedTrace,
   geographicRoutes,
   routesActive,
   regionFailure,
@@ -166,7 +152,6 @@ export function WorldMap({
   challenge: ChallengeDefinition;
   selectedComponentId: string | null;
   selection: WorldMapSelection;
-  highlightedTrace: TraceRequestOutput | null;
   geographicRoutes: readonly GeographicRoute[];
   routesActive: boolean;
   regionFailure?: RegionFailurePresentation | null;
@@ -199,7 +184,7 @@ export function WorldMap({
     [routesActive, geographicRoutes],
   );
   const maxArcRps = arcs.reduce((max, arc) => Math.max(max, arc.rps), 0);
-  const anyHighlight = arcs.some((arc) => arcHighlighted(arc, selection, selectedComponentId, highlightedTrace));
+  const anyHighlight = arcs.some((arc) => arcHighlighted(arc, selection, selectedComponentId));
 
   return (
     <div className="world-map" aria-label="World architecture map">
@@ -246,7 +231,7 @@ export function WorldMap({
         <g className="world-map__arcs" aria-label={routesActive ? "Simulated traffic arcs" : undefined}>
           {arcs.map((arc) => {
             const strokeWidth = strokeForVolume(arc.rps, maxArcRps);
-            const highlighted = arcHighlighted(arc, selection, selectedComponentId, highlightedTrace);
+            const highlighted = arcHighlighted(arc, selection, selectedComponentId);
             const dimmed = anyHighlight && !highlighted;
             const durationMs = arcDurationMs(arc.originRegion, arc.destinationRegion);
             return (

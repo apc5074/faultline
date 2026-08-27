@@ -46,7 +46,7 @@ const baselineContext = {
 const baselineResolved = resolveCapabilities(registry, baselineContext);
 const baselineTools = toAISDKTools(registry, baselineContext);
 
-const baselineVisualNames = [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => name !== "focus_region" && name !== "highlight_path");
+const baselineVisualNames = [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => name !== "focus_region");
 assert.deepEqual(Object.keys(baselineTools), [...baselineResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES, ...baselineVisualNames]);
 assert.deepEqual(baselineResolved.names, [...BASELINE_READ_CAPABILITY_NAMES]);
 assert.equal("inspect_cache" in baselineTools, false);
@@ -87,6 +87,5 @@ const geographicTools = toAISDKTools(registry, {
   challenge: { ...challenge, geographicDistribution: [{ regionId: "us-east", fraction: 1 }] },
 });
 assert.equal("focus_region" in geographicTools, true);
-assert.equal("highlight_path" in geographicTools, true);
 
 console.log("verify-ai-capabilities: ok");

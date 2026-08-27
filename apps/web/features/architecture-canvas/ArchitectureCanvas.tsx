@@ -33,7 +33,6 @@ import {
 } from "@/features/architecture-canvas/PlaygroundHudPlates";
 import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { SimBar } from "@/features/architecture-canvas/SimBar";
-import { TracePresentationPanel } from "@/features/traffic-playback/TracePresentationPanel";
 import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
@@ -122,7 +121,6 @@ function ArchitectureWorkspace() {
               challenge={activeChallenge}
               selectedComponentId={workspace.selectedComponentId}
               worldSelection={workspace.worldSelection}
-              highlightedTrace={workspace.agentTrace}
               showSimulationVisuals={workspace.showSimulationVisuals}
               resultIsStale={workspace.resultIsStale}
               geographicRoutes={
@@ -173,14 +171,6 @@ function ArchitectureWorkspace() {
 
           <aside className="playground-inspector-column">
             <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
-            <TracePresentationPanel
-              architecture={workspace.architecture}
-              challenge={activeChallenge}
-              onFocusComponent={workspace.onSelectComponent}
-              onClear={workspace.clearSelection}
-              externalTrace={workspace.agentTrace}
-              onClearExternalTrace={workspace.clearAgentTrace}
-            />
             {publishedExperiment ? (
               <ExperimentResultPanel
                 result={publishedExperiment.result}
@@ -227,7 +217,6 @@ function ArchitectureWorkspace() {
                     onAttention={workspace.setAttentionComponentId}
                     onShowOnCanvas={workspace.focusComponentInPresentation}
                     onShowRegionOnMap={workspace.focusRegionInPresentation}
-                    onHighlightTrace={workspace.highlightTraceInPresentation}
                     onPinObservation={workspace.pinObservation}
                     onExperimentResult={publishResult}
                   />

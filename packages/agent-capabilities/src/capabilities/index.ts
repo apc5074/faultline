@@ -18,7 +18,6 @@ import { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
 import { flushCacheCapability } from "./flush-cache.js";
 import { injectComponentFailureCapability } from "./inject-component-failure.js";
 import { injectRegionFailureCapability } from "./inject-region-failure.js";
-import { traceRequestCapability } from "./trace-request.js";
 import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 
 export {
@@ -95,19 +94,16 @@ export {
   clearAnnotationsCapability,
   focusComponentCapability,
   focusRegionCapability,
-  highlightPathCapability,
   pinObservationCapability,
   highlightConnectionCapability,
 } from "./visual-capabilities.js";
-export type { ClearAnnotationsIntent, FocusRegionIntent, HighlightTraceIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
+export type { ClearAnnotationsIntent, FocusRegionIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
 export type { PinObservationIntent, PinnedObservation } from "../pin-observation.js";
 export { runLoadTestCapability } from "./run-load-test.js";
 export { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
 export { flushCacheCapability } from "./flush-cache.js";
 export { injectComponentFailureCapability } from "./inject-component-failure.js";
 export { injectRegionFailureCapability } from "./inject-region-failure.js";
-export { traceRequest, traceRequestCapability } from "./trace-request.js";
-export type { TraceRequestHop, TraceRequestOutput } from "./trace-request.js";
 export { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
@@ -131,7 +127,6 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     flushCacheCapability,
     injectComponentFailureCapability,
     injectRegionFailureCapability,
-    traceRequestCapability,
     inspectBottlenecksCapability,
   ]);
 }

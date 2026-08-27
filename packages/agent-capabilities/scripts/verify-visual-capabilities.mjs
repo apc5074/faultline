@@ -7,8 +7,6 @@ import {
   createEmptyAgentSessionState,
   focusComponentCapability,
   focusRegionCapability,
-  highlightPathCapability,
-  traceRequest,
 } from "../dist/index.js";
 
 const architecture = {
@@ -47,7 +45,6 @@ const registry = createDefaultCapabilityRegistry();
 assert.match(focusComponentCapability.description, /Inspect read tools first/);
 assert.equal(focusComponentCapability.mode, "visual");
 assert.equal(focusRegionCapability.mode, "visual");
-assert.equal(highlightPathCapability.mode, "visual");
 
 const missingFocus = await registry.invoke(
   "focus_component",
@@ -99,17 +96,6 @@ const missingRegion = await registry.invoke(
 );
 assert.equal(missingRegion.ok, false);
 if (!missingRegion.ok) assert.equal(missingRegion.code, "NOT_FOUND");
-
-const highlightedPath = await registry.invoke(
-  "highlight_path",
-  geographicContext,
-  { originRegionId: "us-east", kind: "redirect" },
-  { session: createEmptyAgentSessionState() },
-);
-assert.deepEqual(highlightedPath, (() => {
-  const traced = traceRequest(geographicContext, { originRegionId: "us-east", kind: "redirect" });
-  return traced.ok ? { ok: true, data: { trace: traced.data } } : traced;
-})());
 
 const longNote = await registry.invoke(
   "annotate_component",

@@ -2,7 +2,6 @@ import type { CapabilityExecutionOptions } from "../capability.js";
 import type { AgentCapability } from "../capability.js";
 import type { AgentContext } from "../context.js";
 import type { CapabilityResult } from "../result.js";
-import { traceRequestInputSchema, type TraceRequestInput } from "../schemas.js";
 import {
   annotateComponentInputSchema,
   clearAnnotationsInputSchema,
@@ -22,16 +21,14 @@ import {
   clearAnnotations,
   focusComponent,
   focusRegion,
-  highlightPath,
   highlightConnection,
   type ClearAnnotationsIntent,
   type FocusRegionIntent,
-  type HighlightTraceIntent,
   type VisualAnnotationIntent,
 } from "../visual-executors.js";
 import { pinObservation, type PinObservationIntent } from "../pin-observation.js";
 
-export type { ClearAnnotationsIntent, FocusRegionIntent, HighlightTraceIntent, VisualAnnotationIntent } from "../visual-executors.js";
+export type { ClearAnnotationsIntent, FocusRegionIntent, VisualAnnotationIntent } from "../visual-executors.js";
 export {
   annotateComponent,
   appendValidatedAnnotations,
@@ -39,7 +36,6 @@ export {
   countAnnotationsToClear,
   focusComponent,
   focusRegion,
-  highlightPath,
   highlightConnection,
 } from "../visual-executors.js";
 
@@ -81,25 +77,6 @@ export const focusRegionCapability: AgentCapability<
   },
   execute(context, input) {
     return focusRegion(context, input);
-  },
-};
-
-export const highlightPathCapability: AgentCapability<
-  AgentContext,
-  TraceRequestInput,
-  CapabilityResult<HighlightTraceIntent>
-> = {
-  name: "highlight_path",
-  description: "Highlight a simulator-resolved geographic redirect or write trace; it never accepts drawing coordinates.",
-  inputSchema: traceRequestInputSchema,
-  mode: "visual",
-  availableWhen: (context) => (context.challenge.geographicDistribution?.length ?? 0) > 0,
-  annotations: {
-    readOnlyHint: false,
-    destructiveHint: false,
-  },
-  execute(context, input) {
-    return highlightPath(context, input);
   },
 };
 
@@ -180,6 +157,5 @@ export const BASELINE_VISUAL_CAPABILITIES = [
   highlightConnectionCapability,
   clearAnnotationsCapability,
   focusRegionCapability,
-  highlightPathCapability,
   pinObservationCapability,
 ] as const;

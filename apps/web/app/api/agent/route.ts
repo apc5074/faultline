@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_AGENT_REQUEST_BYTES = 64_000;
 const encoder = new TextEncoder();
-const visualToolNames = new Set(["focus_component", "focus_region", "highlight_path", "pin_observation", "annotate_component", "highlight_connection", "clear_annotations"]);
+const visualToolNames = new Set(["focus_component", "focus_region", "pin_observation", "annotate_component", "highlight_connection", "clear_annotations"]);
 
 function activityLabel(toolName: string, input: unknown): { label: string; componentId?: string } | null {
   if (toolName === "get_architecture") return { label: "Inspecting architecture…" };
@@ -25,7 +25,6 @@ function activityLabel(toolName: string, input: unknown): { label: string; compo
   if (toolName === "inspect_cache") return { label: "Inspecting cache…" };
   if (toolName === "inspect_replication") return { label: "Inspecting replication…" };
   if (toolName === "inspect_regional_traffic") return { label: "Inspecting regional traffic…" };
-  if (toolName === "trace_request") return { label: "Tracing a simulator request path…" };
   if (toolName === "inspect_bottlenecks") return { label: "Ranking simulator bottlenecks…" };
   if (["run_load_test", "change_traffic_pattern", "flush_cache", "inject_component_failure", "inject_region_failure"].includes(toolName)) return { label: "Running simulated experiment…" };
   return null;

@@ -26,7 +26,7 @@ export const PHASE_8_EXPERIMENT_CAPABILITY_NAMES = [
   "inject_component_failure",
   "inject_region_failure",
 ] as const;
-export const PHASE_8_READ_CAPABILITY_NAMES = ["trace_request", "inspect_bottlenecks"] as const;
+export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 
 export type BaselineReadCapabilityName = (typeof BASELINE_READ_CAPABILITY_NAMES)[number];
 export type Phase7DynamicCapabilityName = (typeof PHASE_7_DYNAMIC_CAPABILITY_NAMES)[number];
@@ -41,7 +41,6 @@ export const BASELINE_VISUAL_CAPABILITY_NAMES = [
   "highlight_connection",
   "clear_annotations",
   "focus_region",
-  "highlight_path",
   "pin_observation",
 ] as const;
 

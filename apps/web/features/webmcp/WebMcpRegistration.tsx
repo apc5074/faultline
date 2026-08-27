@@ -10,7 +10,7 @@ import {
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
 import type { ExperimentResult, RegionId } from "@faultline/core";
-import type { PinnedObservation, TraceRequestOutput } from "@faultline/agent-capabilities";
+import type { PinnedObservation } from "@faultline/agent-capabilities";
 import type { WebMcpStatus } from "./WebMcpStatusPlate";
 
 /**
@@ -22,7 +22,6 @@ export function WebMcpRegistration({
   onStatusChange,
   onFocusComponent,
   onFocusRegion,
-  onHighlightTrace,
   onPinObservation,
   onExperimentResult,
 }: {
@@ -30,7 +29,6 @@ export function WebMcpRegistration({
   onStatusChange: (status: WebMcpStatus) => void;
   onFocusComponent?: (componentId: string) => void;
   onFocusRegion?: (regionId: RegionId) => void;
-  onHighlightTrace?: (trace: TraceRequestOutput) => void;
   onPinObservation?: (observation: PinnedObservation) => void;
   onExperimentResult?: (result: ExperimentResult) => void;
 }) {
@@ -38,8 +36,8 @@ export function WebMcpRegistration({
   const sessionStore = useAgentSessionStore();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const onVisualIntent = useMemo(
-    () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onHighlightTrace, onPinObservation }),
-    [onFocusComponent, onFocusRegion, onHighlightTrace, onPinObservation, sessionStore],
+    () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onPinObservation }),
+    [onFocusComponent, onFocusRegion, onPinObservation, sessionStore],
   );
 
   useEffect(() => {

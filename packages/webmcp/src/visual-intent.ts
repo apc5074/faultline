@@ -6,7 +6,6 @@ import type {
   ClearAnnotationsInput,
   ClearAnnotationsIntent,
   FocusRegionIntent,
-  HighlightTraceIntent,
   PinObservationIntent,
   VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
@@ -15,10 +14,6 @@ export type VisualIntent =
   | {
       readonly kind: "pin_observation";
       readonly observation: PinObservationIntent["observation"];
-    }
-  | {
-      readonly kind: "highlight_trace";
-      readonly trace: HighlightTraceIntent["trace"];
     }
   | {
       readonly kind: "focus_region";
@@ -43,14 +38,13 @@ const visualCapabilityNames = new Set([
   "highlight_connection",
   "clear_annotations",
   "focus_region",
-  "highlight_path",
   "pin_observation",
 ]);
 
 export function publishVisualIntent(
   capabilityName: string,
   input: unknown,
-  result: CapabilityResult<VisualAnnotationIntent | ClearAnnotationsIntent | FocusRegionIntent | HighlightTraceIntent | PinObservationIntent>,
+  result: CapabilityResult<VisualAnnotationIntent | ClearAnnotationsIntent | FocusRegionIntent | PinObservationIntent>,
   onVisualIntent: VisualIntentHandler,
 ): void {
   if (!result.ok) return;
@@ -75,11 +69,6 @@ export function publishVisualIntent(
 
   if (capabilityName === "focus_region" && "regionId" in result.data) {
     onVisualIntent({ kind: "focus_region", regionId: (result.data as FocusRegionIntent).regionId });
-    return;
-  }
-
-  if (capabilityName === "highlight_path" && "trace" in result.data) {
-    onVisualIntent({ kind: "highlight_trace", trace: (result.data as HighlightTraceIntent).trace });
     return;
   }
 

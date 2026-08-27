@@ -3,7 +3,7 @@
 import { useReactFlow, type Connection as FlowConnection, type Edge, type EdgeChange, type NodeChange } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
-import { architectureAvailabilityFingerprint, type PinnedObservation, type TraceRequestOutput } from "@faultline/agent-capabilities";
+import { architectureAvailabilityFingerprint, type PinnedObservation } from "@faultline/agent-capabilities";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import { componentRegistry } from "@faultline/component-catalog";
 import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type ExperimentResult, type RegionDeployment, type RegionId } from "@faultline/core";
@@ -61,7 +61,6 @@ export function usePlaygroundWorkspace() {
   const [attentionComponentId, setAttentionComponentId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
   const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
-  const [agentTrace, setAgentTrace] = useState<TraceRequestOutput | null>(null);
   const [pinnedObservations, setPinnedObservations] = useState<readonly PinnedObservation[]>([]);
   const [runState, setRunState] = useState<SimulationRunState>("idle");
   const [simulationResult, setSimulationResult] = useState<SuccessfulSimulation | null>(null);
@@ -910,11 +909,6 @@ export function usePlaygroundWorkspace() {
     setWorldSelection({ kind: "region", regionId });
   }, []);
 
-  const highlightTraceInPresentation = useCallback((trace: TraceRequestOutput) => {
-    setViewMode("world");
-    setAgentTrace(trace);
-  }, []);
-
   return {
     architecture,
     paletteDefinitions,
@@ -925,7 +919,6 @@ export function usePlaygroundWorkspace() {
     setAttentionComponentId,
     viewMode,
     worldSelection,
-    agentTrace,
     pinnedObservations,
     runState,
     simulationResult,
@@ -965,11 +958,9 @@ export function usePlaygroundWorkspace() {
     onSelectComponent,
     onSelectRegion,
     clearSelection,
-    clearAgentTrace: () => setAgentTrace(null),
     pinObservation: (observation: PinnedObservation) => setPinnedObservations((current) => [...current.filter((entry) => `${entry.target}:${entry.id}:${entry.metricId}` !== `${observation.target}:${observation.id}:${observation.metricId}`), observation].slice(-6)),
     clearPinnedObservations: () => setPinnedObservations([]),
     focusComponentInPresentation,
     focusRegionInPresentation,
-    highlightTraceInPresentation,
   };
 }

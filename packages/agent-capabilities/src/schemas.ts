@@ -108,33 +108,6 @@ export const injectRegionFailureInputSchema: CapabilityInputSchema<InjectRegionF
   },
 };
 
-export interface TraceRequestInput {
-  readonly originRegionId?: string;
-  readonly kind?: "redirect" | "write";
-}
-
-export const traceRequestInputSchema: CapabilityInputSchema<TraceRequestInput> = {
-  jsonSchema: {
-    type: "object",
-    properties: {
-      originRegionId: { type: "string", minLength: 1 },
-      kind: { type: "string", enum: ["redirect", "write"] },
-    },
-    additionalProperties: false,
-  },
-  safeParse(input: unknown) {
-    if (input === undefined || input === null) return { success: true as const, data: {} };
-    if (!isRecord(input)) return { success: false as const, errors: ["trace_request input must be an object."] };
-    if (!hasOnlyKeys(input, ["originRegionId", "kind"])) return { success: false as const, errors: ["trace_request input contains unknown properties."] };
-    if (input.originRegionId !== undefined && (typeof input.originRegionId !== "string" || input.originRegionId.trim().length === 0)) return { success: false as const, errors: ["originRegionId must be a non-empty string when provided."] };
-    if (input.kind !== undefined && input.kind !== "redirect" && input.kind !== "write") return { success: false as const, errors: ["kind must be redirect or write when provided."] };
-    return { success: true as const, data: {
-      ...(input.originRegionId !== undefined ? { originRegionId: input.originRegionId } : {}),
-      ...(input.kind !== undefined ? { kind: input.kind } : {}),
-    } };
-  },
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

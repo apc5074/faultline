@@ -20,7 +20,7 @@ plan or package source code.
   latency under absorb, hot-key geo path, geo transfer cost, geo requirements
   aggregation, Service scaling UX, Router/LB inspector teaching, Traffic Source
   origin hardening, Postgres/Redis regional controls, World map arcs; next
-  logical playback under geo, geo failure / trace hooks, docs sync; next
+  logical playback under geo, geo failure hooks, docs sync; next
   **GEO-20** geo verification umbrella).
   Older phase plans under
   `plans/phase N/` apply only when the ticket points there.
@@ -82,7 +82,7 @@ existing import path before creating a new abstraction.
   routing, capacity, latency, cost, and experiment outcomes.
 - Embedded AI and WebMCP share semantic capabilities and schemas. Adapters
   translate and register; they do not duplicate domain logic.
-- Agents may inspect, trace, annotate, and run explicitly supported temporary
+- Agents may inspect, annotate, and run explicitly supported temporary
   experiments, but may not mutate architecture, official attempts, or
   leaderboard state.
 - Geography, workload affinity, cache behavior, hot-key behavior, and cost are

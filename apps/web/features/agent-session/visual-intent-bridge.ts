@@ -1,4 +1,4 @@
-import type { PinnedObservation, TraceRequestOutput } from "@faultline/agent-capabilities";
+import type { PinnedObservation } from "@faultline/agent-capabilities";
 import type { Architecture, RegionId } from "@faultline/core";
 import type { VisualIntent, VisualIntentHandler } from "@faultline/webmcp";
 
@@ -11,7 +11,6 @@ export interface VisualCommandPublisherOptions {
    */
   readonly onFocusComponent?: (componentId: string) => void;
   readonly onFocusRegion?: (regionId: RegionId) => void;
-  readonly onHighlightTrace?: (trace: TraceRequestOutput) => void;
   readonly onPinObservation?: (observation: PinnedObservation) => void;
 }
 
@@ -28,10 +27,6 @@ export function createVisualCommandPublisher(
   return (intent: VisualIntent) => {
     if (intent.kind === "focus_region") {
       options.onFocusRegion?.(intent.regionId);
-      return;
-    }
-    if (intent.kind === "highlight_trace") {
-      options.onHighlightTrace?.(intent.trace);
       return;
     }
     if (intent.kind === "pin_observation") {

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import type { Architecture, RegionId } from "@faultline/core";
 import type { ExperimentResult } from "@faultline/core";
-import type { CapabilityResult, ClearAnnotationsIntent, FocusRegionIntent, HighlightTraceIntent, PinObservationIntent, PinnedObservation, TraceRequestOutput, VisualAnnotationIntent } from "@faultline/agent-capabilities";
+import type { CapabilityResult, ClearAnnotationsIntent, FocusRegionIntent, PinObservationIntent, PinnedObservation, VisualAnnotationIntent } from "@faultline/agent-capabilities";
 import { publishVisualIntent } from "@faultline/webmcp";
 
 import { useAgentSessionStore } from "@/features/agent-session/AgentSessionProvider";
@@ -18,7 +18,6 @@ export function AiEngineerPanel({
   onAttention,
   onShowOnCanvas,
   onShowRegionOnMap,
-  onHighlightTrace,
   onPinObservation,
   onExperimentResult,
 }: {
@@ -26,7 +25,6 @@ export function AiEngineerPanel({
   onAttention?: (componentId: string | null) => void;
   onShowOnCanvas?: (componentId: string) => void;
   onShowRegionOnMap?: (regionId: RegionId) => void;
-  onHighlightTrace?: (trace: TraceRequestOutput) => void;
   onPinObservation?: (observation: PinnedObservation) => void;
   onExperimentResult?: (result: ExperimentResult) => void;
 }) {
@@ -34,7 +32,6 @@ export function AiEngineerPanel({
   const onVisualIntent = createVisualCommandPublisher(sessionStore, {
     onFocusComponent: onShowOnCanvas,
     onFocusRegion: onShowRegionOnMap,
-    onHighlightTrace,
     onPinObservation,
   });
   const [open, setOpen] = useState(false);
@@ -67,7 +64,7 @@ export function AiEngineerPanel({
         setStatus(body?.code === "ai_limit_reached" ? "limited" : "error"); return;
       }
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let answer = ""; let buffer = "";
-      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split("\n"); buffer = lines.pop() ?? ""; for (const line of lines) { if (!line) continue; const event = JSON.parse(line) as { type: string; delta?: string; label?: string; componentId?: string; result?: ExperimentResult; capabilityName?: string; input?: unknown; visualResult?: CapabilityResult<VisualAnnotationIntent | ClearAnnotationsIntent | FocusRegionIntent | HighlightTraceIntent | PinObservationIntent> }; if (event.type === "activity") { setActivity(event.label ?? null); const componentId = event.componentId; const validId = componentId && architecture.components.some((component) => component.id === componentId) ? componentId : null; if (validId) setReferenceComponentId(validId); onAttention?.(validId); } if (event.type === "experiment-result" && event.result) onExperimentResult?.(event.result); if (event.type === "visual-intent" && event.capabilityName && event.visualResult && onVisualIntent) publishVisualIntent(event.capabilityName, event.input, event.visualResult, onVisualIntent); if (event.type === "text") { answer += event.delta ?? ""; setMessages((current) => [...current.slice(0, -1), { role: "assistant", content: answer }]); } } }
+      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split("\n"); buffer = lines.pop() ?? ""; for (const line of lines) { if (!line) continue; const event = JSON.parse(line) as { type: string; delta?: string; label?: string; componentId?: string; result?: ExperimentResult; capabilityName?: string; input?: unknown; visualResult?: CapabilityResult<VisualAnnotationIntent | ClearAnnotationsIntent | FocusRegionIntent | PinObservationIntent> }; if (event.type === "activity") { setActivity(event.label ?? null); const componentId = event.componentId; const validId = componentId && architecture.components.some((component) => component.id === componentId) ? componentId : null; if (validId) setReferenceComponentId(validId); onAttention?.(validId); } if (event.type === "experiment-result" && event.result) onExperimentResult?.(event.result); if (event.type === "visual-intent" && event.capabilityName && event.visualResult && onVisualIntent) publishVisualIntent(event.capabilityName, event.input, event.visualResult, onVisualIntent); if (event.type === "text") { answer += event.delta ?? ""; setMessages((current) => [...current.slice(0, -1), { role: "assistant", content: answer }]); } } }
       setActivity(null); setStatus("idle");
     } catch { onAttention?.(null); setMessages((current) => current.slice(0, -1)); setStatus("error"); }
   }

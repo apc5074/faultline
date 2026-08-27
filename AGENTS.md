@@ -100,7 +100,7 @@ Do not duplicate domain logic between AI SDK tools and WebMCP tools.
 
 AI interprets simulator evidence; it does not invent metrics or decide correctness.
 
-During active challenges agents may inspect, test, trace, and inject simulated failures, but must not modify the architecture.
+During active challenges agents may inspect, test, and inject simulated failures, but must not modify the architecture.
 
 ## Level Development
 

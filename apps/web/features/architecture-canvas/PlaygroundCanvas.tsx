@@ -14,7 +14,6 @@ import {
 import type { Dispatch, DragEvent, SetStateAction } from "react";
 
 import type { Architecture, ChallengeDefinition, ExperimentResult, RegionId } from "@faultline/core";
-import type { TraceRequestOutput } from "@faultline/agent-capabilities";
 import type { GeographicRoute } from "@faultline/simulator";
 
 import { AgentAnnotationLayer } from "@/features/agent-annotations";
@@ -49,7 +48,6 @@ export type PlaygroundCanvasProps = {
   challenge: ChallengeDefinition;
   selectedComponentId: string | null;
   worldSelection: WorldMapSelection;
-  highlightedTrace: TraceRequestOutput | null;
   showSimulationVisuals: boolean;
   resultIsStale: boolean;
   geographicRoutes: readonly GeographicRoute[];
@@ -81,7 +79,6 @@ export function PlaygroundCanvas({
   challenge,
   selectedComponentId,
   worldSelection,
-  highlightedTrace,
   showSimulationVisuals,
   resultIsStale,
   geographicRoutes,
@@ -184,7 +181,6 @@ export function PlaygroundCanvas({
           challenge={challenge}
           selectedComponentId={selectedComponentId}
           selection={worldSelection}
-          highlightedTrace={highlightedTrace}
           geographicRoutes={showSimulationVisuals && !resultIsStale ? geographicRoutes : []}
           routesActive={showSimulationVisuals && !resultIsStale}
           regionFailure={regionFailurePresentationFromEvents(experimentPresentation?.events)}

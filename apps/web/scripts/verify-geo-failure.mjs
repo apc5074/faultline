@@ -1,10 +1,6 @@
-/** GEO-17 — geo trace/highlight and simulated region-failure identity wiring. */
+/** GEO-17 — simulated region-failure identity wiring. */
 import assert from "node:assert/strict";
 
-import {
-  highlightPath,
-  traceRequest,
-} from "@faultline/agent-capabilities";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateExperiment } from "@faultline/simulator";
 import {
@@ -15,21 +11,6 @@ import {
 import { regionFailurePresentationFromEvents } from "../features/world-map/region-failure-presentation.ts";
 
 const architecture = createSevenComponentArchitecture({ regional: true });
-const context = { architecture, challenge: level1CompositionChallenge };
-
-const trace = traceRequest(context, { originRegionId: "us-east", kind: "redirect" });
-assert.equal(trace.ok, true);
-if (!trace.ok) throw new Error("expected regional trace");
-assert.equal(trace.data.geographic, true);
-assert.ok(trace.data.hops.length > 0, "regional trace should contain simulator route hops");
-assert.ok(trace.data.hops.every((hop) =>
-  hop.componentId && hop.deploymentId && hop.originRegionId && hop.destinationRegionId,
-), "geo trace hops must retain component, deployment, and region IDs");
-assert.ok(trace.data.hops.every((hop) => hop.originRegionId === "us-east"));
-
-const highlighted = highlightPath(context, { originRegionId: "us-east", kind: "redirect" });
-assert.equal(highlighted.ok, true);
-if (highlighted.ok) assert.deepEqual(highlighted.data.trace, trace.data);
 
 const failure = evaluateExperiment({
   architecture,
@@ -49,4 +30,4 @@ assert.deepEqual(presentation?.failedRegionIds, ["us-east"]);
 assert.deepEqual(presentation?.failedComponentIds, []);
 assert.ok(presentation?.databaseUnavailableRegionIds.includes("us-east"));
 
-console.log("geo failure and trace hooks verified");
+console.log("geo failure hooks verified");

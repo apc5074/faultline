@@ -52,7 +52,7 @@
     "verify:geo-origins": "node --experimental-strip-types scripts/verify-geo-origins.mjs",
     "verify:geo-store-controls": "node --experimental-strip-types scripts/verify-geo-store-controls.mjs",
     "verify:geo-world-map": "pnpm run build:deps && node --experimental-strip-types scripts/verify-geo-world-map.mjs",
-    "verify:geo-failure-trace": "pnpm run build:deps && node --experimental-strip-types scripts/verify-geo-failure-trace.mjs",
+    "verify:geo-failure": "pnpm run build:deps && node --experimental-strip-types scripts/verify-geo-failure.mjs",
     "verify:submission-limit": "node --experimental-strip-types scripts/verify-submission-limit.mjs",
     "verify:security-headers": "node --experimental-strip-types scripts/verify-security-headers.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"

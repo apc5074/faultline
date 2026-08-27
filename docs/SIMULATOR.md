@@ -83,7 +83,7 @@ Otherwise `propagateTraffic` keeps Phase 1/2 **logical** forwarding (CDN/LB/Rout
 
 For each traffic origin, candidates are Services reachable over the logical request graph. Unhealthy regions are ignored. Selection uses lowest `getRegionLatencyMs`, ties by `componentId` then `deploymentId`. Results expose `geographicRoutes` and `regionalTraffic` for visualization. Regional service overload uses per-deployment capacity.
 
-Trace and failure presentation preserve the simulator's geographic identities (`componentId`, `deploymentId`, origin/destination region). A simulated region failure reports only emitted unavailable/reroute evidence; it never promotes replicas or invents a failover event.
+Failure presentation preserves the simulator's geographic identities (`componentId`, `deploymentId`, origin/destination region). A simulated region failure reports only emitted unavailable/reroute evidence; it never promotes replicas or invents a failover event.
 
 ## World map
 

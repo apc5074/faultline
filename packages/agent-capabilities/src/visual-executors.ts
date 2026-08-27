@@ -20,8 +20,6 @@ import type {
   FocusRegionInput,
   HighlightConnectionInput,
 } from "./visual-schemas.js";
-import type { TraceRequestInput } from "./schemas.js";
-import { traceRequest, type TraceRequestOutput } from "./capabilities/trace-request.js";
 
 export interface VisualAnnotationIntent {
   readonly annotation: AgentFocusAnnotation | AgentNoteAnnotation | AgentPathAnnotation;
@@ -34,11 +32,6 @@ export interface ClearAnnotationsIntent {
 /** Canonical world-map target; carries no derived routing or health state. */
 export interface FocusRegionIntent {
   readonly regionId: RegionId;
-}
-
-/** A trace returned unchanged from the shared trace_request resolver. */
-export interface HighlightTraceIntent {
-  readonly trace: TraceRequestOutput;
 }
 
 function sessionFromOptions(options?: CapabilityExecutionOptions): AgentSessionState {
@@ -99,15 +92,6 @@ export function focusRegion(
     return capabilityError("NOT_FOUND", `Region "${input.regionId}" is not active for this challenge.`);
   }
   return capabilityOk({ regionId: input.regionId });
-}
-
-export function highlightPath(
-  context: AgentContext,
-  input: TraceRequestInput,
-): CapabilityResult<HighlightTraceIntent> {
-  const trace = traceRequest(context, input);
-  if (!trace.ok) return trace;
-  return capabilityOk({ trace: trace.data });
 }
 
 export function annotateComponent(

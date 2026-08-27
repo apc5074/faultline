@@ -3442,12 +3442,6 @@ h1 {
   white-space: pre-line;
 }
 
-.trace-presentation { padding: 0.7rem; border: 1px solid var(--color-ink-hairline); font-size: 0.68rem; }
-.trace-presentation__heading { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; text-transform: uppercase; }
-.trace-presentation__hops { margin: 0.6rem 0 0; padding-left: 1.25rem; }
-.trace-presentation__hops button { max-width: 100%; border: 0; background: transparent; color: var(--color-ink); cursor: pointer; font: inherit; text-align: left; text-decoration: underline; }
-.trace-presentation__terminal { color: var(--color-signal-red); font-weight: 800; text-transform: uppercase; }
-
 .playback-packet {
   pointer-events: none;
 }
