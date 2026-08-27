@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Space_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
+
 import "./globals.css";
 
 const spaceMono = Space_Mono({
@@ -16,7 +18,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const webMcpOriginTrialToken = process.env.NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN;
+  const webMcpOriginTrialToken = isFaultlineAiEnabled()
+    ? process.env.NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN
+    : undefined;
 
   return (
     <html lang="en" className={spaceMono.variable}>

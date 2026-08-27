@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { parseAgentRequest } from "@/lib/ai/agent-request";
 import { createAgentContext } from "@/lib/agent-context/create-agent-context";
+import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 import { streamFaultlineGatewayAgent } from "@/lib/ai/stream-agent";
 import { resolveAgentModelId } from "@/lib/ai/model";
 import { AGENT_GUEST_COOKIE, completeAgentUsage, createAgentGuestId, isAgentGuestId, reserveAgentUsage } from "@/lib/ai/usage";
@@ -63,6 +64,17 @@ function withGuestCookie(response: Response, guestId: string, shouldSet: boolean
  * from the trusted challenge row and the shared deterministic simulator.
  */
 export async function POST(request: Request): Promise<Response> {
+  if (!isFaultlineAiEnabled()) {
+    return Response.json(
+      {
+        ok: false,
+        code: "ai_disabled",
+        error: "AI Engineer is disabled on this deployment.",
+      },
+      { status: 503 },
+    );
+  }
+
   const contentLength = request.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_AGENT_REQUEST_BYTES) {
     return Response.json({ ok: false, code: "payload_too_large", error: "AI request is too large." }, { status: 413 });

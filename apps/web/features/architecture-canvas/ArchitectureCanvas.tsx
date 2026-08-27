@@ -23,16 +23,23 @@ import {
 import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { SimBar } from "@/features/architecture-canvas/SimBar";
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
+import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
+  const aiEnabled = isFaultlineAiEnabled();
 
-  return (
-    <AgentSessionProvider architecture={workspace.architecture} challenge={activeChallenge}>
-      <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} />
-      <WebMcpRegistration reconciliationKey={workspace.webMcpReconciliationKey} />
-      <LevelBriefing open={briefing.open} onClose={briefing.closeBriefing} />
+  const shell = (
+    <>
+      {aiEnabled ? <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} /> : null}
+      {aiEnabled ? <WebMcpRegistration reconciliationKey={workspace.webMcpReconciliationKey} /> : null}
+      <LevelBriefing
+        open={briefing.open}
+        step={briefing.step}
+        onAdvance={briefing.advanceToProblem}
+        onClose={briefing.closeBriefing}
+      />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
           <p className="playground-topbar__wordmark">Faultline</p>
@@ -94,11 +101,13 @@ function ArchitectureWorkspace() {
               expanded={workspace.dataPlatesExpanded}
               onToggle={() => workspace.setDataPlatesExpanded((current) => !current)}
             >
-              <p className="sr-only" aria-live="polite">
-                {workspace.attentionComponentId
-                  ? `AI Engineer is inspecting ${workspace.attentionComponentId}.`
-                  : ""}
-              </p>
+              {aiEnabled ? (
+                <p className="sr-only" aria-live="polite">
+                  {workspace.attentionComponentId
+                    ? `AI Engineer is inspecting ${workspace.attentionComponentId}.`
+                    : ""}
+                </p>
+              ) : null}
               <RequirementsHud
                 result={workspace.simulationResult}
                 runState={workspace.runState}
@@ -120,11 +129,13 @@ function ArchitectureWorkspace() {
               <StartOfficialAttempt />
               <PlayerRankHud />
               <LeaderboardHud />
-              <AiEngineerPanel
-                architecture={workspace.architecture}
-                onAttention={workspace.setAttentionComponentId}
-                onShowOnCanvas={workspace.focusComponentOnCanvas}
-              />
+              {aiEnabled ? (
+                <AiEngineerPanel
+                  architecture={workspace.architecture}
+                  onAttention={workspace.setAttentionComponentId}
+                  onShowOnCanvas={workspace.focusComponentOnCanvas}
+                />
+              ) : null}
             </PlaygroundDataPlates>
             <div className="playground-inspector">
               <DataPlateInspector
@@ -163,6 +174,14 @@ function ArchitectureWorkspace() {
           selectedComponentId={workspace.selectedComponentId}
         />
       </section>
+    </>
+  );
+
+  if (!aiEnabled) return shell;
+
+  return (
+    <AgentSessionProvider architecture={workspace.architecture} challenge={activeChallenge}>
+      {shell}
     </AgentSessionProvider>
   );
 }

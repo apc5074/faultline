@@ -13,9 +13,10 @@ The Vercel project deploys `apps/web` (Root Directory). Its production branch is
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe | Optional legacy fallback | Local `.env`; Vercel Preview/Production environment settings |
+| `NEXT_PUBLIC_FAULTLINE_AI_ENABLED` | Browser-safe feature flag | No (defaults off) | Local `.env`; Vercel Preview/Production **Environment Variables** (plain config, not a secret) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only | No | Local `.env`; Vercel Preview/Production environment settings |
-| `AI_GATEWAY_API_KEY` | Server-only | No; P0-006 | Local `.env`; Vercel Preview/Production environment settings |
-| `FAULTLINE_AGENT_MODEL` | Server-only | No; P0-006 | Local `.env`; Vercel Preview/Production environment settings |
+| `AI_GATEWAY_API_KEY` | Server-only secret | Only when AI enabled | Local `.env`; Vercel Preview/Production **Secrets** |
+| `FAULTLINE_AGENT_MODEL` | Server-only | Only when AI enabled | Local `.env`; Vercel Preview/Production environment settings |
 
 Only `NEXT_PUBLIC_*` variables may be exposed to browser code. Server-only values must be read by server-side code only and must never be copied into a `NEXT_PUBLIC_*` variable or returned in a response. Legacy or provider-specific variable names are not part of this contract.
 
@@ -37,7 +38,7 @@ Supabase will provide Postgres and Vercel AI Gateway will provide model access t
 
 `pnpm probe:ai-gateway` is an operator-only server-side verification script. It uses AI Gateway's OpenAI-compatible Chat Completions API to make one tiny request, returns only `online`, `unauthorized`, `unavailable`, or `misconfigured`, and never prints a credential or model response. This script is deliberately not an HTTP route, so it cannot become an unauthenticated billable endpoint.
 
-Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Preview/Production settings. For the Phase 0 connectivity test, use `openai/gpt-5-nano`: it is the current low-cost model ID available through AI Gateway. No chat UI, agent loop, or capability implementation is included.
+Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Preview/Production settings when `NEXT_PUBLIC_FAULTLINE_AI_ENABLED=true`. For the Phase 0 connectivity test, use `openai/gpt-5-nano`: it is the current low-cost model ID available through AI Gateway. With the AI flag unset/false, the AI Engineer UI, help chips, annotations, WebMCP registration, and `/api/agent` stay off and the gateway key is unused.
 
 **Verification — 2026-08-25:** an operator confirmed the local probe succeeds with the authorized Gateway configuration. The script's operator-only execution is the access control for this billable request.
 

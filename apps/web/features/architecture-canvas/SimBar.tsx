@@ -7,6 +7,7 @@ import type { RequirementsEvaluationResult, SimulationValidationError } from "@f
 import type { PlaybackSpeed } from "@/features/traffic-playback";
 
 import { AgentHelpChips } from "@/features/agent-session/AgentHelpChips";
+import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
 type SimulationRunState = "idle" | "running" | "complete" | "error";
@@ -237,7 +238,7 @@ export function SimBar({
 
       <div className="sim-bar__spacer" />
 
-      <AgentHelpChips selectedComponentId={selectedComponentId} />
+      {isFaultlineAiEnabled() ? <AgentHelpChips selectedComponentId={selectedComponentId} /> : null}
 
       <div className="sim-bar__divider" aria-hidden />
 

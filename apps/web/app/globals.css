@@ -601,6 +601,102 @@ main {
   padding: 1.1rem 1.2rem 0.35rem;
 }
 
+.level-briefing__header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.level-briefing__steps {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.level-briefing__steps span {
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: transparent;
+}
+
+.level-briefing__steps span.is-active {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+}
+
+.level-briefing__steps span.is-done {
+  border-color: var(--color-ink);
+  background: var(--color-ink-hairline);
+}
+
+.level-briefing__body--swap {
+  animation: level-briefing-swap 0.2s ease-out;
+}
+
+@keyframes level-briefing-swap {
+  from {
+    opacity: 0;
+    transform: translateX(0.45rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .level-briefing__body--swap {
+    animation: none;
+  }
+}
+
+.level-briefing__howto {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-briefing__howto li {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.level-briefing__howto-num {
+  color: var(--color-signal-red);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.level-briefing__howto h3 {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.level-briefing__howto p {
+  margin: 0;
+  color: var(--color-ink-faint);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.level-briefing__flow {
+  display: block;
+  width: 100%;
+  color: var(--color-ink);
+}
+
 .level-briefing__scenario {
   margin: 0;
   color: var(--color-ink);

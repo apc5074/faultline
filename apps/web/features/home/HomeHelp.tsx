@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
+
 function SystemFlowGraphic() {
   return (
     <svg className="home-help__flow" viewBox="0 0 520 74" role="img" aria-label="A request travels from a user through connected components to a data store.">
@@ -77,6 +79,7 @@ function InspectGraphic() {
 export function HomeHelp() {
   const [open, setOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const aiEnabled = isFaultlineAiEnabled();
 
   useEffect(() => {
     if (!open) return;
@@ -138,14 +141,16 @@ export function HomeHelp() {
                   <InspectGraphic />
                 </div>
               </li>
-              <li>
-                <span className="home-help__number">04</span>
-                <div>
-                  <h3>Bring an external agent into the loop</h3>
-                  <p>In compatible browsers, WebMCP lets an external agent use Faultline’s read-only tools to inspect the active challenge, your architecture, and simulator evidence. It can help explain the results, but it cannot edit your design or decide whether it passes.</p>
-                  <WebMcpGraphic />
-                </div>
-              </li>
+              {aiEnabled ? (
+                <li>
+                  <span className="home-help__number">04</span>
+                  <div>
+                    <h3>Bring an external agent into the loop</h3>
+                    <p>In compatible browsers, WebMCP lets an external agent use Faultline’s read-only tools to inspect the active challenge, your architecture, and simulator evidence. It can help explain the results, but it cannot edit your design or decide whether it passes.</p>
+                    <WebMcpGraphic />
+                  </div>
+                </li>
+              ) : null}
             </ol>
 
             <a className="home-help__play" href="/level/1?brief=1">
