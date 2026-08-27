@@ -8,7 +8,7 @@ import { LeaderboardHud } from "@/features/leaderboards/LeaderboardHud";
 import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
-import { AgentContextFactoryProvider } from "@/features/agent-context/AgentContextFactoryContext";
+import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
 import { WebMcpRegistration } from "@/features/webmcp/WebMcpRegistration";
 import { ComponentRail } from "@/features/architecture-canvas/ComponentRail";
 import { DataPlateInspector } from "@/features/architecture-canvas/DataPlateInspector";
@@ -26,7 +26,7 @@ function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
 
   return (
-    <AgentContextFactoryProvider factory={workspace.getAgentContext}>
+    <AgentSessionProvider architecture={workspace.architecture} challenge={activeChallenge}>
       <WebMcpRegistration reconciliationKey={workspace.webMcpReconciliationKey} />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
@@ -150,7 +150,7 @@ function ArchitectureWorkspace() {
           onSubmitOfficial={workspace.onSubmitOfficial}
         />
       </section>
-    </AgentContextFactoryProvider>
+    </AgentSessionProvider>
   );
 }
 

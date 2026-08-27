@@ -20,8 +20,6 @@ export interface ComponentPlaybackVisual {
   state: "idle" | "processing" | "overloaded" | "failed";
   /** Redis: brief solid fill on cache hit (no flicker). */
   cacheHitFlash?: boolean;
-  /** Postgres: permanent bands from completed writes. */
-  writeBands?: number;
 }
 
 export interface EdgeLoad {

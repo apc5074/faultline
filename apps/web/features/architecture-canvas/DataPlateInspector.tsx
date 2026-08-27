@@ -36,10 +36,11 @@ import { estimateMonthlyCost, type RequirementsEvaluationResult } from "@faultli
 import { useState, type ReactNode } from "react";
 
 import {
-  ComponentGlyph,
-  glyphPropsFromComponent,
-  MINI_GLYPH_SIZE,
-} from "@/features/playground-glyphs";
+  InspectorDataRow,
+  InspectorSegControl,
+  InspectorStepper,
+} from "@/features/architecture-canvas/InspectorPlateControls";
+import { ComponentGlyph, glyphPropsFromComponent } from "@/features/playground-glyphs";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
 
@@ -102,24 +103,26 @@ function DataPlateHeader({
   return (
     <header className="data-plate-inspector__header">
       <div className="data-plate-inspector__glyph" aria-hidden>
-        <ComponentGlyph
-          {...glyphProps}
-          state="idle"
-          width={MINI_GLYPH_SIZE}
-          height={MINI_GLYPH_SIZE}
-          mini
-        />
+        <ComponentGlyph {...glyphProps} state="idle" width={40} height={40} />
       </div>
-      {canRename ? (
-        <input
-          className="data-plate-inspector__rename"
-          value={renameValue}
-          aria-label="Component label"
-          onChange={(event) => onRename(event.target.value)}
-        />
-      ) : (
-        <p className="data-plate-inspector__title">{displayName}</p>
-      )}
+      <div className="data-plate-inspector__heading">
+        {canRename ? (
+          <input
+            className="data-plate-inspector__rename"
+            value={renameValue}
+            aria-label="Component label"
+            onChange={(event) => onRename(event.target.value)}
+          />
+        ) : (
+          <input
+            className="data-plate-inspector__rename"
+            value={displayName}
+            readOnly
+            aria-label="Component label"
+          />
+        )}
+        <span className="data-plate-inspector__type">{definition.label}</span>
+      </div>
     </header>
   );
 }
@@ -134,16 +137,11 @@ function DataPlateSection({ title, children }: { title: string; children: ReactN
 }
 
 function SpecRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
+  return <InspectorDataRow label={label} value={value} />;
 }
 
 function SpecList({ children }: { children: ReactNode }) {
-  return <dl className="data-plate-inspector__spec tabular">{children}</dl>;
+  return <div className="inspector-plate__rows">{children}</div>;
 }
 
 function PlateHint({ children }: { children: ReactNode }) {
@@ -159,7 +157,7 @@ function PlateField({
 }) {
   return (
     <label className="data-plate-inspector__field">
-      {label}
+      <span className="data-plate-inspector__field-label">{label}</span>
       {children}
     </label>
   );
@@ -223,11 +221,11 @@ function LiveStrip({
       {emptyMessage ? (
         <p className="data-plate-inspector__live-empty">{emptyMessage}</p>
       ) : (
-        <SpecList>
+        <div className="inspector-plate__rows">
           {rows.map((row) => (
-            <SpecRow key={row.label} label={row.label} value={row.value} />
+            <InspectorDataRow key={row.label} label={row.label} value={row.value} />
           ))}
-        </SpecList>
+        </div>
       )}
     </DataPlateSection>
   );
@@ -261,7 +259,7 @@ function AdvancedSection({ component }: { component: ComponentInstance }) {
 function EmptyInspector() {
   return (
     <DataPlateShell label="Component inspector">
-      <p className="data-plate-inspector__empty">Select a component to inspect its configuration.</p>
+      <p className="data-plate-inspector__empty">Select a component to inspect</p>
     </DataPlateShell>
   );
 }
@@ -335,42 +333,33 @@ export function DataPlateInspector({
       "Stateless Service inspector",
       <>
         <DataPlateSection title="Machine">
-          <PlateField label="Size">
-            <select
+          <div className="inspector-plate__controls">
+            <InspectorSegControl
+              label="Size"
               value={size}
-              onChange={(event) => onConfigChange(component.id, { size: event.target.value, instances })}
-            >
-              {Object.keys(serviceSizeModels).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </PlateField>
-          <PlateField label={`Instances ${regional ? "(from regions)" : ""}`}>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              step="1"
-              value={instances}
-              disabled={regional}
-              onChange={(event) => onConfigChange(component.id, { size, instances: Number(event.target.value) })}
+              options={Object.keys(serviceSizeModels) as (keyof typeof serviceSizeModels)[]}
+              onChange={(next) => onConfigChange(component.id, { size: next, instances })}
             />
-          </PlateField>
+            <InspectorStepper
+              label={regional ? "Instances (from regions)" : "Instances"}
+              value={instances}
+              min={1}
+              max={10}
+              disabled={regional}
+              onChange={(next) => onConfigChange(component.id, { size, instances: next })}
+            />
+          </div>
           <div className="data-plate-inspector__region-block">
             <p className="data-plate-inspector__region-title">Regional instances</p>
             {regions.map((region) => (
-              <PlateField key={region.id} label={region.label}>
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={instancesByRegion[region.id] ?? 0}
-                  onChange={(event) => setRegionalInstances(region.id, Number(event.target.value))}
-                />
-              </PlateField>
+              <InspectorStepper
+                key={region.id}
+                label={region.label}
+                value={instancesByRegion[region.id] ?? 0}
+                min={0}
+                max={10}
+                onChange={(next) => setRegionalInstances(region.id, next)}
+              />
             ))}
             <PlateHint>
               When any region is set, regional instances are the capacity source and must sum to the logical total.
@@ -439,31 +428,22 @@ export function DataPlateInspector({
     return shell(
       "Postgres inspector",
       <DataPlateSection title="Machine">
-        <PlateField label="Tier">
-          <select
+        <div className="inspector-plate__controls">
+          <InspectorSegControl
+            label="Tier"
             value={tier}
-            onChange={(event) => onConfigChange(component.id, { tier: event.target.value, readReplicaCount })}
-          >
-            {Object.keys(postgresTierModels).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </PlateField>
-        <PlateField label={`Read replicas ${regional ? "(from regions)" : ""}`}>
-          <input
-            type="number"
+            options={Object.keys(postgresTierModels) as (keyof typeof postgresTierModels)[]}
+            onChange={(next) => onConfigChange(component.id, { tier: next, readReplicaCount })}
+          />
+          <InspectorStepper
+            label={regional ? "Read replicas (from regions)" : "Read replicas"}
+            value={readReplicaCount}
             min={postgresReadReplicaBounds.minimum}
             max={postgresReadReplicaBounds.maximum}
-            step="1"
-            value={readReplicaCount}
             disabled={regional}
-            onChange={(event) =>
-              onConfigChange(component.id, { tier, readReplicaCount: Number(event.target.value) })
-            }
+            onChange={(next) => onConfigChange(component.id, { tier, readReplicaCount: next })}
           />
-        </PlateField>
+        </div>
         <div className="data-plate-inspector__region-block">
           <p className="data-plate-inspector__region-title">Regional placement</p>
           <PlateField label="Primary region">
@@ -539,18 +519,14 @@ export function DataPlateInspector({
       "Redis inspector",
       <>
         <DataPlateSection title="Machine">
-          <PlateField label="Tier">
-            <select
+          <div className="inspector-plate__controls">
+            <InspectorSegControl
+              label="Tier"
               value={tier}
-              onChange={(event) => onConfigChange(component.id, { mode, tier: event.target.value, ttlBand })}
-            >
-              {Object.keys(redisTierModels).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </PlateField>
+              options={Object.keys(redisTierModels) as (keyof typeof redisTierModels)[]}
+              onChange={(next) => onConfigChange(component.id, { mode, tier: next, ttlBand })}
+            />
+          </div>
           <div className="data-plate-inspector__region-block">
             <p className="data-plate-inspector__region-title">Regional placement</p>
             {regions.map((region) => (
@@ -569,27 +545,20 @@ export function DataPlateInspector({
           </div>
         </DataPlateSection>
         <DataPlateSection title="Behavior">
-          <PlateField label="Mode">
-            <select
+          <div className="inspector-plate__controls">
+            <InspectorSegControl
+              label="Mode"
               value={mode}
-              onChange={(event) => onConfigChange(component.id, { mode: event.target.value, tier, ttlBand })}
-            >
-              <option value="standalone">standalone</option>
-              <option value="replicated">replicated</option>
-            </select>
-          </PlateField>
-          <PlateField label="TTL band">
-            <select
+              options={["standalone", "replicated"] as const}
+              onChange={(next) => onConfigChange(component.id, { mode: next, tier, ttlBand })}
+            />
+            <InspectorSegControl
+              label="TTL band"
               value={ttlBand}
-              onChange={(event) => onConfigChange(component.id, { mode, tier, ttlBand: event.target.value })}
-            >
-              {Object.keys(redisTtlHitRateBands).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </PlateField>
+              options={Object.keys(redisTtlHitRateBands) as (keyof typeof redisTtlHitRateBands)[]}
+              onChange={(next) => onConfigChange(component.id, { mode, tier, ttlBand: next })}
+            />
+          </div>
           <SpecList>
             <SpecRow label="Configured hit rate" value={`${Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%`} />
             <SpecRow label="Throughput capacity" value={`${effective.throughputRps.toLocaleString()} req/sec`} />
@@ -626,18 +595,15 @@ export function DataPlateInspector({
       "Load Balancer inspector",
       <>
         <DataPlateSection title="Behavior">
-          <PlateField label="Policy">
-            <select
+          <div className="inspector-plate__controls">
+            <InspectorSegControl
+              label="Policy"
               value={policy}
-              onChange={(event) => onConfigChange(component.id, { policy: event.target.value })}
-            >
-              {loadBalancerPolicies.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </PlateField>
+              options={loadBalancerPolicies}
+              formatOption={(option) => (option === "equal" ? "equal" : "weighted")}
+              onChange={(next) => onConfigChange(component.id, { policy: next })}
+            />
+          </div>
           <SpecList>
             <SpecRow label="Monthly cost" value={formatCost(loadBalancerMonthlyCost)} />
           </SpecList>
@@ -663,20 +629,24 @@ export function DataPlateInspector({
       "CDN inspector",
       <>
         <DataPlateSection title="Machine">
-          <PlateField label="Tier">
-            <select
+          <div className="inspector-plate__controls">
+            <InspectorSegControl
+              label="Tier"
               value={tier}
-              onChange={(event) => onConfigChange(component.id, { coverage, ttlBand, tier: event.target.value })}
-            >
-              {Object.keys(cdnTierModels).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </PlateField>
+              options={Object.keys(cdnTierModels) as (keyof typeof cdnTierModels)[]}
+              onChange={(next) => onConfigChange(component.id, { coverage, ttlBand, tier: next })}
+            />
+          </div>
         </DataPlateSection>
         <DataPlateSection title="Behavior">
+          <div className="inspector-plate__controls">
+            <InspectorSegControl
+              label="TTL band"
+              value={ttlBand}
+              options={Object.keys(cdnTtlHitRateBands) as (keyof typeof cdnTtlHitRateBands)[]}
+              onChange={(next) => onConfigChange(component.id, { coverage, ttlBand: next, tier })}
+            />
+          </div>
           <PlateField label="Coverage">
             <input
               type="number"
@@ -688,18 +658,6 @@ export function DataPlateInspector({
                 onConfigChange(component.id, { coverage: Number(event.target.value), ttlBand, tier })
               }
             />
-          </PlateField>
-          <PlateField label="TTL band">
-            <select
-              value={ttlBand}
-              onChange={(event) => onConfigChange(component.id, { coverage, ttlBand: event.target.value, tier })}
-            >
-              {Object.keys(cdnTtlHitRateBands).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
           </PlateField>
           <SpecList>
             <SpecRow label="TTL hit rate" value={`${Math.round(cdnHitRateForConfig({ ttlBand }) * 100)}%`} />

@@ -77,7 +77,6 @@ export function usePlaybackController() {
         passCount: component.passCount,
         state: component.state,
         cacheHitFlash: component.cacheHitFlash,
-        writeBands: component.writeBands,
       })),
       routeLingers: routeLingersRef.current,
       tick: tickRef.current,

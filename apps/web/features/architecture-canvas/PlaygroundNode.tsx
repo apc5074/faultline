@@ -19,6 +19,7 @@ import {
 import {
   glyphStateFromPlayback,
   mechanismPropsFromPlayback,
+  playbackGlyphState,
   type ComponentPlaybackVisual,
 } from "@/features/traffic-playback";
 
@@ -64,15 +65,10 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
   };
 
   const glyphStateFromSim = deriveGlyphState(data.component.id, data.simulation, glyphOptions);
-  const playbackDrivenState = playbackActive ? glyphStateFromPlayback(data.playbackVisual) : null;
 
-  const glyphState = selected
-    ? "selected"
-    : playbackDrivenState === "overloaded"
-      ? "overloaded"
-      : playbackDrivenState === "processing"
-        ? "processing"
-        : glyphStateFromSim;
+  const glyphState = playbackActive
+    ? playbackGlyphState(data.playbackVisual, selected)
+    : glyphStateFromSim;
 
   const simMechanism =
     playbackActive || data.semanticZoomOut

@@ -6,10 +6,17 @@ import { inspectRegionalTrafficCapability } from "./inspect-regional-traffic.js"
 import { estimateCapacityCapability } from "./estimate-capacity.js";
 import { getArchitectureCapability } from "./get-architecture.js";
 import { getChallengeCapability } from "./get-challenge.js";
+import { getCoachingPolicyCapability } from "./get-coaching-policy.js";
 import { getCostBreakdownCapability } from "./get-cost-breakdown.js";
 import { getMetricsCapability } from "./get-metrics.js";
 import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
+
+export {
+  getCoachingPolicyCapability,
+  buildGetCoachingPolicyOutput,
+} from "./get-coaching-policy.js";
+export type { GetCoachingPolicyOutput } from "./get-coaching-policy.js";
 
 export { getChallengeCapability, buildGetChallengeOutput } from "./get-challenge.js";
 export type { ChallengeSpecialScenario, GetChallengeOutput } from "./get-challenge.js";
@@ -69,6 +76,7 @@ export type {
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
   return createAgentCapabilityRegistry([
+    getCoachingPolicyCapability,
     getChallengeCapability,
     getRequirementsCapability,
     getArchitectureCapability,

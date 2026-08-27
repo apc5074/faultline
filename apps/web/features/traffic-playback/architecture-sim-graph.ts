@@ -1,5 +1,5 @@
 import { componentRegistry } from "@faultline/component-catalog";
-import type { Architecture, ComponentInstance } from "@faultline/core";
+import { totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance } from "@faultline/core";
 
 import {
   catalogTypeToSimType,
@@ -11,6 +11,8 @@ import {
 function readInstances(component: ComponentInstance): number {
   if (component.type === "service") {
     const parsed = componentRegistry.get("service").configSchema.safeParse(component.config);
+    const deploymentTotal = totalServiceInstancesFromDeployments(component.deployments);
+    if (deploymentTotal > 0) return deploymentTotal;
     if (parsed.success) return Math.max(1, Number(parsed.data.instances) || 1);
   }
   return 1;
@@ -101,7 +103,6 @@ export function mergeSimVisuals(
       passCount: component.passCount,
       state: component.state,
       cacheHitFlash: component.cacheHitFlash,
-      writeBands: component.writeBands,
     })),
   };
 }

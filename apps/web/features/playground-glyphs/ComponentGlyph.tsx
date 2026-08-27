@@ -101,7 +101,12 @@ function ServerGlyph({
                 stroke={GLYPH_INK.ink}
                 strokeWidth={0.5}
               />
-              <circle cx={tx + tw - 9} cy={by + (bayH - 3) / 2} r={1.5} fill={on ? GLYPH_INK.paper : GLYPH_INK.ink} />
+              <circle
+                cx={tx + tw - 9}
+                cy={by + (bayH - 3) / 2}
+                r={1.5}
+                fill={on ? GLYPH_INK.paper : GLYPH_INK.ink}
+              />
             </g>
           );
         })}
@@ -235,7 +240,6 @@ function SqlDbGlyph({
   h,
   replicas = 0,
   processingCount = 0,
-  writeBands = 0,
   mini = false,
 }: {
   state: GlyphState;
@@ -243,7 +247,6 @@ function SqlDbGlyph({
   h: number;
   replicas?: number;
   processingCount?: number;
-  writeBands?: number;
   mini?: boolean;
 }) {
   const op = outlineProps(state);
@@ -253,8 +256,7 @@ function SqlDbGlyph({
   const cx = 4 + w / 2;
   const bands = 4;
   const bandH = bodyH / bands;
-  const readLit = Math.min(processingCount, bands);
-  const writeLit = Math.min(writeBands, bands);
+  const lit = Math.min(processingCount, bands);
   const topY = 4 + ry;
   const bottomY = 4 + ry + bodyH;
   const rimArc = (y: number) => `M 4 ${y} A ${rx} ${ry} 0 0 0 ${4 + w} ${y}`;
@@ -274,15 +276,12 @@ function SqlDbGlyph({
       <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
       {!mini &&
         Array.from({ length: bands }).map((_, i) => {
-          const isWrite = i >= bands - writeLit;
-          const isRead = i < readLit && !isWrite;
-          if (!isWrite && !isRead) return null;
+          if (i >= lit) return null;
           return (
             <path
               key={i}
               d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
               fill={GLYPH_INK.ink}
-              className={isRead ? "sql-read-lift" : undefined}
             />
           );
         })}
@@ -294,8 +293,8 @@ function SqlDbGlyph({
             key={i}
             d={rimArc(topY + (i + 1) * bandH)}
             fill="none"
-            stroke={i < readLit || i >= bands - writeLit ? GLYPH_INK.paper : GLYPH_INK.ink}
-            strokeWidth={i < readLit || i >= bands - writeLit ? 1 : 0.75}
+            stroke={i < lit ? GLYPH_INK.paper : GLYPH_INK.ink}
+            strokeWidth={i < lit ? 1 : 0.75}
           />
         ))}
       <path d={rimArc(bottomY)} fill="none" stroke={op.stroke} strokeWidth={op.strokeWidth * 1.25} />
@@ -831,7 +830,6 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
     passCount = 0,
     processingCount = 0,
     cacheHitFlash = false,
-    writeBands = 0,
   } = props;
 
   const w = width - 8;
@@ -858,7 +856,6 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
           {...shared}
           replicas={replicas}
           processingCount={processingCount}
-          writeBands={writeBands}
         />
       )}
       {type === "nosql_db" && <NosqlDbGlyph {...shared} processingCount={processingCount} />}

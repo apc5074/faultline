@@ -1,4 +1,9 @@
-import type { AgentContext, AgentSimulationEvidence } from "@faultline/agent-capabilities";
+import type {
+  AgentContext,
+  AgentSessionState,
+  LiveAgentSnapshot,
+} from "@faultline/agent-capabilities";
+import { createEmptyAgentSessionState } from "@faultline/agent-capabilities";
 import { buildAgentRegionalEvidence } from "@faultline/agent-capabilities";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
@@ -12,7 +17,7 @@ function numericMetrics(value: object): Record<string, number> {
   return metrics;
 }
 
-function simulationEvidence(result: RequirementsEvaluationResult): AgentSimulationEvidence {
+function simulationEvidence(result: RequirementsEvaluationResult): AgentContext["simulation"] {
   if (!result.valid) {
     return { available: false, validationErrors: result.errors.map((error) => error.message) };
   }
@@ -57,14 +62,25 @@ export function createAgentContext(architecture: Architecture, challenge: Challe
   };
 }
 
-export type LiveAgentContextFactory = () => AgentContext;
+export type { LiveAgentSnapshot };
+
+export type LiveAgentContextFactory = () => LiveAgentSnapshot;
 
 export interface LiveAgentContextSource {
   readonly getArchitecture: () => Architecture;
   readonly getChallenge: () => ChallengeDefinition;
+  readonly getSession?: () => AgentSessionState;
 }
 
 /** Stable callback that reads the latest canonical gameplay state on every invocation. */
 export function createLiveAgentContextFactory(source: LiveAgentContextSource): LiveAgentContextFactory {
-  return () => createAgentContext(source.getArchitecture(), source.getChallenge());
+  return () => ({
+    context: createAgentContext(source.getArchitecture(), source.getChallenge()),
+    session: source.getSession?.() ?? createEmptyAgentSessionState(),
+  });
+}
+
+/** Read domain context from a live agent snapshot (WebMCP adapters). */
+export function agentContextFromSnapshot(snapshot: LiveAgentSnapshot): AgentContext {
+  return snapshot.context;
 }

@@ -1,4 +1,4 @@
-import type { CatalogGlyphProps } from "@/features/playground-glyphs";
+import type { CatalogGlyphProps, GlyphState } from "@/features/playground-glyphs";
 
 import type { ComponentPlaybackVisual } from "./types";
 
@@ -7,7 +7,6 @@ export type PlaybackMechanismProps = {
   armAngle?: number;
   passCount?: number;
   cacheHitFlash?: boolean;
-  writeBands?: number;
 };
 
 const IDLE_VISUAL: ComponentPlaybackVisual = {
@@ -28,7 +27,6 @@ export function mechanismPropsFromPlayback(
     armAngle: playback.armAngle ?? catalog.armAngle,
     passCount: playback.passCount ?? 0,
     cacheHitFlash: playback.cacheHitFlash,
-    writeBands: playback.writeBands,
   };
 }
 
@@ -41,4 +39,22 @@ export function glyphStateFromPlayback(
     return "processing";
   }
   return "idle";
+}
+
+/** Matches Figma Canvas: selected override, otherwise live tick `comp.state`. */
+export function playbackGlyphState(
+  visual: ComponentPlaybackVisual | undefined,
+  selected: boolean,
+): GlyphState {
+  if (selected) return "selected";
+  switch (visual?.state) {
+    case "failed":
+      return "failed";
+    case "overloaded":
+      return "overloaded";
+    case "processing":
+      return "processing";
+    default:
+      return "idle";
+  }
 }

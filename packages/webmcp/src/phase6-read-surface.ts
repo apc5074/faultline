@@ -77,7 +77,7 @@ function configurationFailure(message: string, development: boolean): never | vo
  * Build the resolver-selected read-only WebMCP surface from the semantic registry.
  * Baseline and Phase 7 dynamic capabilities share one resolver-owned contract.
  */
-export async function buildPhase6ReadSurface(
+export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
   const { registry, getContext, development = false } = options;
@@ -121,6 +121,9 @@ export async function buildPhase6ReadSurface(
     resolvedNames: resolved.names,
   };
 }
+
+/** @deprecated Use buildAgentReadSurface. */
+export const buildPhase6ReadSurface = buildAgentReadSurface;
 
 /** Documented resolver order for diagnostics and verification. */
 export const RESOLVED_READ_SURFACE_CAPABILITY_NAMES = RESOLVED_CAPABILITY_NAME_ORDER;

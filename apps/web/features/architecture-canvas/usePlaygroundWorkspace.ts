@@ -42,7 +42,6 @@ import {
 } from "@/features/architecture-canvas/region-enclosures";
 import { glyphDimensionsForProps, glyphPropsFromComponent } from "@/features/playground-glyphs";
 import { usePlaybackController, type ComponentPlaybackVisual } from "@/features/traffic-playback";
-import { useLiveAgentContextFactory } from "@/lib/agent-context/use-live-agent-context-factory";
 import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptContext";
 
@@ -74,7 +73,6 @@ export function usePlaygroundWorkspace() {
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
     [],
   );
-  const getAgentContext = useLiveAgentContextFactory(architecture, activeChallenge);
   const webMcpReconciliationKey = useMemo(
     () => `${activeChallenge.slug}:${architectureAvailabilityFingerprint(architecture)}`,
     [architecture],
@@ -668,7 +666,6 @@ export function usePlaygroundWorkspace() {
   return {
     architecture,
     paletteDefinitions,
-    getAgentContext,
     webMcpReconciliationKey,
     selectedComponent,
     selectedComponentId,

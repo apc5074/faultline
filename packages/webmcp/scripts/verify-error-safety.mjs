@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 
-import { createAgentCapabilityRegistry, createDefaultCapabilityRegistry, noInputSchema } from "@faultline/agent-capabilities";
+import { createAgentCapabilityRegistry, createDefaultCapabilityRegistry, noInputSchema, BASELINE_READ_CAPABILITY_NAMES } from "@faultline/agent-capabilities";
 import {
+  buildAgentReadSurface,
   buildPhase6ReadSurface,
   isControlledCapabilityResult,
   sanitizeWebMcpCapabilityResult,
@@ -46,8 +47,15 @@ const invalidContext = {
 const registry = createDefaultCapabilityRegistry();
 const getContext = () => validContext;
 
-const surface = await buildPhase6ReadSurface({ registry, getContext, development: true });
-assert.equal(surface.tools.length, 7);
+const surface = await buildAgentReadSurface({ registry, getContext, development: true });
+assert.equal(surface.tools.length, BASELINE_READ_CAPABILITY_NAMES.length);
+assert.ok(surface.tools.some((tool) => tool.name === "get_coaching_policy"));
+
+const deprecatedAliasSurface = await buildPhase6ReadSurface({ registry, getContext, development: true });
+assert.deepEqual(
+  deprecatedAliasSurface.tools.map((tool) => tool.name),
+  surface.tools.map((tool) => tool.name),
+);
 
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, true);

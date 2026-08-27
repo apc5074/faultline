@@ -13,7 +13,7 @@ import type { Architecture } from "@faultline/core";
 
 import { getWebMcpModelContext } from "./model-context.js";
 import {
-  buildPhase6ReadSurface,
+  buildAgentReadSurface,
   type Phase6ReadSurfaceSkipReason,
 } from "./phase6-read-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
@@ -77,7 +77,7 @@ export async function buildPhase6InspectorSnapshot(
   const { registry, getContext, development = true } = options;
   const browserSupported = getWebMcpModelContext() !== undefined;
   const context = await getContext();
-  const surface = await buildPhase6ReadSurface({ registry, getContext, development });
+  const surface = await buildAgentReadSurface({ registry, getContext, development });
   const toolsByName = new Map(surface.tools.map((tool) => [tool.name, tool]));
   const skippedByName = new Map(surface.skipped.map((skip) => [skip.name, skip.reason]));
   const entries: Phase6InspectorEntry[] = [];

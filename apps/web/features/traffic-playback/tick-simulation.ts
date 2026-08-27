@@ -13,7 +13,6 @@ const lbArmAngles = new Map<string, number>();
 const pubsubFlashes = new Map<string, number>();
 const cdnPassCounts = new Map<string, number>();
 const cacheHitFlashes = new Map<string, number>();
-const sqlWriteBands = new Map<string, number>();
 
 const DWELL_TYPES: SimComponentType[] = [
   "server",
@@ -139,7 +138,6 @@ export function resetTickSimulationState(): void {
   pubsubFlashes.clear();
   cdnPassCounts.clear();
   cacheHitFlashes.clear();
-  sqlWriteBands.clear();
 }
 
 export function tickSimulation(
@@ -175,9 +173,6 @@ export function tickSimulation(
       }
       if (comp.type === "cache") {
         cacheHitFlashes.set(comp.id, tick);
-      }
-      if (comp.type === "sql_db" && traveling.shape === "write") {
-        sqlWriteBands.set(comp.id, Math.min(4, (sqlWriteBands.get(comp.id) ?? 0) + 1));
       }
       return [respondBack(traveling)];
     }
@@ -307,11 +302,7 @@ export function tickSimulation(
 
     const cacheHitFlash =
       comp.type === "cache" && tick - (cacheHitFlashes.get(comp.id) ?? -Infinity) < 12;
-    const writeBands = comp.type === "sql_db" ? (sqlWriteBands.get(comp.id) ?? 0) : undefined;
-    const mechanismCount =
-      comp.type === "sql_db"
-        ? dwellers.filter((packet) => packet.shape !== "write").length
-        : processingPackets.length;
+    const mechanismCount = processingPackets.length;
 
     return {
       ...comp,
@@ -320,7 +311,6 @@ export function tickSimulation(
       armAngle,
       passCount,
       cacheHitFlash,
-      writeBands,
       mechanismCount,
     };
   });

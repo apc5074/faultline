@@ -177,7 +177,14 @@ for (const tool of validSurface.tools) {
   assertToolMetadataParity(tool);
 }
 
-const noInputTools = ["get_challenge", "get_requirements", "get_architecture", "get_metrics", "get_cost_breakdown"];
+const noInputTools = [
+  "get_coaching_policy",
+  "get_challenge",
+  "get_requirements",
+  "get_architecture",
+  "get_metrics",
+  "get_cost_breakdown",
+];
 for (const name of noInputTools) {
   const tool = validSurface.tools.find((candidate) => candidate.name === name);
   assert.ok(tool, `missing tool ${name}`);
