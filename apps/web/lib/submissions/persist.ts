@@ -64,10 +64,14 @@ export class SubmissionPersistError extends Error {
   override name = "SubmissionPersistError";
   constructor(
     message: string,
-    readonly code: "misconfigured" | "persist_failed",
+    readonly code: "misconfigured" | "submission_limit" | "persist_failed",
   ) {
     super(message);
   }
+}
+
+function isSubmissionLimitError(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === "P0001" && error.message === "official submission limit reached";
 }
 
 type RpcSubmission = {
@@ -199,8 +203,8 @@ export async function commitVerifiedSubmission(
 
   if (error || !data) {
     throw new SubmissionPersistError(
-      error?.message ?? "Failed to commit verified submission.",
-      "persist_failed",
+      isSubmissionLimitError(error) ? "Official submission limit of 50 reached for this attempt." : error?.message ?? "Failed to commit verified submission.",
+      isSubmissionLimitError(error) ? "submission_limit" : "persist_failed",
     );
   }
 

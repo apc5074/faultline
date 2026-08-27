@@ -157,7 +157,10 @@ function assertToolMetadataParity(tool) {
   assert.deepEqual(tool.inputSchema, capability.inputSchema.jsonSchema);
   assert.equal(tool.annotations?.readOnlyHint, capability.annotations?.readOnlyHint);
   assert.equal(tool.annotations?.idempotentHint, capability.annotations?.idempotentHint);
-  assert.equal(tool.annotations?.destructiveHint, undefined);
+  assert.equal(
+    tool.annotations?.destructiveHint,
+    capability.annotations?.destructiveHint === false ? false : undefined,
+  );
 }
 
 async function buildSurface(getContext) {

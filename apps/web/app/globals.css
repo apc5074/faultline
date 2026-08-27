@@ -5,6 +5,7 @@
   --color-ink-faint: #8a7f74;
   --color-ink-hairline: #c8bfb0;
   --color-signal-red: #c0392b;
+  --color-signal-green: #2f6b4f;
 
   color-scheme: light;
   background: var(--color-paper);
@@ -507,6 +508,52 @@ main {
 .level-briefing__start:focus-visible {
   outline: 2px solid var(--color-signal-red);
   outline-offset: 3px;
+}
+
+.webmcp-status-plate {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 24px;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper);
+  color: var(--color-ink-faint);
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.webmcp-status-plate__state {
+  color: var(--color-ink);
+}
+
+.webmcp-status-plate--ready .webmcp-status-plate__state {
+  color: var(--color-signal-green);
+}
+
+.webmcp-status-plate--partial .webmcp-status-plate__state {
+  color: var(--color-signal-red);
+}
+
+.webmcp-status-plate__tools,
+.webmcp-status-plate__prompt {
+  padding-left: 0.42rem;
+  border-left: 1px solid var(--color-ink-hairline);
+}
+
+.webmcp-status-plate__link {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.12rem;
+}
+
+.webmcp-status-plate__link:focus-visible {
+  outline: 2px solid var(--color-signal-red);
+  outline-offset: 2px;
 }
 
 /* ── Level briefing (Level 1 intro) ── */
@@ -1734,6 +1781,23 @@ h1 {
   gap: 1rem;
 }
 
+.webmcp-inspector__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.webmcp-inspector__controls span {
+  min-width: 6rem;
+  color: var(--color-ink-faint);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .webmcp-inspector__tool {
   padding: 1rem;
   border: 1px solid var(--color-ink-hairline);
@@ -2055,6 +2119,34 @@ h1 {
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--color-ink-hairline);
   background: var(--color-paper);
+}
+
+.ai-engineer__toggle {
+  width: 100%;
+  padding: 0.45rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ai-engineer__toggle::before {
+  content: "+ ";
+}
+
+.ai-engineer__toggle[aria-expanded="true"]::before {
+  content: "− ";
+}
+
+.ai-engineer__body {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-ink-hairline);
 }
 
 .ai-engineer h2 {
@@ -2388,6 +2480,16 @@ h1 {
 .sim-bar__help-chip:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.sim-bar__button--clear-marks {
+  margin-left: 0.35rem;
+  border-color: var(--color-ink-hairline);
+  font-size: 0.5rem;
+}
+
+.sim-bar__button--clear-marks:disabled {
+  opacity: 0.4;
 }
 
 .sim-bar__help-indicator {

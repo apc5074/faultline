@@ -1,7 +1,7 @@
 "use client";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { getWebMcpModelContext, registerReadWebMcpSurface, registerVisualWebMcpSurface } from "@faultline/webmcp";
+import { getWebMcpModelContext, registerAgentWebMcpSurface } from "@faultline/webmcp";
 import { useEffect, useMemo } from "react";
 
 import {
@@ -9,12 +9,19 @@ import {
   useAgentSessionStore,
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualIntentHandler } from "@/features/agent-session/visual-intent-bridge";
+import type { WebMcpStatus } from "./WebMcpStatusPlate";
 
 /**
  * Registers resolver-selected read and visual WebMCP surfaces when the browser supports it.
  * Renders nothing; registration failures are contained and never affect gameplay.
  */
-export function WebMcpRegistration({ reconciliationKey }: { reconciliationKey: string }) {
+export function WebMcpRegistration({
+  reconciliationKey,
+  onStatusChange,
+}: {
+  reconciliationKey: string;
+  onStatusChange: (status: WebMcpStatus) => void;
+}) {
   const getContext = useAgentContextFactory();
   const sessionStore = useAgentSessionStore();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
@@ -25,37 +32,43 @@ export function WebMcpRegistration({ reconciliationKey }: { reconciliationKey: s
 
   useEffect(() => {
     const modelContext = getWebMcpModelContext();
-    if (!modelContext) return;
+    if (!modelContext) {
+      onStatusChange({ state: "unsupported", readToolCount: 0, visualToolCount: 0 });
+      return;
+    }
 
     const controller = new AbortController();
     const development = process.env.NODE_ENV === "development";
+    let active = true;
+    onStatusChange({ state: "registering", readToolCount: 0, visualToolCount: 0 });
 
-    void Promise.all([
-      registerReadWebMcpSurface({
-        modelContext,
-        registry,
-        getContext,
-        signal: controller.signal,
-        development,
-      }),
-      registerVisualWebMcpSurface({
-        modelContext,
-        registry,
-        getContext,
-        signal: controller.signal,
-        development,
-        onVisualIntent,
-      }),
-    ]).catch((error) => {
+    void registerAgentWebMcpSurface({
+      modelContext,
+      registry,
+      getContext,
+      signal: controller.signal,
+      development,
+      onVisualIntent,
+    }).then((result) => {
+      if (!active) return;
+      const state = result.readToolNames.length >= 9 && result.visualToolNames.length === 4 ? "ready" : "partial";
+      onStatusChange({
+        state,
+        readToolCount: result.readToolNames.length,
+        visualToolCount: result.visualToolNames.length,
+      });
+    }).catch((error) => {
+      if (active) onStatusChange({ state: "partial", readToolCount: 0, visualToolCount: 0 });
       if (process.env.NODE_ENV === "development") {
         console.error("[WebMCP] surface registration failed.", error);
       }
     });
 
     return () => {
+      active = false;
       controller.abort();
     };
-  }, [reconciliationKey, getContext, registry, onVisualIntent]);
+  }, [reconciliationKey, getContext, registry, onStatusChange, onVisualIntent]);
 
   return null;
 }

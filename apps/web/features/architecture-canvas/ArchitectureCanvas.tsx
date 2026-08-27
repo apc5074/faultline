@@ -2,6 +2,7 @@
 
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useCallback, useState } from "react";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
 import { LeaderboardHud } from "@/features/leaderboards/LeaderboardHud";
@@ -9,8 +10,10 @@ import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
+import { AnnotationRunLifecycle } from "@/features/agent-session/AnnotationRunLifecycle";
 import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionSync";
 import { WebMcpRegistration } from "@/features/webmcp/WebMcpRegistration";
+import { WebMcpStatusPlate, type WebMcpStatus } from "@/features/webmcp/WebMcpStatusPlate";
 import { ComponentRail } from "@/features/architecture-canvas/ComponentRail";
 import { DataPlateInspector } from "@/features/architecture-canvas/DataPlateInspector";
 import { LevelBriefing, useLevelBriefing } from "@/features/architecture-canvas/LevelBriefing";
@@ -29,11 +32,23 @@ function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
   const aiEnabled = isFaultlineAiEnabled();
+  const [webMcpStatus, setWebMcpStatus] = useState<WebMcpStatus>({
+    state: "unsupported",
+    readToolCount: 0,
+    visualToolCount: 0,
+  });
+  const handleWebMcpStatus = useCallback((status: WebMcpStatus) => setWebMcpStatus(status), []);
 
   const shell = (
     <>
       {aiEnabled ? <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} /> : null}
-      {aiEnabled ? <WebMcpRegistration reconciliationKey={workspace.webMcpReconciliationKey} /> : null}
+      {aiEnabled ? <AnnotationRunLifecycle runState={workspace.runState} /> : null}
+      {aiEnabled ? (
+        <WebMcpRegistration
+          reconciliationKey={workspace.webMcpReconciliationKey}
+          onStatusChange={handleWebMcpStatus}
+        />
+      ) : null}
       <LevelBriefing
         open={briefing.open}
         step={briefing.step}
@@ -62,6 +77,7 @@ function ArchitectureWorkspace() {
                 : "edit deployments in inspector"}
             </span>
           </div>
+          {aiEnabled ? <WebMcpStatusPlate status={webMcpStatus} /> : null}
         </header>
 
         <div className="playground-body">

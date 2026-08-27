@@ -16,6 +16,7 @@ import {
   useAgentSessionState,
   useAgentSessionStore,
 } from "@/features/agent-session/AgentSessionProvider";
+import { AGENT_HELP_CHIPS, buildPendingHelpRequest } from "@/features/agent-session/agent-help-templates";
 import { createVisualIntentHandler } from "@/features/agent-session/visual-intent-bridge";
 
 const DEFAULT_ARCHITECTURE: Architecture = {
@@ -174,6 +175,57 @@ function WebMcpInspectorWorkspace({
   }
 
   const selectedEntry = snapshot?.entries.find((entry) => entry.name === selectedToolName);
+  const readEntries = snapshot?.entries.filter((entry) => entry.mode === "read") ?? [];
+  const visualEntries = snapshot?.entries.filter((entry) => entry.mode === "visual") ?? [];
+  const renderToolList = (entries: readonly Phase6InspectorSnapshot["entries"][number][]) => (
+    <div className="webmcp-inspector__tool-list">
+      {entries.map((entry) => (
+        <article
+          key={entry.name}
+          className={
+            entry.name === selectedToolName
+              ? "webmcp-inspector__tool webmcp-inspector__tool--selected"
+              : "webmcp-inspector__tool"
+          }
+        >
+          <button type="button" className="webmcp-inspector__tool-select" onClick={() => setSelectedToolName(entry.name)}>
+            <strong>{entry.name}</strong>
+          </button>
+          <p>{entry.description}</p>
+          <dl className="webmcp-inspector__meta">
+            <div>
+              <dt>availability</dt>
+              <dd>{entry.available ? "available" : "unavailable"}</dd>
+            </div>
+            <div>
+              <dt>registration</dt>
+              <dd>{registrationLabel(entry.registrationState)}</dd>
+            </div>
+            {entry.skipReason ? (
+              <div>
+                <dt>skip reason</dt>
+                <dd>{entry.skipReason}</dd>
+              </div>
+            ) : null}
+            {entry.structuralPredicate ? (
+              <div>
+                <dt>structural predicate</dt>
+                <dd>{entry.structuralPredicate}</dd>
+              </div>
+            ) : null}
+          </dl>
+          <details>
+            <summary>JSON Schema</summary>
+            <pre>{JSON.stringify(entry.inputSchema, null, 2)}</pre>
+          </details>
+          <details>
+            <summary>WebMCP annotations</summary>
+            <pre>{JSON.stringify(entry.annotations ?? {}, null, 2)}</pre>
+          </details>
+        </article>
+      ))}
+    </div>
+  );
 
   return (
     <main className="webmcp-inspector">
@@ -207,65 +259,54 @@ function WebMcpInspectorWorkspace({
         <pre>{JSON.stringify(session, null, 2)}</pre>
       </section>
 
+      <section className="webmcp-inspector__panel" aria-label="Mock session signals">
+        <h2>Mock session signals</h2>
+        <div className="webmcp-inspector__controls">
+          <span>Focus</span>
+          {(architecture?.components ?? []).map((component) => (
+            <button
+              key={component.id}
+              type="button"
+              onClick={() => sessionStore.setFocus({ kind: "component", componentId: component.id, source: "selection" })}
+            >
+              {component.id}
+            </button>
+          ))}
+          <button type="button" onClick={() => sessionStore.setFocus({ kind: "none" })}>Clear focus</button>
+        </div>
+        <div className="webmcp-inspector__controls">
+          <span>Help template</span>
+          {AGENT_HELP_CHIPS.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              disabled={chip.requiresSelection && session.focus.kind !== "component"}
+              onClick={() => {
+                const componentId = session.focus.kind === "component" ? session.focus.componentId : null;
+                sessionStore.setPendingHelp(buildPendingHelpRequest(chip, componentId));
+              }}
+            >
+              {chip.label}
+            </button>
+          ))}
+          <button type="button" onClick={() => sessionStore.setPendingHelp(null)}>Clear help</button>
+        </div>
+      </section>
+
       {snapshot ? (
         <>
           <p className="webmcp-inspector__status">
             Browser WebMCP: {snapshot.browserSupported ? "supported" : "unsupported"}
           </p>
 
-          <section className="webmcp-inspector__panel" aria-label="Resolved tools">
-            <h2>Resolved tools ({snapshot.resolvedNames.length})</h2>
-            <div className="webmcp-inspector__tool-list">
-              {snapshot.entries.map((entry) => (
-                <article
-                  key={entry.name}
-                  className={
-                    entry.name === selectedToolName
-                      ? "webmcp-inspector__tool webmcp-inspector__tool--selected"
-                      : "webmcp-inspector__tool"
-                  }
-                >
-                  <button type="button" className="webmcp-inspector__tool-select" onClick={() => setSelectedToolName(entry.name)}>
-                    <strong>{entry.name}</strong>
-                  </button>
-                  <p>{entry.description}</p>
-                  <dl className="webmcp-inspector__meta">
-                    <div>
-                      <dt>mode</dt>
-                      <dd>{entry.mode}</dd>
-                    </div>
-                    <div>
-                      <dt>availability</dt>
-                      <dd>{entry.available ? "available" : "unavailable"}</dd>
-                    </div>
-                    <div>
-                      <dt>registration</dt>
-                      <dd>{registrationLabel(entry.registrationState)}</dd>
-                    </div>
-                    {entry.skipReason ? (
-                      <div>
-                        <dt>skip reason</dt>
-                        <dd>{entry.skipReason}</dd>
-                      </div>
-                    ) : null}
-                    {entry.structuralPredicate ? (
-                      <div>
-                        <dt>structural predicate</dt>
-                        <dd>{entry.structuralPredicate}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                  <details>
-                    <summary>JSON Schema</summary>
-                    <pre>{JSON.stringify(entry.inputSchema, null, 2)}</pre>
-                  </details>
-                  <details>
-                    <summary>WebMCP annotations</summary>
-                    <pre>{JSON.stringify(entry.annotations ?? {}, null, 2)}</pre>
-                  </details>
-                </article>
-              ))}
-            </div>
+          <section className="webmcp-inspector__panel" aria-label="Read tools">
+            <h2>Read tools ({readEntries.length})</h2>
+            {renderToolList(readEntries)}
+          </section>
+
+          <section className="webmcp-inspector__panel" aria-label="Visual tools">
+            <h2>Visual tools ({visualEntries.length})</h2>
+            {renderToolList(visualEntries)}
           </section>
 
           {selectedEntry ? (

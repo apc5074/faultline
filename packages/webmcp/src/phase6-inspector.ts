@@ -14,7 +14,7 @@ import {
 } from "@faultline/agent-capabilities";
 import type { Architecture } from "@faultline/core";
 
-import { buildAgentVisualSurface, type AgentVisualSurfaceSkipReason } from "./agent-visual-surface.js";
+import { buildVisualWebMcpSurface, type AgentVisualSurfaceSkipReason } from "./agent-visual-surface.js";
 import { getWebMcpModelContext } from "./model-context.js";
 import {
   buildAgentReadSurface,
@@ -87,7 +87,7 @@ export async function buildPhase6InspectorSnapshot(
   const browserSupported = getWebMcpModelContext() !== undefined;
   const context = resolveLiveAgentSnapshot(await getContext()).context;
   const readSurface = await buildAgentReadSurface({ registry, getContext, development });
-  const visualSurface = await buildAgentVisualSurface({
+  const visualSurface = await buildVisualWebMcpSurface({
     registry,
     getContext,
     development,

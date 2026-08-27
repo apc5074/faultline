@@ -296,9 +296,14 @@ export async function POST(request: Request): Promise<Response> {
         {
           ok: false,
           error: error.message,
-          code: error.code === "misconfigured" ? "misconfigured" : "persist_failed",
+          code:
+            error.code === "misconfigured"
+              ? "misconfigured"
+              : error.code === "submission_limit"
+                ? "submission_limit"
+                : "persist_failed",
         } satisfies SubmitOfficialResponse,
-        { status: error.code === "misconfigured" ? 503 : 502 },
+        { status: error.code === "misconfigured" ? 503 : error.code === "submission_limit" ? 429 : 502 },
       );
     }
     throw error;

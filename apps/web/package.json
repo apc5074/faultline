@@ -8,6 +8,8 @@
     "build:deps": "pnpm --filter \"@faultline/web^...\" build",
     "build": "pnpm run build:deps && next build",
     "verify:alias": "node --experimental-strip-types scripts/verify-alias.ts",
+    "verify:profile-privacy": "node --experimental-strip-types scripts/verify-profile-privacy.mjs",
+    "verify:challenge-privacy": "node --experimental-strip-types scripts/verify-challenge-privacy.mjs",
     "verify:view-mode": "node --experimental-strip-types scripts/verify-view-mode.mjs",
     "verify:level1-hero-scene": "pnpm run build:deps && node --experimental-strip-types scripts/verify-level1-hero-scene.mjs",
     "verify:fastest-leaderboard": "node --experimental-strip-types scripts/verify-fastest-leaderboard.mjs",
@@ -20,6 +22,7 @@
     "verify:ai-model": "node --experimental-strip-types scripts/verify-ai-model.mjs",
     "verify:ai-limits": "node --experimental-strip-types scripts/verify-ai-limits.mjs",
     "verify:ai-usage": "node --experimental-strip-types scripts/verify-ai-usage.mjs",
+    "verify:ai-abuse-controls": "node --experimental-strip-types scripts/verify-ai-abuse-controls.mjs",
     "verify:coaching-policy": "pnpm run build:deps && node --experimental-strip-types scripts/verify-coaching-policy.mjs",
     "verify:agent-request": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-request.mjs",
     "verify:live-agent-context-factory": "pnpm run build:deps && node --experimental-strip-types scripts/verify-live-agent-context-factory.mjs",
@@ -27,6 +30,8 @@
     "verify:agent-help-chips": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-help-chips.mjs",
     "verify:agent-annotations": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-annotations.mjs",
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
+    "verify:submission-limit": "node --experimental-strip-types scripts/verify-submission-limit.mjs",
+    "verify:security-headers": "node --experimental-strip-types scripts/verify-security-headers.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
   "dependencies": {

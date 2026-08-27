@@ -6,7 +6,7 @@ import { createAgentContext } from "@/lib/agent-context/create-agent-context";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 import { streamFaultlineGatewayAgent } from "@/lib/ai/stream-agent";
 import { resolveAgentModelId } from "@/lib/ai/model";
-import { AGENT_GUEST_COOKIE, completeAgentUsage, createAgentGuestId, isAgentGuestId, reserveAgentUsage } from "@/lib/ai/usage";
+import { AGENT_GUEST_COOKIE, completeAgentUsage, createAgentGuestId, isAgentGuestId, reserveAgentUsage, resolveAgentNetworkUsageKey } from "@/lib/ai/usage";
 import { ActiveDailyChallengeError, getActiveDailyChallenge } from "@/lib/challenges/daily";
 
 export const dynamic = "force-dynamic";
@@ -119,7 +119,10 @@ export async function POST(request: Request): Promise<Response> {
     const guestId = isAgentGuestId(existingGuestId) ? existingGuestId : createAgentGuestId();
     const shouldSetGuestCookie = guestId !== existingGuestId;
     const modelId = resolveAgentModelId();
-    const reservation = await reserveAgentUsage(guestId);
+    const reservation = await reserveAgentUsage({
+      guestKey: guestId,
+      networkKey: resolveAgentNetworkUsageKey(request.headers),
+    });
     if (!reservation.reserved) {
       return withGuestCookie(Response.json({ ok: false, code: "ai_limit_reached", error: "Today's AI Engineer limit has been reached. You can keep building and running tests normally." }, { status: 429 }), guestId, shouldSetGuestCookie);
     }

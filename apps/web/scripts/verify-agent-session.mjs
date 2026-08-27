@@ -5,8 +5,10 @@ import { urlShortenerChallenge } from "@faultline/challenges";
 
 import {
   applySessionAnnotations,
+  clearFocusAnnotationsOnRun,
   clearSessionAnnotations,
   pruneSessionForArchitecture,
+  sessionChangedByPrune,
   withPendingHelpRequest,
   withSessionFocus,
 } from "../features/agent-session/session-mutations.ts";
@@ -93,6 +95,18 @@ assert.equal(pruned.focus.kind, "none");
 assert.equal(pruned.pendingHelpRequest, null);
 assert.equal(pruned.annotations.length, 0);
 assert.equal(pruned.revision, state.revision);
+assert.equal(sessionChangedByPrune(state, pruned), true);
+assert.equal(sessionChangedByPrune(pruned, pruneSessionForArchitecture(pruned, prunedArchitecture)), false);
+
+let runState = applySessionAnnotations(createEmptyAgentSessionState(), architecture, [
+  { id: "f1", type: "focus", componentId: "service-1" },
+  { id: "n1", type: "note", componentId: "service-1", text: "Check cache hit rate." },
+  { id: "p1", type: "path", connectionId: "conn-1", label: "hot path" },
+]);
+runState = clearFocusAnnotationsOnRun(runState);
+assert.equal(runState.annotations.length, 2);
+assert.equal(runState.annotations.every((annotation) => annotation.type !== "focus"), true);
+assert.equal(runState.revision, 2);
 
 assert.equal(urlShortenerChallenge.slug, "url-shortener");
 

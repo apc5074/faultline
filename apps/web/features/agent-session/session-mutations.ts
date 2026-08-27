@@ -130,3 +130,30 @@ export function clearSessionAnnotations(
     revision: nextRevision(state),
   };
 }
+
+/**
+ * Run behavior (W-11): keep coaching notes/paths/stamps; drop ephemeral focus ticks only.
+ * Notes survive so the player can still read findings against fresh simulator evidence.
+ */
+export function clearFocusAnnotationsOnRun(state: AgentSessionState): AgentSessionState {
+  const nextAnnotations = state.annotations.filter((annotation) => annotation.type !== "focus");
+  if (nextAnnotations.length === state.annotations.length) return state;
+  return {
+    ...state,
+    annotations: nextAnnotations,
+    revision: nextRevision(state),
+  };
+}
+
+/** True when prune removed focus, help, or annotation targets. */
+export function sessionChangedByPrune(
+  before: AgentSessionState,
+  after: AgentSessionState,
+): boolean {
+  return (
+    before.focus !== after.focus ||
+    before.pendingHelpRequest !== after.pendingHelpRequest ||
+    before.annotations.length !== after.annotations.length ||
+    before.annotations.some((annotation, index) => annotation.id !== after.annotations[index]?.id)
+  );
+}

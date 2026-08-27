@@ -1,10 +1,15 @@
 import { componentRegistry } from "@faultline/component-catalog";
 import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection } from "@faultline/core";
 
+import {
+  PLAYGROUND_STARTER_SERVICE_POSITION,
+  PLAYGROUND_STARTER_TRAFFIC_POSITION,
+} from "@/features/architecture-canvas/canvas-grid";
 import { buildLevel1HeroScene, isLevel1HeroSceneEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import type { FlowConnectionLike } from "@/features/architecture-canvas/playground-types";
 import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 
+/** Level 1 seed: users → one undersized service. Player must extend the path. */
 const emptyStarterArchitecture: Architecture = {
   version: 1,
   components: [
@@ -13,10 +18,26 @@ const emptyStarterArchitecture: Architecture = {
       type: "traffic-source",
       config: { label: "Incoming traffic" },
       deployments: [],
-      ui: { x: 80, y: 180 },
+      ui: { ...PLAYGROUND_STARTER_TRAFFIC_POSITION },
+    },
+    {
+      id: "service-start",
+      type: "service",
+      config: { size: "medium", instances: 1 },
+      deployments: [],
+      ui: { ...PLAYGROUND_STARTER_SERVICE_POSITION },
     },
   ],
-  connections: [],
+  connections: [
+    {
+      id: "connection-start-traffic-service",
+      sourceComponentId: "traffic-source-start",
+      sourcePortId: "request_out",
+      targetComponentId: "service-start",
+      targetPortId: "request_in",
+      type: "request",
+    },
+  ],
 };
 
 export function resolveInitialArchitecture(): Architecture {

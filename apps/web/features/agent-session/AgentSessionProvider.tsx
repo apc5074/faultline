@@ -27,8 +27,10 @@ import {
 
 import {
   applySessionAnnotations,
+  clearFocusAnnotationsOnRun,
   clearSessionAnnotations,
   pruneSessionForArchitecture,
+  sessionChangedByPrune,
   withPendingHelpRequest,
   withSessionFocus,
 } from "./session-mutations";
@@ -39,6 +41,8 @@ export interface AgentSessionStore {
   setPendingHelp(pendingHelpRequest: AgentPendingHelpRequest | null): void;
   applyAnnotations(annotations: readonly AgentAnnotation[]): void;
   clearAnnotations(scope?: "all" | "component", componentId?: string): void;
+  /** Drop ephemeral focus ticks; keep notes/paths (Run lifecycle). */
+  clearFocusOnRun(): void;
 }
 
 interface AgentSessionContextValue {
@@ -72,10 +76,12 @@ export function AgentSessionProvider({
   );
 
   useEffect(() => {
-    const pruned = pruneSessionForArchitecture(sessionRef.current, architectureRef.current);
+    const previous = sessionRef.current;
+    const pruned = pruneSessionForArchitecture(previous, architectureRef.current);
+    if (!sessionChangedByPrune(previous, pruned)) return;
     sessionRef.current = {
       ...pruned,
-      revision: sessionRef.current.revision,
+      revision: previous.revision,
     };
     setSessionVersion((version) => version + 1);
   }, [architectureFingerprint]);
@@ -103,6 +109,9 @@ export function AgentSessionProvider({
       },
       clearAnnotations: (scope = "all", componentId) => {
         commitSession(clearSessionAnnotations(sessionRef.current, scope, componentId));
+      },
+      clearFocusOnRun: () => {
+        commitSession(clearFocusAnnotationsOnRun(sessionRef.current));
       },
     }),
     [commitSession],

@@ -15,6 +15,7 @@ export function AiEngineerPanel({
   onAttention?: (componentId: string | null) => void;
   onShowOnCanvas?: (componentId: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [challengeVersionId, setChallengeVersionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState("");
@@ -23,11 +24,12 @@ export function AiEngineerPanel({
   const [referenceComponentId, setReferenceComponentId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!open) return;
     void fetch("/api/challenges/active", { cache: "no-store" })
       .then(async (response) => response.ok ? (await response.json()) as { challenge: { id: string } } : null)
       .then((body) => setChallengeVersionId(body?.challenge.id ?? null))
       .catch(() => setChallengeVersionId(null));
-  }, []);
+  }, [open]);
 
   async function submitPrompt(rawPrompt: string) {
     const content = rawPrompt.trim();
@@ -50,7 +52,11 @@ export function AiEngineerPanel({
 
   function onSubmit(event: FormEvent) { event.preventDefault(); void submitPrompt(prompt); }
 
-  return <aside className="ai-engineer" aria-label="AI Engineer">
+  return <aside className="ai-engineer" aria-label="Built-in agent">
+    <button type="button" className="ai-engineer__toggle" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+      Built-in agent (optional)
+    </button>
+    {open ? <div className="ai-engineer__body">
     <h2>AI Engineer</h2><p className="ai-engineer__intro">Ask me to review, question, or inspect your system.</p>
     {messages.length === 0 ? <div className="ai-engineer__suggestions" aria-label="Suggested AI prompts">{suggestedPrompts.map((suggestion) => <button key={suggestion} type="button" onClick={() => void submitPrompt(suggestion)} disabled={!challengeVersionId || status === "streaming"}>{suggestion}</button>)}</div> : null}
     <div className="ai-engineer__messages" aria-live="polite">{messages.map((message, index) => <p key={`${message.role}-${index}`} className={`ai-engineer__message ai-engineer__message--${message.role}`}>{message.content || "Inspecting system..."}</p>)}</div>
@@ -59,5 +65,6 @@ export function AiEngineerPanel({
     {status === "error" ? <p className="ai-engineer__notice">AI Engineer is temporarily unavailable. You can keep building and running tests normally.</p> : null}
     {status === "limited" ? <p className="ai-engineer__notice">Today's AI Engineer limit has been reached. You can keep building and running tests normally.</p> : null}
     <form onSubmit={onSubmit}><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={challengeVersionId ? "Ask about this design" : "AI Engineer is connecting..."} disabled={!challengeVersionId || status === "streaming"} rows={3} /><button type="submit" disabled={!prompt.trim() || !challengeVersionId || status === "streaming"}>{status === "streaming" ? "Reviewing…" : "Ask AI Engineer"}</button></form>
+    </div> : null}
   </aside>;
 }

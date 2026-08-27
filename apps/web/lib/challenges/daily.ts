@@ -5,6 +5,7 @@ import type { ChallengeDefinition } from "@faultline/core";
 import { SIMULATOR_VERSION } from "@faultline/simulator";
 
 import { createSupabaseServerClient, getSupabasePublicConfig } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type ChallengeVersionRecord = {
   id: string;
@@ -129,12 +130,14 @@ export async function getActiveDailyChallenge(now: Date = new Date()): Promise<A
  * Used by official submission verification — never accept client challenge JSON.
  */
 export async function getChallengeVersionById(challengeVersionId: string): Promise<ChallengeVersionRecord> {
-  const config = getSupabasePublicConfig();
-  if (!config) {
+  let supabase;
+  try {
+    // Historical versions are needed only by trusted server-side submission
+    // verification. They are intentionally not exposed through public RLS.
+    supabase = createSupabaseServiceClient();
+  } catch {
     throw new ActiveDailyChallengeError("Supabase is not configured.", "misconfigured");
   }
-
-  const supabase = await createSupabaseServerClient(config);
   const { data, error } = await supabase
     .from("challenge_versions")
     .select("id, slug, version, config_json, config_hash, simulator_version, created_at")

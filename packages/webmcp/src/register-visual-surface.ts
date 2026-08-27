@@ -1,6 +1,6 @@
 import type { AgentCapabilityRegistry } from "@faultline/agent-capabilities";
 
-import { buildAgentVisualSurface } from "./agent-visual-surface.js";
+import { buildVisualWebMcpSurface } from "./agent-visual-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpModelContext, WebMcpRegisterToolOptions } from "./types.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
@@ -25,7 +25,7 @@ export async function registerVisualWebMcpSurface(
   const { modelContext, registry, getContext, signal, development = false, onVisualIntent } = options;
   if (signal.aborted) return { registeredToolNames: [] };
 
-  const surface = await buildAgentVisualSurface({
+  const surface = await buildVisualWebMcpSurface({
     registry,
     getContext,
     development,

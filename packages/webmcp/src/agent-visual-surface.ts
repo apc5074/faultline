@@ -29,12 +29,15 @@ export interface AgentVisualSurface {
   readonly resolvedNames: readonly BaselineVisualCapabilityName[];
 }
 
-export interface BuildAgentVisualSurfaceOptions {
+export interface BuildVisualWebMcpSurfaceOptions {
   readonly registry: AgentCapabilityRegistry;
   readonly getContext: WebMcpContextFactory;
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
 }
+
+/** @deprecated Use BuildVisualWebMcpSurfaceOptions. */
+export type BuildAgentVisualSurfaceOptions = BuildVisualWebMcpSurfaceOptions;
 
 export class AgentVisualSurfaceConfigurationError extends Error {
   override name = "AgentVisualSurfaceConfigurationError";
@@ -59,8 +62,8 @@ function visualIneligibleReason(
 }
 
 /** Build the baseline visual coaching surface for browser WebMCP registration. */
-export async function buildAgentVisualSurface(
-  options: BuildAgentVisualSurfaceOptions,
+export async function buildVisualWebMcpSurface(
+  options: BuildVisualWebMcpSurfaceOptions,
 ): Promise<AgentVisualSurface> {
   const { registry, getContext, development = false, onVisualIntent } = options;
   const context = resolveLiveAgentSnapshot(await getContext()).context;
@@ -102,5 +105,8 @@ export async function buildAgentVisualSurface(
     resolvedNames: resolved.names,
   };
 }
+
+/** @deprecated Use buildVisualWebMcpSurface. */
+export const buildAgentVisualSurface = buildVisualWebMcpSurface;
 
 export { RESOLVED_VISUAL_CAPABILITY_NAME_ORDER };

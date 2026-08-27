@@ -9,7 +9,7 @@ import { componentRegistry } from "@faultline/component-catalog";
 import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type RegionDeployment, type RegionId } from "@faultline/core";
 import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
 
-import { snapPosition } from "@/features/architecture-canvas/canvas-grid";
+import { clampToPlaygroundBoard } from "@/features/architecture-canvas/canvas-grid";
 import {
   buildEdgePathsFromArchitecture,
   computeHopMarkers,
@@ -230,8 +230,7 @@ export function usePlaygroundWorkspace() {
   ]);
 
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
-  const showCanvasEmptyState =
-    viewMode === "logical" && architecture.components.length === 1 && architecture.components[0]?.type === "traffic-source";
+  const showCanvasEmptyState = false;
 
   useEffect(() => {
     if (attentionComponentId && !architecture.components.some((component) => component.id === attentionComponentId)) {
@@ -251,7 +250,7 @@ export function usePlaygroundWorkspace() {
             if (change.type === "position") {
               const position = change.position;
               if (!position) continue;
-              const snapped = snapPosition(position);
+              const snapped = clampToPlaygroundBoard(position);
               components = components.map((component) => {
                 if (component.id !== change.id) return component;
                 const placed = { ...component, ui: snapped };
@@ -333,7 +332,7 @@ export function usePlaygroundWorkspace() {
 
       const component = createComponentInstance(
         componentRegistry.get(type),
-        snapPosition(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
+        clampToPlaygroundBoard(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
       );
       const placed = applyRegionalPlacement(component, component.ui);
       setArchitecture((current) => ({ ...current, components: [...current.components, placed] }));

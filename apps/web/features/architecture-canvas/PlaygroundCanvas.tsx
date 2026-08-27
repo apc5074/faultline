@@ -17,7 +17,14 @@ import type { Architecture, ChallengeDefinition, RegionId } from "@faultline/cor
 import type { GeographicRoute } from "@faultline/simulator";
 
 import { AgentAnnotationLayer } from "@/features/agent-annotations";
-import { PLAYGROUND_SNAP_GRID } from "@/features/architecture-canvas/canvas-grid";
+import {
+  PLAYGROUND_DEFAULT_VIEWPORT,
+  PLAYGROUND_MAX_ZOOM,
+  PLAYGROUND_MIN_ZOOM,
+  PLAYGROUND_NODE_EXTENT,
+  PLAYGROUND_SNAP_GRID,
+  PLAYGROUND_TRANSLATE_EXTENT,
+} from "@/features/architecture-canvas/canvas-grid";
 import { InkConnectionLine } from "@/features/architecture-canvas/InkConnectionLine";
 import { InkEdge, type InkEdgeData } from "@/features/architecture-canvas/InkEdge";
 import { nodeTypes } from "@/features/architecture-canvas/playground-flow-model";
@@ -113,6 +120,12 @@ export function PlaygroundCanvas({
           onDragOver={onDragOver}
           onDrop={onDrop}
           onInit={(instance) => {
+            // Starter (users + service) keeps the left-biased viewport; richer scenes fit.
+            if (architecture.components.length <= 2) {
+              instance.setViewport({ ...PLAYGROUND_DEFAULT_VIEWPORT });
+            } else {
+              instance.fitView({ padding: 0.3, minZoom: PLAYGROUND_MIN_ZOOM, maxZoom: PLAYGROUND_MAX_ZOOM });
+            }
             setSemanticZoomOut(isSemanticZoomOut(instance.getZoom()));
           }}
           onMove={(_event, viewport) => {
@@ -121,11 +134,12 @@ export function PlaygroundCanvas({
               return current === next ? current : next;
             });
           }}
-          fitView
-          fitViewOptions={{ padding: 0.35 }}
+          defaultViewport={PLAYGROUND_DEFAULT_VIEWPORT}
           deleteKeyCode={["Backspace", "Delete"]}
-          minZoom={0.4}
-          maxZoom={1.8}
+          minZoom={PLAYGROUND_MIN_ZOOM}
+          maxZoom={PLAYGROUND_MAX_ZOOM}
+          translateExtent={PLAYGROUND_TRANSLATE_EXTENT}
+          nodeExtent={PLAYGROUND_NODE_EXTENT}
           snapToGrid
           snapGrid={PLAYGROUND_SNAP_GRID}
           panOnScroll
