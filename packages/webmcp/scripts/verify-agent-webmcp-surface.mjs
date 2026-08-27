@@ -46,9 +46,9 @@ const result = await registerAgentWebMcpSurface({
 });
 
 assert.deepEqual(result.readToolNames, [...BASELINE_READ_CAPABILITY_NAMES]);
-assert.deepEqual(result.visualToolNames, [...BASELINE_VISUAL_CAPABILITY_NAMES]);
+assert.deepEqual(result.visualToolNames, [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => name !== "focus_region" && name !== "highlight_path"));
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
-assert.equal(registered.length, 13);
+assert.equal(registered.length, 14);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
 assert.ok(focusTool);

@@ -525,7 +525,10 @@ export function tickSimulation(
       (packet) => packet.dwellComponentId === comp.id && packet.shape !== "rejected",
     );
     const visibleDwellers = dwellers.filter((packet) => packet.componentVisualActive !== false);
-    let processingPackets = visibleDwellers.map((packet) => packet.id);
+    // Figma ServerGlyph: every dwelling packet parks in a core 1:1 — no activity
+    // sampling (the packet stream is already rate-derived) and no share scaling.
+    const processingDwellers = comp.type === "server" ? dwellers : visibleDwellers;
+    let processingPackets = processingDwellers.map((packet) => packet.id);
 
     if (comp.type === "pubsub") {
       const lastFlash = pubsubFlashes.get(comp.id) ?? -Infinity;
@@ -537,9 +540,9 @@ export function tickSimulation(
 
     let state = comp.state;
     if (state !== "failed") {
-      if (visibleDwellers.length === 0) state = "idle";
-      else if (comp.type === "queue" && visibleDwellers.length >= comp.depth) state = "overloaded";
-      else if (comp.type === "server" && visibleDwellers.length >= comp.instances * 3) state = "overloaded";
+      if (processingDwellers.length === 0) state = "idle";
+      else if (comp.type === "queue" && processingDwellers.length >= comp.depth) state = "overloaded";
+      else if (comp.type === "server" && processingDwellers.length >= comp.instances * 3) state = "overloaded";
       else state = "processing";
     }
 
@@ -553,7 +556,9 @@ export function tickSimulation(
       0,
       comp.type === "cache"
         ? visibleDwellers.length
-        : Math.round((comp.type === "cdn" ? (passCount ?? 0) : processingPackets.length) * scale),
+        : comp.type === "server"
+          ? processingDwellers.length
+          : Math.round((comp.type === "cdn" ? (passCount ?? 0) : processingPackets.length) * scale),
     );
 
     return {

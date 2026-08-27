@@ -6,6 +6,9 @@ import {
   createDefaultCapabilityRegistry,
   createEmptyAgentSessionState,
   focusComponentCapability,
+  focusRegionCapability,
+  highlightPathCapability,
+  traceRequest,
 } from "../dist/index.js";
 
 const architecture = {
@@ -43,6 +46,8 @@ const registry = createDefaultCapabilityRegistry();
 
 assert.match(focusComponentCapability.description, /Inspect read tools first/);
 assert.equal(focusComponentCapability.mode, "visual");
+assert.equal(focusRegionCapability.mode, "visual");
+assert.equal(highlightPathCapability.mode, "visual");
 
 const missingFocus = await registry.invoke(
   "focus_component",
@@ -64,6 +69,47 @@ if (focus.ok) {
   assert.equal(focus.data.annotation.type, "focus");
   assert.equal(focus.data.annotation.componentId, "service-1");
 }
+
+const geographicContext = {
+  ...context,
+  challenge: { ...challenge, geographicDistribution: [{ regionId: "us-east", fraction: 1 }] },
+};
+const focusRegion = await registry.invoke(
+  "focus_region",
+  geographicContext,
+  { regionId: "us-east" },
+  { session: createEmptyAgentSessionState() },
+);
+assert.equal(focusRegion.ok, true);
+if (focusRegion.ok) assert.equal(focusRegion.data.regionId, "us-east");
+
+const inactiveRegion = await registry.invoke(
+  "focus_region",
+  context,
+  { regionId: "us-east" },
+  { session: createEmptyAgentSessionState() },
+);
+assert.equal(inactiveRegion.ok, false);
+
+const missingRegion = await registry.invoke(
+  "focus_region",
+  geographicContext,
+  { regionId: "missing" },
+  { session: createEmptyAgentSessionState() },
+);
+assert.equal(missingRegion.ok, false);
+if (!missingRegion.ok) assert.equal(missingRegion.code, "NOT_FOUND");
+
+const highlightedPath = await registry.invoke(
+  "highlight_path",
+  geographicContext,
+  { originRegionId: "us-east", kind: "redirect" },
+  { session: createEmptyAgentSessionState() },
+);
+assert.deepEqual(highlightedPath, (() => {
+  const traced = traceRequest(geographicContext, { originRegionId: "us-east", kind: "redirect" });
+  return traced.ok ? { ok: true, data: { trace: traced.data } } : traced;
+})());
 
 const longNote = await registry.invoke(
   "annotate_component",

@@ -10,6 +10,7 @@ import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
 
 import { buildComponentPlaybackVisuals } from "../features/traffic-playback/playback-component-visuals.ts";
+import { selectComponentVisualEvidence } from "../features/traffic-playback/component-visual-evidence.ts";
 import {
   buildComponentVolumeShares,
   mechanismCellsFromShare,
@@ -219,5 +220,23 @@ assert.equal(mechanismCellsFromShare(0, 16, false), 0);
 assert.equal(mechanismCellsFromShare(VOLUME_SHARE_IDLE_EPSILON, 16, false), 0);
 assert.ok(mechanismCellsFromShare(0.2, 16, false) > 0);
 assert.equal(mechanismCellsFromShare(0.2, 16, true), 16, "saturation still fills all slots");
+
+console.log("Check — component evidence selector preserves metrics and leaves unknown adapters neutral");
+const serviceEvidence = selectComponentVisualEvidence({
+  component: archA.components.find((component) => component.id === "svc1"),
+  simulation: simA,
+  redirectRps,
+  impactSeed: "run-a:svc1:1",
+});
+assert.equal(serviceEvidence.incomingRps, simA.services.svc1.incomingRps);
+assert.equal(serviceEvidence.capacityRps, simA.services.svc1.capacityRps);
+assert.equal(serviceEvidence.impactSeed, "run-a:svc1:1");
+const lbEvidence = selectComponentVisualEvidence({
+  component: archA.components.find((component) => component.id === "lb1"),
+  simulation: simA,
+  redirectRps,
+});
+assert.equal(lbEvidence.processingCount, 0);
+assert.equal(lbEvidence.utilization, undefined);
 
 console.log("volume share visuals verified");

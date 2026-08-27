@@ -1,4 +1,5 @@
 import { HomeHelp } from "@/features/home/HomeHelp";
+import { PlayLevelLink } from "@/features/home/PlayLevelLink";
 import { LeaderboardHud } from "@/features/leaderboards/LeaderboardHud";
 
 export default function Home() {
@@ -16,9 +17,9 @@ export default function Home() {
           <p className="home-page__description">
             Design the system. Run the simulation. Find the fault line.
           </p>
-          <a className="home-page__play" href="/level/1?brief=1">
+          <PlayLevelLink className="home-page__play">
             Play Level 1 <span aria-hidden="true">→</span>
-          </a>
+          </PlayLevelLink>
         </section>
 
         <footer className="home-page__footer">

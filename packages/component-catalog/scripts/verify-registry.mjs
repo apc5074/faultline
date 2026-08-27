@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { checkConnectionCompatibility } from "@faultline/core";
 import {
   ComponentDefinitionError,
   DuplicateComponentTypeError,
@@ -116,7 +117,77 @@ for (const registeredDefinition of componentRegistry.list()) {
   assert.ok(registeredDefinition.presentation, `${registeredDefinition.type} has a presentation descriptor`);
   assert.ok(registeredDefinition.presentation.glyph.length > 0);
   assert.ok(registeredDefinition.presentation.supportedStates.includes("idle"));
+  assert.equal(registeredDefinition.configSchema.safeParse(registeredDefinition.defaultConfig).success, true);
+  assert.equal(new Set(registeredDefinition.metrics.map((metric) => metric.id)).size, registeredDefinition.metrics.length);
+
+  for (const binding of registeredDefinition.presentation.visualConfig) {
+    assert.ok(binding.name.length > 0, `${registeredDefinition.type} visual binding has a name`);
+    assert.ok(binding.path.length > 0, `${registeredDefinition.type} visual binding has a path`);
+    if (binding.source === "config") {
+      const resolved = binding.path.split(".").reduce((value, segment) => value?.[segment], registeredDefinition.defaultConfig);
+      assert.notEqual(resolved, undefined, `${registeredDefinition.type} binding ${binding.name} resolves from default config`);
+    }
+  }
 }
+
+const definitionByType = Object.fromEntries(componentRegistry.list().map((definition) => [definition.type, definition]));
+const port = (type, id) => {
+  const value = definitionByType[type].ports.find((candidate) => candidate.id === id);
+  assert.ok(value, `${type}.${id} must exist`);
+  return value;
+};
+const assertCompatible = (sourceType, sourcePortId, targetType, targetPortId, connectionType) => {
+  assert.equal(
+    checkConnectionCompatibility(
+      port(sourceType, sourcePortId),
+      port(targetType, targetPortId),
+      connectionType,
+    ).valid,
+    true,
+    `${sourceType}.${sourcePortId} → ${targetType}.${targetPortId} must support ${connectionType}`,
+  );
+};
+const assertIncompatible = (sourceType, sourcePortId, targetType, targetPortId, connectionType) => {
+  assert.equal(
+    checkConnectionCompatibility(
+      port(sourceType, sourcePortId),
+      port(targetType, targetPortId),
+      connectionType,
+    ).valid,
+    false,
+    `${sourceType}.${sourcePortId} → ${targetType}.${targetPortId} must reject ${connectionType}`,
+  );
+};
+
+assert.deepEqual(Object.keys(definitionByType).sort(), [
+  "cdn",
+  "global-router",
+  "load-balancer",
+  "postgres",
+  "redis",
+  "service",
+  "traffic-source",
+]);
+
+// The Level 1 graph vocabulary has one legal request chain and one legal
+// store chain. Keeping this here prevents inspector/rail changes from exposing
+// a configuration that cannot be represented by the catalog's typed ports.
+assertCompatible("traffic-source", "request_out", "cdn", "request_in", "request");
+assertCompatible("traffic-source", "request_out", "global-router", "request_in", "request");
+assertCompatible("traffic-source", "request_out", "load-balancer", "request_in", "request");
+assertCompatible("traffic-source", "request_out", "service", "request_in", "request");
+assertCompatible("cdn", "origin_out", "global-router", "request_in", "request");
+assertCompatible("cdn", "origin_out", "load-balancer", "request_in", "request");
+assertCompatible("cdn", "origin_out", "service", "request_in", "request");
+assertCompatible("global-router", "route_out", "load-balancer", "request_in", "request");
+assertCompatible("global-router", "route_out", "service", "request_in", "request");
+assertCompatible("load-balancer", "request_out", "service", "request_in", "request");
+assertCompatible("service", "database_out", "redis", "cache_in", "read_write");
+assertCompatible("service", "database_out", "postgres", "database_in", "read_write");
+assertCompatible("redis", "origin_out", "postgres", "database_in", "read_write");
+assertIncompatible("traffic-source", "request_out", "postgres", "database_in", "request");
+assertIncompatible("service", "database_out", "postgres", "database_in", "request");
+assertIncompatible("cdn", "origin_out", "redis", "cache_in", "request");
 
 assert.equal(componentRegistry.get("traffic-source"), trafficSourceDefinition);
 assert.deepEqual(trafficSourceDefinition.defaultConfig, { label: "Incoming traffic" });

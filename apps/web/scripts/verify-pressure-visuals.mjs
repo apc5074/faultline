@@ -56,9 +56,10 @@ const simulation = {
 assert.equal(deriveGlyphState("svc", simulation), "saturated");
 assert.equal(deriveGlyphState("pg", simulation), "saturated");
 assert.equal(deriveGlyphState("svc", simulation, { resultIsStale: true }), "stale");
-assert.match(glyphPressureLabel("svc", simulation), /20,000 RPS unmet.*us-east saturated/);
-assert.match(glyphPressureLabel("pg", simulation), /read 107%.*write 200%.*2,000 RPS read shortfall.*4,000 RPS write shortfall/);
-assert.match(glyphEvidenceLabel("redis", simulation), /viral hot key.*200%.*saturated/);
+assert.equal(glyphPressureLabel("svc", simulation), "20k unmet");
+assert.equal(glyphPressureLabel("pg", simulation), "R 107%\nW 200%");
+assert.equal(glyphEvidenceLabel("redis", simulation), "HOT 200%");
+assert.equal(glyphPressureLabel("svc", simulation, { resultIsStale: true }), "STALE");
 assert.deepEqual(deriveGlyphMechanismValues("pg", simulation, { redirectRps: 100_000 }), {
   processingCount: 4,
   readProcessingCount: 4,

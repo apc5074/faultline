@@ -239,8 +239,26 @@ export function deriveGlyphMechanismValues(
   return {};
 }
 
-function rps(value: number): string {
-  return `${Math.round(value).toLocaleString("en-US")} RPS`;
+/** Compact RPS for glance labels — inspector owns full figures. */
+function compactRps(value: number): string {
+  const rounded = Math.round(value);
+  if (Math.abs(rounded) >= 1000) {
+    const thousands = rounded / 1000;
+    const formatted = Number.isInteger(thousands)
+      ? String(thousands)
+      : thousands.toFixed(1).replace(/\.0$/, "");
+    return `${formatted}k`;
+  }
+  return String(rounded);
+}
+
+function percent(ratio: number): string {
+  return `${Math.round(ratio * 100)}%`;
+}
+
+function joinGlanceLines(...parts: Array<string | undefined>): string | undefined {
+  const lines = parts.flatMap((part) => (part ? part.split("\n") : [])).filter(Boolean);
+  return lines.length > 0 ? lines.join("\n") : undefined;
 }
 
 /** A compact, non-color-only description of the simulator's limiting resource. */
@@ -250,27 +268,23 @@ export function glyphPressureLabel(
   options: { resultIsStale?: boolean } = {},
 ): string | undefined {
   if (!simulationResult) return undefined;
-  if (options.resultIsStale) return "Stale simulation evidence — run again";
+  if (options.resultIsStale) return "STALE";
 
   const service = simulationResult.services[componentId];
   if (service) {
     const regionalLimit = service.regions?.find((region) => region.state !== "healthy");
     if (service.state === "healthy" && service.unmetRps <= 0 && !regionalLimit) return undefined;
-    const regional = regionalLimit
-      ? ` · ${regionalLimit.regionId} ${regionalLimit.state} (${rps(regionalLimit.incomingRps)} / ${rps(regionalLimit.capacityRps)})`
-      : "";
-    const unmet = service.unmetRps > 0 ? ` · ${rps(service.unmetRps)} unmet` : "";
-    return `${service.state} · ${rps(service.incomingRps)} demand / ${rps(service.capacityRps)} capacity${unmet}${regional}`;
+    return service.unmetRps > 0
+      ? `${compactRps(service.unmetRps)} unmet`
+      : percent(service.utilization);
   }
 
   const postgres = simulationResult.postgres[componentId];
   if (postgres) {
-    const shortfalls = [
-      postgres.readCapacityShortfallRps > 0 ? `${rps(postgres.readCapacityShortfallRps)} read shortfall` : "",
-      postgres.writeCapacityShortfallRps > 0 ? `${rps(postgres.writeCapacityShortfallRps)} write shortfall` : "",
-    ].filter(Boolean);
-    if (postgres.state === "healthy" && shortfalls.length === 0) return undefined;
-    return `${postgres.state} · read ${Math.round(postgres.readUtilization * 100)}% · write ${Math.round(postgres.writeUtilization * 100)}%${shortfalls.length ? ` · ${shortfalls.join(", ")}` : ""}`;
+    const hasShortfall =
+      postgres.readCapacityShortfallRps > 0 || postgres.writeCapacityShortfallRps > 0;
+    if (postgres.state === "healthy" && !hasShortfall) return undefined;
+    return joinGlanceLines(`R ${percent(postgres.readUtilization)}`, `W ${percent(postgres.writeUtilization)}`);
   }
 
   return undefined;
@@ -286,19 +300,17 @@ export function glyphEvidenceLabel(
   if (!simulationResult || options.resultIsStale) return pressure;
 
   const cache = simulationResult.caches?.[componentId];
-  const cacheEvidence = cache
-    ? `${cache.saturated ? "saturated cache" : "cache"} · ${Math.round(cache.hitRate * 100)}% hit · ${rps(cache.hitRps)} hit / ${rps(cache.missRps)} miss · ${rps(cache.downstreamAvoidedRps)} avoided`
-    : undefined;
+  const cacheEvidence = cache ? `${percent(cache.hitRate)} HIT` : undefined;
+
   const hotKeyHop = simulationResult.hotKey?.active
     ? simulationResult.hotKey.hops.find((hop) => hop.componentId === componentId)
     : undefined;
-  const hotKeyEvidence = hotKeyHop?.hotKeyUtilization !== null && hotKeyHop?.hotKeyUtilization !== undefined
-    ? `viral hot key · ${Math.round(hotKeyHop.hotKeyUtilization * 100)}% hot-key capacity${hotKeyHop.saturated ? " · saturated" : ""}`
-    : undefined;
+  const hotKeyEvidence =
+    hotKeyHop?.hotKeyUtilization !== null && hotKeyHop?.hotKeyUtilization !== undefined
+      ? `HOT ${percent(hotKeyHop.hotKeyUtilization)}`
+      : undefined;
 
-  return [pressure, cacheEvidence, hotKeyEvidence]
-    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
-    .join(" · ") || undefined;
+  return joinGlanceLines(pressure, cacheEvidence, hotKeyEvidence);
 }
 
 /** Screen-reader summary of capacity pressure when simulation results exist. */

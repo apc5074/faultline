@@ -9,10 +9,7 @@ import { portOffsetY } from "@/features/architecture-canvas/glyph-port-layout";
 import { challengeRedirectRps } from "@/features/architecture-canvas/playground-challenge";
 import {
   ComponentGlyph,
-  deriveGlyphMechanismValues,
-  deriveGlyphState,
   glyphDimensionsForProps,
-  glyphEvidenceLabel,
   glyphPropsFromComponent,
   glyphStateAriaLabel,
   MINI_GLYPH_SIZE,
@@ -22,6 +19,7 @@ import {
   glyphStateFromPlayback,
   mechanismPropsFromPlayback,
   playbackGlyphState,
+  selectComponentVisualEvidence,
   type ComponentPlaybackVisual,
 } from "@/features/traffic-playback";
 
@@ -66,7 +64,13 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
       : false,
   };
 
-  const glyphStateFromSim = deriveGlyphState(data.component.id, data.simulation, glyphOptions);
+  const settledEvidence = selectComponentVisualEvidence({
+    component: data.component,
+    simulation: data.simulation,
+    redirectRps: challengeRedirectRps,
+    resultIsStale: data.resultIsStale,
+  });
+  const glyphStateFromSim = selected ? "selected" : settledEvidence.state;
 
   const glyphState = playbackActive
     ? playbackGlyphState(data.playbackVisual, selected)
@@ -75,16 +79,13 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
   const simMechanism =
     playbackActive || data.semanticZoomOut
       ? {}
-      : deriveGlyphMechanismValues(data.component.id, data.simulation, {
-          resultIsStale: data.resultIsStale,
-          redirectRps: challengeRedirectRps,
-        });
+      : settledEvidence;
 
   const mechanism = playbackMechanism ?? simMechanism;
   const ariaLabel = glyphStateAriaLabel(data.component.id, data.simulation, glyphOptions);
   const evidenceLabel = playbackActive
     ? data.playbackVisual?.evidenceLabel
-    : glyphEvidenceLabel(data.component.id, data.simulation, { resultIsStale: data.resultIsStale });
+    : settledEvidence.evidenceLabel;
   const portFailed = glyphState === "failed";
 
   return (

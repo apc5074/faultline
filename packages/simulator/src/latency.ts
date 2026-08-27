@@ -185,12 +185,20 @@ export function buildGeographicOriginLatencies(input: {
     );
     if (requestRoutes.length === 0) continue;
 
-    const networkToServiceMs = weightedAverageNetworkMs(requestRoutes);
     // Dominant service for this origin (highest rps).
     const primaryRequest = [...requestRoutes].sort((left, right) => right.rps - left.rps)[0]!;
     const serviceId = primaryRequest.componentId;
     const serviceRegion = primaryRequest.destinationRegion;
-    const serviceLatencyMs = components[serviceId]?.p95LatencyMs ?? 0;
+    const totalOriginRps = origin.redirectRps + origin.writeRps;
+    // Request routes contain the post-CDN miss/write volume. CDN hits never
+    // reach Service, Redis, or Postgres, so their processing and network work
+    // must be weighted out of the origin path.
+    const originServiceFraction =
+      totalOriginRps > 0
+        ? Math.min(1, requestRoutes.reduce((sum, route) => sum + route.rps, 0) / totalOriginRps)
+        : 0;
+    const networkToServiceMs = weightedAverageNetworkMs(requestRoutes) * originServiceFraction;
+    const serviceLatencyMs = (components[serviceId]?.p95LatencyMs ?? 0) * originServiceFraction;
 
     const { hitRate, redisId } = redisHitRate(architecture, caches, serviceId);
 
@@ -225,11 +233,11 @@ export function buildGeographicOriginLatencies(input: {
       const missNetworkMs =
         postgresReadRoutes.length > 0 ? weightedAverageNetworkMs(postgresReadRoutes) : 0;
       // Hit: pay Redis RTT only. Miss: Redis RTT + Postgres RTT + Postgres processing.
-      networkToDatastoreMs = redisNetworkMs + (1 - hitRate) * missNetworkMs;
-      effectivePostgresLatencyMs = (1 - hitRate) * postgresLatencyMs;
+      networkToDatastoreMs = originServiceFraction * (redisNetworkMs + (1 - hitRate) * missNetworkMs);
+      effectivePostgresLatencyMs = originServiceFraction * (1 - hitRate) * postgresLatencyMs;
     } else if (postgresReadRoutes.length > 0) {
-      networkToDatastoreMs = weightedAverageNetworkMs(postgresReadRoutes);
-      effectivePostgresLatencyMs = postgresLatencyMs;
+      networkToDatastoreMs = originServiceFraction * weightedAverageNetworkMs(postgresReadRoutes);
+      effectivePostgresLatencyMs = originServiceFraction * postgresLatencyMs;
     }
 
     const pathLatencyMs =

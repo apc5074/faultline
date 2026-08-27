@@ -14,6 +14,7 @@ import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
 import { AnnotationRunLifecycle } from "@/features/agent-session/AnnotationRunLifecycle";
 import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionSync";
+import { ObservationPins } from "@/features/agent-session/ObservationPins";
 import { WebMcpRegistration } from "@/features/webmcp/WebMcpRegistration";
 import {
   WebMcpStatusPlate,
@@ -75,6 +76,9 @@ function ArchitectureWorkspace() {
       <WebMcpRegistration
           reconciliationKey={workspace.webMcpReconciliationKey}
         onStatusChange={handleWebMcpStatus}
+        onFocusComponent={workspace.focusComponentInPresentation}
+        onFocusRegion={workspace.focusRegionInPresentation}
+        onPinObservation={workspace.pinObservation}
         onExperimentResult={publishResult}
       />
       ) : null}
@@ -118,6 +122,7 @@ function ArchitectureWorkspace() {
               challenge={activeChallenge}
               selectedComponentId={workspace.selectedComponentId}
               worldSelection={workspace.worldSelection}
+              highlightedTrace={workspace.agentTrace}
               showSimulationVisuals={workspace.showSimulationVisuals}
               resultIsStale={workspace.resultIsStale}
               geographicRoutes={
@@ -138,6 +143,7 @@ function ArchitectureWorkspace() {
               setSemanticZoomOut={workspace.setSemanticZoomOut}
               onSelectComponent={workspace.onSelectComponent}
               onSelectRegion={workspace.onSelectRegion}
+              onClearWorldSelection={workspace.clearSelection}
             />
 
             <div className="playground-corner-hud">
@@ -166,11 +172,14 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
+            <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
             <TracePresentationPanel
               architecture={workspace.architecture}
               challenge={activeChallenge}
               onFocusComponent={workspace.onSelectComponent}
               onClear={workspace.clearSelection}
+              externalTrace={workspace.agentTrace}
+              onClearExternalTrace={workspace.clearAgentTrace}
             />
             {publishedExperiment ? (
               <ExperimentResultPanel
@@ -216,7 +225,10 @@ function ArchitectureWorkspace() {
                   <AiEngineerPanel
                     architecture={workspace.architecture}
                     onAttention={workspace.setAttentionComponentId}
-                    onShowOnCanvas={workspace.focusComponentOnCanvas}
+                    onShowOnCanvas={workspace.focusComponentInPresentation}
+                    onShowRegionOnMap={workspace.focusRegionInPresentation}
+                    onHighlightTrace={workspace.highlightTraceInPresentation}
+                    onPinObservation={workspace.pinObservation}
                     onExperimentResult={publishResult}
                   />
                 ) : null}

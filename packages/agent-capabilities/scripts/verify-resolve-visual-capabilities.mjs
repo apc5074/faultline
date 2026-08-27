@@ -36,10 +36,11 @@ const first = resolveVisualCapabilities(registry, context, { development: true }
 const second = resolveVisualCapabilities(registry, context, { development: true });
 
 assert.deepEqual(first.names, second.names);
-assert.deepEqual(first.names, [...BASELINE_VISUAL_CAPABILITY_NAMES]);
-assert.deepEqual(first.names, [...RESOLVED_VISUAL_CAPABILITY_NAME_ORDER]);
-assert.deepEqual(first.skipped, []);
-assert.equal(first.capabilities.length, 4);
+const inactiveGeographyVisualNames = ["focus_region", "highlight_path"];
+assert.deepEqual(first.names, [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => !inactiveGeographyVisualNames.includes(name)));
+assert.deepEqual(first.names, [...RESOLVED_VISUAL_CAPABILITY_NAME_ORDER].filter((name) => !inactiveGeographyVisualNames.includes(name)));
+assert.deepEqual(first.skipped, inactiveGeographyVisualNames.map((name) => ({ name, reason: "unavailable" })));
+assert.equal(first.capabilities.length, 5);
 
 for (const capability of first.capabilities) {
   assert.equal(capability.mode, "visual");
@@ -52,7 +53,18 @@ const emptyArchitectureContext = {
   architecture: { version: 1, components: [], connections: [] },
 };
 const emptyResolved = resolveVisualCapabilities(registry, emptyArchitectureContext, { development: true });
-assert.deepEqual(emptyResolved.names, [...BASELINE_VISUAL_CAPABILITY_NAMES]);
+assert.deepEqual(emptyResolved.names, [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => !inactiveGeographyVisualNames.includes(name)));
+
+const geographicContext = {
+  challenge: {
+    ...challenge,
+    geographicDistribution: [{ regionId: "us-east", fraction: 1 }],
+  },
+  architecture: baselineArchitecture,
+};
+const geographicResolved = resolveVisualCapabilities(registry, geographicContext, { development: true });
+assert.equal(geographicResolved.names.includes("focus_region"), true);
+assert.equal(geographicResolved.names.includes("highlight_path"), true);
 
 const missingRegistry = createAgentCapabilityRegistry(
   registry.list().filter((capability) => capability.name !== "focus_component"),
@@ -63,8 +75,12 @@ assert.throws(
 );
 
 const productionMissing = resolveVisualCapabilities(missingRegistry, context, { development: false });
-assert.deepEqual(productionMissing.skipped, [{ name: "focus_component", reason: "missing" }]);
-assert.equal(productionMissing.names.length, BASELINE_VISUAL_CAPABILITY_NAMES.length - 1);
+assert.deepEqual(productionMissing.skipped, [
+  { name: "focus_component", reason: "missing" },
+  { name: "focus_region", reason: "unavailable" },
+  { name: "highlight_path", reason: "unavailable" },
+]);
+assert.equal(productionMissing.names.length, BASELINE_VISUAL_CAPABILITY_NAMES.length - 3);
 
 const wrongModeRegistry = createAgentCapabilityRegistry(
   registry.list().map((capability) =>
@@ -82,7 +98,11 @@ const unavailableRegistry = createAgentCapabilityRegistry(
   ),
 );
 const unavailable = resolveVisualCapabilities(unavailableRegistry, context, { development: true });
-assert.deepEqual(unavailable.skipped, [{ name: "highlight_connection", reason: "unavailable" }]);
+assert.deepEqual(unavailable.skipped, [
+  { name: "highlight_connection", reason: "unavailable" },
+  { name: "focus_region", reason: "unavailable" },
+  { name: "highlight_path", reason: "unavailable" },
+]);
 assert.equal(unavailable.names.includes("highlight_connection"), false);
 
 console.log("verify-resolve-visual-capabilities: ok");

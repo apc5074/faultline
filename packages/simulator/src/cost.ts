@@ -107,7 +107,13 @@ function priceComponent(
     };
   }
   if (component.type === "redis") {
-    return { componentId: component.id, amount: redisMonthlyCostForConfig(configResult.data as RedisConfig) };
+    // Every regional deployment is an independent cache footprint. An empty
+    // deployments list is the legacy logical single-footprint form.
+    const footprintCount = Math.max(1, component.deployments.length);
+    return {
+      componentId: component.id,
+      amount: redisMonthlyCostForConfig(configResult.data as RedisConfig) * footprintCount,
+    };
   }
   if (component.type === "cdn") {
     const incomingRps = traffic?.[component.id]?.incomingRps ?? 0;

@@ -101,6 +101,8 @@ const published = [];
 publishVisualIntent("focus_component", { componentId: "service-1" }, sanitized, (intent) => published.push(intent));
 assert.equal(published.length, 1);
 assert.equal(published[0]?.kind, "annotation");
+publishVisualIntent("unknown_visual", { componentId: "service-1" }, sanitized, (intent) => published.push(intent));
+assert.equal(published.length, 1);
 
 const prunedArchitecture = { version: 1, components: [], connections: [] };
 session = appendValidatedAnnotations(createEmptyAgentSessionState(), architecture, [

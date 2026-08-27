@@ -13,6 +13,16 @@ export interface FocusComponentInput {
   readonly componentId: string;
 }
 
+export interface FocusRegionInput {
+  readonly regionId: string;
+}
+
+export interface PinObservationInput {
+  readonly target: "component" | "cache" | "requirement" | "region";
+  readonly id: string;
+  readonly metricId?: string;
+}
+
 export const focusComponentInputSchema: CapabilityInputSchema<FocusComponentInput> = {
   jsonSchema: {
     type: "object",
@@ -33,6 +43,46 @@ export const focusComponentInputSchema: CapabilityInputSchema<FocusComponentInpu
       return { success: false as const, errors: ["componentId must be a non-empty string."] };
     }
     return { success: true as const, data: { componentId: input.componentId } };
+  },
+};
+
+export const focusRegionInputSchema: CapabilityInputSchema<FocusRegionInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: { regionId: { type: "string", minLength: 1 } },
+    required: ["regionId"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["focus_region input must be an object."] };
+    if (!hasOnlyKeys(input, ["regionId"])) return { success: false as const, errors: ["focus_region input contains unknown properties."] };
+    if (typeof input.regionId !== "string" || input.regionId.trim().length === 0) {
+      return { success: false as const, errors: ["regionId must be a non-empty string."] };
+    }
+    return { success: true as const, data: { regionId: input.regionId } };
+  },
+};
+
+const observationTargetSet = new Set<string>(["component", "cache", "requirement", "region"]);
+
+export const pinObservationInputSchema: CapabilityInputSchema<PinObservationInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      target: { type: "string", enum: ["component", "cache", "requirement", "region"] },
+      id: { type: "string", minLength: 1 },
+      metricId: { type: "string", minLength: 1 },
+    },
+    required: ["target", "id"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["pin_observation input must be an object."] };
+    if (!hasOnlyKeys(input, ["target", "id", "metricId"])) return { success: false as const, errors: ["pin_observation input contains unknown properties."] };
+    if (typeof input.target !== "string" || !observationTargetSet.has(input.target)) return { success: false as const, errors: ["target must be component, cache, requirement, or region."] };
+    if (typeof input.id !== "string" || input.id.trim().length === 0) return { success: false as const, errors: ["id must be a non-empty string."] };
+    if (input.metricId !== undefined && (typeof input.metricId !== "string" || input.metricId.trim().length === 0)) return { success: false as const, errors: ["metricId must be a non-empty string when provided."] };
+    return { success: true as const, data: { target: input.target as PinObservationInput["target"], id: input.id, ...(input.metricId !== undefined ? { metricId: input.metricId } : {}) } };
   },
 };
 

@@ -94,9 +94,13 @@ export {
   annotateComponentCapability,
   clearAnnotationsCapability,
   focusComponentCapability,
+  focusRegionCapability,
+  highlightPathCapability,
+  pinObservationCapability,
   highlightConnectionCapability,
 } from "./visual-capabilities.js";
-export type { ClearAnnotationsIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
+export type { ClearAnnotationsIntent, FocusRegionIntent, HighlightTraceIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
+export type { PinObservationIntent, PinnedObservation } from "../pin-observation.js";
 export { runLoadTestCapability } from "./run-load-test.js";
 export { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
 export { flushCacheCapability } from "./flush-cache.js";

@@ -20,11 +20,15 @@ export function TracePresentationPanel({
   challenge,
   onFocusComponent,
   onClear,
+  externalTrace,
+  onClearExternalTrace,
 }: {
   architecture: Architecture;
   challenge: ChallengeDefinition;
   onFocusComponent: (componentId: string) => void;
   onClear: () => void;
+  externalTrace?: TraceRequestOutput | null;
+  onClearExternalTrace?: () => void;
 }) {
   const [trace, setTrace] = useState<TraceRequestOutput | null>(null);
   const [kind, setKind] = useState<"redirect" | "write">("redirect");
@@ -34,22 +38,24 @@ export function TracePresentationPanel({
     setTrace(result.ok ? result.data : null);
   };
 
+  const displayedTrace = externalTrace ?? trace;
+
   return (
     <section className="trace-presentation" aria-label="Request trace">
       <div className="trace-presentation__heading">
         <strong>request trace</strong>
         <label>kind <select value={kind} onChange={(event) => setKind(event.target.value as "redirect" | "write")}><option value="redirect">redirect</option><option value="write">write</option></select></label>
         <button type="button" onClick={runTrace}>trace path</button>
-        {trace ? <button type="button" onClick={() => { setTrace(null); onClear(); }}>clear trace</button> : null}
+        {displayedTrace ? <button type="button" onClick={() => { setTrace(null); onClearExternalTrace?.(); onClear(); }}>clear trace</button> : null}
       </div>
-      {trace ? (
+      {displayedTrace ? (
         <ol className="trace-presentation__hops" aria-live="polite">
-          {trace.hops.map((hop) => (
+          {displayedTrace.hops.map((hop) => (
             <li key={hop.order}>
               {hop.componentId ? <button type="button" onClick={() => onFocusComponent(hop.componentId!)}>{hop.order}. {hopLabel(hop)}</button> : <span>{hop.order}. {hopLabel(hop)}</span>}
             </li>
           ))}
-          {trace.terminalReason ? <li className="trace-presentation__terminal">terminal · {trace.terminalReason}</li> : null}
+          {displayedTrace.terminalReason ? <li className="trace-presentation__terminal">terminal · {displayedTrace.terminalReason}</li> : null}
         </ol>
       ) : <p>Trace follows simulator routing; it does not change the architecture.</p>}
     </section>

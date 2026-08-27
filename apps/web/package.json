@@ -24,6 +24,7 @@
     "verify:level-teaching": "pnpm run build:deps && node --experimental-strip-types scripts/verify-level-teaching.mjs",
     "verify:glyph-registry": "pnpm run build:deps && node --experimental-strip-types scripts/verify-glyph-registry.mjs",
     "verify:glyph-families": "node --experimental-strip-types scripts/verify-glyph-families.mjs",
+    "verify:component-vertical-slices": "pnpm run build:deps && node --experimental-strip-types scripts/verify-component-vertical-slices.mjs",
     "verify:dev-experiment-flag": "node --experimental-strip-types scripts/verify-dev-experiment-flag.mjs",
     "verify:fastest-leaderboard": "node --experimental-strip-types scripts/verify-fastest-leaderboard.mjs",
     "verify:cheapest-leaderboard": "node --experimental-strip-types scripts/verify-cheapest-leaderboard.mjs",

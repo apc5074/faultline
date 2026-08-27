@@ -30,9 +30,27 @@ assert.deepEqual(surface.resolvedNames, [
   "annotate_component",
   "highlight_connection",
   "clear_annotations",
+  "pin_observation",
 ]);
 assert.deepEqual(surface.tools.map((tool) => tool.name), surface.resolvedNames);
-assert.deepEqual(surface.skipped, []);
+assert.deepEqual(surface.skipped, [
+  { name: "focus_region", reason: "unavailable" },
+  { name: "highlight_path", reason: "unavailable" },
+]);
+
+const geographicSurface = await buildVisualWebMcpSurface({
+  registry,
+  getContext: () => ({
+    ...context,
+    challenge: {
+      ...context.challenge,
+      geographicDistribution: [{ regionId: "us-east", fraction: 1 }],
+    },
+  }),
+  development: true,
+});
+assert.equal(geographicSurface.resolvedNames.includes("focus_region"), true);
+assert.equal(geographicSurface.resolvedNames.includes("highlight_path"), true);
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, false);
   assert.equal(tool.annotations?.destructiveHint, false);

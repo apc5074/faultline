@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_AGENT_REQUEST_BYTES = 64_000;
 const encoder = new TextEncoder();
-const visualToolNames = new Set(["focus_component", "annotate_component", "highlight_connection", "clear_annotations"]);
+const visualToolNames = new Set(["focus_component", "focus_region", "highlight_path", "pin_observation", "annotate_component", "highlight_connection", "clear_annotations"]);
 
 function activityLabel(toolName: string, input: unknown): { label: string; componentId?: string } | null {
   if (toolName === "get_architecture") return { label: "Inspecting architecture…" };

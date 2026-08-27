@@ -54,6 +54,8 @@ export type {
   RouteLinger,
 } from "./types";
 export { buildComponentPlaybackVisuals, type PlaybackVisualContext } from "./playback-component-visuals";
+export { selectComponentVisualEvidence } from "./component-visual-evidence";
+export type { ComponentVisualEvidence, ComponentVisualEvidenceInput } from "./component-visual-evidence";
 export {
   buildComponentVolumeShares,
   edgePlaybackWeightFromRps,

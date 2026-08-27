@@ -13,6 +13,7 @@ import {
   type RegionId,
 } from "@faultline/core";
 import type { GeographicRoute } from "@faultline/simulator";
+import type { TraceRequestOutput } from "@faultline/agent-capabilities";
 
 import { enclosureRegionsForArchitecture } from "@/features/architecture-canvas/region-enclosures";
 
@@ -165,7 +166,23 @@ function strokeForVolume(rps: number, maxRps: number): number {
   return 1 + ratio * 4;
 }
 
-function arcHighlighted(arc: TrafficArc, selection: WorldMapSelection, selectedComponentId: string | null): boolean {
+function arcHighlighted(
+  arc: TrafficArc,
+  selection: WorldMapSelection,
+  selectedComponentId: string | null,
+  highlightedTrace: TraceRequestOutput | null,
+): boolean {
+  if (highlightedTrace?.geographic) {
+    const traceMatch = highlightedTrace.hops.some(
+      (hop) =>
+        hop.componentId !== undefined &&
+        arc.componentIds.includes(hop.componentId) &&
+        (hop.deploymentId === undefined || arc.deploymentIds.includes(hop.deploymentId)) &&
+        hop.originRegionId === arc.originRegion &&
+        hop.destinationRegionId === arc.destinationRegion,
+    );
+    if (traceMatch) return true;
+  }
   if (selectedComponentId && arc.componentIds.includes(selectedComponentId)) return true;
   if (selection?.kind === "region") {
     return arc.originRegion === selection.regionId || arc.destinationRegion === selection.regionId;
@@ -184,21 +201,25 @@ export function WorldMap({
   challenge,
   selectedComponentId,
   selection,
+  highlightedTrace,
   geographicRoutes,
   routesActive,
   regionFailure,
   onSelectComponent,
   onSelectRegion,
+  onClearSelection,
 }: {
   architecture: Architecture;
   challenge: ChallengeDefinition;
   selectedComponentId: string | null;
   selection: WorldMapSelection;
+  highlightedTrace: TraceRequestOutput | null;
   geographicRoutes: readonly GeographicRoute[];
   routesActive: boolean;
   regionFailure?: RegionFailurePresentation | null;
   onSelectComponent: (componentId: string, deploymentId?: string) => void;
   onSelectRegion: (regionId: RegionId) => void;
+  onClearSelection: () => void;
 }) {
   const regions = getRegions();
   const deployments = useMemo(() => collectDeployments(architecture), [architecture]);
@@ -225,7 +246,7 @@ export function WorldMap({
     [routesActive, geographicRoutes],
   );
   const maxArcRps = arcs.reduce((max, arc) => Math.max(max, arc.rps), 0);
-  const anyHighlight = arcs.some((arc) => arcHighlighted(arc, selection, selectedComponentId));
+  const anyHighlight = arcs.some((arc) => arcHighlighted(arc, selection, selectedComponentId, highlightedTrace));
 
   return (
     <div className="world-map" aria-label="World architecture map">
@@ -272,7 +293,7 @@ export function WorldMap({
         <g className="world-map__arcs" aria-label={routesActive ? "Simulated traffic arcs" : undefined}>
           {arcs.map((arc) => {
             const strokeWidth = strokeForVolume(arc.rps, maxArcRps);
-            const highlighted = arcHighlighted(arc, selection, selectedComponentId);
+            const highlighted = arcHighlighted(arc, selection, selectedComponentId, highlightedTrace);
             const dimmed = anyHighlight && !highlighted;
             const durationMs = arcDurationMs(arc.originRegion, arc.destinationRegion);
             return (
@@ -388,6 +409,11 @@ export function WorldMap({
         ) : (
           <span className="world-map__legend-hint">Run simulation to show traffic arcs</span>
         )}
+        {selection?.kind === "region" ? (
+          <button type="button" className="world-map__focus-clear" onClick={onClearSelection}>
+            Clear {getRegion(selection.regionId).label} focus
+          </button>
+        ) : null}
       </div>
     </div>
   );

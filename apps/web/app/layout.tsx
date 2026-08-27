@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { PageTransitionProvider } from "@/features/page-transition/PageTransitionProvider";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 import "./globals.css";
@@ -29,7 +30,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <meta httpEquiv="origin-trial" content={webMcpOriginTrialToken} />
         ) : null}
       </head>
-      <body className={spaceMono.className}>{children}</body>
+      <body className={spaceMono.className}>
+        <PageTransitionProvider>{children}</PageTransitionProvider>
+      </body>
     </html>
   );
 }

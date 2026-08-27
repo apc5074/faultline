@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   BASELINE_READ_CAPABILITY_NAMES,
+  BASELINE_VISUAL_CAPABILITY_NAMES,
   PHASE_8_READ_CAPABILITY_NAMES,
   createDefaultCapabilityRegistry,
   resolveCapabilities,
@@ -45,7 +46,8 @@ const baselineContext = {
 const baselineResolved = resolveCapabilities(registry, baselineContext);
 const baselineTools = toAISDKTools(registry, baselineContext);
 
-assert.deepEqual(Object.keys(baselineTools), [...baselineResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES]);
+const baselineVisualNames = [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => name !== "focus_region" && name !== "highlight_path");
+assert.deepEqual(Object.keys(baselineTools), [...baselineResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES, ...baselineVisualNames]);
 assert.deepEqual(baselineResolved.names, [...BASELINE_READ_CAPABILITY_NAMES]);
 assert.equal("inspect_cache" in baselineTools, false);
 
@@ -71,7 +73,7 @@ const redisContext = { ...baselineContext, architecture: redisArchitecture };
 const redisResolved = resolveCapabilities(registry, redisContext);
 const redisTools = toAISDKTools(registry, redisContext);
 
-assert.deepEqual(Object.keys(redisTools), [...redisResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES, "flush_cache"]);
+assert.deepEqual(Object.keys(redisTools), [...redisResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES, "flush_cache", ...baselineVisualNames]);
 assert.deepEqual(redisResolved.names, [...BASELINE_READ_CAPABILITY_NAMES, "inspect_cache"]);
 assert.equal(redisTools.inspect_cache?.description, registry.get("inspect_cache").description);
 
@@ -79,5 +81,12 @@ const cacheInspect = redisTools.inspect_cache?.execute;
 assert.ok(cacheInspect);
 const cacheResult = await cacheInspect({}, { toolCallId: "tool-3", messages: [], context: {} });
 assert.deepEqual(cacheResult, await registry.invoke("inspect_cache", redisContext, {}));
+
+const geographicTools = toAISDKTools(registry, {
+  ...baselineContext,
+  challenge: { ...challenge, geographicDistribution: [{ regionId: "us-east", fraction: 1 }] },
+});
+assert.equal("focus_region" in geographicTools, true);
+assert.equal("highlight_path" in geographicTools, true);
 
 console.log("verify-ai-capabilities: ok");

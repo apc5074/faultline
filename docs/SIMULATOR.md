@@ -32,9 +32,56 @@ Simulation decides outcomes, including pass/fail; an LLM never does. Geography, 
 
 `deriveRegionalWorkload` turns challenge `geographicDistribution` fractions into per-region `redirectRps`, `writeRps`, and `hotKeyRedirectRps`. Totals match global redirect/write demand; hot-key remains `redirect × hotKeyReadFraction` applied per origin. Writes inherit the same geographic fractions until a challenge supplies a separate write map. Challenges without distribution (Tiny API) produce an inactive regional workload. Successful traffic and requirements results expose `regionalWorkload` so UI can render traffic origins without recalculating percentages.
 
-## Geographic routing
+## Geographic routing (absorb-then-route)
 
-When challenge geography is active and at least one Service has regional deployments, `propagateTraffic` uses nearest-healthy-region selection (Global Router policy). For each traffic origin it finds services reachable over the logical request graph, ignores unhealthy regions, picks the lowest `getRegionLatencyMs` deployment, and breaks ties by `componentId` then `deploymentId`. Writes follow logical edges but always land on the Postgres primary deployment; reads prefer a same-region Redis deployment and same-region Postgres replica when present. Results expose `geographicRoutes` and `regionalTraffic` for visualization. Regional service overload uses per-deployment capacity so a hot nearest region can saturate even when total instances look fine. Logical-only architectures (no service deployments) keep Phase 1/2 forwarding.
+**Source of truth for GEO tickets:** `plans/geo.md` (GEO-01). Implementations of GEO-02+ must follow this pipeline — no alternate geo story.
+
+### Activation
+
+Geographic routing is active when **both** are true:
+
+1. Challenge `geographicDistribution` yields an active regional workload (`deriveRegionalWorkload(...).active`).
+2. At least one Service has non-empty `deployments[]` (`architectureHasServiceDeployments`).
+
+Otherwise `propagateTraffic` keeps Phase 1/2 **logical** forwarding (CDN/LB/Router along edges; no nearest-deployment binding).
+
+### Product rule
+
+> Geography decides *where miss/write traffic lands*. It must never disable edge absorb or invent edges outside the logical graph.
+
+### Authoritative pipeline (ordered)
+
+| Stage | Input | Output / side effects |
+| --- | --- | --- |
+| **1. Regional demand** | Challenge workload + `geographicDistribution` | Per-origin `redirectRps`, `writeRps`, `hotKeyRedirectRps` via `deriveRegionalWorkload` |
+| **2. Logical path walk** | Traffic Source(s) + `request` edges | Candidate forward path per origin; geography never invents edges |
+| **3. Edge absorb (CDN)** | Origin redirect+write RPS hitting each on-path edge cache | Evaluate CDN hit/miss; **forward only `miss + writes`**. Hits must not become Service `incomingRps` |
+| **4. Miss forwarders** | Post-CDN remaining RPS | Global Router passthrough; Load Balancer splits remaining RPS across logical outbound Service edges (`equal` / `capacity_weighted` on **miss volume**) |
+| **5. Service deployment bind** | Per-Service allocated miss RPS + origin region | Among that Service’s healthy deployments, pick nearest by `getRegionLatencyMs` (tie-break `componentId`, `deploymentId`). Do not also “nearest among all Services” in a way that double-counts LB shares |
+| **6. Geo attribution** | Post-absorb hop RPS | Emit `geographicRoutes` + `regionalTraffic` using **post-absorb** volumes only |
+| **7. Store path** | Service outgoing read/write shares on `read_write` edges | Redis: absorb eligible reads (prefer same-region footprint); **writes pierce**. Postgres: writes → primary; ordinary reads prefer same-region replica when present; hot-key reads still pressure **primary** |
+
+**Deprecated (fixed by GEO-02):** attribute full origin RPS to Services, then compute CDN hit/miss only as metrics. Geo mode now evaluates CDN on path ingress and forwards only `incoming − hitRps` to Services.
+
+### Level 1 component responsibilities under geo
+
+| Component | Responsibility |
+| --- | --- |
+| **Traffic Source** | Challenge-owned demand injector; origins come from `geographicDistribution` (not player dials) |
+| **CDN** | Edge cache on the user path; absorbs eligible redirects **before** regional compute; writes always miss |
+| **Global Router** | Passthrough on the miss path; nearest-healthy policy applies when regional Services exist; low leverage without them |
+| **Load Balancer** | Splits **post-CDN** RPS across logical Service edges by policy; then each share binds to that Service’s nearest healthy deployment |
+| **Service** | Handles miss/write RPS at per-deployment capacity (`instances × size`); a hot nearest region can saturate while global totals look fine. Headroom under geo is the **worst regional** headroom — idle capacity elsewhere does not mask local overload. |
+| **Redis** | Independent regional footprints (no cross-region sync); same-region/nearest healthy read-aside absorb; each footprint has its own capacity and cost; writes pierce; idle if off-path |
+| **Postgres** | One primary (all writes); replicas for ordinary reads when local; hot-key against primary read capacity only |
+
+### Implementation note
+
+`propagateGeographicTraffic` in `packages/simulator/src/traffic.ts` implements absorb-then-route through GEO-07: plan CDN ingress → evaluate hit/miss once → attribute miss volume through Router (passthrough) / LB (`equal` | `capacity_weighted`) → bind each Service share to that component’s nearest healthy deployment → evaluate each Redis footprint independently on the store path (reads absorb locally; writes pierce) → route ordinary reads to a same-region Postgres replica when healthy, keep writes on the primary, and score Service capacity per deployment with worst-region headroom. `evaluatePathLatency` then uses the emitted routes and realized cache results: absorbed CDN/Redis work skips downstream processing, and only actual remote hops add matrix RTT. Empty Postgres or Redis `deployments[]` keeps a logical whole-component store path.
+
+### Nearest-healthy selection
+
+For each traffic origin, candidates are Services reachable over the logical request graph. Unhealthy regions are ignored. Selection uses lowest `getRegionLatencyMs`, ties by `componentId` then `deploymentId`. Results expose `geographicRoutes` and `regionalTraffic` for visualization. Regional service overload uses per-deployment capacity.
 
 ## World map
 

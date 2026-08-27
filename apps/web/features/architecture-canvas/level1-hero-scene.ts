@@ -1,11 +1,15 @@
 import type { Architecture, Connection } from "@faultline/core";
 
 /**
- * Level 1 reference answer — Users → CDN → Service → Postgres.
+ * Level 1 reference answer (verified passer).
  *
- * CDN coverage 1 + long TTL offloads most redirects; large service scale and
- * large Postgres with two read replicas clear throughput, latency, headroom,
- * budget, and hot-key. Used by the playground "Load (our) Answer" control.
+ * Traffic → CDN → LB → Service A + Service B → Postgres
+ *
+ * CDN large + long TTL + full coverage offloads most redirects; two large
+ * service pools (5+5 instances) clear miss/write capacity + 20% headroom;
+ * Postgres large with one read replica clears store pressure under $85k.
+ *
+ * Used by the playground "Load (our) Answer" control.
  */
 export function buildLevel1HeroScene(): Architecture {
   const components: Architecture["components"] = [
@@ -14,47 +18,52 @@ export function buildLevel1HeroScene(): Architecture {
       type: "traffic-source",
       config: { label: "Global users" },
       deployments: [],
-      ui: { x: 40, y: 120 },
+      ui: { x: 40, y: 220 },
     },
     {
       id: "hero-cdn",
       type: "cdn",
       config: { coverage: 1, ttlBand: "long", tier: "large" },
       deployments: [],
-      ui: { x: 200, y: 120 },
+      ui: { x: 200, y: 220 },
     },
     {
-      id: "hero-service",
-      type: "service",
-      config: { size: "large", instances: 6 },
+      id: "hero-lb",
+      type: "load-balancer",
+      config: { policy: "equal" },
       deployments: [],
-      ui: { x: 380, y: 120 },
+      ui: { x: 360, y: 220 },
+    },
+    {
+      id: "hero-service-a",
+      type: "service",
+      config: { size: "large", instances: 5 },
+      deployments: [],
+      ui: { x: 540, y: 140 },
+    },
+    {
+      id: "hero-service-b",
+      type: "service",
+      config: { size: "large", instances: 5 },
+      deployments: [],
+      ui: { x: 540, y: 300 },
     },
     {
       id: "hero-postgres",
       type: "postgres",
-      config: { tier: "large", readReplicaCount: 2 },
+      config: { tier: "large", readReplicaCount: 1 },
       deployments: [],
-      ui: { x: 560, y: 120 },
+      ui: { x: 740, y: 220 },
     },
   ];
 
   const connections: Connection[] = [
     req("hero-traffic-cdn", "hero-traffic", "hero-cdn"),
-    req(
-      "hero-cdn-service",
-      "hero-cdn",
-      "hero-service",
-      "origin_out",
-      "request_in",
-    ),
-    db(
-      "hero-service-postgres",
-      "hero-service",
-      "hero-postgres",
-      "database_out",
-      "database_in",
-    ),
+    req("hero-cdn-lb", "hero-cdn", "hero-lb", "origin_out", "request_in"),
+    req("hero-lb-svc-a", "hero-lb", "hero-service-a"),
+    req("hero-lb-svc-b", "hero-lb", "hero-service-b"),
+    db("hero-svc-a-pg", "hero-service-a", "hero-postgres", "database_out", "database_in"),
+    db("hero-svc-b-pg", "hero-service-b", "hero-postgres", "database_out", "database_in"),
   ];
 
   return { version: 1, components, connections };

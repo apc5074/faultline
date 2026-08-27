@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { PlayLevelLink } from "@/features/home/PlayLevelLink";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 function SystemFlowGraphic() {
@@ -153,9 +154,9 @@ export function HomeHelp() {
               ) : null}
             </ol>
 
-            <a className="home-help__play" href="/level/1?brief=1">
+            <PlayLevelLink className="home-help__play">
               Play now <span aria-hidden="true">→</span>
-            </a>
+            </PlayLevelLink>
           </section>
         </div>
       ) : null}

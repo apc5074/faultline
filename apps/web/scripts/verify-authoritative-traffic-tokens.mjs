@@ -363,6 +363,38 @@ for (let tick = 0; tick < 2000 && !sawRedisDwell; tick += 1) {
 }
 assert.ok(sawRedisDwell, "a packet should eventually illuminate Redis");
 
+console.log("Check — server cores park every dwelling packet 1:1 (Figma ServerGlyph)");
+resetTickSimulationState();
+({ components, connections } = blankSimGraph());
+packets = [];
+// Deliberately sample svc1 activity below 1: bays must still track every parked
+// packet — saturation reads as all cores full, never as a quieter server.
+const sampledPlan = {
+  rates,
+  redirectRps,
+  componentActivityRates: new Map([["redis1", 1], ["svc1", 0.5]]),
+};
+let sawServerDwell = false;
+for (let tick = 0; tick < 2000 && !sawServerDwell; tick += 1) {
+  const result = tickSimulation(components, connections, packets, 1, tick, {
+    authoritativeTraffic: sampledPlan,
+  });
+  components = result.components;
+  connections = result.connections;
+  packets = result.packets;
+  const server = components.find((component) => component.id === "svc1");
+  const serverDwellers = packets.filter(
+    (packet) => packet.dwellComponentId === "svc1" && packet.shape !== "rejected",
+  );
+  assert.equal(
+    server?.mechanismCount,
+    serverDwellers.length,
+    "each packet dwelling in a server should park in exactly one core",
+  );
+  sawServerDwell = serverDwellers.length > 0;
+}
+assert.ok(sawServerDwell, "a packet should eventually park in a server core");
+
 resetTickSimulationState();
 ({ components, connections } = blankSimGraph());
 packets = [];

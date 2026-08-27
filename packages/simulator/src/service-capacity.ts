@@ -122,12 +122,19 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
       let handledRps = 0;
       let unmetRps = 0;
       let worstUtilization = 0;
+      let worstHeadroom = Number.POSITIVE_INFINITY;
 
       for (const deployment of [...component.deployments].sort((left, right) => left.id.localeCompare(right.id))) {
         const instances = serviceInstancesFromDeployment(deployment) ?? 0;
         const regionCapacity = instances * perInstance * activeCapacityScale(placement);
         const regionIncoming = regionalIncoming[deployment.regionId]?.incomingRps ?? 0;
         const utilization = regionCapacity > 0 ? regionIncoming / regionCapacity : regionIncoming > 0 ? Number.POSITIVE_INFINITY : 0;
+        const regionHeadroom =
+          regionCapacity > 0
+            ? (regionCapacity - regionIncoming) / regionCapacity
+            : regionIncoming > 0
+              ? 0
+              : Number.POSITIVE_INFINITY;
         const state = stateForUtilization(utilization === Number.POSITIVE_INFINITY ? 2 : utilization);
         regions.push({
           regionId: deployment.regionId,
@@ -140,6 +147,7 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
         handledRps += Math.min(regionIncoming, regionCapacity);
         unmetRps += Math.max(0, regionIncoming - regionCapacity);
         worstUtilization = Math.max(worstUtilization, utilization === Number.POSITIVE_INFINITY ? 2 : utilization);
+        if (regionHeadroom < worstHeadroom) worstHeadroom = regionHeadroom;
       }
 
       const metrics: ServiceCapacityMetrics = {
@@ -148,7 +156,9 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
         handledRps,
         unmetRps,
         utilization: worstUtilization,
-        headroom: effectiveCapacityRps > 0 ? (effectiveCapacityRps - incomingRps) / effectiveCapacityRps : 0,
+        // Geo headroom is the worst regional headroom — idle capacity in other
+        // regions must not mask a saturated nearest deployment.
+        headroom: Number.isFinite(worstHeadroom) ? worstHeadroom : 0,
         state: stateForUtilization(worstUtilization),
         regions,
         ...(placement && challenge.workloadAffinity ? { placement } : {}),

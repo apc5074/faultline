@@ -9,7 +9,8 @@ import {
   useAgentSessionStore,
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
-import type { ExperimentResult } from "@faultline/core";
+import type { ExperimentResult, RegionId } from "@faultline/core";
+import type { PinnedObservation, TraceRequestOutput } from "@faultline/agent-capabilities";
 import type { WebMcpStatus } from "./WebMcpStatusPlate";
 
 /**
@@ -19,18 +20,26 @@ import type { WebMcpStatus } from "./WebMcpStatusPlate";
 export function WebMcpRegistration({
   reconciliationKey,
   onStatusChange,
+  onFocusComponent,
+  onFocusRegion,
+  onHighlightTrace,
+  onPinObservation,
   onExperimentResult,
 }: {
   reconciliationKey: string;
   onStatusChange: (status: WebMcpStatus) => void;
+  onFocusComponent?: (componentId: string) => void;
+  onFocusRegion?: (regionId: RegionId) => void;
+  onHighlightTrace?: (trace: TraceRequestOutput) => void;
+  onPinObservation?: (observation: PinnedObservation) => void;
   onExperimentResult?: (result: ExperimentResult) => void;
 }) {
   const getContext = useAgentContextFactory();
   const sessionStore = useAgentSessionStore();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const onVisualIntent = useMemo(
-    () => createVisualCommandPublisher(sessionStore),
-    [sessionStore],
+    () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onHighlightTrace, onPinObservation }),
+    [onFocusComponent, onFocusRegion, onHighlightTrace, onPinObservation, sessionStore],
   );
 
   useEffect(() => {
@@ -55,7 +64,7 @@ export function WebMcpRegistration({
       ...(onExperimentResult ? { onExperimentResult } : {}),
     }).then((result) => {
       if (!active) return;
-      const state = result.readToolNames.length >= 9 && result.visualToolNames.length === 4 ? "ready" : "partial";
+      const state = result.readToolNames.length >= 9 && result.visualToolNames.length >= 4 ? "ready" : "partial";
       onStatusChange({
         state,
         readToolCount: result.readToolNames.length,

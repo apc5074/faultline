@@ -4,6 +4,7 @@ import {
   resolveCapabilities,
   resolveExperimentCapabilities,
   resolvePhase8ReadCapabilities,
+  resolveVisualCapabilities,
   type AgentCapability,
   type AgentCapabilityRegistry,
   type AgentContext,
@@ -60,8 +61,9 @@ export function toAISDKTools(
   const resolved = resolveCapabilities(registry, context, resolveOptions);
   const experiments = resolveExperimentCapabilities(registry, context);
   const phase8Reads = resolvePhase8ReadCapabilities(registry, context);
+  const visuals = resolveVisualCapabilities(registry, context, resolveOptions);
   return Object.fromEntries(
-    [...resolved.capabilities, ...phase8Reads.capabilities, ...experiments.capabilities].map((capability) => [
+    [...resolved.capabilities, ...phase8Reads.capabilities, ...experiments.capabilities, ...visuals.capabilities].map((capability) => [
       capability.name,
       toAISDKTool(capability, registry, context, session),
     ]),

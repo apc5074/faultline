@@ -40,6 +40,9 @@ export const BASELINE_VISUAL_CAPABILITY_NAMES = [
   "annotate_component",
   "highlight_connection",
   "clear_annotations",
+  "focus_region",
+  "highlight_path",
+  "pin_observation",
 ] as const;
 
 export type BaselineVisualCapabilityName = (typeof BASELINE_VISUAL_CAPABILITY_NAMES)[number];

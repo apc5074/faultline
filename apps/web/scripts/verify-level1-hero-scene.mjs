@@ -34,8 +34,10 @@ assert.equal(evaluation.valid, true);
 if (!evaluation.valid) throw new Error("Expected valid hero scene evaluation.");
 
 assert.ok(evaluation.caches["hero-cdn"], "CDN metrics expected");
-assert.ok(evaluation.services["hero-service"], "service metrics expected");
+assert.ok(evaluation.services["hero-service-a"], "service A metrics expected");
+assert.ok(evaluation.services["hero-service-b"], "service B metrics expected");
 assert.ok(evaluation.postgres["hero-postgres"], "postgres metrics expected");
+assert.ok(evaluation.allRequirementsPass, "all scored requirements should pass");
 
 for (const requirement of evaluation.requirements) {
   assert.equal(

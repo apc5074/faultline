@@ -29,6 +29,7 @@ import {
   selectPostgresDeploymentForTraffic,
   selectRedisDeploymentForServiceRegion,
   serviceDeploymentCandidates,
+  type DeploymentCandidate,
   type GeographicRoute,
   type RegionalComponentTraffic,
 } from "./geographic-routing.js";
@@ -287,16 +288,47 @@ function evaluateRedisCache(
 }
 
 /**
+ * Combine independent regional cache footprints for the component-level
+ * result. Each footprint is evaluated separately before this aggregation so a
+ * busy region cannot borrow unused capacity from another region.
+ */
+function aggregateCacheResults(
+  results: readonly (CacheResult & CachePlacementEvidence)[],
+): CacheResult & CachePlacementEvidence {
+  const first = results[0];
+  if (!first) {
+    throw new Error("Cannot aggregate an empty cache result set.");
+  }
+  const eligibleRps = results.reduce((sum, result) => sum + result.eligibleRps, 0);
+  const servedEligibleRps = results.reduce((sum, result) => sum + result.servedEligibleRps, 0);
+  const hitRps = results.reduce((sum, result) => sum + result.hitRps, 0);
+  const missRps = results.reduce((sum, result) => sum + result.missRps, 0);
+  const capacityRps = results.reduce((sum, result) => sum + result.capacityRps, 0);
+  return {
+    ...first,
+    eligibleRps,
+    servedEligibleRps,
+    hitRps,
+    missRps,
+    hitRate: eligibleRps > 0 ? hitRps / eligibleRps : 0,
+    capacityRps,
+    utilization: results.reduce((maximum, result) => Math.max(maximum, result.utilization), 0),
+    saturated: results.some((result) => result.saturated),
+    downstreamAvoidedRps: hitRps,
+  };
+}
+
+/**
  * Propagates configured workload through the architecture graph.
  * Deterministic flow model only — not capacity or latency scoring.
  *
- * When challenge geography is active and services have regional deployments,
- * Global Router / request path uses nearest-healthy deployment selection.
- * Otherwise Phase 1/2 logical equal/weighted forwarding applies.
+ * Geo mode (challenge geography active + ≥1 Service with deployments) follows
+ * the absorb-then-route pipeline in docs/SIMULATOR.md (GEO-01 / plans/geo.md):
+ * CDN absorb first → forward miss+writes → Router passthrough / LB policy split
+ * on remaining → nearest healthy deployment **per Service share** → Redis/Postgres
+ * store rules (GEO-02 CDN offload, GEO-03 miss-path LB).
  *
- * CDN (edge cache) absorbs eligible redirect hits before origin.
- * Redis (data cache) absorbs eligible read hits before Postgres.
- * Writes never hit either cache. Layers compose sequentially on remaining traffic.
+ * Logical mode: CDN/Redis absorb on the forward path as Phase 1/2.
  */
 export function propagateTraffic({ architecture: input, challenge, registry, overlay }: TrafficPropagationInput): TrafficPropagationResult {
   const validation = validateArchitectureForSimulation({ architecture: input, challenge, registry });
@@ -504,6 +536,21 @@ function propagateGeographicTraffic(
   const isForwarder = (component: { type: string }) =>
     forwardsRequests(registry.get(component.type).simulation);
 
+  type PlannedGeoRoute = {
+    originRegion: RegionId;
+    sourceId: string;
+    rpsPerSource: number;
+    /** First edge-cache (CDN) on the logical path, if any. */
+    cdnComponentId: string | null;
+    /** First Load Balancer on the miss path (after CDN), if any. */
+    loadBalancerId: string | null;
+    /** Reachable Services used when no LB fan-out applies. */
+    reachableServices: ReturnType<typeof findReachableServices>;
+  };
+
+  const planned: PlannedGeoRoute[] = [];
+
+  // Pass 1 — plan CDN ingress + miss-path LB (pre-absorb).
   for (const origin of regionalWorkload.origins) {
     const originRps = origin.redirectRps + origin.writeRps;
     if (originRps <= 0 || sources.length === 0) continue;
@@ -514,162 +561,253 @@ function propagateGeographicTraffic(
 
       const reachableServices = findReachableServices(architecture, [source.id], (component) =>
         isForwarder(component),
-      );
-      const candidates = serviceDeploymentCandidates(
-        reachableServices.filter((service) => !overlay?.failedComponentIds?.includes(service.id)),
-      );
-      const selectedDeployments = selectNearestHealthyDeployments(
-        origin.regionId,
-        candidates,
-        overlay?.failedRegionIds,
-      );
-      if (selectedDeployments.length === 0) {
+      ).filter((service) => !overlay?.failedComponentIds?.includes(service.id));
+      if (reachableServices.length === 0) {
         unroutableRps += rpsPerSource;
-        events.push({ type: "traffic_routed", componentId: source.id, data: { requestsPerSecond: rpsPerSource, kind: "unroutable", originRegion: origin.regionId } });
+        events.push({
+          type: "traffic_routed",
+          componentId: source.id,
+          data: { requestsPerSecond: rpsPerSource, kind: "unroutable", originRegion: origin.regionId },
+        });
         continue;
       }
 
-      for (const selected of selectedDeployments) {
-      const selectedRps = rpsPerSource / selectedDeployments.length;
-      const networkLatencyMs = getRegionLatencyMs(origin.regionId, selected.regionId);
-
-      // Attribute passthrough volume on Global Router / CDN / LB along a deterministic path.
-      attributePassthroughPath({
+      const pathServiceId = reachableServices[0].id;
+      const cdnComponentId = findFirstEdgeCacheOnPath({
         architecture,
         registry,
         sourceId: source.id,
-        serviceId: selected.componentId,
-        rps: selectedRps,
-        traffic,
-        events,
-        originRegion: origin.regionId,
+        serviceId: pathServiceId,
       });
-
-      traffic[selected.componentId].incomingRps += selectedRps;
-      addRegionalTraffic(regionalTraffic, selected.componentId, selected.regionId, {
-        incomingRps: selectedRps,
-      });
-      geographicRoutes.push({
-        originRegion: origin.regionId,
-        destinationRegion: selected.regionId,
-        componentId: selected.componentId,
-        deploymentId: selected.deployment.id,
-        rps: selectedRps,
-        networkLatencyMs,
-        kind: "request",
-      });
-      events.push({
-        type: "traffic_routed",
-        componentId: selected.componentId,
-        data: {
-          requestsPerSecond: selectedRps,
-          kind: "request",
-          originRegion: origin.regionId,
-          destinationRegion: selected.regionId,
-          deploymentId: selected.deployment.id,
-          networkLatencyMs,
-        },
-      });
-
-      const service = architecture.components.find((component) => component.id === selected.componentId);
-      if (!service) continue;
-
-      const readRps = selectedRps * challenge.workload.readRatio;
-      const writeRps = selectedRps * challenge.workload.writeRatio;
-      traffic[service.id].outgoingRps += selectedRps;
-
-      const dbEdges = databaseEdgesFrom(architecture, service.id);
-      if (dbEdges.length === 0) continue;
-      const readPerEdge = readRps / dbEdges.length;
-      const writePerEdge = writeRps / dbEdges.length;
-
-      for (const edge of dbEdges) {
-        const target = architecture.components.find((component) => component.id === edge.targetComponentId);
-        if (!target) continue;
-
-        if (target.type === "redis") {
-          const redisDeployment = selectRedisDeploymentForServiceRegion(target, selected.regionId, overlay?.failedRegionIds);
-          const redisRegion: RegionId = isValidRegion(redisDeployment?.regionId)
-            ? redisDeployment.regionId
-            : selected.regionId;
-          traffic[target.id].incomingRps += readPerEdge + writePerEdge;
-          traffic[target.id].readRps += readPerEdge;
-          traffic[target.id].writeRps += writePerEdge;
-          if (redisDeployment) {
-            addRegionalTraffic(regionalTraffic, target.id, redisRegion, {
-              incomingRps: readPerEdge + writePerEdge,
-              readRps: readPerEdge,
-              writeRps: writePerEdge,
-            });
-          }
-          geographicRoutes.push({
-            originRegion: selected.regionId,
-            destinationRegion: redisRegion,
-            componentId: target.id,
-            deploymentId: redisDeployment?.id ?? target.id,
-            rps: readPerEdge + writePerEdge,
-            networkLatencyMs: redisDeployment
-              ? getRegionLatencyMs(selected.regionId, redisDeployment.regionId)
-              : 0,
-            kind: "read",
-          });
-          events.push({
-            type: "traffic_routed",
-            connectionId: edge.id,
-            componentId: target.id,
-            data: {
-              readRequestsPerSecond: readPerEdge,
-              writeRequestsPerSecond: writePerEdge,
-              kind: "read_write",
-              serviceRegion: selected.regionId,
-              destinationRegion: redisRegion,
-            },
-          });
-          continue;
-        }
-
-        if (target.type === "postgres") {
-          routeToPostgres({
-            postgres: target,
-            serviceRegionId: selected.regionId,
-            readRps: readPerEdge,
-            writeRps: writePerEdge,
-            edgeId: edge.id,
-            traffic,
-            regionalTraffic,
-            geographicRoutes,
-            events,
-            excludedRegionIds: overlay?.failedRegionIds,
-            unroutable: {
-              add: (rps) => {
-                unroutableRps += rps;
-              },
-            },
-          });
-        }
+      if (cdnComponentId) {
+        traffic[cdnComponentId].incomingRps += rpsPerSource;
       }
-      }
+
+      const loadBalancerId = findFirstLoadBalancerOnPath({
+        architecture,
+        registry,
+        sourceId: source.id,
+        serviceId: pathServiceId,
+      });
+
+      planned.push({
+        originRegion: origin.regionId,
+        sourceId: source.id,
+        rpsPerSource,
+        cdnComponentId,
+        loadBalancerId,
+        reachableServices,
+      });
     }
   }
 
+  // Evaluate each CDN once on total ingress (same as logical mode), then derive forward fraction.
+  const cdnForwardFraction = new Map<string, number>();
   for (const forwarder of stableById(
     architecture.components.filter((component) => isEdgeCache(registry.get(component.type).simulation)),
   )) {
-    const pendingRps = traffic[forwarder.id].incomingRps - traffic[forwarder.id].outgoingRps;
-    if (pendingRps <= 0) continue;
+    const incoming = traffic[forwarder.id].incomingRps;
+    if (incoming <= 0) continue;
     const parsed = registry.get(forwarder.type).configSchema.safeParse(forwarder.config);
     if (!parsed.success) continue;
-    const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, architecture, challenge, overlay, {
+    const cache = evaluateCdnCache(forwarder.id, incoming, parsed.data as CdnConfig, architecture, challenge, overlay, {
       geographicRoutingActive: true,
     });
     caches[forwarder.id] = cache;
     events.push(...cacheLoadEvents(forwarder.id, cache));
-    traffic[forwarder.id].outgoingRps += pendingRps;
+    const forwardRps = Math.max(0, incoming - cache.hitRps);
+    cdnForwardFraction.set(forwarder.id, incoming > 0 ? forwardRps / incoming : 1);
+    traffic[forwarder.id].outgoingRps += incoming;
   }
 
-  for (const router of stableById(architecture.components.filter((component) => component.type === "global-router"))) {
-    if (traffic[router.id].incomingRps > traffic[router.id].outgoingRps) {
-      traffic[router.id].outgoingRps = traffic[router.id].incomingRps;
+  const unroutable = {
+    add: (rps: number) => {
+      unroutableRps += rps;
+    },
+  };
+
+  // Pass 2 — miss forwarders (Router/LB) then per-Service nearest deployment bind.
+  for (const plan of planned) {
+    const fraction =
+      plan.cdnComponentId && cdnForwardFraction.has(plan.cdnComponentId)
+        ? (cdnForwardFraction.get(plan.cdnComponentId) as number)
+        : 1;
+    const fullRps = plan.rpsPerSource;
+    const forwardRps = fullRps * fraction;
+
+    if (plan.loadBalancerId) {
+      attributePassthroughPath({
+        architecture,
+        registry,
+        sourceId: plan.sourceId,
+        serviceId: plan.loadBalancerId,
+        fullRps,
+        forwardRps,
+        cdnComponentId: plan.cdnComponentId,
+        traffic,
+        events,
+        originRegion: plan.originRegion,
+        countTerminalIncoming: true,
+      });
+
+      const lbEdges = requestEdgesFrom(architecture, plan.loadBalancerId).filter(
+        (edge) => !overlay?.failedComponentIds?.includes(edge.targetComponentId),
+      );
+      if (lbEdges.length === 0) {
+        if (forwardRps > 0) {
+          unroutableRps += forwardRps;
+          events.push({
+            type: "traffic_routed",
+            componentId: plan.loadBalancerId,
+            data: { requestsPerSecond: forwardRps, kind: "unroutable", originRegion: plan.originRegion },
+          });
+        }
+        traffic[plan.loadBalancerId].outgoingRps += forwardRps;
+        continue;
+      }
+
+      const allocations = allocateForwardedRequestRps(
+        forwardRps,
+        lbEdges,
+        architecture,
+        registry,
+        plan.loadBalancerId,
+        challenge,
+      );
+      traffic[plan.loadBalancerId].outgoingRps += forwardRps;
+
+      for (const { edge, rps } of allocations) {
+        if (rps <= 0) continue;
+        const target = architecture.components.find((component) => component.id === edge.targetComponentId);
+        if (!target) continue;
+
+        events.push({
+          type: "traffic_routed",
+          connectionId: edge.id,
+          componentId: target.id,
+          data: { requestsPerSecond: rps, kind: "request", originRegion: plan.originRegion },
+        });
+
+        if (target.type === "service") {
+          placeGeographicServiceAllocation({
+            architecture,
+            challenge,
+            registry,
+            overlay,
+            service: target,
+            allocatedRps: rps,
+            originRegion: plan.originRegion,
+            traffic,
+            regionalTraffic,
+            geographicRoutes,
+            events,
+            unroutable,
+          });
+          continue;
+        }
+
+        if (forwardsRequests(registry.get(target.type).simulation)) {
+          traffic[target.id].incomingRps += rps;
+          const nestedServices = findReachableServices(architecture, [target.id], (component) =>
+            isForwarder(component),
+          ).filter((service) => !overlay?.failedComponentIds?.includes(service.id));
+          const nestedSelected = selectNearestHealthyDeployments(
+            plan.originRegion,
+            serviceDeploymentCandidates(nestedServices),
+            overlay?.failedRegionIds,
+          );
+          if (nestedSelected.length === 0) {
+            unroutableRps += rps;
+            continue;
+          }
+          for (const selected of nestedSelected) {
+            const share = rps / nestedSelected.length;
+            const service = architecture.components.find((component) => component.id === selected.componentId);
+            if (!service) continue;
+            placeGeographicServiceOnDeployment({
+              architecture,
+              challenge,
+              registry,
+              overlay,
+              service,
+              selected,
+              forwardRps: share,
+              originRegion: plan.originRegion,
+              traffic,
+              regionalTraffic,
+              geographicRoutes,
+              events,
+              unroutable,
+            });
+          }
+          continue;
+        }
+
+        unroutableRps += rps;
+      }
+      continue;
+    }
+
+    // No LB: nearest-healthy among all reachable Service deployments (Router is passthrough).
+    const selectedDeployments = selectNearestHealthyDeployments(
+      plan.originRegion,
+      serviceDeploymentCandidates(plan.reachableServices),
+      overlay?.failedRegionIds,
+    );
+    if (selectedDeployments.length === 0) {
+      if (forwardRps > 0) {
+        unroutableRps += forwardRps;
+        events.push({
+          type: "traffic_routed",
+          componentId: plan.sourceId,
+          data: { requestsPerSecond: forwardRps, kind: "unroutable", originRegion: plan.originRegion },
+        });
+      }
+      continue;
+    }
+
+    for (const selected of selectedDeployments) {
+      const fullShare = fullRps / selectedDeployments.length;
+      const forwardShare = forwardRps / selectedDeployments.length;
+      attributePassthroughPath({
+        architecture,
+        registry,
+        sourceId: plan.sourceId,
+        serviceId: selected.componentId,
+        fullRps: fullShare,
+        forwardRps: forwardShare,
+        cdnComponentId: plan.cdnComponentId,
+        traffic,
+        events,
+        originRegion: plan.originRegion,
+      });
+      const service = architecture.components.find((component) => component.id === selected.componentId);
+      if (!service || forwardShare <= 0) continue;
+      placeGeographicServiceOnDeployment({
+        architecture,
+        challenge,
+        registry,
+        overlay,
+        service,
+        selected,
+        forwardRps: forwardShare,
+        originRegion: plan.originRegion,
+        traffic,
+        regionalTraffic,
+        geographicRoutes,
+        events,
+        unroutable,
+      });
+    }
+  }
+
+  for (const passthrough of stableById(
+    architecture.components.filter(
+      (component) => component.type === "global-router" || component.type === "load-balancer",
+    ),
+  )) {
+    if (traffic[passthrough.id].incomingRps > traffic[passthrough.id].outgoingRps) {
+      traffic[passthrough.id].outgoingRps = traffic[passthrough.id].incomingRps;
     }
   }
 
@@ -686,13 +824,6 @@ function propagateGeographicTraffic(
 
     const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
     if (!parsed.success) continue;
-    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, architecture, challenge, overlay, {
-      geographicRoutingActive: true,
-    });
-    caches[cacheComponent.id] = cache;
-    events.push(...cacheLoadEvents(cacheComponent.id, cache));
-
-    const hitRate = pendingReads > 0 ? cache.hitRps / pendingReads : 0;
     const postgresEdges = edges.filter((edge) => {
       const target = architecture.components.find((component) => component.id === edge.targetComponentId);
       return target?.type === "postgres";
@@ -714,10 +845,41 @@ function propagateGeographicTraffic(
             },
           ];
 
+    const redisConfig = parsed.data as RedisConfig;
+    const regionalCacheResults =
+      cacheComponent.deployments.length > 0
+        ? regionEntries.map(({ entry }) =>
+            evaluateRedisCache(
+              cacheComponent.id,
+              entry.readRps,
+              redisConfig,
+              architecture,
+              challenge,
+              overlay,
+              { geographicRoutingActive: true },
+            ),
+          )
+        : [
+            evaluateRedisCache(
+              cacheComponent.id,
+              pendingReads,
+              redisConfig,
+              architecture,
+              challenge,
+              overlay,
+              { geographicRoutingActive: true },
+            ),
+          ];
+    const cache = aggregateCacheResults(regionalCacheResults);
+    caches[cacheComponent.id] = cache;
+    events.push(...cacheLoadEvents(cacheComponent.id, cache));
+
     let forwardedTotal = 0;
-    for (const { regionId, entry } of regionEntries) {
+    for (const [regionIndex, { regionId, entry }] of regionEntries.entries()) {
       const serviceRegion: RegionId = isValidRegion(regionId) ? regionId : "us-east";
-      const regionForwardReads = entry.readRps * (1 - hitRate);
+      const regionalCache = regionalCacheResults[regionIndex] ?? cache;
+      const regionalHitRate = entry.readRps > 0 ? regionalCache.hitRps / entry.readRps : 0;
+      const regionForwardReads = entry.readRps * (1 - regionalHitRate);
       const regionForwardWrites = entry.writeRps;
       const forwardTotal = regionForwardReads + regionForwardWrites;
       if (forwardTotal <= 0) continue;
@@ -772,18 +934,40 @@ function propagateGeographicTraffic(
   };
 }
 
-/** Walk a deterministic request path from traffic source toward the chosen service, attributing passthrough volume. */
-function attributePassthroughPath(input: {
+/** First CDN (edge cache) on the deterministic request path from source toward service. */
+function findFirstEdgeCacheOnPath(input: {
   architecture: Architecture;
   registry: ComponentRegistry;
   sourceId: string;
   serviceId: string;
-  rps: number;
-  traffic: Record<string, ComponentTraffic>;
-  events: SimulationEvent[];
-  originRegion: string;
-}): void {
-  const { architecture, registry, sourceId, serviceId, rps, traffic, events, originRegion } = input;
+}): string | null {
+  return findFirstComponentOnPath({
+    ...input,
+    match: (component) => isEdgeCache(input.registry.get(component.type).simulation),
+  });
+}
+
+/** First Load Balancer on the miss path (CDN/Router may precede it). */
+function findFirstLoadBalancerOnPath(input: {
+  architecture: Architecture;
+  registry: ComponentRegistry;
+  sourceId: string;
+  serviceId: string;
+}): string | null {
+  return findFirstComponentOnPath({
+    ...input,
+    match: (component) => component.type === "load-balancer",
+  });
+}
+
+function findFirstComponentOnPath(input: {
+  architecture: Architecture;
+  registry: ComponentRegistry;
+  sourceId: string;
+  serviceId: string;
+  match: (component: { id: string; type: string }) => boolean;
+}): string | null {
+  const { architecture, registry, sourceId, serviceId, match } = input;
   const byId = new Map(architecture.components.map((component) => [component.id, component]));
   let currentId = sourceId;
   const visited = new Set<string>();
@@ -793,13 +977,16 @@ function attributePassthroughPath(input: {
     const edges = requestEdgesFrom(architecture, currentId);
     if (edges.length === 0) break;
 
-    // Prefer an edge that can still reach the selected service; else first stable edge.
     let chosen = edges[0];
     for (const edge of edges) {
-      const reachable = findReachableServices(architecture, [edge.targetComponentId], (component) =>
-        forwardsRequests(registry.get(component.type).simulation),
-      );
-      if (reachable.some((service) => service.id === serviceId) || edge.targetComponentId === serviceId) {
+      if (
+        canReachAlongRequestPath({
+          architecture,
+          registry,
+          fromComponentId: edge.targetComponentId,
+          terminalId: serviceId,
+        })
+      ) {
         chosen = edge;
         break;
       }
@@ -807,30 +994,317 @@ function attributePassthroughPath(input: {
 
     const target = byId.get(chosen.targetComponentId);
     if (!target) break;
+    if (target.id === serviceId) break;
+    if (match(target)) return target.id;
+    if (forwardsRequests(registry.get(target.type).simulation) || target.type === "traffic-source") {
+      currentId = target.id;
+      continue;
+    }
+    break;
+  }
+  return null;
+}
+
+/** True when terminal is reachable through forwarders without inventing edges. */
+function canReachAlongRequestPath(input: {
+  architecture: Architecture;
+  registry: ComponentRegistry;
+  fromComponentId: string;
+  terminalId: string;
+}): boolean {
+  const { architecture, registry, fromComponentId, terminalId } = input;
+  if (fromComponentId === terminalId) return true;
+  const byId = new Map(architecture.components.map((component) => [component.id, component]));
+  const visited = new Set<string>();
+  const pending = [fromComponentId];
+
+  while (pending.length > 0) {
+    const currentId = pending.shift();
+    if (!currentId || visited.has(currentId)) continue;
+    visited.add(currentId);
+    if (currentId === terminalId) return true;
+    const current = byId.get(currentId);
+    if (!current) continue;
+    if (current.type === "service") continue;
+    if (current.type === "traffic-source" || forwardsRequests(registry.get(current.type).simulation)) {
+      for (const edge of requestEdgesFrom(architecture, current.id)) {
+        if (!visited.has(edge.targetComponentId)) pending.push(edge.targetComponentId);
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Walk a deterministic request path from traffic source toward a terminal component
+ * (Service or miss-path LB). Pre-CDN hops use fullRps; post-CDN hops use forwardRps.
+ * CDN ingress is pre-accumulated in pass 1 — this walk does not double-count it.
+ */
+function attributePassthroughPath(input: {
+  architecture: Architecture;
+  registry: ComponentRegistry;
+  sourceId: string;
+  serviceId: string;
+  fullRps: number;
+  forwardRps: number;
+  cdnComponentId: string | null;
+  traffic: Record<string, ComponentTraffic>;
+  events: SimulationEvent[];
+  originRegion: string;
+  /** When true, add forwardRps to the terminal component's incoming (LB stop). */
+  countTerminalIncoming?: boolean;
+}): void {
+  const {
+    architecture,
+    registry,
+    sourceId,
+    serviceId,
+    fullRps,
+    forwardRps,
+    cdnComponentId,
+    traffic,
+    events,
+    originRegion,
+    countTerminalIncoming = false,
+  } = input;
+  const byId = new Map(architecture.components.map((component) => [component.id, component]));
+  let currentId = sourceId;
+  const visited = new Set<string>();
+  let pastCdn = cdnComponentId === null;
+
+  while (currentId !== serviceId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const edges = requestEdgesFrom(architecture, currentId);
+    if (edges.length === 0) break;
+
+    let chosen = edges[0];
+    for (const edge of edges) {
+      if (
+        canReachAlongRequestPath({
+          architecture,
+          registry,
+          fromComponentId: edge.targetComponentId,
+          terminalId: serviceId,
+        })
+      ) {
+        chosen = edge;
+        break;
+      }
+    }
+
+    const target = byId.get(chosen.targetComponentId);
+    if (!target) break;
+
+    const hopRps = pastCdn ? forwardRps : fullRps;
+    if (hopRps <= 0 && target.id !== cdnComponentId) break;
+
     if (target.id === serviceId) {
-      // Service attribution happens in the caller.
+      if (countTerminalIncoming && forwardRps > 0) {
+        traffic[target.id].incomingRps += forwardRps;
+      }
       events.push({
         type: "traffic_routed",
         connectionId: chosen.id,
         componentId: target.id,
-        data: { requestsPerSecond: rps, kind: "request", originRegion },
+        data: { requestsPerSecond: forwardRps, kind: "request", originRegion },
       });
       break;
     }
 
     if (forwardsRequests(registry.get(target.type).simulation) || target.type === "traffic-source") {
-      traffic[target.id].incomingRps += rps;
-      events.push({
-        type: "traffic_routed",
-        connectionId: chosen.id,
-        componentId: target.id,
-        data: { requestsPerSecond: rps, kind: "request", originRegion },
-      });
+      if (target.id === cdnComponentId) {
+        // Ingress already counted in planning pass; emit edge evidence at full demand.
+        events.push({
+          type: "traffic_routed",
+          connectionId: chosen.id,
+          componentId: target.id,
+          data: { requestsPerSecond: fullRps, kind: "request", originRegion },
+        });
+        pastCdn = true;
+      } else if (hopRps > 0) {
+        traffic[target.id].incomingRps += hopRps;
+        events.push({
+          type: "traffic_routed",
+          connectionId: chosen.id,
+          componentId: target.id,
+          data: { requestsPerSecond: hopRps, kind: "request", originRegion },
+        });
+      }
       currentId = target.id;
       continue;
     }
 
     break;
+  }
+}
+
+/** LB share → nearest healthy deployment(s) within that Service only. */
+function placeGeographicServiceAllocation(input: {
+  architecture: Architecture;
+  challenge: ChallengeDefinition;
+  registry: ComponentRegistry;
+  overlay?: ExperimentOverlay;
+  service: import("@faultline/core").ComponentInstance;
+  allocatedRps: number;
+  originRegion: RegionId;
+  traffic: Record<string, ComponentTraffic>;
+  regionalTraffic: Record<string, Record<string, RegionalComponentTraffic>>;
+  geographicRoutes: GeographicRoute[];
+  events: SimulationEvent[];
+  unroutable: { add: (rps: number) => void };
+}): void {
+  const { service, allocatedRps, originRegion, overlay } = input;
+  if (allocatedRps <= 0) return;
+
+  const selected = selectNearestHealthyDeployments(
+    originRegion,
+    serviceDeploymentCandidates([service]),
+    overlay?.failedRegionIds,
+  );
+  if (selected.length === 0) {
+    input.unroutable.add(allocatedRps);
+    input.events.push({
+      type: "traffic_routed",
+      componentId: service.id,
+      data: { requestsPerSecond: allocatedRps, kind: "unroutable", originRegion },
+    });
+    return;
+  }
+
+  for (const deployment of selected) {
+    placeGeographicServiceOnDeployment({
+      ...input,
+      selected: deployment,
+      forwardRps: allocatedRps / selected.length,
+    });
+  }
+}
+
+function placeGeographicServiceOnDeployment(input: {
+  architecture: Architecture;
+  challenge: ChallengeDefinition;
+  registry: ComponentRegistry;
+  overlay?: ExperimentOverlay;
+  service: import("@faultline/core").ComponentInstance;
+  selected: DeploymentCandidate;
+  forwardRps: number;
+  originRegion: RegionId;
+  traffic: Record<string, ComponentTraffic>;
+  regionalTraffic: Record<string, Record<string, RegionalComponentTraffic>>;
+  geographicRoutes: GeographicRoute[];
+  events: SimulationEvent[];
+  unroutable: { add: (rps: number) => void };
+}): void {
+  const {
+    architecture,
+    challenge,
+    overlay,
+    service,
+    selected,
+    forwardRps,
+    originRegion,
+    traffic,
+    regionalTraffic,
+    geographicRoutes,
+    events,
+    unroutable,
+  } = input;
+  if (forwardRps <= 0) return;
+
+  const networkLatencyMs = getRegionLatencyMs(originRegion, selected.regionId);
+  traffic[selected.componentId].incomingRps += forwardRps;
+  addRegionalTraffic(regionalTraffic, selected.componentId, selected.regionId, {
+    incomingRps: forwardRps,
+  });
+  geographicRoutes.push({
+    originRegion,
+    destinationRegion: selected.regionId,
+    componentId: selected.componentId,
+    deploymentId: selected.deployment.id,
+    rps: forwardRps,
+    networkLatencyMs,
+    kind: "request",
+  });
+  events.push({
+    type: "traffic_routed",
+    componentId: selected.componentId,
+    data: {
+      requestsPerSecond: forwardRps,
+      kind: "request",
+      originRegion,
+      destinationRegion: selected.regionId,
+      deploymentId: selected.deployment.id,
+      networkLatencyMs,
+    },
+  });
+
+  const readRps = forwardRps * challenge.workload.readRatio;
+  const writeRps = forwardRps * challenge.workload.writeRatio;
+  traffic[service.id].outgoingRps += forwardRps;
+
+  const dbEdges = databaseEdgesFrom(architecture, service.id);
+  if (dbEdges.length === 0) return;
+  const readPerEdge = readRps / dbEdges.length;
+  const writePerEdge = writeRps / dbEdges.length;
+
+  for (const edge of dbEdges) {
+    const target = architecture.components.find((component) => component.id === edge.targetComponentId);
+    if (!target) continue;
+
+    if (target.type === "redis") {
+      const redisDeployment = selectRedisDeploymentForServiceRegion(target, selected.regionId, overlay?.failedRegionIds);
+      const redisRegion: RegionId = isValidRegion(redisDeployment?.regionId)
+        ? redisDeployment.regionId
+        : selected.regionId;
+      traffic[target.id].incomingRps += readPerEdge + writePerEdge;
+      traffic[target.id].readRps += readPerEdge;
+      traffic[target.id].writeRps += writePerEdge;
+      if (redisDeployment) {
+        addRegionalTraffic(regionalTraffic, target.id, redisRegion, {
+          incomingRps: readPerEdge + writePerEdge,
+          readRps: readPerEdge,
+          writeRps: writePerEdge,
+        });
+      }
+      geographicRoutes.push({
+        originRegion: selected.regionId,
+        destinationRegion: redisRegion,
+        componentId: target.id,
+        deploymentId: redisDeployment?.id ?? target.id,
+        rps: readPerEdge + writePerEdge,
+        networkLatencyMs: redisDeployment ? getRegionLatencyMs(selected.regionId, redisDeployment.regionId) : 0,
+        kind: "read",
+      });
+      events.push({
+        type: "traffic_routed",
+        connectionId: edge.id,
+        componentId: target.id,
+        data: {
+          readRequestsPerSecond: readPerEdge,
+          writeRequestsPerSecond: writePerEdge,
+          kind: "read_write",
+          serviceRegion: selected.regionId,
+          destinationRegion: redisRegion,
+        },
+      });
+      continue;
+    }
+
+    if (target.type === "postgres") {
+      routeToPostgres({
+        postgres: target,
+        serviceRegionId: selected.regionId,
+        readRps: readPerEdge,
+        writeRps: writePerEdge,
+        edgeId: edge.id,
+        traffic,
+        regionalTraffic,
+        geographicRoutes,
+        events,
+        excludedRegionIds: overlay?.failedRegionIds,
+        unroutable,
+      });
+    }
   }
 }
 
@@ -860,6 +1334,26 @@ function routeToPostgres(input: {
     excludedRegionIds,
     unroutable,
   } = input;
+
+  // Empty deployments = logical whole-component store (same as Redis footprints).
+  // Geography may place Services without requiring Postgres POPs yet.
+  if (postgres.deployments.length === 0) {
+    traffic[postgres.id].incomingRps += readRps + writeRps;
+    traffic[postgres.id].readRps += readRps;
+    traffic[postgres.id].writeRps += writeRps;
+    events.push({
+      type: "traffic_routed",
+      connectionId: edgeId,
+      componentId: postgres.id,
+      data: {
+        readRequestsPerSecond: readRps,
+        writeRequestsPerSecond: writeRps,
+        kind: "read_write",
+        serviceRegion: serviceRegionId,
+      },
+    });
+    return;
+  }
 
   const writeDeployment = selectPostgresDeploymentForTraffic(postgres, serviceRegionId, "write", excludedRegionIds);
   const readDeployment = selectPostgresDeploymentForTraffic(postgres, serviceRegionId, "read", excludedRegionIds);

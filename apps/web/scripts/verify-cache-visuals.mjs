@@ -41,8 +41,8 @@ const simulation = {
   },
 };
 
-assert.match(glyphEvidenceLabel("cdn", simulation), /75% hit.*75,000 RPS hit.*25,000 RPS miss.*75,000 RPS avoided/);
-assert.match(glyphEvidenceLabel("redis", simulation), /saturated cache.*33% hit.*viral hot key.*200% hot-key capacity.*saturated/);
-assert.equal(glyphEvidenceLabel("cdn", simulation, { resultIsStale: true }), "Stale simulation evidence — run again");
+assert.equal(glyphEvidenceLabel("cdn", simulation), "75% HIT");
+assert.equal(glyphEvidenceLabel("redis", simulation), "33% HIT\nHOT 200%");
+assert.equal(glyphEvidenceLabel("cdn", simulation, { resultIsStale: true }), "STALE");
 
 console.log("cache visuals verified");

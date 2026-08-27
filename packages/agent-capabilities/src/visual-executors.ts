@@ -1,4 +1,4 @@
-import type { Architecture } from "@faultline/core";
+import { isValidRegion, type Architecture, type RegionId } from "@faultline/core";
 
 import type { CapabilityExecutionOptions } from "./capability.js";
 import type { AgentContext } from "./context.js";
@@ -17,8 +17,11 @@ import type {
   AnnotateComponentInput,
   ClearAnnotationsInput,
   FocusComponentInput,
+  FocusRegionInput,
   HighlightConnectionInput,
 } from "./visual-schemas.js";
+import type { TraceRequestInput } from "./schemas.js";
+import { traceRequest, type TraceRequestOutput } from "./capabilities/trace-request.js";
 
 export interface VisualAnnotationIntent {
   readonly annotation: AgentFocusAnnotation | AgentNoteAnnotation | AgentPathAnnotation;
@@ -26,6 +29,16 @@ export interface VisualAnnotationIntent {
 
 export interface ClearAnnotationsIntent {
   readonly clearedCount: number;
+}
+
+/** Canonical world-map target; carries no derived routing or health state. */
+export interface FocusRegionIntent {
+  readonly regionId: RegionId;
+}
+
+/** A trace returned unchanged from the shared trace_request resolver. */
+export interface HighlightTraceIntent {
+  readonly trace: TraceRequestOutput;
 }
 
 function sessionFromOptions(options?: CapabilityExecutionOptions): AgentSessionState {
@@ -69,6 +82,32 @@ export function focusComponent(
   const validated = validateAnnotationAgainstArchitecture(annotation, context.architecture);
   if (!validated.ok) return validationFailure(validated);
   return capabilityOk({ annotation });
+}
+
+export function focusRegion(
+  context: AgentContext,
+  input: FocusRegionInput,
+): CapabilityResult<FocusRegionIntent> {
+  const activeRegions = context.challenge.geographicDistribution;
+  if (!activeRegions || activeRegions.length === 0) {
+    return capabilityError("INVALID_INPUT", "focus_region is unavailable because challenge geography is inactive.");
+  }
+  if (!isValidRegion(input.regionId)) {
+    return capabilityError("NOT_FOUND", `Unknown region "${input.regionId}".`);
+  }
+  if (!activeRegions.some((entry) => entry.regionId === input.regionId)) {
+    return capabilityError("NOT_FOUND", `Region "${input.regionId}" is not active for this challenge.`);
+  }
+  return capabilityOk({ regionId: input.regionId });
+}
+
+export function highlightPath(
+  context: AgentContext,
+  input: TraceRequestInput,
+): CapabilityResult<HighlightTraceIntent> {
+  const trace = traceRequest(context, input);
+  if (!trace.ok) return trace;
+  return capabilityOk({ trace: trace.data });
 }
 
 export function annotateComponent(

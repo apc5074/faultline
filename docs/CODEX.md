@@ -14,8 +14,11 @@ plan or package source code.
 - Active curriculum plan: `plans/level/1/plan.md` (Level Profiles LP-01…LP-08).
   Affinity foundation is in `plans/level/plan.md` (T-01…T-10 shipped; **T-11**
   human playtest is the remaining exit — confirm fail-first starter + CDN≫Redis
-  share visuals). Older phase plans under `plans/phase N/` apply only when the
-  ticket points there.
+  share visuals). **Geography completeness:** `plans/geo.md` (GEO-01…05 shipped —
+  absorb-then-route, CDN offload, miss-path LB/Router, regional Service capacity,
+  independent regional Redis footprints, Postgres primary/replica geo rules, geo
+  latency under absorb; next **GEO-08** hot-key geo path). Older phase plans under
+  `plans/phase N/` apply only when the ticket points there.
 - The worktree may contain unfinished user changes. Run `git status` first and
   preserve unrelated edits.
 
