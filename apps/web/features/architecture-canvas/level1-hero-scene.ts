@@ -41,8 +41,20 @@ export function buildLevel1HeroScene(): Architecture {
 
   const connections: Connection[] = [
     req("hero-traffic-cdn", "hero-traffic", "hero-cdn"),
-    req("hero-cdn-service", "hero-cdn", "hero-service", "origin_out", "request_in"),
-    db("hero-service-postgres", "hero-service", "hero-postgres", "database_out", "database_in"),
+    req(
+      "hero-cdn-service",
+      "hero-cdn",
+      "hero-service",
+      "origin_out",
+      "request_in",
+    ),
+    db(
+      "hero-service-postgres",
+      "hero-service",
+      "hero-postgres",
+      "database_out",
+      "database_in",
+    ),
   ];
 
   return { version: 1, components, connections };
@@ -50,7 +62,8 @@ export function buildLevel1HeroScene(): Architecture {
 
 /** When true, the workspace loads the hero scene instead of the empty starter canvas. */
 export function isLevel1HeroSceneEnabled(): boolean {
-  const flag = process.env.NEXT_PUBLIC_FAULTLINE_HERO_SCENE?.trim().toLowerCase();
+  const flag =
+    process.env.NEXT_PUBLIC_FAULTLINE_HERO_SCENE?.trim().toLowerCase();
   return flag === "1" || flag === "true";
 }
 
@@ -59,7 +72,8 @@ export function isLevel1HeroSceneEnabled(): boolean {
  * Set `NEXT_PUBLIC_FAULTLINE_LOAD_ANSWER=true` in local `.env` or Vercel env.
  */
 export function isLevel1LoadAnswerEnabled(): boolean {
-  const flag = process.env.NEXT_PUBLIC_FAULTLINE_LOAD_ANSWER?.trim().toLowerCase();
+  const flag =
+    process.env.NEXT_PUBLIC_FAULTLINE_LOAD_ANSWER?.trim().toLowerCase();
   return flag === "1" || flag === "true" || flag === "yes" || flag === "on";
 }
 

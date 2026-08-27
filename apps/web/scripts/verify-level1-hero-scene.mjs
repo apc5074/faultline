@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { componentRegistry } from "@faultline/component-catalog";
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { validateArchitecture } from "@faultline/core";
-import { evaluateRequirements, validateArchitectureForSimulation } from "@faultline/simulator";
+import {
+  evaluateRequirements,
+  validateArchitectureForSimulation,
+} from "@faultline/simulator";
 
 import { buildLevel1HeroScene } from "../features/architecture-canvas/level1-hero-scene.ts";
 
@@ -16,7 +19,11 @@ const simulationValidation = validateArchitectureForSimulation({
   challenge: urlShortenerChallenge,
   registry: componentRegistry,
 });
-assert.equal(simulationValidation.valid, true, JSON.stringify(simulationValidation.errors ?? []));
+assert.equal(
+  simulationValidation.valid,
+  true,
+  JSON.stringify(simulationValidation.errors ?? []),
+);
 
 const evaluation = evaluateRequirements({
   architecture,
