@@ -25,9 +25,12 @@ export interface CapabilityInputSchema<TInput> {
   safeParse(input: unknown): CapabilityInputValidationResult<TInput>;
 }
 
+import type { AgentSessionState } from "./session.js";
+
 /** Adapter-neutral execution options forwarded from AI SDK, WebMCP, and other adapters. */
 export interface CapabilityExecutionOptions {
   readonly signal?: AbortSignal;
+  readonly session?: AgentSessionState;
 }
 
 /** Optional metadata for an adapter to communicate safe invocation semantics. */

@@ -1,9 +1,11 @@
 import { dynamicTool, jsonSchema, type Tool } from "ai";
 import {
+  createEmptyAgentSessionState,
   resolveCapabilities,
   type AgentCapability,
   type AgentCapabilityRegistry,
   type AgentContext,
+  type AgentSessionState,
   type CapabilityInputSchema,
   type CapabilityResult,
   type ResolveCapabilitiesOptions,
@@ -13,6 +15,10 @@ type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityRes
 
 /** AI SDK's runtime tool set for Faultline's dynamically registered capabilities. */
 export type FaultlineAISDKTools = Record<string, Tool>;
+
+export interface ToAISDKToolsOptions extends ResolveCapabilitiesOptions {
+  readonly session?: AgentSessionState;
+}
 
 function toAISDKInputSchema(inputSchema: CapabilityInputSchema<unknown>) {
   return jsonSchema(inputSchema.jsonSchema, {
@@ -33,11 +39,12 @@ export function toAISDKTool(
   capability: RegisteredCapability,
   registry: AgentCapabilityRegistry,
   context: AgentContext,
+  session: AgentSessionState = createEmptyAgentSessionState(),
 ): Tool {
   return dynamicTool({
     description: capability.description,
     inputSchema: toAISDKInputSchema(capability.inputSchema),
-    execute: async (input) => registry.invoke(capability.name, context, input),
+    execute: async (input) => registry.invoke(capability.name, context, input, { session }),
   });
 }
 
@@ -45,10 +52,14 @@ export function toAISDKTool(
 export function toAISDKTools(
   registry: AgentCapabilityRegistry,
   context: AgentContext,
-  options: ResolveCapabilitiesOptions = {},
+  options: ToAISDKToolsOptions = {},
 ): FaultlineAISDKTools {
-  const resolved = resolveCapabilities(registry, context, options);
+  const { session = createEmptyAgentSessionState(), ...resolveOptions } = options;
+  const resolved = resolveCapabilities(registry, context, resolveOptions);
   return Object.fromEntries(
-    resolved.capabilities.map((capability) => [capability.name, toAISDKTool(capability, registry, context)]),
+    resolved.capabilities.map((capability) => [
+      capability.name,
+      toAISDKTool(capability, registry, context, session),
+    ]),
   );
 }

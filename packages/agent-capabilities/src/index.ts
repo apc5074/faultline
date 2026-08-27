@@ -1,3 +1,4 @@
+export * from "./live-agent-snapshot.js";
 export * from "./session.js";
 export * from "./coaching-policy.js";
 export * from "./regional-evidence.js";
@@ -8,5 +9,7 @@ export * from "./context.js";
 export * from "./result.js";
 export * from "./registry.js";
 export * from "./resolve-capabilities.js";
+export * from "./resolve-visual-capabilities.js";
 export * from "./schemas.js";
+export * from "./visual-schemas.js";
 export * from "./capabilities/index.js";

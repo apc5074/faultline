@@ -6,6 +6,7 @@ import type {
 import {
   isPhase7DynamicCapabilityName,
   phase7DynamicCapabilityPredicate,
+  resolveLiveAgentSnapshot,
   RESOLVED_CAPABILITY_NAME_ORDER,
   type ResolvedCapabilityName,
 } from "@faultline/agent-capabilities";
@@ -76,7 +77,7 @@ export async function buildPhase6InspectorSnapshot(
 ): Promise<Phase6InspectorSnapshot> {
   const { registry, getContext, development = true } = options;
   const browserSupported = getWebMcpModelContext() !== undefined;
-  const context = await getContext();
+  const context = resolveLiveAgentSnapshot(await getContext()).context;
   const surface = await buildAgentReadSurface({ registry, getContext, development });
   const toolsByName = new Map(surface.tools.map((tool) => [tool.name, tool]));
   const skippedByName = new Map(surface.skipped.map((skip) => [skip.name, skip.reason]));

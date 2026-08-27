@@ -9,6 +9,7 @@ import {
   BaselineCapabilityConfigurationError,
   isBaselineReadCapabilityName,
   resolveCapabilities,
+  resolveLiveAgentSnapshot,
   RESOLVED_CAPABILITY_NAME_ORDER,
 } from "@faultline/agent-capabilities";
 
@@ -81,7 +82,7 @@ export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
   const { registry, getContext, development = false } = options;
-  const context = await getContext();
+  const context = resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
   try {

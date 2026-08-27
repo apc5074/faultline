@@ -56,6 +56,7 @@ assert.deepEqual(surface.skipped, [
 ]);
 assert.equal(surface.tools.some((tool) => tool.name === "get_faultline_status"), false);
 assert.ok(surface.tools.some((tool) => tool.name === "get_coaching_policy"));
+assert.ok(surface.tools.some((tool) => tool.name === "get_session_focus"));
 
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, true);

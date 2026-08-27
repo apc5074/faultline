@@ -10,7 +10,6 @@ import {
 } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { agentContextFromSnapshot } from "@/lib/agent-context/create-agent-context";
 import { useLiveAgentContextFactory } from "@/lib/agent-context/use-live-agent-context-factory";
 
 const DEFAULT_ARCHITECTURE: Architecture = {
@@ -59,11 +58,7 @@ export function WebMcpInspector() {
     }
   }, [architectureJson]);
 
-  const getSnapshot = useLiveAgentContextFactory(architecture ?? DEFAULT_ARCHITECTURE, urlShortenerChallenge);
-  const getContext = useCallback(
-    () => agentContextFromSnapshot(getSnapshot()),
-    [getSnapshot],
-  );
+  const getContext = useLiveAgentContextFactory(architecture ?? DEFAULT_ARCHITECTURE, urlShortenerChallenge);
 
   const [snapshot, setSnapshot] = useState<Phase6InspectorSnapshot | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);

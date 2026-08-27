@@ -3,8 +3,14 @@ import type {
   AgentCapabilityRegistry,
   AgentContext,
   CapabilityResult,
+  LiveAgentSnapshot,
 } from "@faultline/agent-capabilities";
-import { capabilityCancelled, capabilityError, isCapabilityCancelled } from "@faultline/agent-capabilities";
+import {
+  capabilityCancelled,
+  capabilityError,
+  isCapabilityCancelled,
+  resolveLiveAgentSnapshot,
+} from "@faultline/agent-capabilities";
 
 import { toWebMcpAnnotations } from "./annotations.js";
 import { sanitizeWebMcpCapabilityResult, unexpectedWebMcpCapabilityFailure } from "./error-safety.js";
@@ -12,7 +18,7 @@ import type { WebMcpTool, WebMcpToolExecutionContext } from "./types.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
 
-export type WebMcpContextFactory = () => AgentContext | Promise<AgentContext>;
+export type WebMcpContextFactory = () => AgentContext | LiveAgentSnapshot | Promise<AgentContext | LiveAgentSnapshot>;
 
 export interface ToWebMcpToolOptions {
   readonly registry: AgentCapabilityRegistry;
@@ -40,7 +46,8 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
       }
 
       try {
-        const context = await getContext();
+        const snapshot = resolveLiveAgentSnapshot(await getContext());
+        const { context, session } = snapshot;
         if (isCapabilityCancelled(executionContext.signal)) {
           return sanitizeWebMcpCapabilityResult(capabilityCancelled(), capability.name);
         }
@@ -54,6 +61,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
 
         const result = await registry.invoke(capability.name, context, input, {
           signal: executionContext.signal,
+          session,
         });
         return sanitizeWebMcpCapabilityResult(result, capability.name);
       } catch (error) {

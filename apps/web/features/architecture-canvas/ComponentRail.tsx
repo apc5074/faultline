@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import type { ComponentDefinition, ComponentInstance } from "@faultline/core";
 
 import {
   ComponentGlyph,
-  MINI_GLYPH_SIZE,
   glyphPropsFromComponent,
 } from "@/features/playground-glyphs";
 
@@ -27,6 +26,21 @@ const RAIL_SHORT_LABELS: Partial<Record<string, string>> = {
   "load-balancer": "LB",
   "traffic-source": "Traffic",
 };
+
+const RAIL_GLYPH_SIZE = 36;
+
+const RAIL_DESCRIPTIONS: Partial<Record<string, string>> = {
+  cdn: "Caches responses at the edge so fewer requests reach your origin.",
+  "global-router": "Routes users to the best region for latency and failover.",
+  "load-balancer": "Spreads incoming traffic across multiple service instances.",
+  service: "Runs application logic; scale with size and instance count.",
+  redis: "In-memory cache that speeds reads and protects the database.",
+  postgres: "Durable relational store; replicas scale read traffic.",
+};
+
+function railDescriptionForDefinition(definition: ComponentDefinition): string {
+  return RAIL_DESCRIPTIONS[definition.type] ?? definition.label;
+}
 
 function railGroupForDefinition(definition: ComponentDefinition): string {
   switch (definition.type) {
@@ -66,7 +80,28 @@ function compareRailDefinitions(a: ComponentDefinition, b: ComponentDefinition):
   return a.label.localeCompare(b.label);
 }
 
+type ActiveRailTip = {
+  label: string;
+  description: string;
+  top: number;
+  left: number;
+};
+
 export function ComponentRail({ definitions }: { definitions: readonly ComponentDefinition[] }) {
+  const [activeTip, setActiveTip] = useState<ActiveRailTip | null>(null);
+
+  const showTip = useCallback((element: HTMLElement, definition: ComponentDefinition) => {
+    const rect = element.getBoundingClientRect();
+    const mobile = window.matchMedia("(width <= 640px)").matches;
+    setActiveTip({
+      label: definition.label,
+      description: railDescriptionForDefinition(definition),
+      top: mobile ? rect.bottom : rect.top + rect.height / 2,
+      left: mobile ? rect.left + rect.width / 2 : rect.right + 8,
+    });
+  }, []);
+
+  const hideTip = useCallback(() => setActiveTip(null), []);
   const grouped = useMemo(() => {
     const groups = new Map<string, ComponentDefinition[]>();
 
@@ -86,39 +121,53 @@ export function ComponentRail({ definitions }: { definitions: readonly Component
   }, [definitions]);
 
   return (
-    <aside className="component-rail" aria-label="Components">
-      {grouped.map(([category, items], index) => (
-        <div key={category} className="component-rail__group">
-          {index > 0 ? <div className="component-rail__divider" aria-hidden="true" /> : null}
-          <p className="component-rail__category">{category}</p>
-          {items.map((definition) => {
-            const glyphProps = glyphPropsFromComponent(sampleComponentForRail(definition), definition);
-            return (
-              <div
-                key={definition.type}
-                className="component-rail__item"
-                draggable
-                title={definition.label}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("application/faultline-component-type", definition.type);
-                }}
-              >
-                <span className="component-rail__glyph" aria-hidden="true">
-                  <ComponentGlyph
-                    {...glyphProps}
-                    state="idle"
-                    width={MINI_GLYPH_SIZE}
-                    height={MINI_GLYPH_SIZE}
-                    mini
-                  />
-                </span>
-                <span className="component-rail__label">{railLabelForDefinition(definition)}</span>
-              </div>
-            );
-          })}
+    <>
+      <aside className="component-rail" aria-label="Components">
+        {grouped.map(([category, items], index) => (
+          <div key={category} className="component-rail__group">
+            {index > 0 ? <div className="component-rail__divider" aria-hidden="true" /> : null}
+            <p className="component-rail__category">{category}</p>
+            {items.map((definition) => {
+              const glyphProps = glyphPropsFromComponent(sampleComponentForRail(definition), definition);
+              return (
+                <div
+                  key={definition.type}
+                  className="component-rail__item"
+                  draggable
+                  onMouseEnter={(event) => showTip(event.currentTarget, definition)}
+                  onMouseLeave={hideTip}
+                  onDragStart={(event) => {
+                    hideTip();
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("application/faultline-component-type", definition.type);
+                  }}
+                >
+                  <span className="component-rail__glyph" aria-hidden="true">
+                    <ComponentGlyph
+                      {...glyphProps}
+                      state="idle"
+                      width={RAIL_GLYPH_SIZE}
+                      height={RAIL_GLYPH_SIZE}
+                      mini
+                    />
+                  </span>
+                  <span className="component-rail__label">{railLabelForDefinition(definition)}</span>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </aside>
+      {activeTip ? (
+        <div
+          role="tooltip"
+          className="component-rail__tooltip component-rail__tooltip--floating"
+          style={{ top: activeTip.top, left: activeTip.left }}
+        >
+          <span className="component-rail__tooltip-title">{activeTip.label}</span>
+          <span className="component-rail__tooltip-body">{activeTip.description}</span>
         </div>
-      ))}
-    </aside>
+      ) : null}
+    </>
   );
 }

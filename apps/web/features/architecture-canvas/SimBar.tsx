@@ -6,6 +6,8 @@ import type { RequirementsEvaluationResult, SimulationValidationError } from "@f
 
 import type { PlaybackSpeed } from "@/features/traffic-playback";
 
+import { AgentHelpChips } from "@/features/agent-session/AgentHelpChips";
+
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
 type SimulationRunState = "idle" | "running" | "complete" | "error";
 
@@ -146,6 +148,7 @@ export type SimBarProps = {
   onSpeedChange: (speed: PlaybackSpeed) => void;
   onViewModeChange: (mode: "logical" | "world") => void;
   onSubmitOfficial: () => void;
+  selectedComponentId: string | null;
 };
 
 export function SimBar({
@@ -168,6 +171,7 @@ export function SimBar({
   onSpeedChange,
   onViewModeChange,
   onSubmitOfficial,
+  selectedComponentId,
 }: SimBarProps) {
   const simBusy = runState === "running" || officialSubmitting;
   const playbackActive = playbackRunning && !playbackPaused;
@@ -232,6 +236,10 @@ export function SimBar({
       </p>
 
       <div className="sim-bar__spacer" />
+
+      <AgentHelpChips selectedComponentId={selectedComponentId} />
+
+      <div className="sim-bar__divider" aria-hidden />
 
       <SimBarStatusPlate
         runState={runState}

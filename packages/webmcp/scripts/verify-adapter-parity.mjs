@@ -179,6 +179,7 @@ for (const tool of validSurface.tools) {
 
 const noInputTools = [
   "get_coaching_policy",
+  "get_session_focus",
   "get_challenge",
   "get_requirements",
   "get_architecture",

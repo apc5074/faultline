@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-schemas-and-cancellation.mjs && node scripts/verify-session.mjs && node scripts/verify-get-coaching-policy.mjs && node scripts/verify-get-challenge.mjs && node scripts/verify-get-requirements.mjs && node scripts/verify-get-architecture.mjs && node scripts/verify-inspect-component.mjs && node scripts/verify-inspect-cache.mjs && node scripts/verify-inspect-replication.mjs && node scripts/verify-inspect-regional-traffic.mjs && node scripts/verify-estimate-capacity.mjs && node scripts/verify-get-metrics.mjs && node scripts/verify-get-cost-breakdown.mjs && node scripts/verify-resolve-capabilities.mjs"
+    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-schemas-and-cancellation.mjs && node scripts/verify-session.mjs && node scripts/verify-get-coaching-policy.mjs && node scripts/verify-get-session-focus.mjs && node scripts/verify-get-challenge.mjs && node scripts/verify-get-requirements.mjs && node scripts/verify-get-architecture.mjs && node scripts/verify-inspect-component.mjs && node scripts/verify-inspect-cache.mjs && node scripts/verify-inspect-replication.mjs && node scripts/verify-inspect-regional-traffic.mjs && node scripts/verify-estimate-capacity.mjs && node scripts/verify-get-metrics.mjs && node scripts/verify-get-cost-breakdown.mjs && node scripts/verify-resolve-capabilities.mjs && node scripts/verify-resolve-visual-capabilities.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3",

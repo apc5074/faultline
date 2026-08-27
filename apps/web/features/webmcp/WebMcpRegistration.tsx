@@ -2,18 +2,16 @@
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { getWebMcpModelContext, registerReadWebMcpSurface } from "@faultline/webmcp";
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useAgentContextFactory } from "@/features/agent-session/AgentSessionProvider";
-import { agentContextFromSnapshot } from "@/lib/agent-context/create-agent-context";
 
 /**
  * Registers the resolver-selected read-only WebMCP surface when the browser supports it.
  * Renders nothing; registration failures are contained and never affect gameplay.
  */
 export function WebMcpRegistration({ reconciliationKey }: { reconciliationKey: string }) {
-  const getSnapshot = useAgentContextFactory();
-  const getContext = useCallback(() => agentContextFromSnapshot(getSnapshot()), [getSnapshot]);
+  const getContext = useAgentContextFactory();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
 
   useEffect(() => {

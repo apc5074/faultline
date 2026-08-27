@@ -7,10 +7,18 @@ import { estimateCapacityCapability } from "./estimate-capacity.js";
 import { getArchitectureCapability } from "./get-architecture.js";
 import { getChallengeCapability } from "./get-challenge.js";
 import { getCoachingPolicyCapability } from "./get-coaching-policy.js";
+import { getSessionFocusCapability } from "./get-session-focus.js";
 import { getCostBreakdownCapability } from "./get-cost-breakdown.js";
 import { getMetricsCapability } from "./get-metrics.js";
 import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
+import { BASELINE_VISUAL_CAPABILITIES } from "./visual-capabilities.js";
+
+export {
+  getSessionFocusCapability,
+  buildGetSessionFocusOutput,
+} from "./get-session-focus.js";
+export type { GetSessionFocusOutput } from "./get-session-focus.js";
 
 export {
   getCoachingPolicyCapability,
@@ -73,10 +81,20 @@ export type {
   GetMetricsSystem,
 } from "./get-metrics.js";
 
+export {
+  BASELINE_VISUAL_CAPABILITIES,
+  annotateComponentCapability,
+  clearAnnotationsCapability,
+  focusComponentCapability,
+  highlightConnectionCapability,
+} from "./visual-capabilities.js";
+export type { ClearAnnotationsIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
+
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
   return createAgentCapabilityRegistry([
     getCoachingPolicyCapability,
+    getSessionFocusCapability,
     getChallengeCapability,
     getRequirementsCapability,
     getArchitectureCapability,
@@ -87,5 +105,6 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     inspectCacheCapability,
     inspectReplicationCapability,
     inspectRegionalTrafficCapability,
+    ...BASELINE_VISUAL_CAPABILITIES,
   ]);
 }

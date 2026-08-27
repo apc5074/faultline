@@ -9,6 +9,7 @@ import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
+import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionSync";
 import { WebMcpRegistration } from "@/features/webmcp/WebMcpRegistration";
 import { ComponentRail } from "@/features/architecture-canvas/ComponentRail";
 import { DataPlateInspector } from "@/features/architecture-canvas/DataPlateInspector";
@@ -27,6 +28,7 @@ function ArchitectureWorkspace() {
 
   return (
     <AgentSessionProvider architecture={workspace.architecture} challenge={activeChallenge}>
+      <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} />
       <WebMcpRegistration reconciliationKey={workspace.webMcpReconciliationKey} />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
@@ -148,6 +150,7 @@ function ArchitectureWorkspace() {
           onSpeedChange={workspace.playback.setSpeed}
           onViewModeChange={workspace.handleViewModeChange}
           onSubmitOfficial={workspace.onSubmitOfficial}
+          selectedComponentId={workspace.selectedComponentId}
         />
       </section>
     </AgentSessionProvider>

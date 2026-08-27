@@ -24,6 +24,7 @@
     "verify:agent-request": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-request.mjs",
     "verify:live-agent-context-factory": "pnpm run build:deps && node --experimental-strip-types scripts/verify-live-agent-context-factory.mjs",
     "verify:agent-session": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-session.mjs",
+    "verify:agent-help-chips": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-help-chips.mjs",
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"
   },
