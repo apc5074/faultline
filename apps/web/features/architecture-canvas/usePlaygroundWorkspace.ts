@@ -18,7 +18,7 @@ import {
   normalizeConnectionLoad,
 } from "@/features/architecture-canvas/ink-edge-routing";
 import { buildLevel1HeroScene } from "@/features/architecture-canvas/level1-hero-scene";
-import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
+import { activeChallenge, challengeRedirectRps } from "@/features/architecture-canvas/playground-challenge";
 import {
   architectureSimulationKey,
   connectionFromFlow,
@@ -42,7 +42,13 @@ import {
   enclosureRegionsForArchitecture,
 } from "@/features/architecture-canvas/region-enclosures";
 import { glyphDimensionsForProps, glyphPropsFromComponent } from "@/features/playground-glyphs";
-import { usePlaybackController, type ComponentPlaybackVisual } from "@/features/traffic-playback";
+import {
+  buildComponentPlaybackVisuals,
+  buildComponentVolumeShares,
+  edgePlaybackWeightFromRps,
+  usePlaybackController,
+  type ComponentPlaybackVisual,
+} from "@/features/traffic-playback";
 import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptContext";
 
@@ -112,14 +118,50 @@ export function usePlaygroundWorkspace() {
   );
 
   const playbackVisualsActive = playback.playbackRunning;
+
+  const shareBasedPlaybackVisuals = useMemo(() => {
+    if (!playbackVisualsActive || !simulationResult) return null;
+    const totalEvents = Math.max(1, simulationResult.events.length);
+    const tick = Math.max(0, playback.frame.tick);
+    return buildComponentPlaybackVisuals(
+      {
+        runId: `run-${lastRunKey ?? "live"}`,
+        architecture,
+        components: architecture.components,
+        simulation: {
+          services: simulationResult.services,
+          postgres: simulationResult.postgres,
+          caches: simulationResult.caches,
+          events: simulationResult.events,
+          hotKey: simulationResult.hotKey,
+        },
+        redirectRps: challengeRedirectRps,
+      },
+      Math.min(tick, totalEvents),
+      totalEvents,
+    );
+  }, [
+    playbackVisualsActive,
+    simulationResult,
+    playback.frame.tick,
+    architecture,
+    lastRunKey,
+  ]);
+
   const playbackVisualByComponent = useMemo(() => {
     const map = new Map<string, ComponentPlaybackVisual>();
     if (!playbackVisualsActive) return map;
+    if (shareBasedPlaybackVisuals) {
+      for (const visual of shareBasedPlaybackVisuals) {
+        map.set(visual.componentId, visual);
+      }
+      return map;
+    }
     for (const visual of playback.frame.componentVisuals) {
       map.set(visual.componentId, visual);
     }
     return map;
-  }, [playback.frame.componentVisuals, playbackVisualsActive]);
+  }, [playback.frame.componentVisuals, playbackVisualsActive, shareBasedPlaybackVisuals]);
 
   const idlePlaybackVisual = useCallback(
     (componentId: string): ComponentPlaybackVisual => ({
@@ -200,16 +242,25 @@ export function usePlaygroundWorkspace() {
       offsets,
     );
     const hopMap = computeHopMarkers(paths);
+    const hasShareEvidence = Boolean(simulationResult && showSimulationVisuals);
 
-    return architecture.connections.map((connection) =>
-      connectionToEdge(connection, {
+    return architecture.connections.map((connection) => {
+      const simRps = loads.get(connection.id) ?? 0;
+      const shareEdgeLoad = hasShareEvidence
+        ? edgePlaybackWeightFromRps(simRps, challengeRedirectRps)
+        : normalizeConnectionLoad(simRps, maxLoad);
+      // Prefer sim path-share weights once evidence exists so ambient tick packets
+      // cannot make Redis look as busy as CDN.
+      const tickLoad = hasShareEvidence ? 0 : (playbackEdgeLoads.get(connection.id) ?? 0);
+
+      return connectionToEdge(connection, {
         selected: connection.id === selectedConnectionId,
         deletable: !playbackVisualsActive,
         activeConnectionIds,
         trafficActive: showSimulationVisuals || playbackVisualsActive,
         resultIsStale,
-        load: normalizeConnectionLoad(loads.get(connection.id) ?? 0, maxLoad),
-        playbackLoad: playbackEdgeLoads.get(connection.id) ?? 0,
+        load: shareEdgeLoad,
+        playbackLoad: tickLoad,
         offset: offsets.get(connection.id) ?? 0,
         hops: hopMap.get(connection.id) ?? [],
         pulse: pulsingEdgeIds.has(connection.id),
@@ -217,8 +268,8 @@ export function usePlaygroundWorkspace() {
           deletingNodeIds.has(connection.sourceComponentId) ||
           deletingNodeIds.has(connection.targetComponentId),
         semanticZoomOut,
-      }),
-    );
+      });
+    });
   }, [
     architecture.connections,
     architecture.components,
@@ -227,7 +278,7 @@ export function usePlaygroundWorkspace() {
     showSimulationVisuals,
     playbackVisualsActive,
     resultIsStale,
-    simulationResult?.events,
+    simulationResult,
     pulsingEdgeIds,
     deletingNodeIds,
     semanticZoomOut,
@@ -395,15 +446,13 @@ export function usePlaygroundWorkspace() {
 
       let nextConfig = component.config;
       if (component.type === "service") {
-        if (deployments.length > 0) {
-          const instances = totalServiceInstancesFromDeployments(deployments);
-          const parsed = componentRegistry.get(component.type).configSchema.safeParse({
-            ...component.config,
-            instances,
-          });
-          if (!parsed.success) return current;
-          nextConfig = parsed.data;
-        }
+        const instances = Math.max(1, totalServiceInstancesFromDeployments(deployments));
+        const parsed = componentRegistry.get(component.type).configSchema.safeParse({
+          ...component.config,
+          instances,
+        });
+        if (!parsed.success) return current;
+        nextConfig = parsed.data;
       } else if (component.type === "postgres") {
         const readReplicaCount = postgresReplicaDeployments(deployments).length;
         const parsed = componentRegistry.get(component.type).configSchema.safeParse({
@@ -543,6 +592,28 @@ export function usePlaygroundWorkspace() {
   useEffect(() => {
     playback.syncArchitecture(architecture);
   }, [architecture, playback.syncArchitecture]);
+
+  useEffect(() => {
+    if (!simulationResult || !playback.playbackRunning) {
+      playback.setVolumeShares(null);
+      return;
+    }
+    const shares = buildComponentVolumeShares({
+      redirectRps: challengeRedirectRps,
+      simulation: {
+        caches: simulationResult.caches,
+        services: simulationResult.services,
+        postgres: simulationResult.postgres,
+        hotKey: simulationResult.hotKey,
+      },
+      volumeProfile: undefined,
+    });
+    const shareMap = new Map<string, number>();
+    for (const [id, share] of shares) {
+      shareMap.set(id, share.share01);
+    }
+    playback.setVolumeShares(shareMap);
+  }, [simulationResult, playback.playbackRunning, playback.setVolumeShares]);
 
   const handleSimBarRun = useCallback(() => {
     if (playback.playbackPaused) {

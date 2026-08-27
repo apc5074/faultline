@@ -1,7 +1,7 @@
 import type { ChallengeDefinition } from "@faultline/core";
 
 import type { AgentCapability } from "../capability.js";
-import type { AgentContext } from "../context.js";
+import type { AgentContext, AgentLevelTeaching } from "../context.js";
 import { capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
 import {
@@ -27,6 +27,13 @@ export interface GetChallengeOutput {
   readonly budgetMonthly: number;
   /** Mechanism ceilings + notes for this workload — not a placement recipe. */
   readonly workloadAffinity?: CompactWorkloadAffinity;
+  /** Level Profile story framing when authored (LP-06). */
+  readonly narrative?: AgentLevelTeaching["narrative"];
+  /**
+   * Compact placement intents by catalog type — teaching only.
+   * Never includes pros/cons walls, playtest checklists, or topology recipes.
+   */
+  readonly teaching?: AgentLevelTeaching["teaching"];
 }
 
 function redirectsPerSecond(challenge: ChallengeDefinition): number {
@@ -47,7 +54,10 @@ function specialScenarios(challenge: ChallengeDefinition): ChallengeSpecialScena
  * Summarize the challenge the player is solving.
  * Describes the problem only — never expected architectures or recommended components.
  */
-export function buildGetChallengeOutput(challenge: ChallengeDefinition): GetChallengeOutput {
+export function buildGetChallengeOutput(
+  challenge: ChallengeDefinition,
+  levelTeaching?: AgentLevelTeaching,
+): GetChallengeOutput {
   const workloadAffinity = compactWorkloadAffinity(challenge);
   return {
     slug: challenge.slug,
@@ -59,6 +69,12 @@ export function buildGetChallengeOutput(challenge: ChallengeDefinition): GetChal
     specialScenarios: specialScenarios(challenge),
     budgetMonthly: challenge.monthlyBudget,
     ...(workloadAffinity ? { workloadAffinity } : {}),
+    ...(levelTeaching
+      ? {
+          narrative: levelTeaching.narrative,
+          teaching: levelTeaching.teaching,
+        }
+      : {}),
   };
 }
 
@@ -69,7 +85,7 @@ export const getChallengeCapability: AgentCapability<
 > = {
   name: "get_challenge",
   description:
-    "Inspect the challenge the player is solving: workload, special scenarios, monthly budget, and compact workload-affinity mechanism ceilings when authored. Does not reveal solutions or placement recipes.",
+    "Inspect the challenge the player is solving: workload, special scenarios, monthly budget, compact workload-affinity ceilings when authored, and optional Level Profile narrative/placement intents. Does not reveal solutions, pros/cons walls, or topology recipes.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,
@@ -78,7 +94,7 @@ export const getChallengeCapability: AgentCapability<
     idempotentHint: true,
   },
   execute(context) {
-    return capabilityOk(buildGetChallengeOutput(context.challenge));
+    return capabilityOk(buildGetChallengeOutput(context.challenge, context.levelTeaching));
   },
 };
 

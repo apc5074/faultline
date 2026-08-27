@@ -35,6 +35,7 @@ export function usePlaybackController() {
   const simConnectionsRef = useRef<SimConnection[]>([]);
   const packetsRef = useRef<SimPacket[]>([]);
   const routeLingersRef = useRef<RouteLinger[]>([]);
+  const volumeShareRef = useRef<ReadonlyMap<string, number> | null>(null);
 
   phaseRef.current = phase;
   speedRef.current = speed;
@@ -57,6 +58,7 @@ export function usePlaybackController() {
       packetsRef.current,
       speedRef.current,
       tickRef.current,
+      volumeShareRef.current ?? undefined,
     );
     simComponentsRef.current = result.components;
     simConnectionsRef.current = result.connections;
@@ -135,6 +137,10 @@ export function usePlaybackController() {
     [publishFromTick],
   );
 
+  const setVolumeShares = useCallback((shares: ReadonlyMap<string, number> | null) => {
+    volumeShareRef.current = shares;
+  }, []);
+
   const start = useCallback(
     (architecture: Architecture) => {
       architectureRef.current = architecture;
@@ -142,6 +148,7 @@ export function usePlaybackController() {
       tickRef.current = 0;
       packetsRef.current = [];
       routeLingersRef.current = [];
+      volumeShareRef.current = null;
       const graph = buildSimGraph(architecture);
       simComponentsRef.current = graph.components;
       simConnectionsRef.current = graph.connections;
@@ -198,6 +205,7 @@ export function usePlaybackController() {
     simConnectionsRef.current = [];
     packetsRef.current = [];
     routeLingersRef.current = [];
+    volumeShareRef.current = null;
     tickRef.current = 0;
     resetTickSimulationState();
     phaseRef.current = "idle";
@@ -228,6 +236,7 @@ export function usePlaybackController() {
     setSpeed,
     syncArchitecture,
     markComponentFailed,
+    setVolumeShares,
   };
 }
 

@@ -301,6 +301,66 @@ When any level adds a catalog type or competing store:
 7. Verify: good placement vs bad placement, same dials — metrics **and** volume split (`pnpm verify:affinity`).
 8. Verify (when competing mechanisms exist): same primary role, different mechanism affinity → different $ / latency / capacity for this workload — still no slug branch.
 
+## Level Profiles
+
+Level Profiles are the **curriculum authoring container** for a playable level. Affinity remains the **physics** (mechanism × role × intent → capacity / absorb / cost / events). Profiles serialize story, sandbox teaching cards, workload/geo/scoring, affinity authorship, starter architecture, volume teaching bands, and playtest checklist so Levels 2–N can reuse one format without a second simulator.
+
+### Paths and compile entrypoints
+
+| Artifact | Path |
+| --- | --- |
+| Schema + `assertLevelProfile` | `packages/challenges/src/level-profile.ts` |
+| Level 1 JSON (“The Viral Moment”) | `packages/challenges/src/levels/url-shortener.level.json` |
+| Static registry / load helpers | `packages/challenges/src/get-level-profile.ts`, `levels/index.ts` |
+| Compile → `ChallengeDefinition` | `packages/challenges/src/compile-level-profile.ts` |
+| Thin challenge export | `packages/challenges/src/url-shortener.ts` (static JSON import + compile) |
+| Node/fs loader (scaffold/verify only; **not** in package root export) | `packages/challenges/src/load-level-profile.ts` → import `../dist/load-level-profile.js` from Node scripts |
+
+Prefer **static JSON import + compile at module init** for product challenge exports (Next/Edge-safe). Use `fs` only in Node scripts.
+
+Official competition, simulator, and server re-sim still consume **`ChallengeDefinition` only**. Teaching fields never become pass/fail.
+
+### Ownership split
+
+| Concern | Lives in profile | Compiled into `ChallengeDefinition`? | Who judges truth |
+| --- | --- | --- | --- |
+| Workload, geo, transfer, requirements, budget, unscored targets | Yes | Yes | Simulator + cost |
+| `workloadAffinity` ceilings / notes | Yes | Yes | Simulator affinity apply sites |
+| `allowedComponentTypes` (sandbox card types) | Yes | Yes | Validation allowlist only |
+| Narrative (hook, stakes, briefingBeats) | Yes | No (`identity.prompt` is the public problem string) | UI / agent framing |
+| Component teaching cards (pros/cons/mistakes) | Yes | No | UI inspector / briefing |
+| `volumeProfile` bands + rules | Yes | No | Playtest / canvas share mapper guards |
+| `starterArchitecture` | Yes | No | Client initial canvas only |
+| `playtestChecklist` | Yes | No | Humans (affinity T-11) |
+
+### Volume bands ≠ scoring
+
+`volumeProfile.bands` are **soft teaching ranges** for visuals and playtest (e.g. CDN ≫ Redis on average redirects). They must not be treated as required path shares, topology checks, or scored hit rates. Canvas busyness maps **simulator absorb / path RPS ÷ challenge redirect RPS** (`apps/web/features/traffic-playback/volume-share-visuals.ts`). If shares look wrong after a correct design, calibrate affinity numbers — do not invent client hit rates from profile bands.
+
+### Profiles sit atop the affinity extending checklist
+
+Authoring a new level:
+
+1. Copy / scaffold a `.level.json` (see LP-07 scaffold when present).
+2. Fill narrative, sandbox cards, workload/geo/scoring.
+3. Author `workloadAffinity` using **Extending affinity** above — never `challenge.slug` branches in the simulator.
+4. Set `volumeProfile` teaching bands for playtest (CDN vs data_cache order for URL-shortener-like workloads).
+5. Set fail-first `starterArchitecture` + `firstRunExpectation`.
+6. Register static import / compile export; run `pnpm verify:level-profiles` and `pnpm verify:affinity`.
+
+### Level 1 — The Viral Moment
+
+Canonical curriculum: `packages/challenges/src/levels/url-shortener.level.json`.
+
+- Hook: inherited LinkVault MVP → `#MegaDrop2026` viral spike at 124k RPS / $85k board.
+- Starter: Traffic → Service (medium × 3, us-east) → Postgres (medium) — first Run should fail for capacity reasons.
+- Sandbox: seven Level 1 types; out of scope Queue / Worker / Event Stream / Rate Limiter.
+- Teaching: Redis is a **viral relief valve**, not the average-redirect main character; CDN owns high average-redirect leverage when correctly placed.
+
+### Playtest handoff (affinity T-11)
+
+`pnpm verify:level-profiles` locks schema, Level 1 profile↔challenge compile parity, inherited MVP starter failure, and share-based CDN≫Redis visuals. **Human playtest (affinity T-11)** remains the exit criterion: confirm the fail-first starter arc (LP-04) and that baseline Run feels CDN-busier than Redis (LP-05) without silencing Redis when it is the only absorber.
+
 ---
 
 ### Scored requirements
@@ -378,9 +438,11 @@ Players who earn the cheapest valid lock on the leaderboard must optimize **cost
 
 ### Implementation reference
 
-Authored config: `packages/challenges/src/url-shortener.ts`.
+**Source of truth:** `packages/challenges/src/levels/url-shortener.level.json` (Level Profile), compiled by `compileChallengeFromLevelProfile` into `urlShortenerChallenge`.
 
-Key constants:
+Thin export: `packages/challenges/src/url-shortener.ts`.
+
+Key constants (also authored in the profile):
 
 ```text
 redirectRps = 120_000
@@ -392,9 +454,9 @@ p95TargetMs = 150
 headroomTarget = 0.20
 ```
 
-Prompt (player-facing):
+Prompt (player-facing, `identity.prompt`):
 
-> Design infrastructure for a global URL shortening service at sustained peak load. Absorb 120k redirects/sec and 4k new-link writes/sec, survive a viral short URL, serve users on six continents within latency and headroom targets, and stay within the monthly budget — without a prescribed topology.
+> Design infrastructure for a global URL shortening service. It must absorb heavy redirect traffic, accept new links, survive a viral short URL, and stay within latency, capacity headroom, and monthly budget — without a prescribed topology.
 
 ---
 

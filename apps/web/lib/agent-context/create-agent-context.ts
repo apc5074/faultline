@@ -10,6 +10,7 @@ import {
   workloadFitFromCacheMetrics,
   workloadFitFromPlacement,
 } from "@faultline/agent-capabilities";
+import { compactLevelTeachingForAgent } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { evaluateRequirements, type RequirementsEvaluationResult } from "@faultline/simulator";
@@ -78,12 +79,14 @@ function simulationEvidence(
 /** Build one immutable, simulator-grounded capability snapshot from canonical gameplay inputs. */
 export function createAgentContext(architecture: Architecture, challenge: ChallengeDefinition): AgentContext {
   const result = evaluateRequirements({ architecture, challenge, registry: componentRegistry });
+  const levelTeaching = compactLevelTeachingForAgent(challenge.slug);
   return {
     challenge,
     architecture,
     simulation: simulationEvidence(result, challenge),
     ...(result.valid ? { cost: result.cost } : {}),
     user: { authenticated: false },
+    ...(levelTeaching ? { levelTeaching } : {}),
   };
 }
 

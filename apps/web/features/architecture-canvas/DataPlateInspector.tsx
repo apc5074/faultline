@@ -1,6 +1,10 @@
 "use client";
 
-import { urlShortenerChallenge } from "@faultline/challenges";
+import {
+  getLevelComponentCard,
+  urlShortenerChallenge,
+} from "@faultline/challenges";
+import type { LevelComponentCard } from "@faultline/challenges";
 import {
   cdnConfiguredHitIntent,
   cdnHitRateForConfig,
@@ -32,7 +36,10 @@ import {
   type RegionDeployment,
   type RegionId,
 } from "@faultline/core";
-import { estimateMonthlyCost, type RequirementsEvaluationResult } from "@faultline/simulator";
+import {
+  estimateMonthlyCost,
+  type RequirementsEvaluationResult,
+} from "@faultline/simulator";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -44,15 +51,23 @@ import {
   buildWorkloadEvidencePanel,
   type WorkloadEvidencePanel,
 } from "@/features/architecture-canvas/workload-evidence";
-import { ComponentGlyph, glyphPropsFromComponent } from "@/features/playground-glyphs";
+import {
+  ComponentGlyph,
+  glyphPropsFromComponent,
+} from "@/features/playground-glyphs";
 
-type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
+type SuccessfulSimulation = Extract<
+  RequirementsEvaluationResult,
+  { valid: true }
+>;
 
 const activeChallenge = urlShortenerChallenge;
 const challengeRedirectRps =
-  activeChallenge.workload.requestsPerSecond * activeChallenge.workload.readRatio;
+  activeChallenge.workload.requestsPerSecond *
+  activeChallenge.workload.readRatio;
 const challengeWriteRps =
-  activeChallenge.workload.requestsPerSecond * activeChallenge.workload.writeRatio;
+  activeChallenge.workload.requestsPerSecond *
+  activeChallenge.workload.writeRatio;
 
 function formatCost(amount: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -77,10 +92,19 @@ export type DataPlateInspectorProps = {
   simulationStale: boolean;
   runComplete: boolean;
   onConfigChange: (componentId: string, config: unknown) => void;
-  onDeploymentsChange: (componentId: string, deployments: RegionDeployment[]) => void;
+  onDeploymentsChange: (
+    componentId: string,
+    deployments: RegionDeployment[],
+  ) => void;
 };
 
-function DataPlateShell({ children, label }: { children: ReactNode; label: string }) {
+function DataPlateShell({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
   return (
     <aside className="data-plate-inspector" aria-label={label}>
       {children}
@@ -131,7 +155,13 @@ function DataPlateHeader({
   );
 }
 
-function DataPlateSection({ title, children }: { title: string; children: ReactNode }) {
+function DataPlateSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <section className="data-plate-inspector__section">
       <h3 className="data-plate-inspector__section-title">{title}</h3>
@@ -167,6 +197,59 @@ function PlateField({
   );
 }
 
+function AboutThisPieceSection({ card }: { card: LevelComponentCard }) {
+  return (
+    <details className="data-plate-inspector__teaching">
+      <summary className="data-plate-inspector__teaching-summary">
+        About this piece
+      </summary>
+      <div className="data-plate-inspector__teaching-body">
+        <p className="data-plate-inspector__teaching-why">{card.whyHere}</p>
+        <p className="data-plate-inspector__teaching-intent">
+          <span className="data-plate-inspector__teaching-label">
+            Placement intent
+          </span>
+          {card.placementIntent}
+        </p>
+        <div className="data-plate-inspector__teaching-lists">
+          <div>
+            <p className="data-plate-inspector__teaching-label">Strengths</p>
+            <ul>
+              {card.pros.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="data-plate-inspector__teaching-label">Limits</p>
+            <ul>
+              {card.cons.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="data-plate-inspector__teaching-label">
+              Common mistakes
+            </p>
+            <ul>
+              {card.commonMistakes.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        {card.costNotes ? (
+          <p className="data-plate-inspector__teaching-cost">
+            <span className="data-plate-inspector__teaching-label">Cost</span>
+            {card.costNotes}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function WorkloadFitSection({
   panel,
   emptyMessage,
@@ -187,7 +270,11 @@ function WorkloadFitSection({
     <DataPlateSection title="Workload fit">
       <div className="inspector-plate__rows">
         {panel.rows.map((row) => (
-          <InspectorDataRow key={row.label} label={row.label} value={row.value} />
+          <InspectorDataRow
+            key={row.label}
+            label={row.label}
+            value={row.value}
+          />
         ))}
       </div>
       {panel.hint ? <PlateHint>{panel.hint}</PlateHint> : null}
@@ -202,10 +289,17 @@ function workloadPanelForComponent(
   runComplete: boolean,
 ): { panel: WorkloadEvidencePanel | null; emptyMessage: string | null } {
   if (!runComplete || !simulation) {
-    return { panel: null, emptyMessage: "Run simulation to see placement evidence." };
+    return {
+      panel: null,
+      emptyMessage: "Run simulation to see placement evidence.",
+    };
   }
   if (simulationStale) {
-    return { panel: null, emptyMessage: "Architecture changed — run again for fresh placement evidence." };
+    return {
+      panel: null,
+      emptyMessage:
+        "Architecture changed — run again for fresh placement evidence.",
+    };
   }
   const panel = buildWorkloadEvidencePanel({
     component,
@@ -245,30 +339,57 @@ function LiveStrip({
     const trafficMetrics = simulation.traffic[component.id];
 
     if (serviceMetrics) {
-      rows.push({ label: "Incoming", value: formatRps(serviceMetrics.incomingRps) });
-      rows.push({ label: "Utilization", value: formatPercent(serviceMetrics.utilization) });
-      rows.push({ label: "Capacity", value: formatRps(serviceMetrics.capacityRps) });
+      rows.push({
+        label: "Incoming",
+        value: formatRps(serviceMetrics.incomingRps),
+      });
+      rows.push({
+        label: "Utilization",
+        value: formatPercent(serviceMetrics.utilization),
+      });
+      rows.push({
+        label: "Capacity",
+        value: formatRps(serviceMetrics.capacityRps),
+      });
     }
 
     if (postgresMetrics) {
       rows.push({ label: "Read", value: formatRps(postgresMetrics.readRps) });
       rows.push({ label: "Write", value: formatRps(postgresMetrics.writeRps) });
-      rows.push({ label: "Effective util", value: formatPercent(postgresMetrics.effectiveUtilization) });
+      rows.push({
+        label: "Effective util",
+        value: formatPercent(postgresMetrics.effectiveUtilization),
+      });
     }
 
     if (cacheMetrics) {
-      rows.push({ label: "Hit rate", value: formatPercent(cacheMetrics.hitRate) });
+      rows.push({
+        label: "Hit rate",
+        value: formatPercent(cacheMetrics.hitRate),
+      });
       rows.push({ label: "Hits", value: formatRps(cacheMetrics.hitRps) });
       rows.push({ label: "Misses", value: formatRps(cacheMetrics.missRps) });
-      rows.push({ label: "Utilization", value: formatPercent(cacheMetrics.utilization) });
+      rows.push({
+        label: "Utilization",
+        value: formatPercent(cacheMetrics.utilization),
+      });
     }
 
     if (trafficMetrics && rows.length === 0) {
-      rows.push({ label: "Incoming", value: formatRps(trafficMetrics.incomingRps) });
-      rows.push({ label: "Outgoing", value: formatRps(trafficMetrics.outgoingRps) });
+      rows.push({
+        label: "Incoming",
+        value: formatRps(trafficMetrics.incomingRps),
+      });
+      rows.push({
+        label: "Outgoing",
+        value: formatRps(trafficMetrics.outgoingRps),
+      });
     }
 
-    rows.push({ label: "System p95", value: `${Math.round(simulation.p95LatencyMs)} ms` });
+    rows.push({
+      label: "System p95",
+      value: `${Math.round(simulation.p95LatencyMs)} ms`,
+    });
   }
 
   return (
@@ -278,7 +399,11 @@ function LiveStrip({
       ) : (
         <div className="inspector-plate__rows">
           {rows.map((row) => (
-            <InspectorDataRow key={row.label} label={row.label} value={row.value} />
+            <InspectorDataRow
+              key={row.label}
+              label={row.label}
+              value={row.value}
+            />
           ))}
         </div>
       )}
@@ -291,7 +416,9 @@ function AdvancedSection({ component }: { component: ComponentInstance }) {
 
   return (
     <details className="data-plate-inspector__advanced">
-      <summary className="data-plate-inspector__advanced-summary">Advanced</summary>
+      <summary className="data-plate-inspector__advanced-summary">
+        Advanced
+      </summary>
       <div className="data-plate-inspector__advanced-body">
         <SpecList>
           <SpecRow label="Component ID" value={component.id} />
@@ -305,7 +432,9 @@ function AdvancedSection({ component }: { component: ComponentInstance }) {
           />
           Failure injection (dev)
         </label>
-        <pre className="data-plate-inspector__json">{JSON.stringify(component.config, null, 2)}</pre>
+        <pre className="data-plate-inspector__json">
+          {JSON.stringify(component.config, null, 2)}
+        </pre>
       </div>
     </details>
   );
@@ -314,7 +443,9 @@ function AdvancedSection({ component }: { component: ComponentInstance }) {
 function EmptyInspector() {
   return (
     <DataPlateShell label="Component inspector">
-      <p className="data-plate-inspector__empty">Select a component to inspect</p>
+      <p className="data-plate-inspector__empty">
+        Select a component to inspect
+      </p>
     </DataPlateShell>
   );
 }
@@ -331,11 +462,25 @@ export function DataPlateInspector({
   if (!component) return <EmptyInspector />;
 
   const definition = componentRegistry.get(component.type);
-  const cost = estimateMonthlyCost({ architecture, registry: componentRegistry });
-  const monthlyCost = cost.lineItems.find((lineItem) => lineItem.componentId === component.id)?.amount ?? 0;
+  const cost = estimateMonthlyCost({
+    architecture,
+    registry: componentRegistry,
+  });
+  const monthlyCost =
+    cost.lineItems.find((lineItem) => lineItem.componentId === component.id)
+      ?.amount ?? 0;
   const regions = getRegions();
 
-  const workloadFit = workloadPanelForComponent(component, simulation, simulationStale, runComplete);
+  const workloadFit = workloadPanelForComponent(
+    component,
+    simulation,
+    simulationStale,
+    runComplete,
+  );
+  const teachingCard = getLevelComponentCard(
+    activeChallenge.slug,
+    component.type,
+  );
 
   const shell = (label: string, body: ReactNode) => (
     <DataPlateShell label={label}>
@@ -343,13 +488,18 @@ export function DataPlateInspector({
         component={component}
         definition={definition}
         displayName={definition.label}
-        renameValue={component.type === "traffic-source" ? String((component.config as { label?: string }).label ?? "") : undefined}
+        renameValue={
+          component.type === "traffic-source"
+            ? String((component.config as { label?: string }).label ?? "")
+            : undefined
+        }
         onRename={
           component.type === "traffic-source"
             ? (next) => onConfigChange(component.id, { label: next })
             : undefined
         }
       />
+      {teachingCard ? <AboutThisPieceSection card={teachingCard} /> : null}
       {body}
       <LiveStrip
         component={component}
@@ -357,7 +507,10 @@ export function DataPlateInspector({
         simulationStale={simulationStale}
         runComplete={runComplete}
       />
-      <WorkloadFitSection panel={workloadFit.panel} emptyMessage={workloadFit.emptyMessage} />
+      <WorkloadFitSection
+        panel={workloadFit.panel}
+        emptyMessage={workloadFit.emptyMessage}
+      />
       <AdvancedSection component={component} />
     </DataPlateShell>
   );
@@ -371,18 +524,60 @@ export function DataPlateInspector({
     const regional = component.deployments.length > 0;
     const instancesByRegion = Object.fromEntries(
       regions.map((region) => {
-        const deployment = component.deployments.find((entry) => entry.regionId === region.id);
+        const deployment = component.deployments.find(
+          (entry) => entry.regionId === region.id,
+        );
         const count = deployment ? Number(deployment.config.instances ?? 0) : 0;
         return [region.id, Number.isFinite(count) ? count : 0];
       }),
     ) as Record<string, number>;
 
+    const regionalSum = regions.reduce(
+      (sum, region) => sum + (instancesByRegion[region.id] ?? 0),
+      0,
+    );
+    const homeRegionId =
+      regions.find((region) => region.id === "us-east")?.id ?? regions[0]?.id;
+    // Logical-only services (no deployments yet): show current total on the home region so
+    // players adjust capacity per region instead of a global stepper.
+    const displayByRegion =
+      !regional && regionalSum === 0 && instances > 0 && homeRegionId
+        ? ({ ...instancesByRegion, [homeRegionId]: instances } as Record<
+            string,
+            number
+          >)
+        : instancesByRegion;
+    const totalInstances = regional
+      ? Math.max(0, regionalSum)
+      : Math.max(instances, regionalSum);
+
     const setRegionalInstances = (regionId: string, nextCount: number) => {
-      const nextCounts = { ...instancesByRegion, [regionId]: Math.max(0, Math.floor(nextCount)) };
+      const base =
+        !regional && regionalSum === 0 && instances > 0 && homeRegionId
+          ? ({ ...instancesByRegion, [homeRegionId]: instances } as Record<
+              string,
+              number
+            >)
+          : instancesByRegion;
+      const nextCounts = {
+        ...base,
+        [regionId]: Math.max(0, Math.floor(nextCount)),
+      };
+      const sum = regions.reduce(
+        (total, region) => total + (nextCounts[region.id] ?? 0),
+        0,
+      );
+      if (sum <= 0) {
+        nextCounts[regionId] = 1;
+      }
       const nextDeployments: RegionDeployment[] = regions
         .filter((region) => (nextCounts[region.id] ?? 0) > 0)
         .map((region) =>
-          createRegionDeployment(region.id, { instances: nextCounts[region.id] }, `dep-${component.id}-${region.id}`),
+          createRegionDeployment(
+            region.id,
+            { instances: nextCounts[region.id] },
+            `dep-${component.id}-${region.id}`,
+          ),
         );
       onDeploymentsChange(component.id, nextDeployments);
     };
@@ -395,39 +590,47 @@ export function DataPlateInspector({
             <InspectorSegControl
               label="Size"
               value={size}
-              options={Object.keys(serviceSizeModels) as (keyof typeof serviceSizeModels)[]}
-              onChange={(next) => onConfigChange(component.id, { size: next, instances })}
+              options={
+                Object.keys(
+                  serviceSizeModels,
+                ) as (keyof typeof serviceSizeModels)[]
+              }
+              onChange={(next) =>
+                onConfigChange(component.id, {
+                  size: next,
+                  instances: totalInstances,
+                })
+              }
             />
-            <InspectorStepper
-              label={regional ? "Instances (from regions)" : "Instances"}
-              value={instances}
-              min={1}
-              max={10}
-              disabled={regional}
-              onChange={(next) => onConfigChange(component.id, { size, instances: next })}
-            />
+            <InspectorDataRow label="Total" value={totalInstances} />
           </div>
           <div className="data-plate-inspector__region-block">
-            <p className="data-plate-inspector__region-title">Regional instances</p>
+            <p className="data-plate-inspector__region-title">
+              Regional instances
+            </p>
             {regions.map((region) => (
               <InspectorStepper
                 key={region.id}
                 label={region.label}
-                value={instancesByRegion[region.id] ?? 0}
+                value={displayByRegion[region.id] ?? 0}
                 min={0}
                 max={10}
                 onChange={(next) => setRegionalInstances(region.id, next)}
               />
             ))}
             <PlateHint>
-              When any region is set, regional instances are the capacity source and must sum to the logical total.
+              Total is the sum of regional instances. Adjust capacity per
+              region.
             </PlateHint>
           </div>
           <SpecList>
-            <SpecRow label="Capacity / instance" value={`${sizeModel.capacityPerInstance.toLocaleString()} req/sec`} />
+            <SpecRow
+              label="Capacity / instance"
+              value={`${sizeModel.capacityPerInstance.toLocaleString()} req/sec`}
+            />
             <SpecRow
               label="Estimated capacity"
-              value={`${serviceCapacityForConfig({ size, instances }).toLocaleString()} req/sec`}
+              value={`${serviceCapacityForConfig({ size, instances: totalInstances }).toLocaleString()} req/sec`}
             />
             <SpecRow label="Monthly cost" value={formatCost(monthlyCost)} />
           </SpecList>
@@ -442,45 +645,62 @@ export function DataPlateInspector({
     const tier = parsed.data.tier as keyof typeof postgresTierModels;
     const readReplicaCount = parsed.data.readReplicaCount as number;
     const model = postgresTierModels[tier];
-    const primary = component.deployments.find((deployment) => deployment.config.role === "primary");
+    const primary = component.deployments.find(
+      (deployment) => deployment.config.role === "primary",
+    );
     const replicaRegionIds = new Set(
       component.deployments
         .filter((deployment) => deployment.config.role === "replica")
         .map((deployment) => deployment.regionId),
     );
-    const regional = component.deployments.length > 0;
+    const primaryRegionId = primary?.regionId;
+    const homeRegionId =
+      regions.find((region) => region.id === "us-east")?.id ?? regions[0]?.id;
+    // Logical-only: show home region as the implied primary so players place via the grid.
+    const displayPrimaryId =
+      primaryRegionId ?? (!component.deployments.length ? homeRegionId : undefined);
 
-    const setPrimaryRegion = (regionId: string) => {
-      if (!regionId || !isValidRegion(regionId)) {
-        onDeploymentsChange(component.id, []);
-        return;
-      }
-      const primaryRegionId: RegionId = regionId;
+    const applyPlacement = (nextPrimaryId: RegionId, nextReplicaIds: ReadonlySet<string>) => {
       const replicas = regions
-        .filter((region) => replicaRegionIds.has(region.id) && region.id !== primaryRegionId)
+        .filter((region) => nextReplicaIds.has(region.id) && region.id !== nextPrimaryId)
+        .slice(0, postgresReadReplicaBounds.maximum)
         .map((region) =>
-          createRegionDeployment(region.id, { role: "replica" }, `dep-${component.id}-${region.id}-replica`),
+          createRegionDeployment(
+            region.id,
+            { role: "replica" },
+            `dep-${component.id}-${region.id}-replica`,
+          ),
         );
       onDeploymentsChange(component.id, [
-        createRegionDeployment(primaryRegionId, { role: "primary" }, `dep-${component.id}-${primaryRegionId}-primary`),
+        createRegionDeployment(
+          nextPrimaryId,
+          { role: "primary" },
+          `dep-${component.id}-${nextPrimaryId}-primary`,
+        ),
         ...replicas,
       ]);
     };
 
+    const setPrimaryRegion = (regionId: string) => {
+      if (!isValidRegion(regionId)) return;
+      const nextReplicas = new Set(replicaRegionIds);
+      nextReplicas.delete(regionId);
+      applyPlacement(regionId, nextReplicas);
+    };
+
     const toggleReplicaRegion = (regionId: string, enabled: boolean) => {
-      const primaryRegionId = primary?.regionId;
-      if (!primaryRegionId || !isValidRegion(primaryRegionId) || !isValidRegion(regionId)) return;
+      if (!isValidRegion(regionId)) return;
+      const nextPrimary = displayPrimaryId;
+      if (!nextPrimary || !isValidRegion(nextPrimary)) return;
+      if (regionId === nextPrimary) return;
       const nextReplicaIds = new Set(replicaRegionIds);
-      if (enabled) nextReplicaIds.add(regionId);
-      else nextReplicaIds.delete(regionId);
-      onDeploymentsChange(component.id, [
-        createRegionDeployment(primaryRegionId, { role: "primary" }, `dep-${component.id}-${primaryRegionId}-primary`),
-        ...regions
-          .filter((region) => nextReplicaIds.has(region.id))
-          .map((region) =>
-            createRegionDeployment(region.id, { role: "replica" }, `dep-${component.id}-${region.id}-replica`),
-          ),
-      ]);
+      if (enabled) {
+        if (nextReplicaIds.size >= postgresReadReplicaBounds.maximum) return;
+        nextReplicaIds.add(regionId);
+      } else {
+        nextReplicaIds.delete(regionId);
+      }
+      applyPlacement(nextPrimary, nextReplicaIds);
     };
 
     return shell(
@@ -490,46 +710,74 @@ export function DataPlateInspector({
           <InspectorSegControl
             label="Tier"
             value={tier}
-            options={Object.keys(postgresTierModels) as (keyof typeof postgresTierModels)[]}
-            onChange={(next) => onConfigChange(component.id, { tier: next, readReplicaCount })}
+            options={
+              Object.keys(
+                postgresTierModels,
+              ) as (keyof typeof postgresTierModels)[]
+            }
+            onChange={(next) =>
+              onConfigChange(component.id, { tier: next, readReplicaCount })
+            }
           />
-          <InspectorStepper
-            label={regional ? "Read replicas (from regions)" : "Read replicas"}
-            value={readReplicaCount}
-            min={postgresReadReplicaBounds.minimum}
-            max={postgresReadReplicaBounds.maximum}
-            disabled={regional}
-            onChange={(next) => onConfigChange(component.id, { tier, readReplicaCount: next })}
-          />
+          <InspectorDataRow label="Total replicas" value={readReplicaCount} />
         </div>
         <div className="data-plate-inspector__region-block">
-          <p className="data-plate-inspector__region-title">Regional placement</p>
-          <PlateField label="Primary region">
-            <select value={primary?.regionId ?? ""} onChange={(event) => setPrimaryRegion(event.target.value)}>
-              <option value="">Logical only (no region)</option>
-              {regions.map((region) => (
-                <option key={region.id} value={region.id}>
-                  {region.label}
-                </option>
-              ))}
-            </select>
-          </PlateField>
-          {primary ? (
-            <div className="data-plate-inspector__replica-list">
-              <p className="data-plate-inspector__region-title">Read replica regions</p>
-              {regions.map((region) => (
-                <label key={region.id} className="data-plate-inspector__checkbox">
-                  <input
-                    type="checkbox"
-                    checked={replicaRegionIds.has(region.id)}
-                    onChange={(event) => toggleReplicaRegion(region.id, event.target.checked)}
-                  />
-                  {region.label}
-                </label>
-              ))}
+          <p className="data-plate-inspector__region-title">
+            Regional placement
+          </p>
+          <div
+            className="data-plate-inspector__role-grid"
+            role="group"
+            aria-label="Postgres primary and replica regions"
+          >
+            <div className="data-plate-inspector__role-col">
+              <p className="data-plate-inspector__role-col-title">Primary zone</p>
+              <ul className="data-plate-inspector__role-list">
+                {regions.map((region) => (
+                  <li key={`primary-${region.id}`}>
+                    <label className="data-plate-inspector__bullet">
+                      <input
+                        type="radio"
+                        name={`postgres-primary-${component.id}`}
+                        checked={displayPrimaryId === region.id}
+                        onChange={() => setPrimaryRegion(region.id)}
+                      />
+                      <span>{region.label}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
             </div>
-          ) : null}
-          <PlateHint>Exactly one primary. Writes target the primary. Replica regions set readReplicaCount.</PlateHint>
+            <div className="data-plate-inspector__role-col">
+              <p className="data-plate-inspector__role-col-title">Replica</p>
+              <ul className="data-plate-inspector__role-list">
+                {regions.map((region) => {
+                  const isPrimary = displayPrimaryId === region.id;
+                  return (
+                    <li key={`replica-${region.id}`}>
+                      <label
+                        className={`data-plate-inspector__bullet${isPrimary ? " is-disabled" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!isPrimary && replicaRegionIds.has(region.id)}
+                          disabled={isPrimary || !displayPrimaryId}
+                          onChange={(event) =>
+                            toggleReplicaRegion(region.id, event.target.checked)
+                          }
+                        />
+                        <span>{region.label}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+          <PlateHint>
+            One primary holds writes. Replicas add read capacity in other zones —
+            total replicas is their count.
+          </PlateHint>
         </div>
         <SpecList>
           <SpecRow
@@ -540,12 +788,18 @@ export function DataPlateInspector({
             label="Write capacity"
             value={`${postgresWriteCapacityForConfig({ tier }).toLocaleString()} req/sec`}
           />
-          <SpecRow label="Primary read" value={`${model.readCapacityRps.toLocaleString()} req/sec`} />
+          <SpecRow
+            label="Primary read"
+            value={`${model.readCapacityRps.toLocaleString()} req/sec`}
+          />
           <SpecRow
             label="Replica read pool"
             value={`${(model.replicaReadCapacityRps * readReplicaCount).toLocaleString()} req/sec`}
           />
-          <SpecRow label="Per replica read" value={`${model.replicaReadCapacityRps.toLocaleString()} req/sec`} />
+          <SpecRow
+            label="Per replica read"
+            value={`${model.replicaReadCapacityRps.toLocaleString()} req/sec`}
+          />
           <SpecRow label="Monthly cost" value={formatCost(monthlyCost)} />
         </SpecList>
       </DataPlateSection>,
@@ -559,7 +813,9 @@ export function DataPlateInspector({
     const tier = parsed.data.tier as keyof typeof redisTierModels;
     const ttlBand = parsed.data.ttlBand as keyof typeof redisTtlHitRateBands;
     const effective = redisEffectiveModel({ mode, tier });
-    const placed = new Set(component.deployments.map((deployment) => deployment.regionId));
+    const placed = new Set(
+      component.deployments.map((deployment) => deployment.regionId),
+    );
 
     const toggleRegion = (regionId: string, enabled: boolean) => {
       const next = new Set(placed);
@@ -569,7 +825,13 @@ export function DataPlateInspector({
         component.id,
         regions
           .filter((region) => next.has(region.id))
-          .map((region) => createRegionDeployment(region.id, {}, `dep-${component.id}-${region.id}`)),
+          .map((region) =>
+            createRegionDeployment(
+              region.id,
+              {},
+              `dep-${component.id}-${region.id}`,
+            ),
+          ),
       );
     };
 
@@ -581,24 +843,33 @@ export function DataPlateInspector({
             <InspectorSegControl
               label="Tier"
               value={tier}
-              options={Object.keys(redisTierModels) as (keyof typeof redisTierModels)[]}
-              onChange={(next) => onConfigChange(component.id, { mode, tier: next, ttlBand })}
+              options={
+                Object.keys(redisTierModels) as (keyof typeof redisTierModels)[]
+              }
+              onChange={(next) =>
+                onConfigChange(component.id, { mode, tier: next, ttlBand })
+              }
             />
           </div>
           <div className="data-plate-inspector__region-block">
-            <p className="data-plate-inspector__region-title">Regional placement</p>
+            <p className="data-plate-inspector__region-title">
+              Regional placement
+            </p>
             {regions.map((region) => (
               <label key={region.id} className="data-plate-inspector__checkbox">
                 <input
                   type="checkbox"
                   checked={placed.has(region.id)}
-                  onChange={(event) => toggleRegion(region.id, event.target.checked)}
+                  onChange={(event) =>
+                    toggleRegion(region.id, event.target.checked)
+                  }
                 />
                 {region.label}
               </label>
             ))}
             <PlateHint>
-              Each checked region is an independent Redis cache. Replicated mode is local HA, not cross-region sync.
+              Each checked region is an independent Redis cache. Replicated mode
+              is local HA, not cross-region sync.
             </PlateHint>
           </div>
         </DataPlateSection>
@@ -608,19 +879,36 @@ export function DataPlateInspector({
               label="Mode"
               value={mode}
               options={["standalone", "replicated"] as const}
-              onChange={(next) => onConfigChange(component.id, { mode: next, tier, ttlBand })}
+              onChange={(next) =>
+                onConfigChange(component.id, { mode: next, tier, ttlBand })
+              }
             />
             <InspectorSegControl
               label="TTL band"
               value={ttlBand}
-              options={Object.keys(redisTtlHitRateBands) as (keyof typeof redisTtlHitRateBands)[]}
-              onChange={(next) => onConfigChange(component.id, { mode, tier, ttlBand: next })}
+              options={
+                Object.keys(
+                  redisTtlHitRateBands,
+                ) as (keyof typeof redisTtlHitRateBands)[]
+              }
+              onChange={(next) =>
+                onConfigChange(component.id, { mode, tier, ttlBand: next })
+              }
             />
           </div>
           <SpecList>
-            <SpecRow label="Configured hit rate" value={`${Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%`} />
-            <SpecRow label="Throughput capacity" value={`${effective.throughputRps.toLocaleString()} req/sec`} />
-            <SpecRow label="Hot-key capacity" value={`${effective.hotKeyCapacityRps.toLocaleString()} req/sec`} />
+            <SpecRow
+              label="Configured hit rate"
+              value={`${Math.round(redisHitRateForConfig({ ttlBand }) * 100)}%`}
+            />
+            <SpecRow
+              label="Throughput capacity"
+              value={`${effective.throughputRps.toLocaleString()} req/sec`}
+            />
+            <SpecRow
+              label="Hot-key capacity"
+              value={`${effective.hotKeyCapacityRps.toLocaleString()} req/sec`}
+            />
             <SpecRow label="Monthly cost" value={formatCost(monthlyCost)} />
           </SpecList>
         </DataPlateSection>
@@ -638,7 +926,8 @@ export function DataPlateInspector({
           <SpecRow label="Monthly cost" value={formatCost(0)} />
         </SpecList>
         <PlateHint>
-          Forwards traffic without changing volume. Nearest healthy region routing activates when geography is enabled.
+          Forwards traffic without changing volume. Nearest healthy region
+          routing activates when geography is enabled.
         </PlateHint>
       </DataPlateSection>,
     );
@@ -658,18 +947,26 @@ export function DataPlateInspector({
               label="Policy"
               value={policy}
               options={loadBalancerPolicies}
-              formatOption={(option) => (option === "equal" ? "equal" : "weighted")}
-              onChange={(next) => onConfigChange(component.id, { policy: next })}
+              formatOption={(option) =>
+                option === "equal" ? "equal" : "weighted"
+              }
+              onChange={(next) =>
+                onConfigChange(component.id, { policy: next })
+              }
             />
           </div>
           <SpecList>
-            <SpecRow label="Monthly cost" value={formatCost(loadBalancerMonthlyCost)} />
+            <SpecRow
+              label="Monthly cost"
+              value={formatCost(loadBalancerMonthlyCost)}
+            />
           </SpecList>
           <PlateHint>
             {policy === "equal"
               ? "Splits requests evenly across connected services."
               : "Splits requests by each service's configured capacity."}{" "}
-            Failed backends are not excluded yet; health-aware redistribution comes with failure injection.
+            Failed backends are not excluded yet; health-aware redistribution
+            comes with failure injection.
           </PlateHint>
         </DataPlateSection>
       </>,
@@ -691,8 +988,12 @@ export function DataPlateInspector({
             <InspectorSegControl
               label="Tier"
               value={tier}
-              options={Object.keys(cdnTierModels) as (keyof typeof cdnTierModels)[]}
-              onChange={(next) => onConfigChange(component.id, { coverage, ttlBand, tier: next })}
+              options={
+                Object.keys(cdnTierModels) as (keyof typeof cdnTierModels)[]
+              }
+              onChange={(next) =>
+                onConfigChange(component.id, { coverage, ttlBand, tier: next })
+              }
             />
           </div>
         </DataPlateSection>
@@ -701,8 +1002,14 @@ export function DataPlateInspector({
             <InspectorSegControl
               label="TTL band"
               value={ttlBand}
-              options={Object.keys(cdnTtlHitRateBands) as (keyof typeof cdnTtlHitRateBands)[]}
-              onChange={(next) => onConfigChange(component.id, { coverage, ttlBand: next, tier })}
+              options={
+                Object.keys(
+                  cdnTtlHitRateBands,
+                ) as (keyof typeof cdnTtlHitRateBands)[]
+              }
+              onChange={(next) =>
+                onConfigChange(component.id, { coverage, ttlBand: next, tier })
+              }
             />
           </div>
           <PlateField label="Coverage">
@@ -713,12 +1020,19 @@ export function DataPlateInspector({
               step="0.05"
               value={coverage}
               onChange={(event) =>
-                onConfigChange(component.id, { coverage: Number(event.target.value), ttlBand, tier })
+                onConfigChange(component.id, {
+                  coverage: Number(event.target.value),
+                  ttlBand,
+                  tier,
+                })
               }
             />
           </PlateField>
           <SpecList>
-            <SpecRow label="TTL hit rate" value={`${Math.round(cdnHitRateForConfig({ ttlBand }) * 100)}%`} />
+            <SpecRow
+              label="TTL hit rate"
+              value={`${Math.round(cdnHitRateForConfig({ ttlBand }) * 100)}%`}
+            />
             <SpecRow
               label="Configured hit intent"
               value={`${Math.round(cdnConfiguredHitIntent({ coverage, ttlBand, tier }) * 100)}%`}
@@ -727,11 +1041,14 @@ export function DataPlateInspector({
               label="Edge capacity"
               value={`${cdnThroughputCapacityForConfig({ tier }).toLocaleString()} req/sec`}
             />
-            <SpecRow label="Base monthly cost" value={formatCost(cdnMonthlyCostForConfig({ tier }))} />
+            <SpecRow
+              label="Base monthly cost"
+              value={formatCost(cdnMonthlyCostForConfig({ tier }))}
+            />
           </SpecList>
           <PlateHint>
-            Reduces origin redirect traffic via cache hit/miss offload. Writes always miss and reach origin. Coverage is
-            logical, not geographic.
+            Reduces origin redirect traffic via cache hit/miss offload. Writes
+            always miss and reach origin. Coverage is logical, not geographic.
           </PlateHint>
         </DataPlateSection>
       </>,
@@ -752,7 +1069,9 @@ export function DataPlateInspector({
         />
         <SpecRow label="Monthly cost" value={formatCost(monthlyCost)} />
       </SpecList>
-      <PlateHint>Traffic is configured by the challenge and cannot be edited here.</PlateHint>
+      <PlateHint>
+        Traffic is configured by the challenge and cannot be edited here.
+      </PlateHint>
     </DataPlateSection>,
   );
 }

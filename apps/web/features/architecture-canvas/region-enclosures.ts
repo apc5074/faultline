@@ -9,6 +9,7 @@ import {
   type Architecture,
   type ChallengeDefinition,
   type ComponentInstance,
+  type RegionDeployment,
   type RegionId,
 } from "@faultline/core";
 import { componentRegistry } from "@faultline/component-catalog";
@@ -214,6 +215,47 @@ export function applyRegionPlacementFromPosition(
   const regionId = regionAtNodeCenter(position, glyphSize, regionIds);
   if (!regionId) return component;
   return assignComponentToRegion(component, regionId);
+}
+
+/**
+ * Resize service regional deployments so instance counts sum to `targetTotal`
+ * (clamped to catalog bounds). Prefers adjusting the busiest existing region.
+ */
+export function scaleServiceDeploymentsToTotal(
+  deployments: readonly RegionDeployment[],
+  targetTotal: number,
+  componentId: string,
+  bounds: { minimum: number; maximum: number } = { minimum: 1, maximum: 10 },
+): RegionDeployment[] {
+  if (deployments.length === 0) return [];
+  const target = Math.min(bounds.maximum, Math.max(bounds.minimum, Math.floor(targetTotal)));
+  const ranked = [...deployments].sort(
+    (left, right) =>
+      totalServiceInstancesFromDeployments([right]) - totalServiceInstancesFromDeployments([left]) ||
+      left.regionId.localeCompare(right.regionId),
+  );
+  const focus = ranked[0];
+  if (!isValidRegion(focus.regionId)) return [...deployments];
+  const focusRegionId = focus.regionId;
+  const others = ranked.slice(1);
+  const othersSum = totalServiceInstancesFromDeployments(others);
+  if (othersSum >= target) {
+    return [
+      createRegionDeployment(
+        focusRegionId,
+        { instances: target },
+        focus.id || `dep-${componentId}-${focusRegionId}`,
+      ),
+    ];
+  }
+  return [
+    createRegionDeployment(
+      focusRegionId,
+      { instances: target - othersSum },
+      focus.id || `dep-${componentId}-${focusRegionId}`,
+    ),
+    ...others,
+  ];
 }
 
 export function regionEnclosureLabel(regionId: RegionId): string {

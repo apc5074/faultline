@@ -955,6 +955,35 @@ main {
   text-transform: uppercase;
 }
 
+.level-briefing__placement {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.level-briefing__placement-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.level-briefing__placement-list li {
+  display: grid;
+  gap: 0.15rem;
+  color: var(--color-ink-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.level-briefing__placement-list strong {
+  color: var(--color-ink);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .level-briefing__targets {
   display: grid;
   gap: 0;
@@ -1519,6 +1548,68 @@ main {
   text-transform: uppercase;
 }
 
+.data-plate-inspector__role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.data-plate-inspector__role-col-title {
+  margin: 0 0 0.4rem;
+  color: var(--color-ink-faint);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.data-plate-inspector__role-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.data-plate-inspector__bullet {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-ink);
+  font-size: 0.68rem;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.data-plate-inspector__bullet.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.data-plate-inspector__bullet input {
+  appearance: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin: 0;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 999px;
+  background: var(--color-paper);
+  display: grid;
+  place-content: center;
+}
+
+.data-plate-inspector__bullet input:checked {
+  background: var(--color-ink);
+  box-shadow: inset 0 0 0 2px var(--color-paper);
+}
+
+.data-plate-inspector__bullet input:disabled {
+  opacity: 0.5;
+}
+
 .data-plate-inspector__replica-list {
   display: grid;
   gap: 0.35rem;
@@ -1543,6 +1634,74 @@ main {
   margin: 0;
   color: var(--color-ink-faint);
   font-size: 0.65rem;
+}
+
+.data-plate-inspector__teaching {
+  border-bottom: 1px solid var(--color-ink-hairline);
+  background: color-mix(in srgb, var(--color-paper) 88%, var(--color-ink) 12%);
+}
+
+.data-plate-inspector__teaching-summary {
+  padding: 0.55rem 0.75rem;
+  color: var(--color-ink);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.data-plate-inspector__teaching-summary::-webkit-details-marker {
+  display: none;
+}
+
+.data-plate-inspector__teaching-body {
+  padding: 0 0.75rem 0.75rem;
+  border-top: 1px solid var(--color-ink-hairline);
+}
+
+.data-plate-inspector__teaching-why {
+  margin: 0.55rem 0 0.45rem;
+  color: var(--color-ink);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.data-plate-inspector__teaching-intent,
+.data-plate-inspector__teaching-cost {
+  margin: 0.4rem 0 0;
+  color: var(--color-ink-muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.data-plate-inspector__teaching-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--color-ink-faint);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.data-plate-inspector__teaching-lists {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.data-plate-inspector__teaching-lists ul {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--color-ink-muted);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
+.data-plate-inspector__teaching-lists li + li {
+  margin-top: 0.15rem;
 }
 
 .data-plate-inspector__advanced {

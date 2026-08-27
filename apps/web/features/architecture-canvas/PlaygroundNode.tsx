@@ -6,6 +6,7 @@ import type { ComponentDefinition, ComponentInstance } from "@faultline/core";
 
 import { PlaygroundHandle } from "@/features/architecture-canvas/PlaygroundHandle";
 import { portOffsetY } from "@/features/architecture-canvas/glyph-port-layout";
+import { challengeRedirectRps } from "@/features/architecture-canvas/playground-challenge";
 import {
   ComponentGlyph,
   deriveGlyphMechanismValues,
@@ -75,6 +76,7 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
       ? {}
       : deriveGlyphMechanismValues(data.component.id, data.simulation, {
           resultIsStale: data.resultIsStale,
+          redirectRps: challengeRedirectRps,
         });
 
   const mechanism = playbackMechanism ?? simMechanism;

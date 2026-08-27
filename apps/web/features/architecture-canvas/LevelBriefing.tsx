@@ -5,12 +5,12 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import {
   activeChallenge,
+  activeLevelCurriculum,
   challengeHotKeyLabel,
   challengeReadWriteRatioLabel,
   challengeRedirectRps,
   challengeWriteRps,
 } from "@/features/architecture-canvas/playground-challenge";
-import { workloadBriefingPlacementHint } from "@/features/architecture-canvas/workload-evidence";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 const ONBOARDING_SESSION_KEY = "faultline.level1.onboarding.seen";
@@ -133,7 +133,6 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
   const latency = activeChallenge.requirements.find((requirement) => requirement.id === "latency");
   const headroom = activeChallenge.requirements.find((requirement) => requirement.id === "headroom");
   const budget = activeChallenge.requirements.find((requirement) => requirement.id === "budget");
-  const placementHint = workloadBriefingPlacementHint(activeChallenge);
   const isHowTo = step === "how-to";
 
   useEffect(() => {
@@ -216,12 +215,8 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
             </>
           ) : (
             <>
-              <p className="level-briefing__scenario">
-                You&apos;re shipping <em>Shortline</em> — a link shortener used worldwide.
-                Most traffic is redirects. A single viral link can dominate reads.
-                Design the infrastructure so it stays fast, has spare capacity, and
-                fits the budget.
-              </p>
+              <p className="level-briefing__scenario">{activeLevelCurriculum.hook}</p>
+              <p className="level-briefing__hint">{activeLevelCurriculum.stakes}</p>
 
               <dl className="level-briefing__traffic">
                 <div>
@@ -242,9 +237,36 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
                 </div>
               </dl>
 
-              {placementHint ? (
-                <p className="level-briefing__hint">{placementHint}</p>
+              <ul className="level-briefing__howto level-briefing__beats">
+                {activeLevelCurriculum.briefingBeats.map((beat, index) => (
+                  <li key={beat}>
+                    <span className="level-briefing__howto-num">{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <p>{beat}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {(["cdn", "redis"] as const).some((type) => activeLevelCurriculum.componentCards[type]) ? (
+                <div className="level-briefing__placement">
+                  <p className="level-briefing__section-label">Placement education</p>
+                  <ul className="level-briefing__placement-list">
+                    {(["cdn", "redis"] as const).map((type) => {
+                      const card = activeLevelCurriculum.componentCards[type];
+                      if (!card) return null;
+                      return (
+                        <li key={type}>
+                          <strong>{type === "cdn" ? "CDN" : "Redis"}</strong>
+                          <span>{card.placementIntent}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               ) : null}
+
+              <p className="level-briefing__hint">{activeLevelCurriculum.firstRunSummary}</p>
 
               <p className="level-briefing__section-label">Pass when</p>
               <ul className="level-briefing__targets">
@@ -272,7 +294,7 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
               </ul>
 
               <p className="level-briefing__hint">
-                Drag components onto the canvas, connect ports, then Run.
+                Scale the inherited MVP on the canvas, connect ports, then Run.
               </p>
             </>
           )}

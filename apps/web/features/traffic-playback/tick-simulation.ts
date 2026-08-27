@@ -146,6 +146,8 @@ export function tickSimulation(
   packets: SimPacket[],
   speed: number,
   tick: number,
+  /** Optional LP-05 path shares — scales ambient edge load / dwell lighting. */
+  volumeShareByComponentId?: ReadonlyMap<string, number>,
 ): SimTickResult {
   const dt = speed * 0.016;
   const newRouteLingers: string[] = [];
@@ -270,9 +272,20 @@ export function tickSimulation(
     }
   }
 
+  const shareScale = (componentId: string): number => {
+    if (!volumeShareByComponentId) return 1;
+    const share = volumeShareByComponentId.get(componentId);
+    if (share === undefined) return 0.12;
+    if (share <= 0.005) return 0;
+    return Math.min(1, Math.sqrt(share));
+  };
+
   const updatedConnections = connections.map((connection) => {
     const count = updatedPackets.filter((packet) => packet.connectionId === connection.id).length;
-    return { ...connection, load: Math.min(1, count * 0.2) };
+    const fromScale = shareScale(connection.fromComponentId);
+    const toScale = shareScale(connection.toComponentId);
+    const scale = Math.max(fromScale, toScale);
+    return { ...connection, load: Math.min(1, count * 0.2 * scale) };
   });
 
   const updatedComponents = components.map((comp) => {
@@ -302,15 +315,19 @@ export function tickSimulation(
 
     const cacheHitFlash =
       comp.type === "cache" && tick - (cacheHitFlashes.get(comp.id) ?? -Infinity) < 12;
-    const mechanismCount = processingPackets.length;
+    const scale = shareScale(comp.id);
+    const mechanismCount = Math.max(
+      0,
+      Math.round((comp.type === "cdn" ? (passCount ?? 0) : processingPackets.length) * scale),
+    );
 
     return {
       ...comp,
-      state,
+      state: scale <= 0 && state === "processing" ? "idle" : state,
       processingPackets,
       armAngle,
-      passCount,
-      cacheHitFlash,
+      passCount: comp.type === "cdn" ? Math.round((passCount ?? 0) * scale) : passCount,
+      cacheHitFlash: scale > 0 && cacheHitFlash,
       mechanismCount,
     };
   });

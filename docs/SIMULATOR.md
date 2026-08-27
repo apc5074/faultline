@@ -139,6 +139,8 @@ Presentation layers must consume complete simulator batches:
 
 UI must never invent ambient traffic, random routing, or unmodeled resource meters.
 
+**Level Profile volume bands** (`volumeProfile` in `*.level.json`) are curriculum/playtest guards only. They do not change simulator formulas. Canvas share visuals (`volume-share-visuals.ts`) map measured absorb / path RPS from this section into glyph and edge busyness; if a well-placed CDN still looks quieter than Redis, calibrate affinity ceilings — do not fake hit rates from profile bands.
+
 ## Simulator version
 
 `SIMULATOR_VERSION` in `@faultline/simulator` is recorded on each published `challenge_versions` row. Competition-affecting simulator changes require bumping this value and publishing a new challenge version so official attempts are never silently re-scored under incompatible semantics.

@@ -37,4 +37,13 @@ export type {
   RouteLinger,
 } from "./types";
 export { buildComponentPlaybackVisuals, type PlaybackVisualContext } from "./playback-component-visuals";
+export {
+  buildComponentVolumeShares,
+  edgePlaybackWeightFromRps,
+  mechanismCellsFromShare,
+  share01FromAbsorb,
+  visualLoadFromShare,
+  VOLUME_SHARE_IDLE_EPSILON,
+} from "./volume-share-visuals";
+export type { ComponentVolumeShare, BuildVolumeSharesInput } from "./volume-share-visuals";
 export { usePlaybackController, type PlaybackPhase } from "./use-playback-controller";

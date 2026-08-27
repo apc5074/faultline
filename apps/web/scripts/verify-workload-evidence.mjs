@@ -135,7 +135,10 @@ const idlePanel = buildWorkloadEvidencePanel({
 });
 assert.equal(idlePanel, null, "off-path Redis has no workload panel until it participates");
 
-const idleGlyph = deriveGlyphMechanismValues("redis1", idleSim);
+const idleGlyph = deriveGlyphMechanismValues("redis1", idleSim, {
+  redirectRps:
+    urlShortenerChallenge.workload.requestsPerSecond * urlShortenerChallenge.workload.readRatio,
+});
 assert.deepEqual(idleGlyph, {}, "off-path Redis glyph stays quiet");
 
 console.log("Check — playback cache cubes use seeded random slots; servers stay sequential bays");
@@ -145,6 +148,8 @@ const playbackContext = {
   architecture,
   components: architecture.components,
   simulation: readAsideSim,
+  redirectRps:
+    urlShortenerChallenge.workload.requestsPerSecond * urlShortenerChallenge.workload.readRatio,
 };
 
 const totalEvents = readAsideSim.events.length;

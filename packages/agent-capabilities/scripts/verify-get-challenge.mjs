@@ -58,6 +58,31 @@ assert.equal("prompt" in output, false);
 assert.equal("allowedComponentTypes" in output, false);
 assert.equal("requirements" in output, false);
 assert.equal("workloadAffinity" in output, false);
+assert.equal("narrative" in output, false);
+assert.equal("teaching" in output, false);
+
+const withTeaching = buildGetChallengeOutput(urlShortenerLike, {
+  narrative: {
+    hook: "LinkVault MVP goes viral.",
+    stakes: "First Run fails so you scale what exists.",
+  },
+  teaching: {
+    componentTypes: [
+      { type: "redis", placementIntent: "Read-aside beside Postgres; viral relief valve" },
+      { type: "cdn", placementIntent: "Before Service on the user path" },
+    ],
+  },
+});
+assert.deepEqual(withTeaching.narrative, {
+  hook: "LinkVault MVP goes viral.",
+  stakes: "First Run fails so you scale what exists.",
+});
+assert.equal(withTeaching.teaching?.componentTypes.length, 2);
+assert.ok(withTeaching.teaching?.componentTypes.some((entry) => entry.type === "redis"));
+const teachingSerialized = JSON.stringify(withTeaching.teaching);
+assert.ok(!teachingSerialized.includes("pros"));
+assert.ok(!teachingSerialized.includes("commonMistakes"));
+assert.ok(!teachingSerialized.toLowerCase().includes("add cdn"));
 
 const withAffinity = {
   ...urlShortenerLike,
@@ -117,6 +142,26 @@ const invoked = await registry.invoke("get_challenge", context, undefined);
 assert.equal(invoked.ok, true);
 if (invoked.ok) {
   assert.deepEqual(invoked.data, output);
+}
+
+const taughtContext = {
+  challenge: urlShortenerLike,
+  architecture: emptyArchitecture,
+  levelTeaching: {
+    narrative: {
+      hook: "LinkVault MVP goes viral.",
+      stakes: "First Run fails so you scale what exists.",
+    },
+    teaching: {
+      componentTypes: [{ type: "redis", placementIntent: "Read-aside beside Postgres" }],
+    },
+  },
+};
+const taught = await registry.invoke("get_challenge", taughtContext, undefined);
+assert.equal(taught.ok, true);
+if (taught.ok) {
+  assert.equal(taught.data.narrative?.hook, "LinkVault MVP goes viral.");
+  assert.equal(taught.data.teaching?.componentTypes[0]?.type, "redis");
 }
 
 const emptyInput = await registry.invoke("get_challenge", context, {});

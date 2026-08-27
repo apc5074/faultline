@@ -24,6 +24,7 @@ function simulationSnapshot(simulation: SuccessfulSimulation | null): GlyphSimul
     postgres: simulation.postgres,
     caches: simulation.caches,
     events: simulation.events,
+    hotKey: simulation.hotKey,
   };
 }
 

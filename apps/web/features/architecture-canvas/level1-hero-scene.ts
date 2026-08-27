@@ -60,7 +60,7 @@ export function buildLevel1HeroScene(): Architecture {
   return { version: 1, components, connections };
 }
 
-/** When true, the workspace loads the hero scene instead of the empty starter canvas. */
+/** When true, the workspace loads the hero scene instead of the Level Profile starter. */
 export function isLevel1HeroSceneEnabled(): boolean {
   const flag =
     process.env.NEXT_PUBLIC_FAULTLINE_HERO_SCENE?.trim().toLowerCase();

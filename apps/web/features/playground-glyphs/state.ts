@@ -1,12 +1,17 @@
 import type {
   CachePlacementEvidence,
   CacheResult,
+  HotKeyScenarioResult,
   PostgresCapacityMetrics,
   ServiceCapacityMetrics,
   SimulationEvent,
 } from "@faultline/simulator";
 
 import { impactSlotSeed, randomizedImpactSlots } from "../traffic-playback/impact-slots.ts";
+import {
+  buildComponentVolumeShares,
+  mechanismCellsFromShare,
+} from "../traffic-playback/volume-share-visuals.ts";
 
 import type { GlyphState } from "./glyph-types";
 
@@ -15,6 +20,7 @@ export type GlyphSimulationResult = {
   postgres: Readonly<Record<string, PostgresCapacityMetrics>>;
   caches?: Readonly<Record<string, CacheResult & CachePlacementEvidence>>;
   events?: readonly SimulationEvent[];
+  hotKey?: HotKeyScenarioResult;
 };
 
 export interface DeriveGlyphStateOptions {
@@ -111,12 +117,66 @@ function mechanismCellsFromUtilization(utilization: number, slots: number, satur
 export function deriveGlyphMechanismValues(
   componentId: string,
   simulationResult: GlyphSimulationResult | null,
-  options: { resultIsStale?: boolean } = {},
+  options: { resultIsStale?: boolean; redirectRps?: number } = {},
 ): GlyphMechanismValues {
   if (!simulationResult || options.resultIsStale) {
     return {};
   }
 
+  const redirectRps = options.redirectRps;
+  if (typeof redirectRps === "number" && redirectRps > 0) {
+    const shares = buildComponentVolumeShares({
+      redirectRps,
+      simulation: simulationResult,
+    });
+    const share = shares.get(componentId);
+
+    const service = simulationResult.services[componentId];
+    if (service) {
+      return {
+        processingCount: mechanismCellsFromShare(
+          share?.share01 ?? 0,
+          4,
+          service.state === "saturated" || service.state === "critical",
+        ),
+      };
+    }
+
+    const postgres = simulationResult.postgres[componentId];
+    if (postgres) {
+      return {
+        processingCount: mechanismCellsFromShare(
+          share?.share01 ?? 0,
+          4,
+          postgres.state === "saturated" || postgres.state === "critical",
+        ),
+      };
+    }
+
+    const cache = simulationResult.caches?.[componentId];
+    if (cache) {
+      if (cache.mechanismId === "edge_cache") {
+        return {
+          passCount: mechanismCellsFromShare(share?.share01 ?? 0, 6, cache.saturated),
+        };
+      }
+
+      const capacity = 16;
+      const cells = mechanismCellsFromShare(share?.share01 ?? 0, capacity, cache.saturated);
+      const slotOrder = randomizedImpactSlots(
+        capacity,
+        impactSlotSeed({ runId: "glyph", componentId, sequence: 0 }),
+      );
+      return {
+        processingCount: cells,
+        processingSlotIndices: slotOrder.slice(0, cells),
+      };
+    }
+
+    return {};
+  }
+
+  // Legacy fallback when redirect RPS is unavailable — utilization with one-cell floor.
   const service = simulationResult.services[componentId];
   if (service) {
     return {

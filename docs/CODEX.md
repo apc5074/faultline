@@ -11,9 +11,11 @@ plan or package source code.
   determines truth, and the agent inspects or challenges the design.
 - Current priority: finish an excellent Level 1 Global URL Shortener before
   adding breadth.
-- Active plan: `plans/phase 9/plan.md`. Check its ticket checkboxes and entry
-  gates before starting implementation. The current next ticket is VIS-003
-  unless the plan has changed.
+- Active curriculum plan: `plans/level/1/plan.md` (Level Profiles LP-01…LP-08).
+  Affinity foundation is in `plans/level/plan.md` (T-01…T-10 shipped; **T-11**
+  human playtest is the remaining exit — confirm fail-first starter + CDN≫Redis
+  share visuals). Older phase plans under `plans/phase N/` apply only when the
+  ticket points there.
 - The worktree may contain unfinished user changes. Run `git status` first and
   preserve unrelated edits.
 
@@ -23,6 +25,7 @@ plan or package source code.
 | --- | --- | --- |
 | Serializable architecture, IDs, regions, experiment contracts | `packages/core/src` | React components and adapters |
 | Component definitions and ports | `packages/component-catalog/src` | Challenge-specific conditionals |
+| **New levels / curriculum** | `packages/challenges/src/levels/*.level.json` then compile helpers | Dual-maintained TS challenge bodies; simulator slug branches |
 | Level rules, workload, targets, validation | `packages/challenges/src` | UI and agent capability code |
 | Traffic, capacity, latency, geography, cost, experiments, events | `packages/simulator/src` | Browser-only presentation logic |
 | Agent schemas, capability execution, resolver, session context | `packages/agent-capabilities/src` | AI SDK and WebMCP adapters |
@@ -36,23 +39,30 @@ existing import path before creating a new abstraction.
 
 ## Edit routing checklist
 
-1. Read the relevant ticket in `plans/phase N/plan.md` and its dependency gate.
+1. Read the relevant ticket in the active plan (`plans/level/1/plan.md` for Level
+   Profiles, or `plans/phase N/plan.md` when that ticket governs) and its
+   dependency gate.
 2. Read only the contract docs needed for that ticket:
    `ARCHITECTURE`, `SIMULATOR`, `COMPONENTS`, `CHALLENGES`, `COST_MODEL`,
    `AI`, `WEBMCP`, or `PRODUCTION`.
-3. Locate the canonical type/function and its barrel export before editing a
+3. **New level work starts at a Level Profile JSON** under
+   `packages/challenges/src/levels/`. Compile into `ChallengeDefinition`; do not
+   hand-maintain a second affinity/workload table in TS. Follow the Extending
+   affinity checklist in `docs/CHALLENGES.md` for new mechanisms.
+4. Locate the canonical type/function and its barrel export before editing a
    consumer. Do not recreate a domain calculation in the UI.
-4. For a new component, update the component catalog and challenge allowance;
+5. For a new component, update the component catalog and challenge allowance;
    do not add a component-specific simulator shortcut.
-5. For new agent behavior, add one adapter-neutral capability first, then use
+6. For new agent behavior, add one adapter-neutral capability first, then use
    the existing AI SDK and WebMCP adapters. Resolve availability from the live
    architecture/context rather than hard-coding it in a React component.
-6. For visuals, consume complete simulator/result event batches. Presentation
-   state is ephemeral and must never become architecture or official-submission
-   input.
-7. Validate untrusted architecture, capability input, and adapter payloads at
-   their boundary with the existing schemas/parsers.
-8. Inspect `git diff` before finishing and report targeted checks run.
+7. For visuals, consume complete simulator/result event batches (and LP-05 share
+   mapper over absorb RPS). Presentation state is ephemeral and must never become
+   architecture or official-submission input. Profile `volumeProfile` bands are
+   playtest guards only — not scored shares.
+8. Validate untrusted architecture, capability input, and adapter payloads at
+   their boundary with the existing schemas/parsers (`assert*` — no Zod).
+9. Inspect `git diff` before finishing and report targeted checks run.
 
 ## Non-negotiable boundaries
 
@@ -85,6 +95,7 @@ repository typecheck/build when the change crosses packages.
 | Core contracts | `pnpm --filter @faultline/core verify` | `pnpm typecheck` |
 | Catalog | `pnpm --filter @faultline/component-catalog verify` | `pnpm typecheck` |
 | Challenge rules | `pnpm --filter @faultline/challenges verify` | `pnpm typecheck` |
+| Level Profiles (schema, Level 1 JSON, starter, share visuals, teaching) | `pnpm verify:level-profiles` | `pnpm --filter @faultline/challenges verify` |
 | Simulator semantics | `pnpm --filter @faultline/simulator verify` | `pnpm build` |
 | Workload affinity (helpers, placement, Level 1 calibration, agent fit, UI evidence) | `pnpm verify:affinity` | `pnpm --filter @faultline/simulator verify` |
 | Agent capabilities | `pnpm --filter @faultline/agent-capabilities verify` | `pnpm typecheck` |
@@ -93,10 +104,12 @@ repository typecheck/build when the change crosses packages.
 
 Useful focused web checks include `verify:agent-session`,
 `verify:dynamic-surface-parity`, `verify:workload-evidence`,
+`verify:level1-starter`, `verify:volume-share-visuals`, `verify:level-teaching`,
 `verify:presentation-playback`, and `verify:presentation-events` when those
-files are involved. For affinity foundation lock across packages, prefer
-`pnpm verify:affinity` from the repo root. Check `apps/web/package.json` for the
-current script name; don’t invent a command from an older phase.
+files are involved. For Level Profile lock across challenges + web, prefer
+`pnpm verify:level-profiles` from the repo root. For affinity foundation lock,
+prefer `pnpm verify:affinity`. Check `apps/web/package.json` for the current
+script name; don’t invent a command from an older phase.
 
 ## Common traps
 
@@ -116,6 +129,8 @@ current script name; don’t invent a command from an older phase.
   chat should consume derived state rather than each scheduling animation.
 - Do not add Level 2/3 components or infrastructure unless the active ticket
   requires them.
+- New levels author as Level Profiles (`*.level.json`); do not treat the hero
+  scene as the playground starter. Volume bands are teaching/playtest only.
 
 ## Candidate memory files
 

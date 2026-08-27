@@ -12,8 +12,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-tiny-api.mjs && node scripts/verify-url-shortener.mjs && node scripts/verify-config-hash.mjs && node scripts/verify-workload-affinity.mjs"
+    "build": "tsc -p tsconfig.build.json && mkdir -p dist/levels && cp src/levels/*.level.json dist/levels/",
+    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-tiny-api.mjs && node scripts/verify-url-shortener.mjs && node scripts/verify-config-hash.mjs && node scripts/verify-workload-affinity.mjs && node scripts/verify-level-profile-schema.mjs && node scripts/verify-url-shortener-level-profile.mjs"
   },
   "dependencies": {
     "@faultline/core": "workspace:*"

@@ -1,0 +1,474 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "slug": "url-shortener",
+    "version": 2,
+    "title": "Global URL Shortener",
+    "prompt": "Design infrastructure for a global URL shortening service. It must absorb heavy redirect traffic, accept new links, survive a viral short URL, and stay within latency, capacity headroom, and monthly budget \u2014 without a prescribed topology.",
+    "developmentOnly": false
+  },
+  "narrative": {
+    "hook": "You're handed LinkVault's startup MVP (~12k RPS) the day #MegaDrop2026 goes viral. Traffic is now 124k RPS sustained on an $85k/mo board \u2014 fix and scale it.",
+    "stakes": "The inherited MVP fails on first Run. That fail-first arc is the point: scale what exists, learn why placement and caches matter, and earn a passing design under budget \u2014 not a blank-canvas cold start.",
+    "briefingBeats": [
+      "Demand is global: six regions share 120k redirects/sec; latency is traffic-weighted p95, so one continent is not enough.",
+      "A viral short code concentrates 30k redirect RPS on one key \u2014 hot-key pressure is separate from aggregate throughput.",
+      "Budget is $85k/mo including CDN usage and cross-region transfer; spray-and-pray sizing fails, efficient layered designs pass.",
+      "Placement changes how much work each piece absorbs for this workload \u2014 edge vs read-aside vs origin \u2014 without prescribing a single diagram."
+    ],
+    "outOfScope": [
+      "Queue",
+      "Worker",
+      "Event Stream",
+      "Rate Limiter"
+    ]
+  },
+  "sandbox": {
+    "components": [
+      {
+        "type": "traffic-source",
+        "whyHere": "Challenge-owned demand injector for the viral URL-shortener workload.",
+        "pros": [
+          "Defines sustained redirect and write demand for the level",
+          "Carries geographic origin shares without player knobs"
+        ],
+        "cons": [
+          "Not configurable \u2014 you cannot dial traffic down to make the board easier"
+        ],
+        "commonMistakes": [
+          "Expecting traffic-source knobs or treating it as a priced component"
+        ],
+        "placementIntent": "Challenge-owned ingress of demand; always the start of the request path"
+      },
+      {
+        "type": "global-router",
+        "whyHere": "Nearest-healthy region routing when you place regional service capacity.",
+        "pros": [
+          "Steers users toward nearby healthy deployments",
+          "Pays off when traffic spans continents"
+        ],
+        "cons": [
+          "Little leverage without regional Services",
+          "Does not replace caches or database capacity"
+        ],
+        "commonMistakes": [
+          "Dropping a router with a single-region MVP and expecting geo magic",
+          "Placing it after regional pools instead of before them"
+        ],
+        "placementIntent": "Before regional service pools on the user path; geo payoff needs multi-region compute",
+        "costNotes": "$0 educational monthly cost in Level 1"
+      },
+      {
+        "type": "load-balancer",
+        "whyHere": "Fan-out across a service pool so capacity and HA can scale horizontally.",
+        "pros": [
+          "Spreads request load across multiple service instances",
+          "Equal or capacity-weighted split is an explicit tradeoff"
+        ],
+        "cons": [
+          "Single upstream \u2248 almost no fan-out payoff",
+          "Adds real monthly cost even when topology is weak"
+        ],
+        "commonMistakes": [
+          "Paying for an LB in front of one service instance",
+          "Expecting failure-aware backend exclusion that Level 1 does not fake"
+        ],
+        "placementIntent": "On the request path in front of a multi-instance service pool",
+        "costNotes": "Non-zero educational monthly cost \u2014 every LB is a budget tradeoff"
+      },
+      {
+        "type": "service",
+        "whyHere": "Stateless redirect and write compute on the request path.",
+        "pros": [
+          "Scale up (size) and out (instances) independently",
+          "Regional deployments expose per-region saturation"
+        ],
+        "cons": [
+          "A hot region can fail while global instance totals look fine",
+          "Miss traffic from weak edge cache still pounds origin compute"
+        ],
+        "commonMistakes": [
+          "Undersizing the inherited MVP under viral load",
+          "Ignoring regional placement when geography is active"
+        ],
+        "placementIntent": "Compute on the active request path between edge/ingress and data stores",
+        "costNotes": "Per-instance size tiers drive monthly cost; more instances raise the bill linearly"
+      },
+      {
+        "type": "cdn",
+        "whyHere": "Edge offload for average redirects \u2014 the high-leverage cache for this workload.",
+        "pros": [
+          "Strong absorb of cacheable redirects when sitting on the user path",
+          "Coverage and TTL band control eligibility and hit intent"
+        ],
+        "cons": [
+          "Writes always miss",
+          "Usage pricing at 124k RPS is a major budget line",
+          "Weak when placed behind Service instead of at the edge"
+        ],
+        "commonMistakes": [
+          "Putting CDN after Service and expecting edge leverage",
+          "Skipping CDN to save base cost while exploding origin load and latency"
+        ],
+        "placementIntent": "Edge ingress before Service on the user \u2192 origin path; average-redirect workhorse",
+        "costNotes": "Tier base ($2k\u2013$12k) plus usage projected from sustained incoming RPS"
+      },
+      {
+        "type": "redis",
+        "whyHere": "Read-aside data cache and viral-key relief valve beside the database \u2014 not a substitute for edge CDN.",
+        "pros": [
+          "Helps repeated/hot-key reads that reach the store path",
+          "Hot-key capacity is modeled separately from aggregate utilization"
+        ],
+        "cons": [
+          "Limited average redirect offload versus CDN on this workload",
+          "Regional footprints do not sync across regions",
+          "Never absorbs writes"
+        ],
+        "commonMistakes": [
+          "Using Redis as an edge CDN on the user path",
+          "Max-dialing Redis and expecting it to carry most average redirects",
+          "Assuming replicated mode shards a single viral key"
+        ],
+        "placementIntent": "Read-aside beside Postgres on the service read path \u2014 viral relief valve, not the average-redirect main character",
+        "costNotes": "Tier + standalone/replicated mode; each regional footprint is independent base cost"
+      },
+      {
+        "type": "postgres",
+        "whyHere": "Durable row store for link data; primary owns writes and viral-key read pressure.",
+        "pros": [
+          "Authoritative storage for redirects and new links",
+          "Read replicas add aggregate read capacity"
+        ],
+        "cons": [
+          "Writes always hit the primary",
+          "Viral hot-key reads count against primary read capacity \u2014 replicas do not shard one key"
+        ],
+        "commonMistakes": [
+          "Expecting replicas to fix a single viral short code",
+          "Ignoring write headroom while only scaling reads"
+        ],
+        "placementIntent": "Primary durable store on the read_write path; replicas for aggregate reads only",
+        "costNotes": "Primary tier plus per-replica cost; remote replicas also drive replication transfer"
+      }
+    ]
+  },
+  "workload": {
+    "requestsPerSecond": 124000,
+    "readRatio": 0.967741935483871,
+    "writeRatio": 0.03225806451612903,
+    "hotKeyReadFraction": 0.25
+  },
+  "geographicDistribution": [
+    {
+      "regionId": "us-east",
+      "fraction": 0.25
+    },
+    {
+      "regionId": "us-west",
+      "fraction": 0.2
+    },
+    {
+      "regionId": "europe",
+      "fraction": 0.25
+    },
+    {
+      "regionId": "india",
+      "fraction": 0.1
+    },
+    {
+      "regionId": "singapore",
+      "fraction": 0.1
+    },
+    {
+      "regionId": "tokyo",
+      "fraction": 0.1
+    }
+  ],
+  "transferPayload": {
+    "redirectResponseBytes": 800,
+    "writeRequestBytes": 1200,
+    "databaseReadBytes": 1024,
+    "databaseWriteBytes": 512,
+    "replicationBytesPerWrite": 512
+  },
+  "scoring": {
+    "requirements": [
+      {
+        "id": "throughput",
+        "label": "Throughput",
+        "type": "throughput",
+        "comparator": "gte",
+        "target": 1,
+        "unit": "ratio"
+      },
+      {
+        "id": "latency",
+        "label": "Redirect p95 latency",
+        "type": "latency",
+        "comparator": "lt",
+        "target": 150,
+        "unit": "ms"
+      },
+      {
+        "id": "headroom",
+        "label": "Capacity headroom",
+        "type": "headroom",
+        "comparator": "gte",
+        "target": 0.2,
+        "unit": "ratio"
+      },
+      {
+        "id": "budget",
+        "label": "Monthly infrastructure budget",
+        "type": "budget",
+        "comparator": "lte",
+        "target": 85000,
+        "unit": "usd/month"
+      }
+    ],
+    "monthlyBudget": 85000,
+    "unscoredTargets": [
+      {
+        "id": "availability",
+        "label": "Availability",
+        "target": 0.9999,
+        "unit": "ratio",
+        "reason": "Deferred until truthful resilience and failure semantics exist. Not scored in Phase 2."
+      }
+    ],
+    "hotKeyGateNote": "30k RPS on one short code must not saturate Redis hot-path capacity or Postgres primary reads \u2014 the hot-key gate is separate from aggregate throughput."
+  },
+  "coachingPolicy": {
+    "focusThemes": [
+      "hot-key resilience",
+      "read scaling",
+      "global latency",
+      "cache-workload-fit",
+      "placement-fit",
+      "mechanism-fit"
+    ],
+    "prohibitedRevealCategories": [
+      "canonical topology",
+      "specific component requirements",
+      "solution-only thresholds"
+    ]
+  },
+  "workloadAffinity": {
+    "roleDefaults": {
+      "unreachable": 0,
+      "misplaced": 0.05,
+      "write_path": 0.1
+    },
+    "mechanisms": {
+      "edge_cache": {
+        "maxEffectiveness": 0.88,
+        "byRole": {
+          "edge_ingress": 1.0,
+          "path_middleware": 0.4,
+          "misplaced": 0.05
+        },
+        "reuseConcentration": 0.7,
+        "note": "Redirects are highly edge-cacheable when CDN sits on the user path."
+      },
+      "data_cache": {
+        "maxEffectiveness": 0.3,
+        "byRole": {
+          "read_aside": 1.0,
+          "edge_ingress": 0.25,
+          "path_middleware": 0.2
+        },
+        "reuseConcentration": 0.8,
+        "note": "In-memory cache helps hot keys beside the DB; weak as a substitute for edge cache."
+      },
+      "request_fanout": {
+        "maxEffectiveness": 0.9,
+        "byRole": {
+          "path_middleware": 1.0
+        },
+        "note": "Load balancing pays off when multiple healthy upstreams exist on path."
+      },
+      "geo_routing": {
+        "maxEffectiveness": 0.85,
+        "byRole": {
+          "geo_route": 1.0,
+          "path_middleware": 0.5
+        },
+        "note": "Routing matters when traffic spans regions."
+      },
+      "stateless_compute": {
+        "maxEffectiveness": 1.0,
+        "byRole": {
+          "compute": 1.0
+        }
+      },
+      "durable_store": {
+        "maxEffectiveness": 1.0,
+        "byRole": {
+          "primary_store": 1.0,
+          "replica_store": 1.0
+        },
+        "unitCostPressure": 1.0
+      }
+    }
+  },
+  "volumeProfile": {
+    "bands": [
+      {
+        "mechanismId": "edge_cache",
+        "baselineShareOfRedirects": {
+          "min": 0.45,
+          "max": 0.85
+        },
+        "notes": "When correctly placed at edge \u2014 highest average-redirect absorb share"
+      },
+      {
+        "mechanismId": "data_cache",
+        "baselineShareOfRedirects": {
+          "min": 0.02,
+          "max": 0.2
+        },
+        "hotKeyShareOfRedirects": {
+          "min": 0.15,
+          "max": 0.45
+        },
+        "notes": "Read-aside: quiet on average redirects; may wake on viral beat. Idle or misplaced Redis should stay near 0\u20130.02 share."
+      },
+      {
+        "mechanismId": "origin_compute",
+        "baselineShareOfRedirects": {
+          "min": 0.15,
+          "max": 0.55
+        },
+        "notes": "Service traffic after edge miss \u2014 stays visibly busy when caches are weak"
+      },
+      {
+        "mechanismId": "durable_store",
+        "baselineShareOfRedirects": {
+          "min": 0.1,
+          "max": 0.5
+        },
+        "hotKeyShareOfRedirects": {
+          "min": 0.2,
+          "max": 0.6
+        },
+        "notes": "Miss path + writes; primary stressed on viral key (replicas do not shard one code). Idle/unused store-path absorb stays near zero."
+      }
+    ],
+    "rules": {
+      "baselineCdnOutranksDataCache": true,
+      "hotKeyMayEmphasizeDataCache": true
+    }
+  },
+  "starterArchitecture": {
+    "version": 1,
+    "components": [
+      {
+        "id": "traffic-source-start",
+        "type": "traffic-source",
+        "config": {
+          "label": "Incoming traffic"
+        },
+        "deployments": [],
+        "ui": {
+          "x": 60,
+          "y": 320
+        }
+      },
+      {
+        "id": "service-start",
+        "type": "service",
+        "config": {
+          "size": "medium",
+          "instances": 3
+        },
+        "deployments": [
+          {
+            "id": "dep-service-us-east",
+            "regionId": "us-east",
+            "config": {
+              "instances": 3
+            }
+          }
+        ],
+        "ui": {
+          "x": 280,
+          "y": 300
+        }
+      },
+      {
+        "id": "postgres-start",
+        "type": "postgres",
+        "config": {
+          "tier": "medium",
+          "readReplicaCount": 0
+        },
+        "deployments": [
+          {
+            "id": "dep-postgres-us-east",
+            "regionId": "us-east",
+            "config": {
+              "role": "primary"
+            }
+          }
+        ],
+        "ui": {
+          "x": 500,
+          "y": 300
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "connection-start-traffic-service",
+        "sourceComponentId": "traffic-source-start",
+        "sourcePortId": "request_out",
+        "targetComponentId": "service-start",
+        "targetPortId": "request_in",
+        "type": "request"
+      },
+      {
+        "id": "connection-start-service-postgres",
+        "sourceComponentId": "service-start",
+        "sourcePortId": "database_out",
+        "targetComponentId": "postgres-start",
+        "targetPortId": "database_in",
+        "type": "read_write"
+      }
+    ]
+  },
+  "firstRunExpectation": {
+    "summary": "Inherited MVP (medium\u00d73 Service in us-east + medium Postgres, no replicas) is undersized for 124k viral load \u2014 throughput, latency, and headroom fail, and the hot-key gate fails on primary pressure.",
+    "expectedFailingRequirementIds": [
+      "throughput",
+      "latency",
+      "headroom"
+    ],
+    "hotKeyExpectedFail": true
+  },
+  "playtestChecklist": [
+    "Users\u2192Service\u2192Postgres only \u2014 fails for the right reasons; traffic visibly pounds origin.",
+    "Redis max dials, read-aside \u2014 helps some; not a free pass; some traffic visibly through Redis, most still onward as ceiling allows.",
+    "Same Redis dials, misplaced / edge \u2014 clearly worse and quieter on the canvas.",
+    "CDN on path \u2014 more leverage than Redis for average redirects; CDN path looks busier than Redis for the same workload.",
+    "Viral/hot-key \u2014 pressures primary; read-aside Redis helps hot path more than tiny/misplaced Redis (metrics + visuals).",
+    "LB/router \u2014 payoff only when topology warrants.",
+    "Budget trap: overbuilt active Redis/CDN without need still painful.",
+    "Cheapest room: lean good design can approach ~0.5\u00d7 budget; fat design fails.",
+    "Idle extra: add off-path Redis under budget to a passing design \u2192 still passes; game tells you it is unused.",
+    "Future/N/A until object storage ships: same primary role, object_store affinity worse $ / latency than durable_store \u2014 no slug branch."
+  ],
+  "curriculumTags": [
+    "geo",
+    "hot-key",
+    "read-write-asymmetry",
+    "budget-trap",
+    "cache-placement"
+  ],
+  "forbiddenMechanisms": [
+    "async_buffer",
+    "async_consumer",
+    "stream_buffer",
+    "admission_control"
+  ]
+}

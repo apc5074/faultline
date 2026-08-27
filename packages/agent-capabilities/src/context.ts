@@ -65,6 +65,19 @@ export type AgentSimulationEvidence =
  * Immutable per-request snapshot for capability execution.
  * Built once after architecture validation and challenge resolution.
  */
+export interface AgentLevelTeaching {
+  readonly narrative: {
+    readonly hook: string;
+    readonly stakes: string;
+  };
+  readonly teaching: {
+    readonly componentTypes: readonly {
+      readonly type: string;
+      readonly placementIntent: string;
+    }[];
+  };
+}
+
 export interface AgentContext {
   readonly challenge: ChallengeDefinition;
   readonly architecture: Architecture;
@@ -73,4 +86,9 @@ export interface AgentContext {
   readonly user?: {
     readonly authenticated: boolean;
   };
+  /**
+   * Optional Level Profile teaching slice (LP-06).
+   * Compact narrative + placement intents only — never playtest checklists or pros/cons walls.
+   */
+  readonly levelTeaching?: AgentLevelTeaching;
 }
