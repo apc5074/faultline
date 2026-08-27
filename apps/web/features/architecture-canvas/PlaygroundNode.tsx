@@ -12,6 +12,7 @@ import {
   deriveGlyphMechanismValues,
   deriveGlyphState,
   glyphDimensionsForProps,
+  glyphEvidenceLabel,
   glyphPropsFromComponent,
   glyphStateAriaLabel,
   MINI_GLYPH_SIZE,
@@ -81,6 +82,9 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
 
   const mechanism = playbackMechanism ?? simMechanism;
   const ariaLabel = glyphStateAriaLabel(data.component.id, data.simulation, glyphOptions);
+  const evidenceLabel = playbackActive
+    ? data.playbackVisual?.evidenceLabel
+    : glyphEvidenceLabel(data.component.id, data.simulation, { resultIsStale: data.resultIsStale });
   const portFailed = glyphState === "failed";
 
   return (
@@ -135,6 +139,7 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
         })}
       </div>
       {!data.semanticZoomOut ? <p className="playground-node__label">{data.definition.label}</p> : null}
+      {!data.semanticZoomOut && evidenceLabel ? <p className="playground-node__pressure">{evidenceLabel}</p> : null}
     </article>
   );
 }

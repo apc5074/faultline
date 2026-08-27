@@ -40,6 +40,7 @@ export interface SimComponent {
   cacheHitFlash?: boolean;
   writeBands?: number;
   mechanismCount?: number;
+  processingSlotIndices?: readonly number[];
 }
 
 export interface SimConnection {
@@ -59,6 +60,10 @@ export interface SimPacket {
   reverse?: boolean;
   dwellComponentId?: string;
   dwellProgress?: number;
+  /** True when this cache arrival is a sampled, simulator-useful cache hit. */
+  cacheVisualActive?: boolean;
+  /** Whether this arrival participates in the component's live visual cadence. */
+  componentVisualActive?: boolean;
   /** Connections traversed this round trip — used for route linger ghosts. */
   trailConnectionIds?: string[];
 }

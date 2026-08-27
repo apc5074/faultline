@@ -48,6 +48,10 @@ import {
   InspectorStepper,
 } from "@/features/architecture-canvas/InspectorPlateControls";
 import {
+  approximateOriginTraffic,
+  formatApproxRps,
+} from "@/features/architecture-canvas/approximate-origin-traffic";
+import {
   buildWorkloadEvidencePanel,
   type WorkloadEvidencePanel,
 } from "@/features/architecture-canvas/workload-evidence";
@@ -1055,23 +1059,65 @@ export function DataPlateInspector({
     );
   }
 
+  const originShares = approximateOriginTraffic({
+    geographicDistribution: activeChallenge.geographicDistribution,
+    totalRequestsPerSecond: activeChallenge.workload.requestsPerSecond,
+  });
+
   return shell(
     "Traffic Source inspector",
-    <DataPlateSection title="Reference">
-      <SpecList>
-        <SpecRow
-          label="Workload"
-          value={`${Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec · ${Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec`}
-        />
-        <SpecRow
-          label="Geography"
-          value="Origins from challenge geographic distribution; place capacity via component deployments"
-        />
-        <SpecRow label="Monthly cost" value={formatCost(monthlyCost)} />
-      </SpecList>
-      <PlateHint>
-        Traffic is configured by the challenge and cannot be edited here.
-      </PlateHint>
-    </DataPlateSection>,
+    <>
+      <DataPlateSection title="Expected origins">
+        {originShares.length === 0 ? (
+          <PlateHint>
+            This challenge does not publish a geographic origin split.
+          </PlateHint>
+        ) : (
+          <>
+            <div
+              className="data-plate-inspector__origin-bar"
+              role="img"
+              aria-label="Approximate share of demand by region"
+            >
+              {originShares.map((origin) => (
+                <span
+                  key={origin.regionId}
+                  className="data-plate-inspector__origin-seg"
+                  style={{ flex: `${Math.max(origin.barWeight, 0.04)} 1 0` }}
+                  title={`${origin.label} ~${origin.sharePct}%`}
+                />
+              ))}
+            </div>
+            <ul className="data-plate-inspector__origin-list">
+              {originShares.map((origin) => (
+                <li key={origin.regionId} className="data-plate-inspector__origin-row">
+                  <span className="data-plate-inspector__origin-label">{origin.label}</span>
+                  <span className="data-plate-inspector__origin-meta tabular">
+                    ~{origin.sharePct}% · {formatApproxRps(origin.approxRps)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <PlateHint>
+              Ballpark challenge demand by user region — rounded on purpose.
+              Exact paths after Run depend on your design (CDN, router, regional
+              capacity).
+            </PlateHint>
+          </>
+        )}
+      </DataPlateSection>
+      <DataPlateSection title="Reference">
+        <SpecList>
+          <SpecRow
+            label="Workload"
+            value={`${Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec · ${Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec`}
+          />
+          <SpecRow label="Monthly cost" value={formatCost(monthlyCost)} />
+        </SpecList>
+        <PlateHint>
+          Traffic is configured by the challenge and cannot be edited here.
+        </PlateHint>
+      </DataPlateSection>
+    </>,
   );
 }

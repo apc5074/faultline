@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { architectureAvailabilityFingerprint } from "@faultline/agent-capabilities";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import { componentRegistry } from "@faultline/component-catalog";
-import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type RegionDeployment, type RegionId } from "@faultline/core";
+import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type ExperimentResult, type RegionDeployment, type RegionId } from "@faultline/core";
 import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
 
 import { clampToPlaygroundBoard } from "@/features/architecture-canvas/canvas-grid";
@@ -46,6 +46,7 @@ import {
   buildComponentPlaybackVisuals,
   buildComponentVolumeShares,
   edgePlaybackWeightFromRps,
+  edgeRatesFromTrafficEvents,
   usePlaybackController,
   type ComponentPlaybackVisual,
 } from "@/features/traffic-playback";
@@ -72,6 +73,7 @@ export function usePlaygroundWorkspace() {
   const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [semanticZoomOut, setSemanticZoomOut] = useState(false);
+  const [experimentPresentation, setExperimentPresentation] = useState<ExperimentResult | null>(null);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -87,14 +89,15 @@ export function usePlaygroundWorkspace() {
   const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
   const resultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
   const showSimulationVisuals = simulationResult !== null && runState === "complete";
+  const presentationEvents = experimentPresentation?.events ?? simulationResult?.events;
   const activeConnectionIds = useMemo(() => {
-    if (!simulationResult) return new Set<string>();
+    if (!presentationEvents) return new Set<string>();
     return new Set(
-      simulationResult.events
+      presentationEvents
         .filter((event) => event.type === "traffic_routed" && event.connectionId)
         .map((event) => event.connectionId as string),
     );
-  }, [simulationResult]);
+  }, [presentationEvents]);
 
   const isValidConnection = useCallback(
     (connection: FlowConnection | Edge | FlowConnectionLike) =>
@@ -143,6 +146,7 @@ export function usePlaygroundWorkspace() {
   }, [
     playbackVisualsActive,
     simulationResult,
+    experimentPresentation,
     playback.frame.tick,
     architecture,
     lastRunKey,
@@ -154,6 +158,24 @@ export function usePlaygroundWorkspace() {
     if (shareBasedPlaybackVisuals) {
       for (const visual of shareBasedPlaybackVisuals) {
         map.set(visual.componentId, visual);
+      }
+      // A simulator-emitted experiment failure is stronger evidence than the
+      // baseline-derived share visual for that component.
+      for (const visual of playback.frame.componentVisuals) {
+        if (visual.state === "failed") {
+          map.set(visual.componentId, visual);
+          continue;
+        }
+        if (visual.state === "processing" || visual.processingCount > 0 || visual.cacheHitFlash) {
+          const settled = map.get(visual.componentId);
+          // Live packet dwell owns the animated mechanism count. The settled
+          // path-share fill returns when the component is no longer processing.
+          map.set(visual.componentId, {
+            ...settled,
+            ...visual,
+            evidenceLabel: settled?.evidenceLabel,
+          });
+        }
       }
       return map;
     }
@@ -226,7 +248,7 @@ export function usePlaygroundWorkspace() {
   );
 
   const edges = useMemo(() => {
-    const loads = connectionLoadFromEvents(simulationResult?.events);
+    const loads = connectionLoadFromEvents(presentationEvents);
     const maxLoad = Math.max(...loads.values(), 0);
     const offsets = computeParallelOffsets(
       architecture.connections.map((connection) => ({
@@ -279,6 +301,7 @@ export function usePlaygroundWorkspace() {
     playbackVisualsActive,
     resultIsStale,
     simulationResult,
+    presentationEvents,
     pulsingEdgeIds,
     deletingNodeIds,
     semanticZoomOut,
@@ -409,7 +432,55 @@ export function usePlaygroundWorkspace() {
         clampToPlaygroundBoard(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
       );
       const placed = applyRegionalPlacement(component, component.ui);
-      setArchitecture((current) => ({ ...current, components: [...current.components, placed] }));
+      setArchitecture((current) => {
+        if (placed.type !== "service") {
+          return { ...current, components: [...current.components, placed] };
+        }
+
+        // Dropping another Service is a scale-out action. Mirror an existing
+        // routed service pool so the new capacity is immediately part of the
+        // next deterministic Run, while preserving ordinary connection rules.
+        const template = current.components.find(
+          (candidate) =>
+            candidate.type === "service" &&
+            current.connections.some((connection) =>
+              connection.targetComponentId === candidate.id && connection.type === "request",
+            ),
+        );
+        if (!template) return { ...current, components: [...current.components, placed] };
+
+        const scaledService: ComponentInstance = {
+          ...placed,
+          deployments: template.deployments.map((deployment) => ({
+            ...deployment,
+            id: `deployment-${crypto.randomUUID()}`,
+            config: structuredClone(deployment.config),
+          })),
+        };
+        const components = [...current.components, scaledService];
+        const copiedConnections = current.connections.flatMap((connection) => {
+          const copiesInbound =
+            connection.targetComponentId === template.id && connection.type === "request";
+          const copiesDataPath =
+            connection.sourceComponentId === template.id && connection.type === "read_write";
+          if (!copiesInbound && !copiesDataPath) return [];
+          const copy = connectionFromFlow(
+            {
+              source: copiesInbound ? connection.sourceComponentId : scaledService.id,
+              sourceHandle: connection.sourcePortId,
+              target: copiesInbound ? scaledService.id : connection.targetComponentId,
+              targetHandle: connection.targetPortId,
+            },
+            components,
+          );
+          return copy ? [copy] : [];
+        });
+        return {
+          ...current,
+          components,
+          connections: [...current.connections, ...copiedConnections],
+        };
+      });
       setSelectedComponentId(placed.id);
       setWorldSelection(null);
       setSettlingNodeIds((current) => new Set(current).add(placed.id));
@@ -594,8 +665,9 @@ export function usePlaygroundWorkspace() {
   }, [architecture, playback.syncArchitecture]);
 
   useEffect(() => {
-    if (!simulationResult || !playback.playbackRunning) {
+    if (!simulationResult || !playback.playbackRunning || resultIsStale) {
       playback.setVolumeShares(null);
+      playback.setAuthoritativeTraffic(null);
       return;
     }
     const shares = buildComponentVolumeShares({
@@ -613,9 +685,55 @@ export function usePlaygroundWorkspace() {
       shareMap.set(id, share.share01);
     }
     playback.setVolumeShares(shareMap);
-  }, [simulationResult, playback.playbackRunning, playback.setVolumeShares]);
+    const componentActivityRates = new Map<string, number>();
+    for (const [componentId, cache] of Object.entries(simulationResult.caches ?? {})) {
+      // Placement + configuration resolve to this realized rate in the simulator.
+      componentActivityRates.set(componentId, cache.hitRate);
+    }
+    for (const [componentId, service] of Object.entries(simulationResult.services)) {
+      componentActivityRates.set(
+        componentId,
+        service.incomingRps > 0 ? service.handledRps / service.incomingRps : 0,
+      );
+    }
+    for (const componentId of Object.keys(simulationResult.postgres)) {
+      // Postgres intentionally remains a settled pressure-hash visual.
+      componentActivityRates.set(componentId, 0);
+    }
+    playback.setAuthoritativeTraffic({
+      rates: edgeRatesFromTrafficEvents(experimentPresentation?.events ?? simulationResult.events),
+      redirectRps: challengeRedirectRps,
+      componentActivityRates,
+    });
+  }, [
+    simulationResult,
+    playback.playbackRunning,
+    playback.setVolumeShares,
+    playback.setAuthoritativeTraffic,
+    resultIsStale,
+    experimentPresentation,
+  ]);
+
+  useEffect(() => {
+    if (!experimentPresentation || !playback.playbackRunning) return;
+    for (const event of experimentPresentation.events) {
+      if (event.type === "component_failed" && event.componentId) {
+        playback.markComponentFailed(event.componentId);
+      }
+    }
+  }, [experimentPresentation, playback.markComponentFailed, playback.playbackRunning]);
+
+  const presentExperiment = useCallback((result: ExperimentResult) => {
+    setExperimentPresentation(result);
+    playback.start(architecture);
+  }, [architecture, playback.start]);
+
+  const clearExperimentPresentation = useCallback(() => {
+    setExperimentPresentation(null);
+  }, []);
 
   const handleSimBarRun = useCallback(() => {
+    setExperimentPresentation(null);
     if (playback.playbackPaused) {
       playback.resume();
       return;
@@ -626,16 +744,17 @@ export function usePlaygroundWorkspace() {
     if (runState !== "running") {
       onRunSimulation();
     }
-  }, [architecture, onRunSimulation, playback, runState]);
+  }, [architecture, clearExperimentPresentation, onRunSimulation, playback, runState]);
 
   const handleSimBarReset = useCallback(() => {
     playback.reset();
+    clearExperimentPresentation();
     setSimulationResult(null);
     setSimulationErrors([]);
     setUnexpectedError(null);
     setOfficialSummary(null);
     setRunState("idle");
-  }, [playback]);
+  }, [clearExperimentPresentation, playback]);
 
   const handleViewModeChange = useCallback(
     (mode: "logical" | "world") => {
@@ -765,6 +884,12 @@ export function usePlaygroundWorkspace() {
     [architecture],
   );
 
+  const clearSelection = useCallback(() => {
+    setSelectedComponentId(null);
+    setSelectedConnectionId(null);
+    setWorldSelection(null);
+  }, []);
+
   const focusComponentOnCanvas = useCallback(
     (componentId: string) => {
       if (viewMode === "logical") fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 });
@@ -784,6 +909,7 @@ export function usePlaygroundWorkspace() {
     worldSelection,
     runState,
     simulationResult,
+    experimentPresentation,
     simulationErrors,
     unexpectedError,
     resultIsStale,
@@ -799,6 +925,8 @@ export function usePlaygroundWorkspace() {
     showCanvasEmptyState,
     playback,
     playbackVisualsActive,
+    presentExperiment,
+    clearExperimentPresentation,
     onNodesChange,
     onConnect,
     onConnectStart,
@@ -816,6 +944,7 @@ export function usePlaygroundWorkspace() {
     onSubmitOfficial,
     onSelectComponent,
     onSelectRegion,
+    clearSelection,
     focusComponentOnCanvas,
   };
 }

@@ -25,6 +25,11 @@
 .experiment-result-panel p { margin: 0.35rem 0; }
 .experiment-result-panel__heading { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--color-signal-red); text-transform: uppercase; }
 .experiment-result-panel__stale { color: var(--color-signal-red); }
+.experiment-result-panel__cold-cache { font-weight: 800; text-transform: uppercase; }
+.experiment-result-panel__failure,
+.experiment-result-panel__unmet { color: var(--color-signal-red); font-weight: 800; text-transform: uppercase; }
+.experiment-result-panel__routes { margin-top: 0.5rem; }
+.experiment-result-panel__routes ol { margin: 0.35rem 0 0; padding-left: 1.1rem; }
 
 .dev-experiment-controls {
   position: fixed;
@@ -1523,6 +1528,58 @@ main {
   line-height: 1.45;
   letter-spacing: normal;
   text-transform: none;
+}
+
+.data-plate-inspector__origin-bar {
+  display: flex;
+  height: 0.4rem;
+  margin: 0.15rem 0 0.55rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-ink-hairline) 80%, transparent);
+  gap: 1px;
+}
+
+.data-plate-inspector__origin-seg {
+  min-width: 2px;
+  background: color-mix(in srgb, var(--color-ink) 55%, transparent);
+}
+
+.data-plate-inspector__origin-seg:nth-child(2n) {
+  background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+}
+
+.data-plate-inspector__origin-seg:nth-child(3n) {
+  background: color-mix(in srgb, var(--color-ink) 48%, transparent);
+}
+
+.data-plate-inspector__origin-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.data-plate-inspector__origin-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--color-ink);
+  font-size: 0.68rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.data-plate-inspector__origin-label {
+  font-weight: 600;
+}
+
+.data-plate-inspector__origin-meta {
+  color: var(--color-ink-faint);
+  font-size: 0.62rem;
+  white-space: nowrap;
 }
 
 .data-plate-inspector__region-block {
@@ -3027,6 +3084,20 @@ h1 {
   fill: var(--color-paper);
 }
 
+.world-map__region--simulated-failed .world-map__region-dot {
+  fill: var(--color-paper);
+  stroke: var(--color-signal-red);
+  stroke-width: 3;
+}
+
+.world-map__region-failure {
+  fill: var(--color-signal-red);
+  font-family: var(--font-mono), "Space Mono", monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
 .world-map__region-label {
   fill: var(--color-ink);
   font-family: var(--font-mono), "Space Mono", monospace;
@@ -3062,6 +3133,8 @@ h1 {
   line-height: 0;
   pointer-events: none;
 }
+
+.world-map__deployment--unavailable { opacity: 0.7; }
 
 .world-map__legend {
   display: flex;
@@ -3105,6 +3178,11 @@ h1 {
   width: 0.85rem;
   height: 0.12rem;
   background: var(--color-ink);
+}
+
+.world-map__legend-item--simulated-failure::before {
+  border-color: var(--color-signal-red);
+  background: var(--color-paper);
 }
 
 .world-map__arc {
@@ -3288,6 +3366,23 @@ h1 {
   text-transform: uppercase;
   user-select: none;
 }
+
+.playground-node__pressure {
+  max-width: 10rem;
+  margin: 0.12rem 0 0;
+  color: var(--color-ink-faint);
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.trace-presentation { padding: 0.7rem; border: 1px solid var(--color-ink-hairline); font-size: 0.68rem; }
+.trace-presentation__heading { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; text-transform: uppercase; }
+.trace-presentation__hops { margin: 0.6rem 0 0; padding-left: 1.25rem; }
+.trace-presentation__hops button { max-width: 100%; border: 0; background: transparent; color: var(--color-ink); cursor: pointer; font: inherit; text-align: left; text-decoration: underline; }
+.trace-presentation__terminal { color: var(--color-signal-red); font-weight: 800; text-transform: uppercase; }
 
 .playback-packet {
   pointer-events: none;

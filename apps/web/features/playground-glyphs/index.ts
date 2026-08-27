@@ -16,6 +16,8 @@ export { GLYPH_STATES, GLYPH_TYPES } from "./glyph-types";
 export {
   deriveGlyphMechanismValues,
   deriveGlyphState,
+  glyphEvidenceLabel,
+  glyphPressureLabel,
   glyphStateAriaLabel,
 } from "./state";
 export type {

@@ -102,7 +102,8 @@ export { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
 export { flushCacheCapability } from "./flush-cache.js";
 export { injectComponentFailureCapability } from "./inject-component-failure.js";
 export { injectRegionFailureCapability } from "./inject-region-failure.js";
-export { traceRequestCapability } from "./trace-request.js";
+export { traceRequest, traceRequestCapability } from "./trace-request.js";
+export type { TraceRequestHop, TraceRequestOutput } from "./trace-request.js";
 export { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */

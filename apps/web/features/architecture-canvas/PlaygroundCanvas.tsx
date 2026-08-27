@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import type { Dispatch, DragEvent, SetStateAction } from "react";
 
-import type { Architecture, ChallengeDefinition, RegionId } from "@faultline/core";
+import type { Architecture, ChallengeDefinition, ExperimentResult, RegionId } from "@faultline/core";
 import type { GeographicRoute } from "@faultline/simulator";
 
 import { AgentAnnotationLayer } from "@/features/agent-annotations";
@@ -34,6 +34,7 @@ import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 import { isSemanticZoomOut } from "@/features/architecture-canvas/semantic-zoom";
 import { PlaybackPacketLayer, RouteLingerLayer, type PlaybackFrame } from "@/features/traffic-playback";
 import { WorldMap, type WorldMapSelection } from "@/features/world-map/WorldMap";
+import { regionFailurePresentationFromEvents } from "@/features/world-map/region-failure-presentation";
 
 const edgeTypes = { ink: InkEdge };
 
@@ -50,6 +51,7 @@ export type PlaygroundCanvasProps = {
   showSimulationVisuals: boolean;
   resultIsStale: boolean;
   geographicRoutes: readonly GeographicRoute[];
+  experimentPresentation: ExperimentResult | null;
   playbackVisualsActive: boolean;
   playbackFrame: PlaybackFrame;
   enclosureRegions: readonly RegionId[];
@@ -79,6 +81,7 @@ export function PlaygroundCanvas({
   showSimulationVisuals,
   resultIsStale,
   geographicRoutes,
+  experimentPresentation,
   playbackVisualsActive,
   playbackFrame,
   enclosureRegions,
@@ -178,6 +181,7 @@ export function PlaygroundCanvas({
           selection={worldSelection}
           geographicRoutes={showSimulationVisuals && !resultIsStale ? geographicRoutes : []}
           routesActive={showSimulationVisuals && !resultIsStale}
+          regionFailure={regionFailurePresentationFromEvents(experimentPresentation?.events)}
           onSelectComponent={onSelectComponent}
           onSelectRegion={onSelectRegion}
         />

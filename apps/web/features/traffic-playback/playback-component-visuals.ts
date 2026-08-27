@@ -3,9 +3,9 @@ import { componentRegistry } from "@faultline/component-catalog";
 import type { HotKeyScenarioResult } from "@faultline/simulator";
 
 import type { GlyphSimulationResult } from "../playground-glyphs/state.ts";
+import { glyphEvidenceLabel } from "../playground-glyphs/state.ts";
 import { glyphPropsFromComponent } from "../playground-glyphs/catalog-map.ts";
 
-import { impactSlotSeed, randomizedImpactSlots } from "./impact-slots.ts";
 import type { ComponentPlaybackVisual } from "./types";
 import {
   buildComponentVolumeShares,
@@ -23,29 +23,15 @@ export interface PlaybackVisualContext {
 }
 
 function cacheVisual(
-  componentId: string,
-  runId: string,
-  capacity: number,
-  share: ComponentVolumeShare | undefined,
   cache: NonNullable<GlyphSimulationResult["caches"]>[string],
-  progress: number,
-  tick: number,
 ): Pick<ComponentPlaybackVisual, "processingCount" | "cacheHitFlash" | "processingSlotIndices" | "state"> {
-  const slots = Math.max(1, capacity);
-  const targetCells = mechanismCellsFromShare(share?.share01 ?? 0, slots, cache.saturated);
-  const visibleCells = Math.min(slots, Math.max(0, Math.ceil(targetCells * progress)));
-  const slotOrder = randomizedImpactSlots(
-    slots,
-    impactSlotSeed({ runId, componentId, sequence: tick }),
-  );
-
-  const flash = progress >= 0.85 && cache.hitRps > 0 && tick % 12 === 0;
-
+  // During motion Redis is lit only by a packet actually dwelling here—never
+  // from an aggregate share or a tick-driven slot permutation.
   return {
-    processingCount: visibleCells,
-    processingSlotIndices: slotOrder.slice(0, visibleCells),
-    cacheHitFlash: flash,
-    state: cache.saturated ? "overloaded" : visibleCells > 0 ? "processing" : "idle",
+    processingCount: 0,
+    processingSlotIndices: [],
+    cacheHitFlash: false,
+    state: cache.saturated ? "overloaded" : "idle",
   };
 }
 
@@ -61,23 +47,26 @@ function serverVisual(
   const visible = Math.min(maxBays, Math.max(0, Math.ceil(target * progress)));
   return {
     processingCount: visible,
-    state: saturated ? "overloaded" : visible > 0 ? "processing" : "idle",
+    state: service.state === "healthy" ? (visible > 0 ? "processing" : "idle") : service.state,
   };
 }
 
 function storeVisual(
-  share: ComponentVolumeShare | undefined,
   postgres: NonNullable<GlyphSimulationResult["postgres"]>[string],
   machineSize: "small" | "medium" | "large",
-  progress: number,
-): Pick<ComponentPlaybackVisual, "processingCount" | "state"> {
+): Pick<ComponentPlaybackVisual, "processingCount" | "readProcessingCount" | "writeProcessingCount" | "state"> {
   const bands = machineSize === "small" ? 3 : machineSize === "large" ? 5 : 4;
-  const saturated = postgres.state === "saturated" || postgres.state === "critical";
-  const target = mechanismCellsFromShare(share?.share01 ?? 0, bands, saturated);
-  const visible = Math.min(bands, Math.max(0, Math.ceil(target * progress)));
+  // Postgres pressure is a settled simulator metric, not packet choreography.
+  // Keep the read/write hash bands fixed at their quarter/half/full level while
+  // packets move independently through the canvas.
+  const readBands = Math.min(bands, Math.ceil(Math.max(0, postgres.readUtilization) * bands));
+  const writeBands = Math.min(bands, Math.ceil(Math.max(0, postgres.writeUtilization) * bands));
+  const visible = Math.max(readBands, writeBands);
   return {
     processingCount: visible,
-    state: saturated ? "overloaded" : visible > 0 ? "processing" : "idle",
+    readProcessingCount: readBands,
+    writeProcessingCount: writeBands,
+    state: postgres.state === "healthy" ? (visible > 0 ? "processing" : "idle") : postgres.state,
   };
 }
 
@@ -103,9 +92,8 @@ export function buildComponentPlaybackVisuals(
     const share = shares.get(component.id);
 
     if (cache && glyphCatalog.type === "cache") {
-      const capacity = glyphCatalog.capacity ?? 16;
-      const visual = cacheVisual(component.id, context.runId, capacity, share, cache, progress, tick);
-      return [{ componentId: component.id, ...visual }];
+      const visual = cacheVisual(cache);
+      return [{ componentId: component.id, ...visual, evidenceLabel: glyphEvidenceLabel(component.id, context.simulation) }];
     }
 
     if (glyphCatalog.type === "cdn" && cache) {
@@ -117,6 +105,7 @@ export function buildComponentPlaybackVisuals(
           processingCount: 0,
           passCount: visiblePass,
           state: cache.saturated ? "overloaded" : visiblePass > 0 ? "processing" : "idle",
+          evidenceLabel: glyphEvidenceLabel(component.id, context.simulation),
         },
       ];
     }
@@ -124,13 +113,13 @@ export function buildComponentPlaybackVisuals(
     if (service && glyphCatalog.type === "server") {
       const size = (glyphCatalog.machineSize ?? "medium") as "small" | "medium" | "large";
       const visual = serverVisual(share, service, size, progress);
-      return [{ componentId: component.id, ...visual }];
+      return [{ componentId: component.id, ...visual, evidenceLabel: glyphEvidenceLabel(component.id, context.simulation) }];
     }
 
     if (postgres && glyphCatalog.type === "sql_db") {
       const tier = (glyphCatalog.machineSize ?? "medium") as "small" | "medium" | "large";
-      const visual = storeVisual(share, postgres, tier, progress);
-      return [{ componentId: component.id, ...visual }];
+      const visual = storeVisual(postgres, tier);
+      return [{ componentId: component.id, ...visual, evidenceLabel: glyphEvidenceLabel(component.id, context.simulation) }];
     }
 
     return [];

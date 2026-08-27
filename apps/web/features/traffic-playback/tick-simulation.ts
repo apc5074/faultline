@@ -1,9 +1,17 @@
 /**
  * Frame tick loop ported 1:1 from Implement Plan/src/simulation.ts (Figma reference).
  * Visual motion only — does not decide routing truth (simulator remains canonical).
+ *
+ * When an authoritative traffic plan is supplied (post-Run evidence), ambient
+ * user injection and random cache/CDN theater are disabled. Packets spawn only
+ * on real routed connection IDs at miss/forward + write pierce RPS.
  */
 
-import type { SimComponent, SimConnection, SimPacket, SimComponentType, PacketShape, SimTickResult } from "./sim-types";
+import {
+  advanceAuthoritativeSpawns,
+  type AuthoritativeTrafficPlan,
+} from "./authoritative-edge-traffic.ts";
+import type { SimComponent, SimConnection, SimPacket, SimComponentType, PacketShape, SimTickResult } from "./sim-types.ts";
 
 let packetCounter = 0;
 const newId = () => `pkt-${++packetCounter}`;
@@ -11,8 +19,68 @@ const newId = () => `pkt-${++packetCounter}`;
 const lbCursors = new Map<string, number>();
 const lbArmAngles = new Map<string, number>();
 const pubsubFlashes = new Map<string, number>();
+/** Useful CDN arrivals; separate from the animation version to avoid visual spam. */
+const cdnUsefulArrivalCounts = new Map<string, number>();
 const cdnPassCounts = new Map<string, number>();
 const cacheHitFlashes = new Map<string, number>();
+const componentVisualAccrual = new Map<string, number>();
+const authoritativeSpawnAccrual = new Map<string, number>();
+const authoritativeForwardAccrual = new Map<string, number>();
+const authoritativeSplitAccrual = new Map<string, number>();
+
+function stableSlot(packetId: string, capacity: number): number {
+  let hash = 0;
+  for (let index = 0; index < packetId.length; index += 1) hash = (hash * 31 + packetId.charCodeAt(index)) >>> 0;
+  return hash % Math.max(1, capacity);
+}
+
+/** Cache activity samples the simulator's realized cache usefulness exactly. */
+export function redisVisualSampleRate(realizedHitRate: number): number {
+  return Math.min(1, Math.max(0, realizedHitRate));
+}
+
+function shouldShowComponentActivity(componentId: string, plan: AuthoritativeTrafficPlan): boolean {
+  const activityRate = plan.componentActivityRates?.get(componentId) ?? 1;
+  const next = (componentVisualAccrual.get(componentId) ?? 0) + redisVisualSampleRate(activityRate);
+  if (next < 1) {
+    componentVisualAccrual.set(componentId, next);
+    return false;
+  }
+  componentVisualAccrual.set(componentId, next - 1);
+  return true;
+}
+
+/** Gives each concurrently dwelling cache packet a deterministic, distinct cell. */
+function stableSlots(packetIds: readonly string[], capacity: number): number[] {
+  const slots = Math.max(1, capacity);
+  const occupied = new Set<number>();
+  return [...packetIds].sort().flatMap((packetId) => {
+    const initial = stableSlot(packetId, slots);
+    for (let offset = 0; offset < slots; offset += 1) {
+      const slot = (initial + offset) % slots;
+      if (!occupied.has(slot)) {
+        occupied.add(slot);
+        return [slot];
+      }
+    }
+    return [];
+  });
+}
+
+/** One CDN node-pass animation represents a four-packet sample. */
+export function cdnAnimationPassForArrivalCount(arrivals: number): number {
+  return Math.floor(Math.max(0, arrivals) / 4);
+}
+
+function recordCdnArrival(componentId: string, useful: boolean): void {
+  if (!useful) return;
+  const arrivals = (cdnUsefulArrivalCounts.get(componentId) ?? 0) + 1;
+  cdnUsefulArrivalCounts.set(componentId, arrivals);
+  const animationPass = cdnAnimationPassForArrivalCount(arrivals);
+  if (animationPass > (cdnPassCounts.get(componentId) ?? 0)) {
+    cdnPassCounts.set(componentId, animationPass);
+  }
+}
 
 const DWELL_TYPES: SimComponentType[] = [
   "server",
@@ -98,6 +166,8 @@ function hopPacket(packet: SimPacket, connectionId: string, reverse: boolean): S
       reverse,
       dwellComponentId: undefined,
       dwellProgress: undefined,
+      cacheVisualActive: undefined,
+      componentVisualActive: undefined,
     },
     connectionId,
   );
@@ -136,8 +206,108 @@ export function resetTickSimulationState(): void {
   lbCursors.clear();
   lbArmAngles.clear();
   pubsubFlashes.clear();
+  cdnUsefulArrivalCounts.clear();
   cdnPassCounts.clear();
   cacheHitFlashes.clear();
+  componentVisualAccrual.clear();
+  authoritativeSpawnAccrual.clear();
+  authoritativeForwardAccrual.clear();
+  authoritativeSplitAccrual.clear();
+}
+
+export type TickSimulationOptions = {
+  /** Optional LP-05 path shares — scales ambient edge load / dwell lighting. */
+  volumeShareByComponentId?: ReadonlyMap<string, number>;
+  /**
+   * When set, replaces ambient/random injection: spawn only from sim edge RPS
+   * (post-absorb miss/forward + write pierce). Packets do not invent hops.
+   */
+  authoritativeTraffic?: AuthoritativeTrafficPlan;
+};
+
+function laneRps(plan: AuthoritativeTrafficPlan, connectionId: string, shape: PacketShape): number {
+  const rate = plan.rates.get(connectionId);
+  return shape === "write" ? (rate?.writeRps ?? 0) : (rate?.forwardRps ?? 0);
+}
+
+function authoritativeOutgoing(
+  componentId: string,
+  connections: readonly SimConnection[],
+  components: readonly SimComponent[],
+  plan: AuthoritativeTrafficPlan,
+  shape: PacketShape,
+): SimConnection[] {
+  return connections.filter((connection) =>
+    connection.fromComponentId === componentId &&
+    components.find((component) => component.id === connection.toComponentId)?.state !== "failed" &&
+    laneRps(plan, connection.id, shape) > 0,
+  ).sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function chooseAuthoritativeOutgoing(
+  componentId: string,
+  incomingConnectionId: string,
+  shape: PacketShape,
+  outgoing: readonly SimConnection[],
+  plan: AuthoritativeTrafficPlan,
+): SimConnection | null {
+  if (outgoing.length === 0) return null;
+  if (outgoing.length === 1) return outgoing[0]!;
+  const total = outgoing.reduce((sum, connection) => sum + laneRps(plan, connection.id, shape), 0);
+  if (total <= 0) return null;
+  const key = `${componentId}:${incomingConnectionId}:${shape}`;
+  const cursor = (authoritativeSplitAccrual.get(key) ?? 0) + 1;
+  authoritativeSplitAccrual.set(key, cursor);
+  // Low-discrepancy deterministic sample keeps small visual budgets representative
+  // of the simulator's weighted split (rather than always filling the first lane).
+  const position = ((cursor * 0.61803398875) % 1) * total;
+  let cumulative = 0;
+  for (const connection of outgoing) {
+    cumulative += laneRps(plan, connection.id, shape);
+    if (position < cumulative) return connection;
+  }
+  return outgoing.at(-1) ?? null;
+}
+
+function shouldAuthoritativelyForward(
+  componentId: string,
+  incomingConnectionId: string,
+  shape: PacketShape,
+  outgoing: readonly SimConnection[],
+  plan: AuthoritativeTrafficPlan,
+): boolean {
+  if (shape === "write") return outgoing.length > 0;
+  const incoming = laneRps(plan, incomingConnectionId, shape);
+  const forwarded = outgoing.reduce((sum, connection) => sum + laneRps(plan, connection.id, shape), 0);
+  if (incoming <= 0 || forwarded <= 0) return false;
+  const key = `${componentId}:${incomingConnectionId}:${shape}`;
+  const next = (authoritativeForwardAccrual.get(key) ?? 0) + Math.min(1, forwarded / incoming);
+  if (next < 1) {
+    authoritativeForwardAccrual.set(key, next);
+    return false;
+  }
+  authoritativeForwardAccrual.set(key, next - 1);
+  return true;
+}
+
+function authoritativeRootLaneKeys(
+  connections: readonly SimConnection[],
+  components: readonly SimComponent[],
+  plan: AuthoritativeTrafficPlan,
+): Set<string> {
+  const roots = new Set<string>();
+  for (const rate of plan.rates.values()) {
+    const connection = connections.find((candidate) => candidate.id === rate.connectionId);
+    if (!connection) continue;
+    const hasInbound = (shape: PacketShape) => connections.some((candidate) =>
+      candidate.toComponentId === connection.fromComponentId &&
+      laneRps(plan, candidate.id, shape) > 0 &&
+      components.find((component) => component.id === candidate.fromComponentId)?.state !== "failed",
+    );
+    if (rate.forwardRps > 0 && !hasInbound("request")) roots.add(`${rate.connectionId}:request`);
+    if (rate.writeRps > 0 && !hasInbound("write")) roots.add(`${rate.connectionId}:write`);
+  }
+  return roots;
 }
 
 export function tickSimulation(
@@ -146,9 +316,10 @@ export function tickSimulation(
   packets: SimPacket[],
   speed: number,
   tick: number,
-  /** Optional LP-05 path shares — scales ambient edge load / dwell lighting. */
-  volumeShareByComponentId?: ReadonlyMap<string, number>,
+  options: TickSimulationOptions = {},
 ): SimTickResult {
+  const volumeShareByComponentId = options.volumeShareByComponentId;
+  const authoritative = options.authoritativeTraffic;
   const dt = speed * 0.016;
   const newRouteLingers: string[] = [];
 
@@ -167,6 +338,21 @@ export function tickSimulation(
       const rate = DWELL_RATE[comp.type] ?? 1.2;
       const dwell = (traveling.dwellProgress ?? 0) + dt * rate;
       if (dwell < 1) return [{ ...traveling, dwellProgress: dwell }];
+
+      if (authoritative) {
+        const outgoing = authoritativeOutgoing(comp.id, connections, components, authoritative, traveling.shape);
+        const forward = shouldAuthoritativelyForward(comp.id, traveling.connectionId, traveling.shape, outgoing, authoritative);
+        const next = forward
+          ? chooseAuthoritativeOutgoing(comp.id, traveling.connectionId, traveling.shape, outgoing, authoritative)
+          : null;
+        if (next) {
+          if (comp.type === "load_balancer") swingArm(comp, next);
+          return [hopPacket(traveling, next.id, false)];
+        }
+        if (comp.type === "cache" && traveling.cacheVisualActive) cacheHitFlashes.set(comp.id, tick);
+        completeRoundTrip(traveling, newRouteLingers);
+        return [];
+      }
 
       const outs = liveOutgoing(comp, connections, components);
       if (traveling.shape === "request" && shouldForward(comp, outs)) {
@@ -193,6 +379,33 @@ export function tickSimulation(
       return rerouteFromFailedTarget(traveling, conn, toComp, components, connections);
     }
 
+    // Authoritative aggregate mode: every real hop visibly dwells at its target
+    // component before the next measured lane is chosen. This keeps the packet
+    // story legible (CDN → LB → each Service → cache/store) without inventing
+    // a hop, cache outcome, or fallback route.
+    if (authoritative) {
+      if (traveling.reverse) {
+        completeRoundTrip(traveling, newRouteLingers);
+        return [];
+      }
+      if (toComp.type === "cdn") {
+        recordCdnArrival(toComp.id, shouldShowComponentActivity(toComp.id, authoritative));
+      }
+      const componentVisualActive = toComp.type === "cdn"
+        ? undefined
+        : shouldShowComponentActivity(toComp.id, authoritative);
+      return [{
+        ...traveling,
+        progress: 1,
+        dwellComponentId: toComp.id,
+        dwellProgress: 0,
+        cacheVisualActive: toComp.type === "cache"
+          ? componentVisualActive
+          : undefined,
+        componentVisualActive,
+      }];
+    }
+
     if (traveling.shape === "response") {
       if (toComp.type === "user") {
         completeRoundTrip(traveling, newRouteLingers);
@@ -209,7 +422,7 @@ export function tickSimulation(
     if (toComp.type === "user") return [];
 
     if (toComp.type === "cdn") {
-      cdnPassCounts.set(toComp.id, (cdnPassCounts.get(toComp.id) ?? 0) + 1);
+      recordCdnArrival(toComp.id, true);
       const outs = liveOutgoing(toComp, connections, components);
       if (Math.random() < 0.55 || outs.length === 0) return [respondBack(traveling)];
       return [hopPacket(traveling, outs[0].id, false)];
@@ -249,10 +462,29 @@ export function tickSimulation(
     return [];
   });
 
-  const userComps = components.filter((comp) => comp.type === "user" && comp.state !== "failed");
   const newPackets: SimPacket[] = [];
 
-  if (tick % 40 === 0) {
+  if (authoritative) {
+    const writeCount = updatedPackets.filter((packet) => packet.shape === "write").length;
+    const spawns = advanceAuthoritativeSpawns({
+      ...authoritative,
+      spawnLaneKeys: authoritativeRootLaneKeys(connections, components, authoritative),
+    }, authoritativeSpawnAccrual, {
+      total: updatedPackets.length,
+      writes: writeCount,
+    });
+    for (const spawn of spawns) {
+      if (!connections.some((connection) => connection.id === spawn.connectionId)) continue;
+      newPackets.push({
+        id: newId(),
+        shape: spawn.shape,
+        connectionId: spawn.connectionId,
+        progress: 0,
+        trailConnectionIds: [],
+      });
+    }
+  } else if (tick % 40 === 0) {
+    const userComps = components.filter((comp) => comp.type === "user" && comp.state !== "failed");
     for (const user of userComps) {
       const outConns = connections.filter(
         (connection) =>
@@ -292,7 +524,8 @@ export function tickSimulation(
     const dwellers = updatedPackets.filter(
       (packet) => packet.dwellComponentId === comp.id && packet.shape !== "rejected",
     );
-    let processingPackets = dwellers.map((packet) => packet.id);
+    const visibleDwellers = dwellers.filter((packet) => packet.componentVisualActive !== false);
+    let processingPackets = visibleDwellers.map((packet) => packet.id);
 
     if (comp.type === "pubsub") {
       const lastFlash = pubsubFlashes.get(comp.id) ?? -Infinity;
@@ -304,9 +537,9 @@ export function tickSimulation(
 
     let state = comp.state;
     if (state !== "failed") {
-      if (dwellers.length === 0) state = "idle";
-      else if (comp.type === "queue" && dwellers.length >= comp.depth) state = "overloaded";
-      else if (comp.type === "server" && dwellers.length >= comp.instances * 3) state = "overloaded";
+      if (visibleDwellers.length === 0) state = "idle";
+      else if (comp.type === "queue" && visibleDwellers.length >= comp.depth) state = "overloaded";
+      else if (comp.type === "server" && visibleDwellers.length >= comp.instances * 3) state = "overloaded";
       else state = "processing";
     }
 
@@ -318,17 +551,22 @@ export function tickSimulation(
     const scale = shareScale(comp.id);
     const mechanismCount = Math.max(
       0,
-      Math.round((comp.type === "cdn" ? (passCount ?? 0) : processingPackets.length) * scale),
+      comp.type === "cache"
+        ? visibleDwellers.length
+        : Math.round((comp.type === "cdn" ? (passCount ?? 0) : processingPackets.length) * scale),
     );
 
     return {
       ...comp,
-      state: scale <= 0 && state === "processing" ? "idle" : state,
+      state: comp.type !== "cache" && scale <= 0 && state === "processing" ? "idle" : state,
       processingPackets,
       armAngle,
       passCount: comp.type === "cdn" ? Math.round((passCount ?? 0) * scale) : passCount,
-      cacheHitFlash: scale > 0 && cacheHitFlash,
+      cacheHitFlash: comp.type === "cache" ? cacheHitFlash : scale > 0 && cacheHitFlash,
       mechanismCount,
+      processingSlotIndices: comp.type === "cache"
+        ? stableSlots(visibleDwellers.map((packet) => packet.id), comp.capacity)
+        : undefined,
     };
   });
 

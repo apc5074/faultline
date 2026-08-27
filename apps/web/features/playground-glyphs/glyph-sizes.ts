@@ -9,7 +9,8 @@ export const GLYPH_SIZES: Record<GlyphType, { w: number; h: number }> = {
   load_balancer: { w: 72, h: 64 },
   server: { w: 64, h: 72 },
   cache: { w: 64, h: 64 },
-  sql_db: { w: 64, h: 80 },
+  // Keep the primary database on the shared row baseline with service racks.
+  sql_db: { w: 64, h: 72 },
   nosql_db: { w: 64, h: 80 },
   queue: { w: 96, h: 48 },
   pubsub: { w: 64, h: 64 },

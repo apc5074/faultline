@@ -4,6 +4,8 @@ import type { ComponentPlaybackVisual } from "./types";
 
 export type PlaybackMechanismProps = {
   processingCount: number;
+  readProcessingCount?: number;
+  writeProcessingCount?: number;
   armAngle?: number;
   passCount?: number;
   cacheHitFlash?: boolean;
@@ -25,6 +27,8 @@ export function mechanismPropsFromPlayback(
 
   return {
     processingCount: playback.processingCount,
+    readProcessingCount: playback.readProcessingCount,
+    writeProcessingCount: playback.writeProcessingCount,
     armAngle: playback.armAngle ?? catalog.armAngle,
     passCount: playback.passCount ?? 0,
     cacheHitFlash: playback.cacheHitFlash,
@@ -34,10 +38,10 @@ export function mechanismPropsFromPlayback(
 
 export function glyphStateFromPlayback(
   visual: ComponentPlaybackVisual | undefined,
-): "idle" | "processing" | "overloaded" {
+): GlyphState {
   const playback = visual ?? IDLE_VISUAL;
-  if (playback.state === "overloaded") return "overloaded";
-  if (playback.state === "processing" || playback.processingCount > 0 || playback.cacheHitFlash) {
+  if (playback.state !== "idle") return playback.state;
+  if (playback.processingCount > 0 || playback.cacheHitFlash) {
     return "processing";
   }
   return "idle";
@@ -49,14 +53,5 @@ export function playbackGlyphState(
   selected: boolean,
 ): GlyphState {
   if (selected) return "selected";
-  switch (visual?.state) {
-    case "failed":
-      return "failed";
-    case "overloaded":
-      return "overloaded";
-    case "processing":
-      return "processing";
-    default:
-      return "idle";
-  }
+  return visual?.state ?? "idle";
 }

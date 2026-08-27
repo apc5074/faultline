@@ -32,6 +32,8 @@ export interface DeriveGlyphStateOptions {
 
 export interface GlyphMechanismValues {
   processingCount?: number;
+  readProcessingCount?: number;
+  writeProcessingCount?: number;
   passCount?: number;
   processingSlotIndices?: readonly number[];
 }
@@ -39,10 +41,7 @@ export interface GlyphMechanismValues {
 type CapacityBandState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
 
 function capacityBandToGlyphState(state: CapacityBandState): GlyphState {
-  if (state === "critical" || state === "saturated") {
-    return "overloaded";
-  }
-  return "idle";
+  return state === "healthy" ? "idle" : state;
 }
 
 function isTruthyEventFlag(value: number | string | undefined): boolean {
@@ -73,12 +72,16 @@ export function deriveGlyphState(
 ): GlyphState {
   const { resultIsStale = false, selected = false, processing = false } = options;
 
-  if (selected) {
-    return "selected";
+  if (!simulationResult) {
+    return selected ? "selected" : "idle";
   }
 
-  if (!simulationResult || resultIsStale) {
-    return "idle";
+  if (resultIsStale) {
+    return "stale";
+  }
+
+  if (selected) {
+    return "selected";
   }
 
   if (hasExplicitFailure(componentId, simulationResult.events)) {
@@ -111,6 +114,13 @@ function mechanismCellsFromUtilization(utilization: number, slots: number, satur
   if (saturated) return slots;
   if (utilization <= 0) return 0;
   return Math.min(slots, Math.max(1, Math.ceil(utilization * slots)));
+}
+
+/** Meter fill only presents simulator-provided utilization; it creates no new capacity bands. */
+function meterCellsFromUtilization(utilization: number, slots: number): number {
+  if (!Number.isFinite(utilization)) return slots;
+  if (utilization <= 0) return 0;
+  return Math.min(slots, Math.ceil(utilization * slots));
 }
 
 /** Mechanism fill counts for glyphs — cores, DB bands, cache flicker, etc. */
@@ -150,6 +160,8 @@ export function deriveGlyphMechanismValues(
           4,
           postgres.state === "saturated" || postgres.state === "critical",
         ),
+        readProcessingCount: meterCellsFromUtilization(postgres.readUtilization, 4),
+        writeProcessingCount: meterCellsFromUtilization(postgres.writeUtilization, 4),
       };
     }
 
@@ -196,6 +208,8 @@ export function deriveGlyphMechanismValues(
         4,
         postgres.state === "saturated",
       ),
+      readProcessingCount: meterCellsFromUtilization(postgres.readUtilization, 4),
+      writeProcessingCount: meterCellsFromUtilization(postgres.writeUtilization, 4),
     };
   }
 
@@ -225,6 +239,68 @@ export function deriveGlyphMechanismValues(
   return {};
 }
 
+function rps(value: number): string {
+  return `${Math.round(value).toLocaleString("en-US")} RPS`;
+}
+
+/** A compact, non-color-only description of the simulator's limiting resource. */
+export function glyphPressureLabel(
+  componentId: string,
+  simulationResult: GlyphSimulationResult | null,
+  options: { resultIsStale?: boolean } = {},
+): string | undefined {
+  if (!simulationResult) return undefined;
+  if (options.resultIsStale) return "Stale simulation evidence — run again";
+
+  const service = simulationResult.services[componentId];
+  if (service) {
+    const regionalLimit = service.regions?.find((region) => region.state !== "healthy");
+    if (service.state === "healthy" && service.unmetRps <= 0 && !regionalLimit) return undefined;
+    const regional = regionalLimit
+      ? ` · ${regionalLimit.regionId} ${regionalLimit.state} (${rps(regionalLimit.incomingRps)} / ${rps(regionalLimit.capacityRps)})`
+      : "";
+    const unmet = service.unmetRps > 0 ? ` · ${rps(service.unmetRps)} unmet` : "";
+    return `${service.state} · ${rps(service.incomingRps)} demand / ${rps(service.capacityRps)} capacity${unmet}${regional}`;
+  }
+
+  const postgres = simulationResult.postgres[componentId];
+  if (postgres) {
+    const shortfalls = [
+      postgres.readCapacityShortfallRps > 0 ? `${rps(postgres.readCapacityShortfallRps)} read shortfall` : "",
+      postgres.writeCapacityShortfallRps > 0 ? `${rps(postgres.writeCapacityShortfallRps)} write shortfall` : "",
+    ].filter(Boolean);
+    if (postgres.state === "healthy" && shortfalls.length === 0) return undefined;
+    return `${postgres.state} · read ${Math.round(postgres.readUtilization * 100)}% · write ${Math.round(postgres.writeUtilization * 100)}%${shortfalls.length ? ` · ${shortfalls.join(", ")}` : ""}`;
+  }
+
+  return undefined;
+}
+
+/** Cache and hot-key evidence in one compact, text-first label. */
+export function glyphEvidenceLabel(
+  componentId: string,
+  simulationResult: GlyphSimulationResult | null,
+  options: { resultIsStale?: boolean } = {},
+): string | undefined {
+  const pressure = glyphPressureLabel(componentId, simulationResult, options);
+  if (!simulationResult || options.resultIsStale) return pressure;
+
+  const cache = simulationResult.caches?.[componentId];
+  const cacheEvidence = cache
+    ? `${cache.saturated ? "saturated cache" : "cache"} · ${Math.round(cache.hitRate * 100)}% hit · ${rps(cache.hitRps)} hit / ${rps(cache.missRps)} miss · ${rps(cache.downstreamAvoidedRps)} avoided`
+    : undefined;
+  const hotKeyHop = simulationResult.hotKey?.active
+    ? simulationResult.hotKey.hops.find((hop) => hop.componentId === componentId)
+    : undefined;
+  const hotKeyEvidence = hotKeyHop?.hotKeyUtilization !== null && hotKeyHop?.hotKeyUtilization !== undefined
+    ? `viral hot key · ${Math.round(hotKeyHop.hotKeyUtilization * 100)}% hot-key capacity${hotKeyHop.saturated ? " · saturated" : ""}`
+    : undefined;
+
+  return [pressure, cacheEvidence, hotKeyEvidence]
+    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+    .join(" · ") || undefined;
+}
+
 /** Screen-reader summary of capacity pressure when simulation results exist. */
 export function glyphStateAriaLabel(
   componentId: string,
@@ -232,7 +308,8 @@ export function glyphStateAriaLabel(
   options: DeriveGlyphStateOptions = {},
 ): string | undefined {
   const state = deriveGlyphState(componentId, simulationResult, options);
-  if (state === "idle" && (!simulationResult || options.resultIsStale)) {
+  if (state === "stale") return "Simulation results stale — run again";
+  if (state === "idle" && !simulationResult) {
     return options.resultIsStale ? "Simulation results stale" : undefined;
   }
 

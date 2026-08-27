@@ -25,7 +25,7 @@ import {
   addRegionalTraffic,
   architectureHasServiceDeployments,
   findReachableServices,
-  selectNearestHealthyDeployment,
+  selectNearestHealthyDeployments,
   selectPostgresDeploymentForTraffic,
   selectRedisDeploymentForServiceRegion,
   serviceDeploymentCandidates,
@@ -518,13 +518,19 @@ function propagateGeographicTraffic(
       const candidates = serviceDeploymentCandidates(
         reachableServices.filter((service) => !overlay?.failedComponentIds?.includes(service.id)),
       );
-      const selected = selectNearestHealthyDeployment(origin.regionId, candidates, overlay?.failedRegionIds);
-      if (!selected) {
+      const selectedDeployments = selectNearestHealthyDeployments(
+        origin.regionId,
+        candidates,
+        overlay?.failedRegionIds,
+      );
+      if (selectedDeployments.length === 0) {
         unroutableRps += rpsPerSource;
         events.push({ type: "traffic_routed", componentId: source.id, data: { requestsPerSecond: rpsPerSource, kind: "unroutable", originRegion: origin.regionId } });
         continue;
       }
 
+      for (const selected of selectedDeployments) {
+      const selectedRps = rpsPerSource / selectedDeployments.length;
       const networkLatencyMs = getRegionLatencyMs(origin.regionId, selected.regionId);
 
       // Attribute passthrough volume on Global Router / CDN / LB along a deterministic path.
@@ -533,22 +539,22 @@ function propagateGeographicTraffic(
         registry,
         sourceId: source.id,
         serviceId: selected.componentId,
-        rps: rpsPerSource,
+        rps: selectedRps,
         traffic,
         events,
         originRegion: origin.regionId,
       });
 
-      traffic[selected.componentId].incomingRps += rpsPerSource;
+      traffic[selected.componentId].incomingRps += selectedRps;
       addRegionalTraffic(regionalTraffic, selected.componentId, selected.regionId, {
-        incomingRps: rpsPerSource,
+        incomingRps: selectedRps,
       });
       geographicRoutes.push({
         originRegion: origin.regionId,
         destinationRegion: selected.regionId,
         componentId: selected.componentId,
         deploymentId: selected.deployment.id,
-        rps: rpsPerSource,
+        rps: selectedRps,
         networkLatencyMs,
         kind: "request",
       });
@@ -556,7 +562,7 @@ function propagateGeographicTraffic(
         type: "traffic_routed",
         componentId: selected.componentId,
         data: {
-          requestsPerSecond: rpsPerSource,
+          requestsPerSecond: selectedRps,
           kind: "request",
           originRegion: origin.regionId,
           destinationRegion: selected.regionId,
@@ -568,9 +574,9 @@ function propagateGeographicTraffic(
       const service = architecture.components.find((component) => component.id === selected.componentId);
       if (!service) continue;
 
-      const readRps = rpsPerSource * challenge.workload.readRatio;
-      const writeRps = rpsPerSource * challenge.workload.writeRatio;
-      traffic[service.id].outgoingRps += rpsPerSource;
+      const readRps = selectedRps * challenge.workload.readRatio;
+      const writeRps = selectedRps * challenge.workload.writeRatio;
+      traffic[service.id].outgoingRps += selectedRps;
 
       const dbEdges = databaseEdgesFrom(architecture, service.id);
       if (dbEdges.length === 0) continue;
@@ -641,6 +647,7 @@ function propagateGeographicTraffic(
             },
           });
         }
+      }
       }
     }
   }

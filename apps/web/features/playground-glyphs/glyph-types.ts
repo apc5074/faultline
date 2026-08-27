@@ -79,6 +79,9 @@ export interface ComponentGlyphProps {
   armAngle?: number;
   passCount?: number;
   processingCount?: number;
+  /** Postgres's simulator-reported read and write pressure meters. */
+  readProcessingCount?: number;
+  writeProcessingCount?: number;
   cacheHitFlash?: boolean;
   /** When set, cache cells at these indices fill (random order). Servers ignore this. */
   processingSlotIndices?: readonly number[];

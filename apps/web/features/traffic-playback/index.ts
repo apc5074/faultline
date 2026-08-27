@@ -27,6 +27,23 @@ export type { PresentationPlaybackPhase, PresentationPlaybackState } from "./pre
 export { catalogTypeToSimType } from "./sim-types";
 export type { SimComponent, SimConnection, SimPacket } from "./sim-types";
 export { resetTickSimulationState, tickSimulation } from "./tick-simulation";
+export type { TickSimulationOptions } from "./tick-simulation";
+export {
+  advanceAuthoritativeSpawns,
+  AUTHORITATIVE_FULL_RPS_INTERVAL_TICKS,
+  AUTHORITATIVE_MAX_PACKETS,
+  AUTHORITATIVE_MAX_SPAWNS_PER_TICK,
+  AUTHORITATIVE_WRITE_RESERVED,
+  edgeRatesFromTrafficEvents,
+  spawnAccrualPerTick,
+  totalRps,
+} from "./authoritative-edge-traffic";
+export type {
+  AuthoritativeEdgeRate,
+  AuthoritativeSpawn,
+  AuthoritativeTrafficPlan,
+  TrafficRoutedLike,
+} from "./authoritative-edge-traffic";
 export type {
   ComponentPlaybackVisual,
   EdgeLoad,

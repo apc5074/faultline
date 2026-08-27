@@ -3,6 +3,7 @@
 import type { Architecture } from "@faultline/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { AuthoritativeTrafficPlan } from "./authoritative-edge-traffic";
 import { buildSimGraph } from "./architecture-sim-graph";
 import { createRouteLingers, mergeRouteLingers, pruneRouteLingers } from "./route-linger";
 import type { SimComponent, SimConnection, SimPacket } from "./sim-types";
@@ -36,6 +37,7 @@ export function usePlaybackController() {
   const packetsRef = useRef<SimPacket[]>([]);
   const routeLingersRef = useRef<RouteLinger[]>([]);
   const volumeShareRef = useRef<ReadonlyMap<string, number> | null>(null);
+  const authoritativeTrafficRef = useRef<AuthoritativeTrafficPlan | null>(null);
 
   phaseRef.current = phase;
   speedRef.current = speed;
@@ -58,7 +60,10 @@ export function usePlaybackController() {
       packetsRef.current,
       speedRef.current,
       tickRef.current,
-      volumeShareRef.current ?? undefined,
+      {
+        volumeShareByComponentId: volumeShareRef.current ?? undefined,
+        authoritativeTraffic: authoritativeTrafficRef.current ?? undefined,
+      },
     );
     simComponentsRef.current = result.components;
     simConnectionsRef.current = result.connections;
@@ -79,6 +84,7 @@ export function usePlaybackController() {
         passCount: component.passCount,
         state: component.state,
         cacheHitFlash: component.cacheHitFlash,
+        processingSlotIndices: component.processingSlotIndices,
       })),
       routeLingers: routeLingersRef.current,
       tick: tickRef.current,
@@ -141,6 +147,16 @@ export function usePlaybackController() {
     volumeShareRef.current = shares;
   }, []);
 
+  const setAuthoritativeTraffic = useCallback((plan: AuthoritativeTrafficPlan | null) => {
+    const hadPlan = authoritativeTrafficRef.current !== null;
+    authoritativeTrafficRef.current = plan;
+    if (hadPlan !== (plan !== null)) {
+      // Switching ambient ↔ authoritative clears in-flight theater packets.
+      packetsRef.current = [];
+      resetTickSimulationState();
+    }
+  }, []);
+
   const start = useCallback(
     (architecture: Architecture) => {
       architectureRef.current = architecture;
@@ -149,6 +165,7 @@ export function usePlaybackController() {
       packetsRef.current = [];
       routeLingersRef.current = [];
       volumeShareRef.current = null;
+      // Keep authoritative plan across restart when Run evidence is still current.
       const graph = buildSimGraph(architecture);
       simComponentsRef.current = graph.components;
       simConnectionsRef.current = graph.connections;
@@ -206,6 +223,7 @@ export function usePlaybackController() {
     packetsRef.current = [];
     routeLingersRef.current = [];
     volumeShareRef.current = null;
+    authoritativeTrafficRef.current = null;
     tickRef.current = 0;
     resetTickSimulationState();
     phaseRef.current = "idle";
@@ -237,6 +255,7 @@ export function usePlaybackController() {
     syncArchitecture,
     markComponentFailed,
     setVolumeShares,
+    setAuthoritativeTraffic,
   };
 }
 

@@ -15,9 +15,14 @@ export interface PlaybackPacket {
 export interface ComponentPlaybackVisual {
   componentId: string;
   processingCount: number;
+  /** Postgres meters remain distinct; neither is inferred from effective pressure. */
+  readProcessingCount?: number;
+  writeProcessingCount?: number;
   armAngle?: number;
   passCount?: number;
-  state: "idle" | "processing" | "overloaded" | "failed";
+  state: "idle" | "processing" | "warning" | "critical" | "saturated" | "overloaded" | "failed";
+  /** Compact simulator-derived limiting-resource summary, shown beside the glyph. */
+  evidenceLabel?: string;
   /** Redis: brief solid fill on cache hit (no flicker). */
   cacheHitFlash?: boolean;
   /** Cache cubes: seeded random slot order (servers stay sequential). */

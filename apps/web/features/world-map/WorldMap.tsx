@@ -17,6 +17,7 @@ import type { GeographicRoute } from "@faultline/simulator";
 import { enclosureRegionsForArchitecture } from "@/features/architecture-canvas/region-enclosures";
 
 import { WorldMapDeploymentGlyph } from "./WorldMapDeploymentGlyph";
+import type { RegionFailurePresentation } from "./region-failure-presentation";
 
 const MAP_WIDTH = 1000;
 const MAP_HEIGHT = 520;
@@ -185,6 +186,7 @@ export function WorldMap({
   selection,
   geographicRoutes,
   routesActive,
+  regionFailure,
   onSelectComponent,
   onSelectRegion,
 }: {
@@ -194,6 +196,7 @@ export function WorldMap({
   selection: WorldMapSelection;
   geographicRoutes: readonly GeographicRoute[];
   routesActive: boolean;
+  regionFailure?: RegionFailurePresentation | null;
   onSelectComponent: (componentId: string, deploymentId?: string) => void;
   onSelectRegion: (regionId: RegionId) => void;
 }) {
@@ -306,6 +309,8 @@ export function WorldMap({
           const isOrigin = Boolean(traffic);
           const selected = selection?.kind === "region" && selection.regionId === region.id;
           const healthy = region.health === "healthy";
+          const simulatedFailed = regionFailure?.failedRegionIds.includes(region.id) ?? false;
+          const databaseUnavailable = regionFailure?.databaseUnavailableRegionIds.includes(region.id) ?? false;
 
           return (
             <g
@@ -315,6 +320,7 @@ export function WorldMap({
                 selected ? "world-map__region--selected" : "",
                 isOrigin ? "world-map__region--origin" : "",
                 healthy ? "" : "world-map__region--unhealthy",
+                simulatedFailed ? "world-map__region--simulated-failed" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -331,6 +337,11 @@ export function WorldMap({
                   {Math.round(traffic.fraction * 100)}% · {Math.round(traffic.redirectRps).toLocaleString("en-US")} rps
                 </text>
               ) : null}
+              {simulatedFailed ? (
+                <text className="world-map__region-failure" y={traffic ? 46 : 32} textAnchor="middle">
+                  {databaseUnavailable ? "SIMULATED DB UNAVAILABLE" : "SIMULATED UNAVAILABLE"}
+                </text>
+              ) : null}
             </g>
           );
         })}
@@ -344,11 +355,14 @@ export function WorldMap({
             (selection?.kind === "deployment" &&
               selection.componentId === marker.componentId &&
               selection.deploymentId === marker.deploymentId);
+          const unavailable =
+            (regionFailure?.failedRegionIds.includes(marker.regionId) ?? false) ||
+            (regionFailure?.failedComponentIds.includes(marker.componentId) ?? false);
 
           return (
             <g
               key={marker.key}
-              className={["world-map__deployment", selected ? "world-map__deployment--selected" : ""]
+              className={["world-map__deployment", selected ? "world-map__deployment--selected" : "", unavailable ? "world-map__deployment--unavailable" : ""]
                 .filter(Boolean)
                 .join(" ")}
               transform={`translate(${point.cx + 40} ${point.cy - 12 + stackOffset})`}
@@ -357,7 +371,7 @@ export function WorldMap({
               <rect className="world-map__deployment-hit" x={-4} y={-4} width={32} height={32} />
               <foreignObject x={0} y={0} width={24} height={24}>
                 <div className="world-map__deployment-glyph">
-                  <WorldMapDeploymentGlyph component={marker.component} selected={selected} />
+                  <WorldMapDeploymentGlyph component={marker.component} selected={selected} unavailable={unavailable} />
                 </div>
               </foreignObject>
             </g>
@@ -368,6 +382,7 @@ export function WorldMap({
       <div className="world-map__legend" aria-label="Map legend">
         <span className="world-map__legend-item">traffic origin</span>
         <span className="world-map__legend-item">deployment glyph</span>
+        {regionFailure ? <span className="world-map__legend-item world-map__legend-item--simulated-failure">simulated unavailable</span> : null}
         {routesActive ? (
           <span className="world-map__legend-item">simulated arc · weight = rps</span>
         ) : (

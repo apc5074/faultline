@@ -41,9 +41,10 @@ export function glyphDimensionsForProps(props: CatalogGlyphProps): { width: numb
   if (props.type === "fallback") return { width: 64, height: 56 };
   const base = GLYPH_SIZES[props.type];
   if (!base) return { width: 64, height: 56 };
-  // Server size changes rack density, not chassis footprint. CDN/Postgres still scale.
+  // Server and Postgres tiers change internal density, not their row baseline.
+  // CDN coverage scales its visual footprint.
   const scale =
-    props.type === "cdn" || props.type === "sql_db"
+    props.type === "cdn"
       ? MACHINE_SIZE_SCALE[props.machineSize ?? "medium"]
       : 1;
   return {

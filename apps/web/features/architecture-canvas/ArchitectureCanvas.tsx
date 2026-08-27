@@ -32,6 +32,7 @@ import {
 } from "@/features/architecture-canvas/PlaygroundHudPlates";
 import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { SimBar } from "@/features/architecture-canvas/SimBar";
+import { TracePresentationPanel } from "@/features/traffic-playback/TracePresentationPanel";
 import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
@@ -46,7 +47,7 @@ function ArchitectureWorkspace() {
     publishExperimentResult(result, (published) => {
       setPublishedExperiment(published);
       setPublishedExperimentArchitectureKey(JSON.stringify(workspace.architecture));
-      workspace.playback.start(workspace.architecture);
+      workspace.presentExperiment(published.result);
     });
   }, [workspace.architecture, workspace.playback]);
   const loadAnswerEnabled = isLevel1LoadAnswerEnabled();
@@ -122,6 +123,7 @@ function ArchitectureWorkspace() {
               geographicRoutes={
                 workspace.simulationResult?.geographicRoutes ?? []
               }
+              experimentPresentation={workspace.experimentPresentation}
               playbackVisualsActive={workspace.playbackVisualsActive}
               playbackFrame={workspace.playback.frame}
               enclosureRegions={workspace.enclosureRegions}
@@ -164,13 +166,21 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
+            <TracePresentationPanel
+              architecture={workspace.architecture}
+              challenge={activeChallenge}
+              onFocusComponent={workspace.onSelectComponent}
+              onClear={workspace.clearSelection}
+            />
             {publishedExperiment ? (
               <ExperimentResultPanel
                 result={publishedExperiment.result}
                 architectureKey={JSON.stringify(workspace.architecture)}
                 resultArchitectureKey={publishedExperimentArchitectureKey ?? ""}
+                baselineEvents={workspace.simulationResult?.events}
                 onDismiss={() => {
                   workspace.playback.reset();
+                  workspace.clearExperimentPresentation();
                   setPublishedExperiment(null);
                   setPublishedExperimentArchitectureKey(null);
                 }}

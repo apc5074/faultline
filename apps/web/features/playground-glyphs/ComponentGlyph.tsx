@@ -253,7 +253,8 @@ function SqlDbGlyph({
   w,
   h,
   replicas = 0,
-  processingCount = 0,
+  readProcessingCount,
+  writeProcessingCount,
   machineSize = "medium",
   mini = false,
 }: {
@@ -261,7 +262,8 @@ function SqlDbGlyph({
   w: number;
   h: number;
   replicas?: number;
-  processingCount?: number;
+  readProcessingCount?: number;
+  writeProcessingCount?: number;
   machineSize?: GlyphMachineSize;
   mini?: boolean;
 }) {
@@ -272,7 +274,11 @@ function SqlDbGlyph({
   const cx = 4 + w / 2;
   const bands = machineSize === "small" ? 3 : machineSize === "large" ? 5 : 4;
   const bandH = bodyH / bands;
-  const lit = Math.min(processingCount, bands);
+  // Database bands represent settled read/write pressure only. Do not let a
+  // transient packet dwell animate the database interior.
+  const readLit = Math.min(readProcessingCount ?? 0, bands);
+  const writeLit = Math.min(writeProcessingCount ?? 0, bands);
+  const lit = Math.max(readLit, writeLit);
   const topY = 4 + ry;
   const bottomY = 4 + ry + bodyH;
   const rimArc = (y: number) => `M 4 ${y} A ${rx} ${ry} 0 0 0 ${4 + w} ${y}`;
@@ -292,15 +298,38 @@ function SqlDbGlyph({
       <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
       {!mini &&
         Array.from({ length: bands }).map((_, i) => {
-          if (i >= lit) return null;
+          if (i >= lit && i >= readLit && i >= writeLit) return null;
+          const readOn = i < readLit;
+          const writeOn = i < writeLit;
           return (
-            <path
-              key={i}
-              d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
-              fill={GLYPH_INK.ink}
-            />
+            <g key={i}>
+              {readOn ? (
+                <path
+                  d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
+                  fill="url(#postgres-read-meter)"
+                />
+              ) : null}
+              {writeOn ? (
+                <path
+                  d={bandPath(topY + i * bandH, topY + (i + 1) * bandH)}
+                  fill="url(#postgres-write-meter)"
+                />
+              ) : null}
+            </g>
           );
         })}
+      {!mini && (readLit > 0 || writeLit > 0) ? (
+        <defs>
+          <pattern id="postgres-read-meter" width="4" height="4" patternUnits="userSpaceOnUse">
+            <rect width="4" height="4" fill={GLYPH_INK.paper} />
+            <path d="M 0 1.25 H 4" fill="none" stroke={GLYPH_INK.ink} strokeWidth="0.8" />
+          </pattern>
+          <pattern id="postgres-write-meter" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="4" height="4" fill={GLYPH_INK.paper} />
+            <path d="M 0 1.25 H 4" fill="none" stroke={GLYPH_INK.ink} strokeWidth="0.8" />
+          </pattern>
+        </defs>
+      ) : null}
       <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
       {state === "failed" && <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />}
       {!mini &&
@@ -904,6 +933,8 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
     armAngle = 0,
     passCount = 0,
     processingCount = 0,
+    readProcessingCount,
+    writeProcessingCount,
     cacheHitFlash = false,
     processingSlotIndices,
     machineSize = "medium",
@@ -946,7 +977,8 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
         <SqlDbGlyph
           {...shared}
           replicas={replicas}
-          processingCount={processingCount}
+          readProcessingCount={readProcessingCount}
+          writeProcessingCount={writeProcessingCount}
           machineSize={machineSize}
         />
       )}

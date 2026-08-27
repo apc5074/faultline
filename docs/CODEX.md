@@ -105,8 +105,8 @@ repository typecheck/build when the change crosses packages.
 Useful focused web checks include `verify:agent-session`,
 `verify:dynamic-surface-parity`, `verify:workload-evidence`,
 `verify:level1-starter`, `verify:volume-share-visuals`, `verify:level-teaching`,
-`verify:presentation-playback`, and `verify:presentation-events` when those
-files are involved. For Level Profile lock across challenges + web, prefer
+`verify:authoritative-traffic-tokens`, `verify:presentation-playback`, and
+`verify:presentation-events` when those files are involved. For Level Profile lock across challenges + web, prefer
 `pnpm verify:level-profiles` from the repo root. For affinity foundation lock,
 prefer `pnpm verify:affinity`. Check `apps/web/package.json` for the current
 script name; don’t invent a command from an older phase.

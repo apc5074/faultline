@@ -146,6 +146,32 @@ export function selectNearestHealthyDeployment(
   return ranked[0] ?? null;
 }
 
+/**
+ * All healthy deployments tied for nearest latency, in a stable order.
+ * Geographic routing chooses the closest region; same-distance service pools
+ * share that region's demand rather than permanently pinning it to one ID.
+ */
+export function selectNearestHealthyDeployments(
+  originRegionId: RegionId,
+  candidates: readonly DeploymentCandidate[],
+  excludedRegionIds: readonly string[] = [],
+): readonly DeploymentCandidate[] {
+  const nearest = selectNearestHealthyDeployment(originRegionId, candidates, excludedRegionIds);
+  if (!nearest) return [];
+  const latency = getRegionLatencyMs(originRegionId, nearest.regionId);
+  return candidates
+    .filter(
+      (candidate) =>
+        isHealthyRegion(candidate.regionId) &&
+        !excludedRegionIds.includes(candidate.regionId) &&
+        getRegionLatencyMs(originRegionId, candidate.regionId) === latency,
+    )
+    .sort((left, right) => {
+      const byComponent = left.componentId.localeCompare(right.componentId);
+      return byComponent !== 0 ? byComponent : left.deployment.id.localeCompare(right.deployment.id);
+    });
+}
+
 export function redisDeploymentInRegion(
   redis: ComponentInstance,
   regionId: RegionId,
