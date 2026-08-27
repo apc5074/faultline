@@ -1,6 +1,7 @@
 import type {
   AgentCapabilityMode,
   AgentCapabilityRegistry,
+  BaselineVisualCapabilityName,
   CapabilityJsonSchema,
 } from "@faultline/agent-capabilities";
 import {
@@ -8,10 +9,12 @@ import {
   phase7DynamicCapabilityPredicate,
   resolveLiveAgentSnapshot,
   RESOLVED_CAPABILITY_NAME_ORDER,
+  RESOLVED_VISUAL_CAPABILITY_NAME_ORDER,
   type ResolvedCapabilityName,
 } from "@faultline/agent-capabilities";
 import type { Architecture } from "@faultline/core";
 
+import { buildAgentVisualSurface, type AgentVisualSurfaceSkipReason } from "./agent-visual-surface.js";
 import { getWebMcpModelContext } from "./model-context.js";
 import {
   buildAgentReadSurface,
@@ -19,18 +22,22 @@ import {
 } from "./phase6-read-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool, WebMcpToolAnnotations } from "./types.js";
+import type { VisualIntentHandler } from "./visual-intent.js";
+
+export type InspectorCapabilityName = ResolvedCapabilityName | BaselineVisualCapabilityName;
+export type InspectorSkipReason = Phase6ReadSurfaceSkipReason | AgentVisualSurfaceSkipReason;
 
 export type WebMcpRegistrationState = "unsupported" | "registered" | "rejected";
 
 export interface Phase6InspectorEntry {
-  readonly name: ResolvedCapabilityName;
+  readonly name: InspectorCapabilityName;
   readonly description: string;
   readonly mode: AgentCapabilityMode;
   readonly available: boolean;
   readonly inputSchema: CapabilityJsonSchema;
   readonly annotations?: WebMcpToolAnnotations;
   readonly registrationState: WebMcpRegistrationState | "skipped";
-  readonly skipReason?: Phase6ReadSurfaceSkipReason;
+  readonly skipReason?: InspectorSkipReason;
   readonly structuralPredicate?: string;
 }
 
@@ -38,13 +45,14 @@ export interface Phase6InspectorSnapshot {
   readonly browserSupported: boolean;
   readonly entries: readonly Phase6InspectorEntry[];
   readonly tools: readonly WebMcpTool[];
-  readonly resolvedNames: readonly ResolvedCapabilityName[];
+  readonly resolvedNames: readonly InspectorCapabilityName[];
 }
 
 export interface BuildPhase6InspectorSnapshotOptions {
   readonly registry: AgentCapabilityRegistry;
   readonly getContext: WebMcpContextFactory;
   readonly development?: boolean;
+  readonly onVisualIntent?: VisualIntentHandler;
 }
 
 function structuralPredicateLabel(name: ResolvedCapabilityName, architecture: Architecture): string | undefined {
@@ -75,17 +83,35 @@ async function probeToolRegistration(
 export async function buildPhase6InspectorSnapshot(
   options: BuildPhase6InspectorSnapshotOptions,
 ): Promise<Phase6InspectorSnapshot> {
-  const { registry, getContext, development = true } = options;
+  const { registry, getContext, development = true, onVisualIntent } = options;
   const browserSupported = getWebMcpModelContext() !== undefined;
   const context = resolveLiveAgentSnapshot(await getContext()).context;
-  const surface = await buildAgentReadSurface({ registry, getContext, development });
-  const toolsByName = new Map(surface.tools.map((tool) => [tool.name, tool]));
-  const skippedByName = new Map(surface.skipped.map((skip) => [skip.name, skip.reason]));
+  const readSurface = await buildAgentReadSurface({ registry, getContext, development });
+  const visualSurface = await buildAgentVisualSurface({
+    registry,
+    getContext,
+    development,
+    ...(onVisualIntent ? { onVisualIntent } : {}),
+  });
+  const toolsByName = new Map(
+    [...readSurface.tools, ...visualSurface.tools].map((tool) => [tool.name, tool]),
+  );
+  const skippedByName = new Map<InspectorCapabilityName, InspectorSkipReason>([
+    ...readSurface.skipped.map((skip) => [skip.name, skip.reason] as const),
+    ...visualSurface.skipped.map((skip) => [skip.name, skip.reason] as const),
+  ]);
   const entries: Phase6InspectorEntry[] = [];
+  const orderedNames: InspectorCapabilityName[] = [
+    ...RESOLVED_CAPABILITY_NAME_ORDER,
+    ...RESOLVED_VISUAL_CAPABILITY_NAME_ORDER,
+  ];
 
-  for (const name of RESOLVED_CAPABILITY_NAME_ORDER) {
+  for (const name of orderedNames) {
     const skipReason = skippedByName.get(name);
-    const structuralPredicate = structuralPredicateLabel(name, context.architecture);
+    const structuralPredicate = structuralPredicateLabel(
+      name as ResolvedCapabilityName,
+      context.architecture,
+    );
 
     if (skipReason) {
       const capability = registry.has(name) ? registry.get(name) : undefined;
@@ -126,8 +152,8 @@ export async function buildPhase6InspectorSnapshot(
   return {
     browserSupported,
     entries,
-    tools: surface.tools,
-    resolvedNames: surface.resolvedNames,
+    tools: [...readSurface.tools, ...visualSurface.tools],
+    resolvedNames: [...readSurface.resolvedNames, ...visualSurface.resolvedNames],
   };
 }
 

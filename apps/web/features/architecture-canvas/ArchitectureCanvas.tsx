@@ -13,6 +13,7 @@ import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionS
 import { WebMcpRegistration } from "@/features/webmcp/WebMcpRegistration";
 import { ComponentRail } from "@/features/architecture-canvas/ComponentRail";
 import { DataPlateInspector } from "@/features/architecture-canvas/DataPlateInspector";
+import { LevelBriefing, useLevelBriefing } from "@/features/architecture-canvas/LevelBriefing";
 import { PlaygroundCanvas } from "@/features/architecture-canvas/PlaygroundCanvas";
 import {
   BudgetHud,
@@ -25,15 +26,24 @@ import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygr
 
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
+  const briefing = useLevelBriefing();
 
   return (
     <AgentSessionProvider architecture={workspace.architecture} challenge={activeChallenge}>
       <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} />
       <WebMcpRegistration reconciliationKey={workspace.webMcpReconciliationKey} />
+      <LevelBriefing open={briefing.open} onClose={briefing.closeBriefing} />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
           <p className="playground-topbar__wordmark">Faultline</p>
           <div className="playground-topbar__hints">
+            <button
+              type="button"
+              className="playground-topbar__brief"
+              onClick={briefing.openBriefing}
+            >
+              Briefing
+            </button>
             {process.env.NODE_ENV === "development" ? (
               <button type="button" className="playground-topbar__hero" onClick={workspace.loadHeroScene}>
                 Load hero scene

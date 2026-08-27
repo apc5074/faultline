@@ -10,7 +10,13 @@ import {
 } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useLiveAgentContextFactory } from "@/lib/agent-context/use-live-agent-context-factory";
+import {
+  AgentSessionProvider,
+  useAgentContextFactory,
+  useAgentSessionState,
+  useAgentSessionStore,
+} from "@/features/agent-session/AgentSessionProvider";
+import { createVisualIntentHandler } from "@/features/agent-session/visual-intent-bridge";
 
 const DEFAULT_ARCHITECTURE: Architecture = {
   version: 1,
@@ -21,6 +27,13 @@ const DEFAULT_ARCHITECTURE: Architecture = {
       config: { label: "Incoming traffic" },
       deployments: [],
       ui: { x: 80, y: 180 },
+    },
+    {
+      id: "service-1",
+      type: "service",
+      config: { instances: 2 },
+      deployments: [],
+      ui: { x: 220, y: 180 },
     },
   ],
   connections: [],
@@ -40,7 +53,6 @@ function registrationLabel(state: Phase6InspectorSnapshot["entries"][number]["re
 }
 
 export function WebMcpInspector() {
-  const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const [architectureJson, setArchitectureJson] = useState(() => JSON.stringify(DEFAULT_ARCHITECTURE, null, 2));
   const { architecture, architectureError } = useMemo(() => {
     try {
@@ -58,7 +70,40 @@ export function WebMcpInspector() {
     }
   }, [architectureJson]);
 
-  const getContext = useLiveAgentContextFactory(architecture ?? DEFAULT_ARCHITECTURE, urlShortenerChallenge);
+  return (
+    <AgentSessionProvider
+      architecture={architecture ?? DEFAULT_ARCHITECTURE}
+      challenge={urlShortenerChallenge}
+    >
+      <WebMcpInspectorWorkspace
+        architecture={architecture}
+        architectureJson={architectureJson}
+        architectureError={architectureError}
+        onArchitectureJsonChange={setArchitectureJson}
+      />
+    </AgentSessionProvider>
+  );
+}
+
+function WebMcpInspectorWorkspace({
+  architecture,
+  architectureJson,
+  architectureError,
+  onArchitectureJsonChange,
+}: {
+  architecture: Architecture | null;
+  architectureJson: string;
+  architectureError: string | null;
+  onArchitectureJsonChange: (value: string) => void;
+}) {
+  const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
+  const getContext = useAgentContextFactory();
+  const sessionStore = useAgentSessionStore();
+  const session = useAgentSessionState();
+  const onVisualIntent = useMemo(
+    () => createVisualIntentHandler(sessionStore, () => getContext().context.architecture),
+    [sessionStore, getContext],
+  );
 
   const [snapshot, setSnapshot] = useState<Phase6InspectorSnapshot | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
@@ -78,6 +123,7 @@ export function WebMcpInspector() {
         registry,
         getContext,
         development: true,
+        onVisualIntent,
       });
       setSnapshot(nextSnapshot);
       setSelectedToolName((current) =>
@@ -87,11 +133,11 @@ export function WebMcpInspector() {
       );
     } catch (error) {
       setSnapshot(null);
-      setSnapshotError(error instanceof Error ? error.message : "Could not build Phase 6 inspector snapshot.");
+      setSnapshotError(error instanceof Error ? error.message : "Could not build inspector snapshot.");
     } finally {
       setLoadingSnapshot(false);
     }
-  }, [architecture, getContext, registry]);
+  }, [architecture, getContext, onVisualIntent, registry]);
 
   useEffect(() => {
     if (architecture) void refreshSnapshot();
@@ -144,7 +190,7 @@ export function WebMcpInspector() {
         <textarea
           className="webmcp-inspector__textarea"
           value={architectureJson}
-          onChange={(event) => setArchitectureJson(event.target.value)}
+          onChange={(event) => onArchitectureJsonChange(event.target.value)}
           rows={12}
           spellCheck={false}
         />
@@ -155,6 +201,11 @@ export function WebMcpInspector() {
       </section>
 
       {snapshotError ? <p className="webmcp-inspector__error">{snapshotError}</p> : null}
+
+      <section className="webmcp-inspector__panel" aria-label="Session annotations">
+        <h2>Session annotations ({session.annotations.length})</h2>
+        <pre>{JSON.stringify(session, null, 2)}</pre>
+      </section>
 
       {snapshot ? (
         <>

@@ -3,7 +3,9 @@ import type {
   AgentCapabilityRegistry,
   AgentContext,
   CapabilityResult,
+  ClearAnnotationsIntent,
   LiveAgentSnapshot,
+  VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
 import {
   capabilityCancelled,
@@ -15,6 +17,7 @@ import {
 import { toWebMcpAnnotations } from "./annotations.js";
 import { sanitizeWebMcpCapabilityResult, unexpectedWebMcpCapabilityFailure } from "./error-safety.js";
 import type { WebMcpTool, WebMcpToolExecutionContext } from "./types.js";
+import { publishVisualIntent, type VisualIntentHandler } from "./visual-intent.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
 
@@ -25,6 +28,8 @@ export interface ToWebMcpToolOptions {
   readonly getContext: WebMcpContextFactory;
   /** Log unexpected adapter failures locally in development only. */
   readonly development?: boolean;
+  /** Apply visual coaching intents to the client session store before returning to the agent. */
+  readonly onVisualIntent?: VisualIntentHandler;
 }
 
 /**
@@ -32,7 +37,7 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, development = false } = options;
+  const { registry, getContext, development = false, onVisualIntent } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
 
   return {
@@ -63,7 +68,16 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           signal: executionContext.signal,
           session,
         });
-        return sanitizeWebMcpCapabilityResult(result, capability.name);
+        const sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
+        if (capability.mode === "visual" && sanitized.ok && onVisualIntent) {
+          publishVisualIntent(
+            capability.name,
+            input,
+            sanitized as CapabilityResult<VisualAnnotationIntent | ClearAnnotationsIntent>,
+            onVisualIntent,
+          );
+        }
+        return sanitized;
       } catch (error) {
         return unexpectedWebMcpCapabilityFailure(capability.name, error, development);
       }

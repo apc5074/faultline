@@ -30,7 +30,7 @@ type BoardState =
  * Public leaderboard HUD with Fastest | Cheapest toggle.
  * Both boards read the same `daily_best` projection through separate public endpoints.
  */
-export function LeaderboardHud() {
+export function LeaderboardHud({ maxEntries }: { maxEntries?: number } = {}) {
   const [mode, setMode] = useState<LeaderboardMode>("fastest");
   const [state, setState] = useState<BoardState>({ status: "loading" });
 
@@ -142,7 +142,7 @@ export function LeaderboardHud() {
             {state.mode === "cheapest" ? " · by cost" : " · by time"}
           </p>
           <ol className="hud-plate__rank-list tabular">
-            {state.rows.map((entry) => (
+            {state.rows.slice(0, maxEntries).map((entry) => (
               <li key={`${state.mode}-${entry.rank}-${entry.alias}`}>
                 <span className="hud-plate__rank">#{entry.rank}</span>
                 <span className="hud-plate__alias">{entry.alias}</span>

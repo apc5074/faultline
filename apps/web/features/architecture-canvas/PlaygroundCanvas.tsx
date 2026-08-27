@@ -16,6 +16,7 @@ import type { Dispatch, DragEvent, SetStateAction } from "react";
 import type { Architecture, ChallengeDefinition, RegionId } from "@faultline/core";
 import type { GeographicRoute } from "@faultline/simulator";
 
+import { AgentAnnotationLayer } from "@/features/agent-annotations";
 import { PLAYGROUND_SNAP_GRID } from "@/features/architecture-canvas/canvas-grid";
 import { InkConnectionLine } from "@/features/architecture-canvas/InkConnectionLine";
 import { InkEdge, type InkEdgeData } from "@/features/architecture-canvas/InkEdge";
@@ -134,6 +135,7 @@ export function PlaygroundCanvas({
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#b8ae9e" />
           <RegionEnclosuresLayer regionIds={enclosureRegions} semanticZoomOut={semanticZoomOut} />
+          <AgentAnnotationLayer architecture={architecture} semanticZoomOut={semanticZoomOut} />
           {playbackVisualsActive ? (
             <PlaybackPacketLayer
               architecture={architecture}

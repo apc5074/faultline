@@ -1,3 +1,6 @@
+export * from "./agent-visual-surface.js";
+export * from "./register-visual-surface.js";
+export * from "./visual-intent.js";
 export * from "./annotations.js";
 export * from "./error-safety.js";
 export * from "./model-context.js";

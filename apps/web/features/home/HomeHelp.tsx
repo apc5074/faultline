@@ -148,7 +148,7 @@ export function HomeHelp() {
               </li>
             </ol>
 
-            <a className="home-help__play" href="/level/1">
+            <a className="home-help__play" href="/level/1?brief=1">
               Play now <span aria-hidden="true">→</span>
             </a>
           </section>
