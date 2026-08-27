@@ -4,6 +4,7 @@ import type { AgentCapability } from "../capability.js";
 import type { AgentContext, AgentSimulationEvidence } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { inspectComponentInputSchema, type InspectComponentInput } from "../schemas.js";
+import type { AgentWorkloadFitEvidence } from "../workload-fit-evidence.js";
 
 /** Compact component inspection for agent grounding. */
 export interface InspectComponentOutput {
@@ -12,6 +13,8 @@ export interface InspectComponentOutput {
   readonly config: JsonObject;
   readonly metrics?: Readonly<Record<string, number>>;
   readonly monthlyCost?: number;
+  /** Role / mechanism / ceiling / effective / pressures when simulator evidence includes them. */
+  readonly workloadFit?: AgentWorkloadFitEvidence;
 }
 
 function monthlyCostForComponent(cost: CostResult | undefined, componentId: string): number | undefined {
@@ -22,28 +25,21 @@ function monthlyCostForComponent(cost: CostResult | undefined, componentId: stri
   return cost.lineItems.some((item) => item.componentId === componentId) ? amount : undefined;
 }
 
-function metricsForComponent(
-  simulation: AgentSimulationEvidence | undefined,
-  componentId: string,
-): Readonly<Record<string, number>> | undefined {
+function evidenceForComponent(simulation: AgentSimulationEvidence | undefined, componentId: string) {
   if (!simulation || simulation.available !== true) return undefined;
-  const evidence = simulation.components[componentId];
-  if (!evidence) return undefined;
-  return evidence.metrics;
+  return simulation.components[componentId];
 }
 
-function buildOutput(
-  component: ComponentInstance,
-  context: AgentContext,
-): InspectComponentOutput {
-  const metrics = metricsForComponent(context.simulation, component.id);
+function buildOutput(component: ComponentInstance, context: AgentContext): InspectComponentOutput {
+  const evidence = evidenceForComponent(context.simulation, component.id);
   const monthlyCost = monthlyCostForComponent(context.cost, component.id);
   return {
     id: component.id,
     type: component.type,
     config: component.config,
-    ...(metrics ? { metrics } : {}),
+    ...(evidence?.metrics ? { metrics: evidence.metrics } : {}),
     ...(monthlyCost !== undefined ? { monthlyCost } : {}),
+    ...(evidence?.workloadFit ? { workloadFit: evidence.workloadFit } : {}),
   };
 }
 
@@ -69,7 +65,7 @@ export const inspectComponentCapability: AgentCapability<
 > = {
   name: "inspect_component",
   description:
-    "Inspect one infrastructure component: config, simulator metrics, and monthly cost when available. Returns NOT_FOUND for unknown IDs.",
+    "Inspect one infrastructure component: config, simulator metrics, workload-fit evidence when present, and monthly cost when available. Returns NOT_FOUND for unknown IDs.",
   inputSchema: inspectComponentInputSchema,
   mode: "read",
   availableWhen: () => true,

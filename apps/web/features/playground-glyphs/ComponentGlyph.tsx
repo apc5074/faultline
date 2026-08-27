@@ -171,6 +171,7 @@ function CacheGlyph({
   h,
   capacity = 16,
   processingCount = 0,
+  processingSlotIndices,
   cacheHitFlash = false,
   mini = false,
 }: {
@@ -179,6 +180,7 @@ function CacheGlyph({
   h: number;
   capacity?: number;
   processingCount?: number;
+  processingSlotIndices?: readonly number[];
   cacheHitFlash?: boolean;
   mini?: boolean;
 }) {
@@ -188,6 +190,10 @@ function CacheGlyph({
   const cw = w / cols;
   const ch = h / rows;
   const filled = Math.min(processingCount, capacity);
+  const slotOrder =
+    processingSlotIndices && processingSlotIndices.length > 0
+      ? processingSlotIndices
+      : Array.from({ length: filled }, (_, index) => index);
 
   return (
     <g>
@@ -220,7 +226,7 @@ function CacheGlyph({
           {cacheHitFlash ? (
             <rect x={4 + 1.5} y={4 + 1.5} width={cw - 3} height={ch - 3} fill={GLYPH_INK.ink} />
           ) : null}
-          {Array.from({ length: filled }).map((_, idx) => {
+          {slotOrder.slice(0, filled).map((idx) => {
             const r = Math.floor(idx / cols);
             const c = idx % cols;
             return (
@@ -899,6 +905,7 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
     passCount = 0,
     processingCount = 0,
     cacheHitFlash = false,
+    processingSlotIndices,
     machineSize = "medium",
     slotCount,
     queueDepth,
@@ -931,6 +938,7 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
           {...shared}
           capacity={capacity}
           processingCount={processingCount}
+          processingSlotIndices={processingSlotIndices}
           cacheHitFlash={cacheHitFlash}
         />
       )}

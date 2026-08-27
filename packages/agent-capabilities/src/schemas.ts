@@ -27,6 +27,114 @@ export const runLoadTestInputSchema: CapabilityInputSchema<RunLoadTestInput> = {
   },
 };
 
+export interface ChangeTrafficPatternInput {
+  readonly hotKeyReadFraction: number;
+}
+
+/** Shared bounded hot-key input; the evaluator additionally compares it to the active baseline. */
+export const changeTrafficPatternInputSchema: CapabilityInputSchema<ChangeTrafficPatternInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: { hotKeyReadFraction: { type: "number", minimum: 0, maximum: 1 } },
+    required: ["hotKeyReadFraction"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["change_traffic_pattern input must be an object."] };
+    if (!hasOnlyKeys(input, ["hotKeyReadFraction"])) {
+      return { success: false as const, errors: ["change_traffic_pattern input contains unknown properties."] };
+    }
+    if (
+      typeof input.hotKeyReadFraction !== "number" ||
+      !Number.isFinite(input.hotKeyReadFraction) ||
+      input.hotKeyReadFraction < 0 ||
+      input.hotKeyReadFraction > 1
+    ) {
+      return { success: false as const, errors: ["hotKeyReadFraction must be a finite number between 0 and 1."] };
+    }
+    return { success: true as const, data: { hotKeyReadFraction: input.hotKeyReadFraction } };
+  },
+};
+
+export interface FlushCacheInput {
+  readonly componentId: string;
+}
+
+/** Required cache selector shared by the flush-cache adapters. */
+export const flushCacheInputSchema: CapabilityInputSchema<FlushCacheInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: { componentId: { type: "string", minLength: 1 } },
+    required: ["componentId"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["flush_cache input must be an object."] };
+    if (!hasOnlyKeys(input, ["componentId"])) {
+      return { success: false as const, errors: ["flush_cache input contains unknown properties."] };
+    }
+    if (typeof input.componentId !== "string" || input.componentId.trim().length === 0) {
+      return { success: false as const, errors: ["componentId must be a non-empty string."] };
+    }
+    return { success: true as const, data: { componentId: input.componentId } };
+  },
+};
+
+/** Required Service selector shared by the component-failure adapters. */
+export const injectComponentFailureInputSchema: CapabilityInputSchema<FlushCacheInput> = {
+  jsonSchema: flushCacheInputSchema.jsonSchema,
+  safeParse(input: unknown) {
+    const parsed = flushCacheInputSchema.safeParse(input);
+    return parsed.success
+      ? parsed
+      : { success: false as const, errors: parsed.errors.map((error) => error.replace(/^flush_cache/, "inject_component_failure")) };
+  },
+};
+
+export interface InjectRegionFailureInput { readonly regionId: string; }
+
+export const injectRegionFailureInputSchema: CapabilityInputSchema<InjectRegionFailureInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: { regionId: { type: "string", minLength: 1 } },
+    required: ["regionId"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["inject_region_failure input must be an object."] };
+    if (!hasOnlyKeys(input, ["regionId"])) return { success: false as const, errors: ["inject_region_failure input contains unknown properties."] };
+    if (typeof input.regionId !== "string" || input.regionId.trim().length === 0) return { success: false as const, errors: ["regionId must be a non-empty string."] };
+    return { success: true as const, data: { regionId: input.regionId } };
+  },
+};
+
+export interface TraceRequestInput {
+  readonly originRegionId?: string;
+  readonly kind?: "redirect" | "write";
+}
+
+export const traceRequestInputSchema: CapabilityInputSchema<TraceRequestInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      originRegionId: { type: "string", minLength: 1 },
+      kind: { type: "string", enum: ["redirect", "write"] },
+    },
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (input === undefined || input === null) return { success: true as const, data: {} };
+    if (!isRecord(input)) return { success: false as const, errors: ["trace_request input must be an object."] };
+    if (!hasOnlyKeys(input, ["originRegionId", "kind"])) return { success: false as const, errors: ["trace_request input contains unknown properties."] };
+    if (input.originRegionId !== undefined && (typeof input.originRegionId !== "string" || input.originRegionId.trim().length === 0)) return { success: false as const, errors: ["originRegionId must be a non-empty string when provided."] };
+    if (input.kind !== undefined && input.kind !== "redirect" && input.kind !== "write") return { success: false as const, errors: ["kind must be redirect or write when provided."] };
+    return { success: true as const, data: {
+      ...(input.originRegionId !== undefined ? { originRegionId: input.originRegionId } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+    } };
+  },
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

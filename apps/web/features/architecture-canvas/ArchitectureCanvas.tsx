@@ -3,9 +3,12 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useState } from "react";
+import type { ExperimentResult } from "@faultline/core";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
 import { DevExperimentControls } from "@/features/experiments/DevExperimentControls";
+import { ExperimentResultPanel } from "@/features/experiments/ExperimentResultPanel";
+import { publishExperimentResult, type PublishedExperimentResult } from "@/lib/experiments/experiment-result-publisher";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
@@ -37,6 +40,15 @@ function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
   const aiEnabled = isFaultlineAiEnabled();
+  const [publishedExperiment, setPublishedExperiment] = useState<PublishedExperimentResult | null>(null);
+  const [publishedExperimentArchitectureKey, setPublishedExperimentArchitectureKey] = useState<string | null>(null);
+  const publishResult = useCallback((result: ExperimentResult) => {
+    publishExperimentResult(result, (published) => {
+      setPublishedExperiment(published);
+      setPublishedExperimentArchitectureKey(JSON.stringify(workspace.architecture));
+      workspace.playback.start(workspace.architecture);
+    });
+  }, [workspace.architecture, workspace.playback]);
   const loadAnswerEnabled = isLevel1LoadAnswerEnabled();
   const [webMcpStatus, setWebMcpStatus] = useState<WebMcpStatus>({
     state: "unsupported",
@@ -59,10 +71,11 @@ function ArchitectureWorkspace() {
         <AnnotationRunLifecycle runState={workspace.runState} />
       ) : null}
       {aiEnabled ? (
-        <WebMcpRegistration
+      <WebMcpRegistration
           reconciliationKey={workspace.webMcpReconciliationKey}
-          onStatusChange={handleWebMcpStatus}
-        />
+        onStatusChange={handleWebMcpStatus}
+        onExperimentResult={publishResult}
+      />
       ) : null}
       <LevelBriefing
         open={briefing.open}
@@ -86,9 +99,9 @@ function ArchitectureWorkspace() {
               </button>
             ) : null}
           </div>
-          <DevExperimentControls architecture={workspace.architecture} challenge={activeChallenge} />
           {aiEnabled ? <WebMcpStatusPlate status={webMcpStatus} /> : null}
         </header>
+        <DevExperimentControls architecture={workspace.architecture} challenge={activeChallenge} onExperimentResult={publishResult} />
 
         <div className="playground-body">
           <ComponentRail definitions={workspace.paletteDefinitions} />
@@ -109,7 +122,7 @@ function ArchitectureWorkspace() {
               geographicRoutes={
                 workspace.simulationResult?.geographicRoutes ?? []
               }
-              playbackVisualsActive={workspace.playback.playbackRunning}
+              playbackVisualsActive={workspace.playbackVisualsActive}
               playbackFrame={workspace.playback.frame}
               enclosureRegions={workspace.enclosureRegions}
               onNodesChange={workspace.onNodesChange}
@@ -151,6 +164,18 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
+            {publishedExperiment ? (
+              <ExperimentResultPanel
+                result={publishedExperiment.result}
+                architectureKey={JSON.stringify(workspace.architecture)}
+                resultArchitectureKey={publishedExperimentArchitectureKey ?? ""}
+                onDismiss={() => {
+                  workspace.playback.reset();
+                  setPublishedExperiment(null);
+                  setPublishedExperimentArchitectureKey(null);
+                }}
+              />
+            ) : null}
             {aiEnabled ? (
               <p className="sr-only" aria-live="polite">
                 {workspace.attentionComponentId
@@ -182,6 +207,7 @@ function ArchitectureWorkspace() {
                     architecture={workspace.architecture}
                     onAttention={workspace.setAttentionComponentId}
                     onShowOnCanvas={workspace.focusComponentOnCanvas}
+                    onExperimentResult={publishResult}
                   />
                 ) : null}
               </div>

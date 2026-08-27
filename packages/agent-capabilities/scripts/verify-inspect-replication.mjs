@@ -134,6 +134,8 @@ if (implicit.ok) {
       writeUtilization: 0.22,
       readReplicaCount: 2,
     },
+    replicaCostFacts: [{ amount: 4_500 }],
+    semantics: { replicationLagSimulated: false, primaryPromotionSimulated: false, failoverHealthEvaluated: false },
     monthlyCost: 4_500,
   });
 }

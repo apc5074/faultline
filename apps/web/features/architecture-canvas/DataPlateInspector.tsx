@@ -40,6 +40,10 @@ import {
   InspectorSegControl,
   InspectorStepper,
 } from "@/features/architecture-canvas/InspectorPlateControls";
+import {
+  buildWorkloadEvidencePanel,
+  type WorkloadEvidencePanel,
+} from "@/features/architecture-canvas/workload-evidence";
 import { ComponentGlyph, glyphPropsFromComponent } from "@/features/playground-glyphs";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
@@ -163,6 +167,57 @@ function PlateField({
   );
 }
 
+function WorkloadFitSection({
+  panel,
+  emptyMessage,
+}: {
+  panel: WorkloadEvidencePanel | null;
+  emptyMessage: string | null;
+}) {
+  if (emptyMessage) {
+    return (
+      <DataPlateSection title="Workload fit">
+        <p className="data-plate-inspector__live-empty">{emptyMessage}</p>
+      </DataPlateSection>
+    );
+  }
+  if (!panel) return null;
+
+  return (
+    <DataPlateSection title="Workload fit">
+      <div className="inspector-plate__rows">
+        {panel.rows.map((row) => (
+          <InspectorDataRow key={row.label} label={row.label} value={row.value} />
+        ))}
+      </div>
+      {panel.hint ? <PlateHint>{panel.hint}</PlateHint> : null}
+    </DataPlateSection>
+  );
+}
+
+function workloadPanelForComponent(
+  component: ComponentInstance,
+  simulation: SuccessfulSimulation | null,
+  simulationStale: boolean,
+  runComplete: boolean,
+): { panel: WorkloadEvidencePanel | null; emptyMessage: string | null } {
+  if (!runComplete || !simulation) {
+    return { panel: null, emptyMessage: "Run simulation to see placement evidence." };
+  }
+  if (simulationStale) {
+    return { panel: null, emptyMessage: "Architecture changed — run again for fresh placement evidence." };
+  }
+  const panel = buildWorkloadEvidencePanel({
+    component,
+    challenge: activeChallenge,
+    caches: simulation.caches,
+    services: simulation.services,
+    postgres: simulation.postgres,
+    traffic: simulation.traffic,
+  });
+  return { panel, emptyMessage: null };
+}
+
 function LiveStrip({
   component,
   simulation,
@@ -280,6 +335,8 @@ export function DataPlateInspector({
   const monthlyCost = cost.lineItems.find((lineItem) => lineItem.componentId === component.id)?.amount ?? 0;
   const regions = getRegions();
 
+  const workloadFit = workloadPanelForComponent(component, simulation, simulationStale, runComplete);
+
   const shell = (label: string, body: ReactNode) => (
     <DataPlateShell label={label}>
       <DataPlateHeader
@@ -300,6 +357,7 @@ export function DataPlateInspector({
         simulationStale={simulationStale}
         runComplete={runComplete}
       />
+      <WorkloadFitSection panel={workloadFit.panel} emptyMessage={workloadFit.emptyMessage} />
       <AdvancedSection component={component} />
     </DataPlateShell>
   );

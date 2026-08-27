@@ -22,6 +22,11 @@ Before meaningful work:
 4. Implement the smallest production-quality change that satisfies the ticket.
 5. Keep the current Level 1 flow working.
 
+For editing routes, verification commands, common traps, and Codex-specific
+project memory, read [`docs/CODEX.md`](docs/CODEX.md) after the active ticket.
+It is operational guidance, not a replacement for the phase plan or domain
+contracts.
+
 Do not skip ahead to future phases unless required by the active ticket.
 
 ## Repository Map
@@ -35,6 +40,7 @@ Do not skip ahead to future phases unless required by the active ticket.
 - `packages/webmcp` — WebMCP adapter
 - `supabase` — migrations/schema
 - `docs` — durable architecture/domain documentation
+- `docs/CODEX.md` — concise edit routing, verification map, and agent memory
 - `plans/phase N/plan.md` — active execution plan and ticket order
 - `plans/overall.md` — durable product vision and rationale
 

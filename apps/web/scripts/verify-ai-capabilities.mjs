@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   BASELINE_READ_CAPABILITY_NAMES,
+  PHASE_8_READ_CAPABILITY_NAMES,
   createDefaultCapabilityRegistry,
   resolveCapabilities,
 } from "@faultline/agent-capabilities";
@@ -44,7 +45,7 @@ const baselineContext = {
 const baselineResolved = resolveCapabilities(registry, baselineContext);
 const baselineTools = toAISDKTools(registry, baselineContext);
 
-assert.deepEqual(Object.keys(baselineTools), [...baselineResolved.names]);
+assert.deepEqual(Object.keys(baselineTools), [...baselineResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES]);
 assert.deepEqual(baselineResolved.names, [...BASELINE_READ_CAPABILITY_NAMES]);
 assert.equal("inspect_cache" in baselineTools, false);
 
@@ -70,7 +71,7 @@ const redisContext = { ...baselineContext, architecture: redisArchitecture };
 const redisResolved = resolveCapabilities(registry, redisContext);
 const redisTools = toAISDKTools(registry, redisContext);
 
-assert.deepEqual(Object.keys(redisTools), [...redisResolved.names]);
+assert.deepEqual(Object.keys(redisTools), [...redisResolved.names, ...PHASE_8_READ_CAPABILITY_NAMES, "flush_cache"]);
 assert.deepEqual(redisResolved.names, [...BASELINE_READ_CAPABILITY_NAMES, "inspect_cache"]);
 assert.equal(redisTools.inspect_cache?.description, registry.get("inspect_cache").description);
 

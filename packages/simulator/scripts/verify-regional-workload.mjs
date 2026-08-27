@@ -87,7 +87,7 @@ if (!result.valid) throw new Error("expected valid requirements");
 assert.equal(result.regionalWorkload.active, true);
 assert.equal(result.regionalWorkload.totalRedirectRps, 120_000);
 assert.equal(result.hotKey.active, true);
-assert.equal(result.hotKey.viralRedirectRps, 30_000);
+assert.equal(result.hotKey.viralRedirectRps, 24_000);
 
 const tiny = propagateTraffic({
   architecture: {

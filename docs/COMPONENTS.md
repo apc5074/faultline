@@ -39,3 +39,17 @@ Do not add an `HA: true` checkbox. Resilience must come from structure the simul
 `load-balancer` distributes request traffic across Service components with `policy` `equal` or `capacity_weighted` and a non-zero educational monthly cost. Failure-aware exclusion of unhealthy backends is documented as a future extension and is not faked in Phase 2.
 
 `cdn` is the Level 1 edge-cache primitive on the request path (`Traffic → CDN → Service`). Player knobs are `coverage` (0..1 logical eligibility), `ttlBand`, and `tier`. It reduces origin redirect traffic via simulator hit/miss offload; writes always miss. No geographic POPs in Phase 2.
+
+## Workload affinity and dials
+
+Player dials express **intent**; challenge × role ceilings cap how much of that intent applies when the instance is ACTIVE.
+
+```text
+playerIntent     ← catalog dials (TTL band, coverage, size, fan-out, …)
+challengeCeiling ← maxEffectiveness × roleMultiplier   // challenge + graph role
+effective        ← challengeCeiling × playerIntent     // simulator truth on ACTIVE work
+```
+
+Placement is **derived**, not authored per edge: `resolveNodeRole` in `@faultline/simulator`. Catalog type → mechanism ownership lives in `mechanismIdForCatalogType` (same module) — extend the map when adding a type; do not add challenge-slug branches or UI-only badges.
+
+Affinity does not invent new knobs. It changes how much capacity, absorb, latency, and $ per unit work a mechanism delivers **when ACTIVE on a real path** for this workload. IDLE extras keep base catalog cost only. See `docs/CHALLENGES.md` (extending checklist) and `docs/SIMULATOR.md` (formula family).

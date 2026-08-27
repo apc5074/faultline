@@ -23,4 +23,11 @@ pnpm typecheck
 pnpm build
 ```
 
-The application currently provides the Phase 0 production shell. See `plans/phase 0/plan.md` for the active implementation sequence.
+Agent starting points:
+
+- `AGENTS.md` — repository-wide rules
+- `docs/CODEX.md` — code navigation, boundaries, verification, and common traps
+- `plans/phase N/plan.md` — active implementation sequence
+
+See the active phase plan for the current product state; the phase number in
+this README is intentionally not hard-coded.

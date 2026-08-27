@@ -1,16 +1,19 @@
 import type {
+  CachePlacementEvidence,
   CacheResult,
   PostgresCapacityMetrics,
   ServiceCapacityMetrics,
   SimulationEvent,
 } from "@faultline/simulator";
 
+import { impactSlotSeed, randomizedImpactSlots } from "../traffic-playback/impact-slots.ts";
+
 import type { GlyphState } from "./glyph-types";
 
 export type GlyphSimulationResult = {
   services: Readonly<Record<string, ServiceCapacityMetrics>>;
   postgres: Readonly<Record<string, PostgresCapacityMetrics>>;
-  caches?: Readonly<Record<string, CacheResult>>;
+  caches?: Readonly<Record<string, CacheResult & CachePlacementEvidence>>;
   events?: readonly SimulationEvent[];
 };
 
@@ -24,6 +27,7 @@ export interface DeriveGlyphStateOptions {
 export interface GlyphMechanismValues {
   processingCount?: number;
   passCount?: number;
+  processingSlotIndices?: readonly number[];
 }
 
 type CapacityBandState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
@@ -137,11 +141,24 @@ export function deriveGlyphMechanismValues(
 
   const cache = simulationResult.caches?.[componentId];
   if (cache) {
+    if (cache.mechanismId === "edge_cache") {
+      return {
+        passCount: cache.hitRps > 0 ? Math.max(1, Math.ceil(cache.hitRate * 6)) : 0,
+      };
+    }
+
+    const capacity = 16;
+    const cells =
+      cache.hitRps > 0
+        ? Math.min(capacity, mechanismCellsFromUtilization(cache.utilization, capacity, cache.saturated))
+        : 0;
+    const slotOrder = randomizedImpactSlots(
+      capacity,
+      impactSlotSeed({ runId: "glyph", componentId, sequence: 0 }),
+    );
     return {
-      processingCount:
-        cache.hitRps > 0
-          ? Math.min(3, mechanismCellsFromUtilization(cache.utilization, 4, cache.saturated))
-          : 0,
+      processingCount: cells,
+      processingSlotIndices: slotOrder.slice(0, cells),
     };
   }
 

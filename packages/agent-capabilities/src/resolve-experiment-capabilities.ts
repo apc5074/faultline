@@ -23,6 +23,7 @@ export function resolveExperimentCapabilities(
   for (const name of PHASE_8_EXPERIMENT_CAPABILITY_NAMES) {
     if (!registry.has(name)) { skipped.push({ name, reason: "missing" }); continue; }
     const capability = registry.get(name);
+    if (capability.mode !== "experiment") { skipped.push({ name, reason: "unavailable" }); continue; }
     if (!capability.availableWhen(context)) { skipped.push({ name, reason: "unavailable" }); continue; }
     capabilities.push(capability); names.push(name);
   }

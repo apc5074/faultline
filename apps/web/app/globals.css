@@ -13,29 +13,64 @@
   font-family: var(--font-mono), "Space Mono", monospace;
 }
 
+.experiment-result-panel {
+  margin: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-signal-red);
+  background: var(--color-paper-dark);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.experiment-result-panel p { margin: 0.35rem 0; }
+.experiment-result-panel__heading { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--color-signal-red); text-transform: uppercase; }
+.experiment-result-panel__stale { color: var(--color-signal-red); }
+
 .dev-experiment-controls {
-  position: relative;
-  z-index: 3;
+  position: fixed;
+  z-index: 40;
+  right: 0.75rem;
+  bottom: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  max-width: min(22rem, calc(100vw - 1.5rem));
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
   letter-spacing: 0.04em;
+  pointer-events: none;
 }
 
-.dev-experiment-controls summary {
-  cursor: pointer;
-  color: var(--color-signal-red);
+.dev-experiment-controls > * {
+  pointer-events: auto;
+}
+
+.dev-experiment-controls__toggle {
+  border: 1px solid var(--color-signal-red);
+  padding: 0.35rem 0.55rem;
+  background: var(--color-signal-red);
+  color: var(--color-paper);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--color-ink);
+}
+
+.dev-experiment-controls__toggle:hover,
+.dev-experiment-controls__toggle:focus-visible {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
 }
 
 .dev-experiment-controls__panel {
-  position: absolute;
-  top: 1.35rem;
-  right: 0;
-  width: min(22rem, 80vw);
+  width: min(22rem, calc(100vw - 1.5rem));
   padding: 0.65rem;
-  border: 1px solid var(--color-ink);
-  background: var(--color-paper);
-  box-shadow: 3px 3px 0 var(--color-ink-hairline);
+  border: 2px solid var(--color-signal-red);
+  background: #fff6f0;
+  box-shadow: 4px 4px 0 var(--color-ink);
 }
 
 .dev-experiment-controls__heading,
@@ -3316,6 +3351,10 @@ h1 {
 .ink-edge--peeling .react-flow__edge-path {
   stroke-dasharray: 3 6;
   animation: ink-edge-peel 180ms ease-in forwards;
+}
+
+.ink-edge--selected .react-flow__edge-path {
+  filter: drop-shadow(0 0 1px var(--color-signal-red));
 }
 
 .ink-edge--stream .react-flow__edge-path {

@@ -30,6 +30,12 @@ export interface InspectReplicationOutput {
   readonly primary?: ReplicationPrimaryPlacement;
   readonly replicas?: readonly CompactDeployment[];
   readonly readDistribution?: Readonly<Record<string, number>>;
+  readonly replicaCostFacts?: readonly { readonly amount: number; readonly label?: string }[];
+  readonly semantics: {
+    readonly replicationLagSimulated: false;
+    readonly primaryPromotionSimulated: false;
+    readonly failoverHealthEvaluated: false;
+  };
   readonly monthlyCost?: number;
 }
 
@@ -39,6 +45,14 @@ function monthlyCostForComponent(cost: CostResult | undefined, componentId: stri
     .filter((item) => item.componentId === componentId)
     .reduce((sum, item) => sum + item.amount, 0);
   return cost.lineItems.some((item) => item.componentId === componentId) ? amount : undefined;
+}
+
+function replicaCostFacts(cost: CostResult | undefined, componentId: string) {
+  if (!cost) return undefined;
+  const facts = cost.lineItems
+    .filter((item) => item.componentId === componentId)
+    .map((item) => ({ amount: item.amount, ...(item.label !== undefined ? { label: item.label } : {}) }));
+  return facts.length > 0 ? facts : undefined;
 }
 
 function readDistributionForComponent(
@@ -98,11 +112,14 @@ function buildTopology(component: { readonly id: string; readonly config: JsonOb
 function buildOutput(context: AgentContext, component: { readonly id: string; readonly config: JsonObject; readonly deployments: readonly { readonly id: string; readonly regionId: string; readonly config: JsonObject }[] }) {
   const readDistribution = readDistributionForComponent(context.simulation, component.id);
   const monthlyCost = monthlyCostForComponent(context.cost, component.id);
+  const costFacts = replicaCostFacts(context.cost, component.id);
   return {
     componentId: component.id,
     config: component.config,
     ...buildTopology(component),
     ...(readDistribution ? { readDistribution } : {}),
+    ...(costFacts ? { replicaCostFacts: costFacts } : {}),
+    semantics: { replicationLagSimulated: false, primaryPromotionSimulated: false, failoverHealthEvaluated: false } as const,
     ...(monthlyCost !== undefined ? { monthlyCost } : {}),
   };
 }
@@ -135,7 +152,7 @@ export const inspectReplicationCapability: AgentCapability<
 > = {
   name: "inspect_replication",
   description:
-    "Inspect one Postgres replication topology: primary/replica placement, replica count, read distribution from simulation when available, and monthly cost when available. Omit componentId when only one replicated Postgres exists.",
+    "Inspect one Postgres replication topology: canonical primary/replica placement, configured count, simulator-derived read routing, and cost facts. Explicitly reports that Phase 8 does not simulate lag, promotion, or failover health. Omit componentId when only one replicated Postgres exists.",
   inputSchema: inspectReplicationInputSchema,
   mode: "read",
   availableWhen: (context) => architectureHasPostgresReplica(context.architecture),

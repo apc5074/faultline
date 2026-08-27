@@ -59,6 +59,15 @@ const simulation = {
   components: {
     "redis-1": {
       metrics: { hitRate: 0.84, utilization: 0.72, readRps: 50_000, readCapacityRps: 65_000 },
+      workloadFit: {
+        participation: "active",
+        role: "read_aside",
+        mechanismId: "data_cache",
+        challengeCeiling: 0.3,
+        playerIntent: 0.8,
+        effective: 0.24,
+        unitCostPressure: 1,
+      },
     },
   },
 };
@@ -84,10 +93,24 @@ assert.equal(implicit.ok, true);
 if (implicit.ok) {
   assert.deepEqual(implicit.data, {
     componentId: "redis-1",
+    cacheType: "redis",
     config: { mode: "standalone", tier: "medium", ttlBand: "medium" },
+    simulationAvailable: true,
     deployments: [{ id: "dep-redis-eu", regionId: "europe", config: {} }],
+    hitRate: 0.84,
+    utilization: 0.72,
+    coldCacheExperimentAvailable: true,
     metrics: { hitRate: 0.84, utilization: 0.72, readRps: 50_000, readCapacityRps: 65_000 },
     monthlyCost: 3_000,
+    workloadFit: {
+      participation: "active",
+      role: "read_aside",
+      mechanismId: "data_cache",
+      challengeCeiling: 0.3,
+      playerIntent: 0.8,
+      effective: 0.24,
+      unitCostPressure: 1,
+    },
   });
 }
 
@@ -120,6 +143,8 @@ const noSimulation = inspectCache({ challenge, architecture: singleRedisArchitec
 assert.equal(noSimulation.ok, true);
 if (noSimulation.ok) {
   assert.equal("metrics" in noSimulation.data, false);
+  assert.equal(noSimulation.data.simulationAvailable, false);
+  assert.equal(noSimulation.data.coldCacheExperimentAvailable, false);
   assert.equal(noSimulation.data.monthlyCost, 3_000);
 }
 

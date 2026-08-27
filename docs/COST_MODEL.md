@@ -33,6 +33,18 @@ round(incomingRps × secondsPerBillingMonth / 1,000,000 × cdnUsageCostPerMillio
 ```
 
 plus the tier base. Without traffic metrics, CDN cost is base-only so architecture-only estimates stay valid.
+
+## Workload affinity unit-cost pressure
+
+When a challenge authors `workloadAffinity.mechanisms[*].unitCostPressure`, the cost model multiplies **usage-sensitive** line amounts for components that are **ACTIVE** (handled work > 0) by that factor. Catalog base pricing remains primary:
+
+- Service / Postgres: pressure applies to the component’s monthly amount when the node handled traffic.
+- CDN: pressure applies to the **usage** portion only; tier base is unchanged.
+- IDLE / unreachable nodes: pressure stays `1.0` — optional base monthly cost still applies; no hidden efficiency tax on unused boxes.
+- Omitting affinity or omitting `unitCostPressure` preserves legacy pricing (`1.0`).
+
+Do not invent a second price book in the UI. Consume `CostResult` from `estimateMonthlyCost`.
+
 ## Cross-region transfer (Phase 3)
 
 Transfer cost is driven by simulated `geographicRoutes`, not an arbitrary multi-region penalty.

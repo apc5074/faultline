@@ -20,6 +20,8 @@ export interface ComponentPlaybackVisual {
   state: "idle" | "processing" | "overloaded" | "failed";
   /** Redis: brief solid fill on cache hit (no flicker). */
   cacheHitFlash?: boolean;
+  /** Cache cubes: seeded random slot order (servers stay sequential). */
+  processingSlotIndices?: readonly number[];
 }
 
 export interface EdgeLoad {

@@ -14,6 +14,12 @@ import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
 import { BASELINE_VISUAL_CAPABILITIES } from "./visual-capabilities.js";
 import { runLoadTestCapability } from "./run-load-test.js";
+import { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
+import { flushCacheCapability } from "./flush-cache.js";
+import { injectComponentFailureCapability } from "./inject-component-failure.js";
+import { injectRegionFailureCapability } from "./inject-region-failure.js";
+import { traceRequestCapability } from "./trace-request.js";
+import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 
 export {
   getSessionFocusCapability,
@@ -29,6 +35,7 @@ export type { GetCoachingPolicyOutput } from "./get-coaching-policy.js";
 
 export { getChallengeCapability, buildGetChallengeOutput } from "./get-challenge.js";
 export type { ChallengeSpecialScenario, GetChallengeOutput } from "./get-challenge.js";
+export type { CompactWorkloadAffinity, CompactWorkloadMechanismAffinity } from "../workload-fit-evidence.js";
 
 export { getCostBreakdownCapability, getCostBreakdown } from "./get-cost-breakdown.js";
 export type { CostBreakdownLineItem, GetCostBreakdownOutput } from "./get-cost-breakdown.js";
@@ -91,6 +98,12 @@ export {
 } from "./visual-capabilities.js";
 export type { ClearAnnotationsIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
 export { runLoadTestCapability } from "./run-load-test.js";
+export { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
+export { flushCacheCapability } from "./flush-cache.js";
+export { injectComponentFailureCapability } from "./inject-component-failure.js";
+export { injectRegionFailureCapability } from "./inject-region-failure.js";
+export { traceRequestCapability } from "./trace-request.js";
+export { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
@@ -109,5 +122,11 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     inspectRegionalTrafficCapability,
     ...BASELINE_VISUAL_CAPABILITIES,
     runLoadTestCapability,
+    changeTrafficPatternCapability,
+    flushCacheCapability,
+    injectComponentFailureCapability,
+    injectRegionFailureCapability,
+    traceRequestCapability,
+    inspectBottlenecksCapability,
   ]);
 }

@@ -7,6 +7,7 @@ import type {
   LiveAgentSnapshot,
   VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
+import type { ExperimentResult } from "@faultline/core";
 import {
   capabilityCancelled,
   capabilityError,
@@ -30,6 +31,7 @@ export interface ToWebMcpToolOptions {
   readonly development?: boolean;
   /** Apply visual coaching intents to the client session store before returning to the agent. */
   readonly onVisualIntent?: VisualIntentHandler;
+  readonly onExperimentResult?: (result: ExperimentResult) => void;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, development = false, onVisualIntent } = options;
+  const { registry, getContext, development = false, onVisualIntent, onExperimentResult } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
 
   return {
@@ -69,6 +71,10 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           session,
         });
         const sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
+        if (capability.mode === "experiment" && sanitized.ok && onExperimentResult) {
+          const data = sanitized.data as { simulated?: boolean };
+          if (data.simulated === true) onExperimentResult(sanitized.data as ExperimentResult);
+        }
         if (capability.mode === "visual" && sanitized.ok && onVisualIntent) {
           publishVisualIntent(
             capability.name,

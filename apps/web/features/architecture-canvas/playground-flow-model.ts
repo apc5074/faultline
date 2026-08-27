@@ -126,6 +126,8 @@ export const nodeTypes = { playground: PlaygroundNode };
 export function connectionToEdge(
   connection: ArchitectureConnection,
   context: {
+    selected?: boolean;
+    deletable?: boolean;
     activeConnectionIds: ReadonlySet<string>;
     trafficActive: boolean;
     resultIsStale: boolean;
@@ -149,6 +151,10 @@ export function connectionToEdge(
     sourceHandle: connection.sourcePortId,
     target: connection.targetComponentId,
     targetHandle: connection.targetPortId,
+    selected: context.selected,
+    selectable: true,
+    deletable: context.deletable ?? false,
+    focusable: true,
     data: {
       load: visualLoad,
       active,

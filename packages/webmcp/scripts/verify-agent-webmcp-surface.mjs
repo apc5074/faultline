@@ -63,6 +63,6 @@ const aborted = await registerAgentWebMcpSurface({
   getContext: () => context,
   signal: controller.signal,
 });
-assert.deepEqual(aborted, { registeredToolNames: [], readToolNames: [], visualToolNames: [] });
+assert.deepEqual(aborted, { registeredToolNames: [], readToolNames: [], visualToolNames: [], experimentToolNames: [] });
 
 console.log("verify-agent-webmcp-surface: ok");

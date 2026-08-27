@@ -9,7 +9,7 @@ import {
 } from "../dist/index.js";
 
 assert.equal(urlShortenerChallenge.slug, "url-shortener");
-assert.equal(urlShortenerChallenge.version, 1);
+assert.equal(urlShortenerChallenge.version, 2);
 assert.equal(urlShortenerChallenge.developmentOnly, false);
 assert.equal(urlShortenerRedirectRps, 120_000);
 assert.equal(urlShortenerWriteRps, 4_000);
@@ -42,6 +42,8 @@ const expectedFractions = {
 for (const share of urlShortenerChallenge.geographicDistribution) {
   assert.equal(share.fraction, expectedFractions[share.regionId]);
 }
+assert.ok(urlShortenerChallenge.workloadAffinity?.mechanisms.edge_cache);
+assert.ok(urlShortenerChallenge.workloadAffinity?.mechanisms.data_cache);
 for (const type of ["traffic-source", "global-router", "load-balancer", "service", "cdn", "redis", "postgres"]) {
   assert.ok(urlShortenerChallenge.allowedComponentTypes.includes(type));
 }

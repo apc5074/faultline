@@ -76,6 +76,9 @@ const verifyLib = assertFile("apps/web/lib/competition/verify-submission.ts");
 assert.match(verifyLib, /evaluateRequirements/);
 assert.match(verifyLib, /@faultline\/simulator/);
 
+console.log("Check — competition config + affinity path");
+assert.ok(existsSync(join(web, "scripts/verify-competition-config.mjs")), "missing verify-competition-config.mjs");
+
 const start = assertFile("apps/web/app/api/attempts/start/route.ts");
 assert.match(start, /Start Official|startOfficial|attempts\/start|idempotent|ensure/i);
 

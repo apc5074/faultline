@@ -77,7 +77,9 @@ The coaching policy is discoverable through `get_coaching_policy`; agents should
 
 ## Registration and lifecycle
 
-`registerAgentWebMcpSurface()` registers both surfaces with a shared `AbortSignal`. The canvas reconciles registration when the challenge/architecture availability fingerprint changes. Unmount aborts registration cleanly. Optional WebMCP failures are contained so they never break gameplay.
+`registerAgentWebMcpSurface()` registers both surfaces with a shared `AbortSignal`. Successful WebMCP visual tools and embedded AI visual tools both pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. The canvas reconciles registration when the challenge/architecture availability fingerprint changes. Unmount aborts registration cleanly. Optional WebMCP failures are contained so they never break gameplay.
+
+The publisher owns coaching marks only. It does not mutate Architecture or rerun the simulator. A future trace or observation command is routed to the presentation controller from this same publisher boundary; coaching notes remain in the annotation layer and are kept across baseline/experiment runs, while ephemeral focus ticks are cleared when a run starts.
 
 For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and requires the AI feature flag.
 

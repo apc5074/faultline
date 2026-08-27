@@ -25,7 +25,14 @@ const urlShortenerLike = {
   monthlyBudget: 85_000,
   allowedComponentTypes: ["service", "postgres"],
   coachingPolicy: {
-    focusThemes: ["hot-key resilience", "read scaling", "global latency"],
+    focusThemes: [
+      "hot-key resilience",
+      "read scaling",
+      "global latency",
+      "cache-workload-fit",
+      "placement-fit",
+      "mechanism-fit",
+    ],
     prohibitedRevealCategories: [
       "canonical topology",
       "specific component requirements",
@@ -60,7 +67,10 @@ const output = buildGetCoachingPolicyOutput(context);
 assert.equal(output.policyText, buildCoachingPolicy(context));
 assert.ok(output.policyText.length > 0);
 assert.match(output.policyText, /hot-key resilience/);
+assert.match(output.policyText, /cache-workload-fit/);
+assert.match(output.policyText, /workload-fit evidence/);
 assert.match(output.policyText, /Never change architecture/);
+assert.match(output.policyText, /Do not prescribe a canonical stack/);
 assert.deepEqual(output.focusThemes, urlShortenerLike.coachingPolicy.focusThemes);
 assert.deepEqual(
   output.prohibitedRevealCategories,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { BASELINE_READ_CAPABILITY_NAMES, createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import { BASELINE_READ_CAPABILITY_NAMES, createDefaultCapabilityRegistry, workloadFitFromCacheMetrics, workloadFitFromPlacement } from "@faultline/agent-capabilities";
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
@@ -19,20 +19,28 @@ function numericMetrics(value) {
   return metrics;
 }
 
-function simulationEvidence(result) {
+function componentEvidence(metrics, workloadFit) {
+  return {
+    metrics: numericMetrics(metrics),
+    ...(typeof metrics.state === "string" ? { state: metrics.state } : {}),
+    ...(workloadFit ? { workloadFit } : {}),
+  };
+}
+
+function simulationEvidence(result, challenge) {
   if (!result.valid) {
     return { available: false, validationErrors: result.errors.map((error) => error.message) };
   }
 
   const components = {};
   for (const [componentId, metrics] of Object.entries(result.services)) {
-    components[componentId] = { metrics: numericMetrics(metrics), state: metrics.state };
+    components[componentId] = componentEvidence(metrics, workloadFitFromPlacement(metrics.placement));
   }
   for (const [componentId, metrics] of Object.entries(result.postgres)) {
-    components[componentId] = { metrics: numericMetrics(metrics), state: metrics.state };
+    components[componentId] = componentEvidence(metrics, workloadFitFromPlacement(metrics.placement));
   }
   for (const [componentId, metrics] of Object.entries(result.caches)) {
-    components[componentId] = { metrics: numericMetrics(metrics) };
+    components[componentId] = componentEvidence(metrics, workloadFitFromCacheMetrics(metrics, challenge));
   }
 
   const throughput = result.requirements.find((requirement) => requirement.type === "throughput");
@@ -53,7 +61,7 @@ function createAgentContext(architecture, challenge) {
   return {
     challenge,
     architecture,
-    simulation: simulationEvidence(result),
+    simulation: simulationEvidence(result, challenge),
     ...(result.valid ? { cost: result.cost } : {}),
     user: { authenticated: false },
   };

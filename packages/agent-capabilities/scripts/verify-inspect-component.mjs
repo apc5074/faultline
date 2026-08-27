@@ -50,6 +50,15 @@ const simulation = {
         headroom: 0.075,
         p95Ms: 143,
       },
+      workloadFit: {
+        participation: "active",
+        role: "compute",
+        mechanismId: "stateless_compute",
+        challengeCeiling: 1,
+        playerIntent: 1,
+        effective: 1,
+        unitCostPressure: 1,
+      },
     },
     "postgres-1": {
       metrics: {
@@ -92,6 +101,15 @@ if (service.ok) {
       p95Ms: 143,
     },
     monthlyCost: 12_000,
+    workloadFit: {
+      participation: "active",
+      role: "compute",
+      mechanismId: "stateless_compute",
+      challengeCeiling: 1,
+      playerIntent: 1,
+      effective: 1,
+      unitCostPressure: 1,
+    },
   });
 }
 

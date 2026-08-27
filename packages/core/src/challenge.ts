@@ -77,6 +77,59 @@ export interface ChallengeCoachingPolicy {
   prohibitedRevealCategories: readonly string[];
 }
 
+/** What job a placed component can do, independent of where it sits in the graph. */
+export type WorkloadMechanismId =
+  | "edge_cache"
+  | "data_cache"
+  | "request_fanout"
+  | "geo_routing"
+  | "stateless_compute"
+  | "durable_store";
+
+/** Where a component sits in the request/data path, derived by the simulator from topology. */
+export type ArchitecturalRoleId =
+  | "edge_ingress"
+  | "path_middleware"
+  | "compute"
+  | "read_aside"
+  | "write_path"
+  | "geo_route"
+  | "primary_store"
+  | "replica_store"
+  | "unreachable"
+  | "misplaced";
+
+/** Challenge-authored ceiling for how useful one mechanism is for this workload. */
+export interface MechanismAffinity {
+  /** Baseline ceiling for this mechanism on this challenge (0..1). */
+  maxEffectiveness: number;
+  /**
+   * Optional per-role multipliers (0..1). Final ceiling =
+   * maxEffectiveness × roleMultiplier[role] (missing role → mechanism defaultRoleMultiplier).
+   */
+  byRole?: Partial<Record<ArchitecturalRoleId, number>>;
+  /** Default role multiplier when byRole omits the resolved role. Default 1.0; use low for misplaced. */
+  defaultRoleMultiplier?: number;
+  /** Caches only: how concentrated reusable keys are (0..1). High → hot-key friendly. */
+  reuseConcentration?: number;
+  /**
+   * Optional multiplier on usage-sensitive cost for handled work on this challenge (default 1.0).
+   * Idle components keep base catalog cost only.
+   */
+  unitCostPressure?: number;
+  /** Optional additive processing latency (ms) when this mechanism serves active work in-role. */
+  processingLatencyPenaltyMs?: number;
+  /** Author note for briefing/coaching — never scored. */
+  note?: string;
+}
+
+/** Challenge-authored placement-aware scoring ceilings. Omitting this preserves legacy (ceiling 1.0) behavior. */
+export interface WorkloadAffinity {
+  mechanisms: Partial<Record<WorkloadMechanismId, MechanismAffinity>>;
+  /** Global fallback when a resolved role has no byRole entry and no defaultRoleMultiplier. */
+  roleDefaults?: Partial<Record<ArchitecturalRoleId, number>>;
+}
+
 /** Challenge-owned configuration consumed by the simulator and UI. */
 export interface ChallengeDefinition {
   slug: string;
@@ -97,6 +150,11 @@ export interface ChallengeDefinition {
    */
   transferPayload?: TransferPayloadAssumptions;
   coachingPolicy?: ChallengeCoachingPolicy;
+  /**
+   * Placement-aware scoring ceilings by mechanism/role. Omit for legacy behavior
+   * (mechanism ceiling 1.0; simulator role defaults still demote unreachable/misplaced).
+   */
+  workloadAffinity?: WorkloadAffinity;
   /** Deferred targets (e.g. availability) preserved without dishonest scoring. */
   unscoredTargets?: readonly UnscoredChallengeTarget[];
   requirements: readonly RequirementDefinition[];

@@ -2,21 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { ChallengeDefinition, Architecture } from "@faultline/core";
+import type { ChallengeDefinition, Architecture, ExperimentResult } from "@faultline/core";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateExperiment, type ExperimentEvaluationResult } from "@faultline/simulator";
 
-import { isDevExperimentHarnessEnabled } from "@/lib/experiments/dev-harness-flag";
 import {
-  advancePresentationPlayback,
-  cancelPresentationPlayback,
-  createPlaybackEvents,
-  preparePresentationPlayback,
-  settlePresentationPlayback,
-  startPresentationPlayback,
-  type PlaybackEvent,
-  type PresentationPlaybackState,
-} from "@/features/traffic-playback";
+  DEV_EXPERIMENTS_UI_STORAGE_KEY,
+  isDevExperimentHarnessEnabled,
+} from "@/lib/experiments/dev-harness-flag";
 
 type ExperimentChoice = "traffic_multiplier" | "hot_key" | "cache_flush" | "component_failure" | "region_failure";
 
@@ -32,39 +25,50 @@ function formatMetric(value: number): string {
   return Number.isInteger(value) ? value.toLocaleString("en-US") : value.toFixed(2);
 }
 
+function readUiOpenPreference(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const stored = window.localStorage.getItem(DEV_EXPERIMENTS_UI_STORAGE_KEY);
+    if (stored === null) return true;
+    return stored === "1" || stored === "true" || stored === "open";
+  } catch {
+    return true;
+  }
+}
+
+function writeUiOpenPreference(open: boolean): void {
+  try {
+    window.localStorage.setItem(DEV_EXPERIMENTS_UI_STORAGE_KEY, open ? "1" : "0");
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 export function DevExperimentControls({
   architecture,
   challenge,
+  onExperimentResult,
 }: {
   architecture: Architecture;
   challenge: ChallengeDefinition;
+  onExperimentResult?: (result: ExperimentResult) => void;
 }) {
+  const harnessAllowed = isDevExperimentHarnessEnabled();
+  const [panelOpen, setPanelOpen] = useState(true);
   const [choice, setChoice] = useState<ExperimentChoice>("traffic_multiplier");
   const [targetId, setTargetId] = useState("");
   const [result, setResult] = useState<ExperimentEvaluationResult | null>(null);
-  const [playbackEvents, setPlaybackEvents] = useState<readonly PlaybackEvent[]>([]);
   const [running, setRunning] = useState(false);
   const runTokenRef = useRef(0);
   const [resultArchitectureKey, setResultArchitectureKey] = useState<string | null>(null);
-  const [reducedMotion, setReducedMotion] = useState(false);
-  const [playbackState, setPlaybackState] = useState<PresentationPlaybackState | null>(null);
   const architectureKey = JSON.stringify(architecture);
 
-  useEffect(() => () => { runTokenRef.current += 1; }, []);
-
   useEffect(() => {
-    if (playbackState?.phase !== "playing") return;
-    const timer = window.setTimeout(() => {
-      setPlaybackState((current) => {
-        if (!current || current.phase !== "playing") return current;
-        const advanced = advancePresentationPlayback(current);
-        return advanced.nextEventIndex >= advanced.events.length
-          ? settlePresentationPlayback(advanced)
-          : advanced;
-      });
-    }, 90);
-    return () => window.clearTimeout(timer);
-  }, [playbackState]);
+    if (!harnessAllowed) return;
+    setPanelOpen(readUiOpenPreference());
+  }, [harnessAllowed]);
+
+  useEffect(() => () => { runTokenRef.current += 1; }, []);
 
   const targets = useMemo(() => {
     switch (choice) {
@@ -103,7 +107,12 @@ export function DevExperimentControls({
       ? "The baseline already uses the maximum hot-key fraction."
       : null;
 
-  if (!isDevExperimentHarnessEnabled()) return null;
+  if (!harnessAllowed) return null;
+
+  const setOpen = (open: boolean) => {
+    setPanelOpen(open);
+    writeUiOpenPreference(open);
+  };
 
   const runExperiment = () => {
     if (unavailableReason || (targetRequired && !targetId)) return;
@@ -123,20 +132,7 @@ export function DevExperimentControls({
       if (token !== runTokenRef.current) return;
       const nextResult = evaluateExperiment({ architecture, challenge, registry: componentRegistry, experiment });
       setResult(nextResult);
-      const nextPlaybackEvents = nextResult.ok
-        ? createPlaybackEvents({
-            runId: `dev-experiment-${choice}-${architectureKey.length}-${targetId || "none"}`,
-            source: "experiment",
-            events: nextResult.data.events,
-          })
-        : [];
-      setPlaybackEvents(nextPlaybackEvents);
-      if (nextPlaybackEvents.length > 0) {
-        const prepared = preparePresentationPlayback(nextPlaybackEvents);
-        setPlaybackState(reducedMotion ? settlePresentationPlayback(prepared) : startPresentationPlayback(prepared));
-      } else {
-        setPlaybackState(null);
-      }
+      if (nextResult.ok) onExperimentResult?.(nextResult.data);
       setResultArchitectureKey(architectureKey);
       setRunning(false);
     }, 0);
@@ -148,119 +144,91 @@ export function DevExperimentControls({
   };
 
   return (
-    <details className="dev-experiment-controls">
-      <summary>dev experiments</summary>
-      <div className="dev-experiment-controls__panel">
-        <div className="dev-experiment-controls__heading">
-          <span>simulated only</span>
-          {result ? (
-            <button type="button" onClick={() => {
-              cancelExperiment();
-              setResult(null);
-              setResultArchitectureKey(null);
-              setPlaybackEvents([]);
-              setPlaybackState(null);
-            }}>
-              dismiss
-            </button>
-          ) : null}
-        </div>
-        <div className="dev-experiment-controls__buttons" role="group" aria-label="Development experiments">
-          {(Object.keys(EXPERIMENT_LABELS) as ExperimentChoice[]).map((experimentType) => (
-            <button
-              key={experimentType}
-              type="button"
-              className={choice === experimentType ? "dev-experiment-controls__button--active" : undefined}
-              aria-pressed={choice === experimentType}
-              disabled={running}
-              onClick={() => {
-                setChoice(experimentType);
-                setTargetId("");
+    <div className="dev-experiment-controls" data-open={panelOpen ? "true" : "false"}>
+      <button
+        type="button"
+        className="dev-experiment-controls__toggle"
+        aria-expanded={panelOpen}
+        aria-controls="dev-experiment-panel"
+        onClick={() => setOpen(!panelOpen)}
+      >
+        {panelOpen ? "hide dev" : "dev experiments"}
+      </button>
+      {panelOpen ? (
+        <div id="dev-experiment-panel" className="dev-experiment-controls__panel">
+          <div className="dev-experiment-controls__heading">
+            <span>dev · simulated only</span>
+            {result ? (
+              <button type="button" onClick={() => {
+                cancelExperiment();
                 setResult(null);
                 setResultArchitectureKey(null);
-                setPlaybackEvents([]);
-                setPlaybackState(null);
-              }}
-            >
-              {EXPERIMENT_LABELS[experimentType]}
-            </button>
-          ))}
-        </div>
-        {targetRequired ? (
-          <label className="dev-experiment-controls__target">
-            target
-            <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
-              <option value="">choose…</option>
-              {targets.map((target) => {
-                const value = typeof target === "string" ? target : target.id;
-                const label = typeof target === "string" ? target : `${componentRegistry.get(target.type).label} · ${target.id}`;
-                return <option key={value} value={value}>{label}</option>;
-              })}
-            </select>
-          </label>
-        ) : null}
-        {unavailableReason ? <p className="dev-experiment-controls__note">{unavailableReason}</p> : null}
-        <button
-          type="button"
-          className="dev-experiment-controls__run"
-          disabled={running || Boolean(unavailableReason) || (targetRequired && !targetId)}
-          onClick={runExperiment}
-        >
-          {running ? "running…" : `run ${EXPERIMENT_LABELS[choice]}`}
-        </button>
-        {running ? <button type="button" onClick={cancelExperiment}>cancel</button> : null}
-        {playbackEvents.length > 0 ? (
-          <div className="dev-experiment-controls__playback" role="group" aria-label="Experiment playback controls">
-            <button
-              type="button"
-              disabled={running}
-              onClick={() => {
-                const prepared = preparePresentationPlayback(playbackEvents);
-                setPlaybackState(reducedMotion ? settlePresentationPlayback(prepared) : startPresentationPlayback(prepared));
-              }}
-            >
-              replay
-            </button>
-            <button
-              type="button"
-              onClick={() => setPlaybackState((current) => current ? cancelPresentationPlayback(current) : current)}
-            >
-              pause / cancel
-            </button>
-            <label>
-              <input
-                type="checkbox"
-                checked={reducedMotion}
-                onChange={(event) => {
-                  setReducedMotion(event.target.checked);
-                  if (event.target.checked) {
-                    setPlaybackState((current) => current ? settlePresentationPlayback(current) : current);
-                  }
+              }}>
+                dismiss
+              </button>
+            ) : null}
+          </div>
+          <div className="dev-experiment-controls__buttons" role="group" aria-label="Development experiments">
+            {(Object.keys(EXPERIMENT_LABELS) as ExperimentChoice[]).map((experimentType) => (
+              <button
+                key={experimentType}
+                type="button"
+                className={choice === experimentType ? "dev-experiment-controls__button--active" : undefined}
+                aria-pressed={choice === experimentType}
+                disabled={running}
+                onClick={() => {
+                  setChoice(experimentType);
+                  setTargetId("");
+                  setResult(null);
+                  setResultArchitectureKey(null);
                 }}
-              />
-              settled
+              >
+                {EXPERIMENT_LABELS[experimentType]}
+              </button>
+            ))}
+          </div>
+          {targetRequired ? (
+            <label className="dev-experiment-controls__target">
+              target
+              <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+                <option value="">choose…</option>
+                {targets.map((target) => {
+                  const value = typeof target === "string" ? target : target.id;
+                  const label = typeof target === "string" ? target : `${componentRegistry.get(target.type).label} · ${target.id}`;
+                  return <option key={value} value={value}>{label}</option>;
+                })}
+              </select>
             </label>
-            <span>{playbackState?.phase ?? "idle"}</span>
-          </div>
-        ) : null}
-        {result ? (
-          <div className="dev-experiment-controls__result" aria-live="polite">
-            {resultArchitectureKey !== architectureKey ? <span>stale — architecture changed; rerun</span> : null}
-            {result.ok ? (
-              <>
-                <strong>simulated {result.data.type}</strong>
-                <span>
-                  {result.data.baseline.allRequirementsPass ? "pass" : "fail"} → {result.data.outcome.allRequirementsPass ? "pass" : "fail"}
-                  {" · "}p95 {formatMetric(result.data.baseline.p95LatencyMs)} → {formatMetric(result.data.outcome.p95LatencyMs)} ms
-                </span>
-                <span>{playbackEvents.length} authoritative experiment events</span>
-              </>
-            ) : (
-              <span role="alert">{result.code}: {result.message}</span>
-            )}
-          </div>
-        ) : null}
-      </div>
-    </details>
+          ) : null}
+          {unavailableReason ? <p className="dev-experiment-controls__note">{unavailableReason}</p> : null}
+          <button
+            type="button"
+            className="dev-experiment-controls__run"
+            disabled={running || Boolean(unavailableReason) || (targetRequired && !targetId)}
+            onClick={runExperiment}
+          >
+            {running ? "running…" : `run ${EXPERIMENT_LABELS[choice]}`}
+          </button>
+          {running ? <button type="button" onClick={cancelExperiment}>cancel</button> : null}
+          {result ? (
+            <div className="dev-experiment-controls__result" aria-live="polite">
+              {resultArchitectureKey !== architectureKey ? <span>stale — architecture changed; rerun</span> : null}
+              {result.ok ? (
+                <>
+                  <strong>simulated {result.data.type}</strong>
+                  <span>
+                    {result.data.baseline.allRequirementsPass ? "pass" : "fail"} → {result.data.outcome.allRequirementsPass ? "pass" : "fail"}
+                    {" · "}p95 {formatMetric(result.data.baseline.p95LatencyMs)} → {formatMetric(result.data.outcome.p95LatencyMs)} ms
+                  </span>
+                  <span>{result.data.events.length} authoritative experiment events</span>
+                </>
+              ) : (
+                <span role="alert">{result.code}: {result.message}</span>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

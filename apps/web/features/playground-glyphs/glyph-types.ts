@@ -80,6 +80,8 @@ export interface ComponentGlyphProps {
   passCount?: number;
   processingCount?: number;
   cacheHitFlash?: boolean;
+  /** When set, cache cells at these indices fill (random order). Servers ignore this. */
+  processingSlotIndices?: readonly number[];
   /** Catalog size/tier dial — drives chassis scale and internal density. */
   machineSize?: GlyphMachineSize;
 }

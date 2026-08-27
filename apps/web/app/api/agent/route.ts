@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_AGENT_REQUEST_BYTES = 64_000;
 const encoder = new TextEncoder();
+const visualToolNames = new Set(["focus_component", "annotate_component", "highlight_connection", "clear_annotations"]);
 
 function activityLabel(toolName: string, input: unknown): { label: string; componentId?: string } | null {
   if (toolName === "get_architecture") return { label: "Inspecting architecture…" };
@@ -24,15 +25,25 @@ function activityLabel(toolName: string, input: unknown): { label: string; compo
   if (toolName === "inspect_cache") return { label: "Inspecting cache…" };
   if (toolName === "inspect_replication") return { label: "Inspecting replication…" };
   if (toolName === "inspect_regional_traffic") return { label: "Inspecting regional traffic…" };
+  if (toolName === "trace_request") return { label: "Tracing a simulator request path…" };
+  if (toolName === "inspect_bottlenecks") return { label: "Ranking simulator bottlenecks…" };
+  if (["run_load_test", "change_traffic_pattern", "flush_cache", "inject_component_failure", "inject_region_failure"].includes(toolName)) return { label: "Running simulated experiment…" };
   return null;
 }
 
 function agentEventResponse(stream: AsyncIterable<unknown>): Response {
   const body = new ReadableStream<Uint8Array>({ async start(controller) {
     try { for await (const part of stream) {
-      const event = part as { type?: string; textDelta?: string; toolName?: string; input?: unknown };
+      const event = part as { type?: string; textDelta?: string; toolName?: string; input?: unknown; output?: unknown };
       if (event.type === "text-delta") controller.enqueue(encoder.encode(`${JSON.stringify({ type: "text", delta: event.textDelta ?? "" })}\n`));
       if (event.type === "tool-call" && event.toolName) { const activity = activityLabel(event.toolName, event.input); if (activity) controller.enqueue(encoder.encode(`${JSON.stringify({ type: "activity", ...activity })}\n`)); }
+      if (event.type === "tool-result" && event.toolName && visualToolNames.has(event.toolName)) {
+        controller.enqueue(encoder.encode(`${JSON.stringify({ type: "visual-intent", capabilityName: event.toolName, input: event.input, visualResult: event.output })}\n`));
+      }
+      if (event.type === "tool-result" && event.toolName && ["run_load_test", "change_traffic_pattern", "flush_cache", "inject_component_failure", "inject_region_failure"].includes(event.toolName)) {
+        const output = event.output as { ok?: boolean; data?: { simulated?: boolean } } | undefined;
+        if (output?.ok === true && output.data?.simulated === true) controller.enqueue(encoder.encode(`${JSON.stringify({ type: "experiment-result", result: output.data })}\n`));
+      }
     } controller.close(); } catch { controller.enqueue(encoder.encode(`${JSON.stringify({ type: "error" })}\n`)); controller.close(); }
   }});
   return new Response(body, { headers: { "content-type": "application/x-ndjson", "cache-control": "no-store" } });

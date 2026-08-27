@@ -11,6 +11,11 @@ import {
   type TrafficPropagationInput,
   type TrafficPropagationResult,
 } from "./traffic.js";
+import {
+  activeCapacityScale,
+  resolveMechanismPlacement,
+  type MechanismPlacementEvidence,
+} from "./workload-affinity.js";
 
 export type ServiceCapacityState = "healthy" | "warning" | "critical" | "saturated";
 
@@ -40,6 +45,8 @@ export interface ServiceCapacityMetrics {
   state: ServiceCapacityState;
   /** Present when geographic deployments received traffic. */
   regions?: readonly ServiceRegionalCapacityMetrics[];
+  /** Placement-aware mechanism evidence when workload affinity is active. */
+  placement?: MechanismPlacementEvidence;
 }
 
 export type ServiceCapacityResult =
@@ -74,6 +81,7 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
   if (!propagation.valid) return propagation;
 
   const architecture = input.architecture as Architecture;
+  const challenge = input.challenge;
   const services: Record<string, ServiceCapacityMetrics> = {};
   const events = [...propagation.events];
 
@@ -97,6 +105,15 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
       continue;
     }
     const capacityRps = serviceCapacityForConfig(config);
+    const placement = resolveMechanismPlacement({
+      challenge,
+      catalogType: "service",
+      nodeId: component.id,
+      architecture,
+      playerIntent: 1,
+      handledRps: incomingRps,
+    });
+    const effectiveCapacityRps = capacityRps * activeCapacityScale(placement);
 
     const regionalIncoming = propagation.regionalTraffic[component.id];
     if (component.deployments.length > 0 && regionalIncoming) {
@@ -108,7 +125,7 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
 
       for (const deployment of [...component.deployments].sort((left, right) => left.id.localeCompare(right.id))) {
         const instances = serviceInstancesFromDeployment(deployment) ?? 0;
-        const regionCapacity = instances * perInstance;
+        const regionCapacity = instances * perInstance * activeCapacityScale(placement);
         const regionIncoming = regionalIncoming[deployment.regionId]?.incomingRps ?? 0;
         const utilization = regionCapacity > 0 ? regionIncoming / regionCapacity : regionIncoming > 0 ? Number.POSITIVE_INFINITY : 0;
         const state = stateForUtilization(utilization === Number.POSITIVE_INFINITY ? 2 : utilization);
@@ -127,28 +144,30 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
 
       const metrics: ServiceCapacityMetrics = {
         incomingRps,
-        capacityRps,
+        capacityRps: effectiveCapacityRps,
         handledRps,
         unmetRps,
         utilization: worstUtilization,
-        headroom: capacityRps > 0 ? (capacityRps - incomingRps) / capacityRps : 0,
+        headroom: effectiveCapacityRps > 0 ? (effectiveCapacityRps - incomingRps) / effectiveCapacityRps : 0,
         state: stateForUtilization(worstUtilization),
         regions,
+        ...(placement && challenge.workloadAffinity ? { placement } : {}),
       };
       services[component.id] = metrics;
       events.push(...capacityEvents(component.id, metrics));
       continue;
     }
 
-    const utilization = incomingRps / capacityRps;
+    const utilization = effectiveCapacityRps > 0 ? incomingRps / effectiveCapacityRps : incomingRps > 0 ? Number.POSITIVE_INFINITY : 0;
     const metrics: ServiceCapacityMetrics = {
       incomingRps,
-      capacityRps,
-      handledRps: Math.min(incomingRps, capacityRps),
-      unmetRps: Math.max(0, incomingRps - capacityRps),
+      capacityRps: effectiveCapacityRps,
+      handledRps: Math.min(incomingRps, effectiveCapacityRps),
+      unmetRps: Math.max(0, incomingRps - effectiveCapacityRps),
       utilization,
-      headroom: (capacityRps - incomingRps) / capacityRps,
-      state: stateForUtilization(utilization),
+      headroom: effectiveCapacityRps > 0 ? (effectiveCapacityRps - incomingRps) / effectiveCapacityRps : 0,
+      state: stateForUtilization(utilization === Number.POSITIVE_INFINITY ? 2 : utilization),
+      ...(placement && challenge.workloadAffinity ? { placement } : {}),
     };
     services[component.id] = metrics;
     events.push(...capacityEvents(component.id, metrics));

@@ -7,6 +7,7 @@ export type PlaybackMechanismProps = {
   armAngle?: number;
   passCount?: number;
   cacheHitFlash?: boolean;
+  processingSlotIndices?: readonly number[];
 };
 
 const IDLE_VISUAL: ComponentPlaybackVisual = {
@@ -27,6 +28,7 @@ export function mechanismPropsFromPlayback(
     armAngle: playback.armAngle ?? catalog.armAngle,
     passCount: playback.passCount ?? 0,
     cacheHitFlash: playback.cacheHitFlash,
+    processingSlotIndices: playback.processingSlotIndices,
   };
 }
 

@@ -24,6 +24,7 @@ export function InkEdge({
   targetX,
   targetY,
   data,
+  selected,
 }: EdgeProps<InkFlowEdge>) {
   const offset = data?.offset ?? 0;
   const path = computeOrthogonalPath(sourceX, sourceY, targetX, targetY, offset);
@@ -31,12 +32,17 @@ export function InkEdge({
   const active = data?.active ?? false;
   const stale = data?.stale ?? false;
   const semanticZoomOut = data?.semanticZoomOut ?? false;
+  const isSelected = selected ?? false;
   const strokeWidth = semanticZoomOut
     ? active
       ? 1 + load * 1.5
       : 1
     : strokeWidthForLoad(load, active && !stale);
-  const stroke = stale ? "var(--color-ink-hairline)" : "var(--color-ink)";
+  const stroke = isSelected
+    ? "var(--color-signal-red)"
+    : stale
+      ? "var(--color-ink-hairline)"
+      : "var(--color-ink)";
   const opacity = stale ? 0.45 : data?.peeling ? 0.35 : 1;
 
   return (
@@ -47,17 +53,19 @@ export function InkEdge({
         className={[
           data?.peeling ? "ink-edge--peeling" : "",
           data?.pulse && !semanticZoomOut ? "ink-edge--pulse" : "",
+          isSelected ? "ink-edge--selected" : "",
           semanticZoomOut ? "ink-edge--stream" : "",
         ]
           .filter(Boolean)
           .join(" ")}
         style={{
           stroke,
-          strokeWidth,
+          strokeWidth: isSelected ? strokeWidth + 1 : strokeWidth,
           strokeLinecap: "square",
           strokeLinejoin: "miter",
           opacity,
         }}
+        interactionWidth={24}
       />
       {data?.pulse && !semanticZoomOut ? (
         <path

@@ -10,6 +10,7 @@ import {
   challengeRedirectRps,
   challengeWriteRps,
 } from "@/features/architecture-canvas/playground-challenge";
+import { workloadBriefingPlacementHint } from "@/features/architecture-canvas/workload-evidence";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 const ONBOARDING_SESSION_KEY = "faultline.level1.onboarding.seen";
@@ -132,6 +133,7 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
   const latency = activeChallenge.requirements.find((requirement) => requirement.id === "latency");
   const headroom = activeChallenge.requirements.find((requirement) => requirement.id === "headroom");
   const budget = activeChallenge.requirements.find((requirement) => requirement.id === "budget");
+  const placementHint = workloadBriefingPlacementHint(activeChallenge);
   const isHowTo = step === "how-to";
 
   useEffect(() => {
@@ -239,6 +241,10 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
                   <dd>{challengeHotKeyLabel}</dd>
                 </div>
               </dl>
+
+              {placementHint ? (
+                <p className="level-briefing__hint">{placementHint}</p>
+              ) : null}
 
               <p className="level-briefing__section-label">Pass when</p>
               <ul className="level-briefing__targets">

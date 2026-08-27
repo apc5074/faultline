@@ -20,7 +20,7 @@ import type {
 } from "@faultline/core";
 import { isValidRegion } from "@faultline/core";
 
-import { evaluateCacheOffload, type CacheResult } from "./cache.js";
+import { evaluateCacheOffload, type CachePlacementEvidence, type CacheResult } from "./cache.js";
 import {
   addRegionalTraffic,
   architectureHasServiceDeployments,
@@ -38,6 +38,12 @@ import {
   validateArchitectureForSimulation,
   type SimulationValidationError,
 } from "./validation.js";
+import {
+  loadBalancerFanOutPlayerIntent,
+  resolveCacheConfiguredHitRate,
+  resolveMechanismPlacement,
+  type RoleResolutionContext,
+} from "./workload-affinity.js";
 
 export interface ComponentTraffic {
   incomingRps: number;
@@ -73,7 +79,7 @@ export type TrafficPropagationResult =
   | {
       valid: true;
       traffic: Readonly<Record<string, ComponentTraffic>>;
-      caches: Readonly<Record<string, CacheResult>>;
+      caches: Readonly<Record<string, CacheResult & CachePlacementEvidence>>;
       /** Challenge-derived traffic origins; empty/inactive when geography is unset. */
       regionalWorkload: RegionalWorkload;
       /** Per-component per-region load when geographic routing is active. */
@@ -144,6 +150,7 @@ function allocateForwardedRequestRps(
   architecture: Architecture,
   registry: ComponentRegistry,
   forwarderId: string,
+  challenge: ChallengeDefinition,
 ): readonly { edge: Connection; rps: number }[] {
   if (edges.length === 0 || pendingRps <= 0) return [];
 
@@ -158,10 +165,27 @@ function allocateForwardedRequestRps(
     const weights = edges.map((edge) => serviceCapacityWeight(architecture, registry, edge.targetComponentId));
     const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
     if (totalWeight > 0) {
-      return edges.map((edge, index) => ({
+      const equalShare = pendingRps / edges.length;
+      const weighted = edges.map((edge, index) => ({
         edge,
-        rps: (pendingRps * weights[index]) / totalWeight,
+        weightedRps: (pendingRps * weights[index]) / totalWeight,
       }));
+      if (forwarder?.type === "load-balancer") {
+        const placement = resolveMechanismPlacement({
+          challenge,
+          catalogType: "load-balancer",
+          nodeId: forwarderId,
+          architecture,
+          playerIntent: loadBalancerFanOutPlayerIntent(architecture, forwarderId),
+          handledRps: pendingRps,
+        });
+        const blend = placement?.participation === "active" ? placement.effective : 1;
+        return weighted.map(({ edge, weightedRps }) => ({
+          edge,
+          rps: equalShare * (1 - blend) + weightedRps * blend,
+        }));
+      }
+      return weighted.map(({ edge, weightedRps }) => ({ edge, rps: weightedRps }));
     }
   }
 
@@ -206,34 +230,60 @@ function cacheLoadEvents(componentId: string, cache: CacheResult): SimulationEve
   return events;
 }
 
+
 function evaluateCdnCache(
   componentId: string,
   incomingRps: number,
   config: CdnConfig,
-  readRatio: number,
+  architecture: Architecture,
+  challenge: ChallengeDefinition,
   overlay?: ExperimentOverlay,
-): CacheResult {
-  const redirectRps = incomingRps * readRatio;
+  affinityContext?: RoleResolutionContext,
+): CacheResult & CachePlacementEvidence {
+  const redirectRps = incomingRps * challenge.workload.readRatio;
   const eligibleRps = redirectRps * config.coverage;
-  return evaluateCacheOffload({
+  const { finalConfiguredHitRate, ...evidence } = resolveCacheConfiguredHitRate({
+    componentId,
+    catalogType: "cdn",
+    playerIntent: cdnHitRateForConfig(config),
+    architecture,
+    challenge,
+    context: affinityContext,
+    coldCache: overlay?.coldCacheComponentIds?.includes(componentId),
+  });
+  const offload = evaluateCacheOffload({
     eligibleRps,
-    configuredHitRate: overlay?.coldCacheComponentIds?.includes(componentId) ? 0 : cdnHitRateForConfig(config),
+    configuredHitRate: finalConfiguredHitRate,
     capacityRps: cdnThroughputCapacityForConfig(config),
   });
+  return { ...offload, ...evidence };
 }
 
 function evaluateRedisCache(
   componentId: string,
   readRps: number,
   config: RedisConfig,
+  architecture: Architecture,
+  challenge: ChallengeDefinition,
   overlay?: ExperimentOverlay,
-): CacheResult {
+  affinityContext?: RoleResolutionContext,
+): CacheResult & CachePlacementEvidence {
   const model = redisEffectiveModel(config);
-  return evaluateCacheOffload({
+  const { finalConfiguredHitRate, ...evidence } = resolveCacheConfiguredHitRate({
+    componentId,
+    catalogType: "redis",
+    playerIntent: redisHitRateForConfig(config),
+    architecture,
+    challenge,
+    context: affinityContext,
+    coldCache: overlay?.coldCacheComponentIds?.includes(componentId),
+  });
+  const offload = evaluateCacheOffload({
     eligibleRps: readRps,
-    configuredHitRate: overlay?.coldCacheComponentIds?.includes(componentId) ? 0 : redisHitRateForConfig(config),
+    configuredHitRate: finalConfiguredHitRate,
     capacityRps: model.throughputRps,
   });
+  return { ...offload, ...evidence };
 }
 
 /**
@@ -277,7 +327,7 @@ function propagateLogicalTraffic(
   const traffic = Object.fromEntries(
     stableById(architecture.components).map((component) => [component.id, createTraffic()]),
   ) as Record<string, ComponentTraffic>;
-  const caches: Record<string, CacheResult> = {};
+  const caches: Record<string, CacheResult & CachePlacementEvidence> = {};
   let unroutableRps = 0;
   const events: SimulationEvent[] = [{ type: "simulation_started", data: { requestsPerSecond: challenge.workload.requestsPerSecond } }];
   const sources = stableById(architecture.components.filter((component) => component.type === "traffic-source"));
@@ -322,7 +372,7 @@ function propagateLogicalTraffic(
       if (isEdgeCache(simulation)) {
         const parsed = registry.get(forwarder.type).configSchema.safeParse(forwarder.config);
         if (!parsed.success) continue;
-        const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, challenge.workload.readRatio, overlay);
+        const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, architecture, challenge, overlay);
         caches[forwarder.id] = cache;
         events.push(...cacheLoadEvents(forwarder.id, cache));
         forwardRps = pendingRps - cache.hitRps;
@@ -336,7 +386,7 @@ function propagateLogicalTraffic(
         forwardedAny = true;
         continue;
       }
-      const allocations = allocateForwardedRequestRps(forwardRps, eligibleEdges, architecture, registry, forwarder.id);
+      const allocations = allocateForwardedRequestRps(forwardRps, eligibleEdges, architecture, registry, forwarder.id, challenge);
       traffic[forwarder.id].outgoingRps += pendingRps;
       forwardedAny = true;
 
@@ -390,7 +440,7 @@ function propagateLogicalTraffic(
     const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
     if (!parsed.success) continue;
 
-    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, overlay);
+    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, architecture, challenge, overlay);
     caches[cacheComponent.id] = cache;
     events.push(...cacheLoadEvents(cacheComponent.id, cache));
 
@@ -441,7 +491,7 @@ function propagateGeographicTraffic(
   ) as Record<string, ComponentTraffic>;
   const regionalTraffic: Record<string, Record<string, RegionalComponentTraffic>> = {};
   const geographicRoutes: GeographicRoute[] = [];
-  const caches: Record<string, CacheResult> = {};
+  const caches: Record<string, CacheResult & CachePlacementEvidence> = {};
   let unroutableRps = 0;
   const events: SimulationEvent[] = [
     {
@@ -602,7 +652,9 @@ function propagateGeographicTraffic(
     if (pendingRps <= 0) continue;
     const parsed = registry.get(forwarder.type).configSchema.safeParse(forwarder.config);
     if (!parsed.success) continue;
-    const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, challenge.workload.readRatio, overlay);
+    const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, architecture, challenge, overlay, {
+      geographicRoutingActive: true,
+    });
     caches[forwarder.id] = cache;
     events.push(...cacheLoadEvents(forwarder.id, cache));
     traffic[forwarder.id].outgoingRps += pendingRps;
@@ -627,7 +679,9 @@ function propagateGeographicTraffic(
 
     const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
     if (!parsed.success) continue;
-    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, overlay);
+    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, architecture, challenge, overlay, {
+      geographicRoutingActive: true,
+    });
     caches[cacheComponent.id] = cache;
     events.push(...cacheLoadEvents(cacheComponent.id, cache));
 

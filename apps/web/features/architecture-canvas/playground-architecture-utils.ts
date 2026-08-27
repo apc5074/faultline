@@ -98,6 +98,51 @@ export function connectionFromFlow(
   };
 }
 
+/**
+ * Preserve a path when its middle component is removed. Only matching
+ * connection types are bridged, and normal connection validation still owns
+ * the final compatibility check.
+ */
+export function reconnectAroundComponent(
+  architecture: Architecture,
+  componentId: string,
+  connectionsBeforeDelete: readonly ArchitectureConnection[],
+): ArchitectureConnection[] {
+  const components = architecture.components.filter((component) => component.id !== componentId);
+  const incoming = connectionsBeforeDelete.filter((connection) => connection.targetComponentId === componentId);
+  const outgoing = connectionsBeforeDelete.filter((connection) => connection.sourceComponentId === componentId);
+  const existingKeys = new Set(
+    architecture.connections.map(
+      (connection) =>
+        `${connection.sourceComponentId}:${connection.sourcePortId}->${connection.targetComponentId}:${connection.targetPortId}:${connection.type}`,
+    ),
+  );
+  const replacements: ArchitectureConnection[] = [];
+
+  for (const inbound of incoming) {
+    for (const outbound of outgoing) {
+      if (inbound.type !== outbound.type) continue;
+      const replacement = connectionFromFlow(
+        {
+          source: inbound.sourceComponentId,
+          sourceHandle: inbound.sourcePortId,
+          target: outbound.targetComponentId,
+          targetHandle: outbound.targetPortId,
+        },
+        components,
+      );
+      if (!replacement) continue;
+
+      const key = `${replacement.sourceComponentId}:${replacement.sourcePortId}->${replacement.targetComponentId}:${replacement.targetPortId}:${replacement.type}`;
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      replacements.push(replacement);
+    }
+  }
+
+  return replacements;
+}
+
 export function worldSelectionForComponent(
   architecture: Architecture,
   componentId: string | null,

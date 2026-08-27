@@ -1,7 +1,7 @@
 /**
  * Lightweight CHAL-001 calibration fixtures (not a formal regression suite).
- * Prints outcome metrics for underprovisioned, cache-heavy, CDN-heavy, replica-heavy,
- * and over-budget architectures. Asserts at least two materially different passers.
+ * Prints outcome metrics for underprovisioned, good, trap, misplace, lean, idle-extra,
+ * replica-heavy, and over-budget architectures.
  */
 import assert from "node:assert/strict";
 import { componentRegistry } from "@faultline/component-catalog";
@@ -107,22 +107,29 @@ const underprovisioned = summarize(
 assert.equal(underprovisioned.allRequirementsPass, false);
 
 const cacheHeavy = summarize(
-  "cache-heavy (CDN + Redis layered)",
+  "cache-heavy (CDN + Redis + LB)",
   evaluateRequirements({
     architecture: {
       version: 1,
       components: [
         traffic,
         cdn("cdn-01", 1, "long", "large", 120),
-        service("service-01", "large", 8, 350),
+        lb("lb-01", "equal", 220),
+        service("service-01", "large", 6, 350),
+        service("service-02", "large", 6, 350),
         redis("redis-01", "standalone", "large", "long", 550),
-        postgres("postgres-01", "large", 1, 800),
+        postgres("postgres-01", "large", 2, 800),
       ],
       connections: [
         req("t-c", "traffic-01", "cdn-01"),
-        req("c-s", "cdn-01", "service-01", "origin_out", "request_in"),
-        db("s-r", "service-01", "redis-01", "database_out", "cache_in"),
+        req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+        req("lb-s1", "lb-01", "service-01"),
+        req("lb-s2", "lb-01", "service-02"),
+        db("s1-r", "service-01", "redis-01", "database_out", "cache_in"),
+        db("s2-r", "service-02", "redis-01", "database_out", "cache_in"),
         db("r-p", "redis-01", "postgres-01", "origin_out", "database_in"),
+        db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+        db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
       ],
     },
     challenge,
@@ -131,26 +138,154 @@ const cacheHeavy = summarize(
 );
 
 const cdnHeavy = summarize(
-  "cdn-heavy",
+  "cdn-heavy (LB, no Redis)",
   evaluateRequirements({
     architecture: {
       version: 1,
       components: [
         traffic,
         cdn("cdn-01", 1, "long", "large", 150),
-        service("service-01", "large", 8, 400),
+        lb("lb-01", "equal", 220),
+        service("service-01", "large", 6, 300),
+        service("service-02", "large", 6, 300),
         postgres("postgres-01", "large", 2, 700),
       ],
       connections: [
         req("t-c", "traffic-01", "cdn-01"),
-        req("c-s", "cdn-01", "service-01", "origin_out", "request_in"),
-        db("s-p", "service-01", "postgres-01", "database_out", "database_in"),
+        req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+        req("lb-s1", "lb-01", "service-01"),
+        req("lb-s2", "lb-01", "service-02"),
+        db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+        db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
       ],
     },
     challenge,
     registry,
   }),
 );
+
+const trapRedisNoCdn = summarize(
+  "trap (fat Redis, no CDN)",
+  evaluateRequirements({
+    architecture: {
+      version: 1,
+      components: [
+        traffic,
+        service("service-01", "large", 10, 300),
+        redis("redis-01", "replicated", "large", "long", 450),
+        postgres("postgres-01", "large", 3, 700),
+      ],
+      connections: [
+        req("t-s", "traffic-01", "service-01"),
+        db("s-r", "service-01", "redis-01", "database_out", "cache_in"),
+        db("r-p", "redis-01", "postgres-01", "origin_out", "database_in"),
+      ],
+    },
+    challenge,
+    registry,
+  }),
+);
+assert.equal(trapRedisNoCdn.allRequirementsPass, false);
+assert.ok(
+  trapRedisNoCdn.p95LatencyMs >= challenge.requirements.find((requirement) => requirement.id === "latency")?.target ||
+    trapRedisNoCdn.throughputRatio < 1,
+  "trap should fail latency or throughput without edge cache",
+);
+
+const misplaceRedis = summarize(
+  "misplace (Redis dead-end, no store)",
+  evaluateRequirements({
+    architecture: {
+      version: 1,
+      components: [
+        traffic,
+        cdn("cdn-01", 1, "long", "large", 120),
+        lb("lb-01", "equal", 220),
+        service("service-01", "large", 6, 350),
+        service("service-02", "large", 6, 350),
+        redis("redis-01", "standalone", "large", "long", 550),
+        redis("redis-02", "standalone", "medium", "long", 650),
+        postgres("postgres-01", "large", 2, 800),
+      ],
+      connections: [
+        req("t-c", "traffic-01", "cdn-01"),
+        req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+        req("lb-s1", "lb-01", "service-01"),
+        req("lb-s2", "lb-01", "service-02"),
+        db("s1-r", "service-01", "redis-01", "database_out", "cache_in"),
+        db("s2-r", "service-02", "redis-01", "database_out", "cache_in"),
+        db("r-r", "redis-01", "redis-02", "origin_out", "cache_in"),
+        db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+        db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
+      ],
+    },
+    challenge,
+    registry,
+  }),
+);
+const misplaceHit = misplaceRedis.caches["redis-01"]?.hitRps ?? 0;
+const readAsideHit = cacheHeavy.caches["redis-01"]?.hitRps ?? 0;
+assert.ok(readAsideHit > misplaceHit * 2, "read-aside Redis should materially outperform misplaced Redis");
+
+const lean = summarize(
+  "lean (CDN + LB 5+5, one replica)",
+  evaluateRequirements({
+    architecture: {
+      version: 1,
+      components: [
+        traffic,
+        cdn("cdn-01", 1, "long", "large", 120),
+        lb("lb-01", "equal", 220),
+        service("service-01", "large", 5, 350),
+        service("service-02", "large", 5, 350),
+        postgres("postgres-01", "large", 1, 800),
+      ],
+      connections: [
+        req("t-c", "traffic-01", "cdn-01"),
+        req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+        req("lb-s1", "lb-01", "service-01"),
+        req("lb-s2", "lb-01", "service-02"),
+        db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+        db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
+      ],
+    },
+    challenge,
+    registry,
+  }),
+);
+assert.equal(lean.allRequirementsPass, true);
+assert.ok(lean.cost.monthlyTotal <= challenge.monthlyBudget * 0.75, "lean passer should leave meaningful budget headroom");
+
+const idleExtra = summarize(
+  "idle-extra (lean + disconnected Redis)",
+  evaluateRequirements({
+    architecture: {
+      version: 1,
+      components: [
+        traffic,
+        cdn("cdn-01", 1, "long", "large", 120),
+        lb("lb-01", "equal", 220),
+        service("service-01", "large", 5, 350),
+        service("service-02", "large", 5, 350),
+        redis("redis-idle", "standalone", "medium", "long", 550),
+        postgres("postgres-01", "large", 1, 800),
+      ],
+      connections: [
+        req("t-c", "traffic-01", "cdn-01"),
+        req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+        req("lb-s1", "lb-01", "service-01"),
+        req("lb-s2", "lb-01", "service-02"),
+        db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+        db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
+      ],
+    },
+    challenge,
+    registry,
+  }),
+);
+assert.equal(idleExtra.allRequirementsPass, true);
+assert.ok(idleExtra.cost.monthlyTotal > lean.cost.monthlyTotal, "idle Redis should add base cost only");
+assert.equal(idleExtra.caches["redis-idle"], undefined, "disconnected Redis handles no traffic");
 
 const replicaHeavy = summarize(
   "replica-heavy (no cache)",
@@ -202,7 +337,7 @@ const overBudget = summarize(
       ],
       connections: [
         req("t-c", "traffic-01", "cdn-01"),
-        req("c-lb", "cdn-01", "lb-01", "origin_out", "request_in"),
+        req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
         req("lb-s1", "lb-01", "service-01"),
         req("lb-s2", "lb-01", "service-02"),
         req("lb-s3", "lb-01", "service-03"),
@@ -212,6 +347,10 @@ const overBudget = summarize(
         db("s3-r", "service-03", "redis-01", "database_out", "cache_in"),
         db("s4-r", "service-04", "redis-01", "database_out", "cache_in"),
         db("r-p", "redis-01", "postgres-01", "origin_out", "database_in"),
+        db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+        db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
+        db("s3-p", "service-03", "postgres-01", "database_out", "database_in"),
+        db("s4-p", "service-04", "postgres-01", "database_out", "database_in"),
       ],
     },
     challenge,
@@ -222,6 +361,7 @@ const overBudget = summarize(
 const passers = [
   ["cache-heavy", cacheHeavy],
   ["cdn-heavy", cdnHeavy],
+  ["lean", lean],
 ].filter(([, result]) => result.allRequirementsPass);
 
 console.log(`\nPassers: ${passers.map(([name]) => name).join(", ") || "(none)"}`);

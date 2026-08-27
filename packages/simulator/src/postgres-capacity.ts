@@ -14,6 +14,11 @@ import {
   type TrafficPropagationInput,
   type TrafficPropagationResult,
 } from "./traffic.js";
+import {
+  activeCapacityScale,
+  resolveMechanismPlacement,
+  type MechanismPlacementEvidence,
+} from "./workload-affinity.js";
 
 export type PostgresCapacityState = "healthy" | "warning" | "critical" | "saturated";
 
@@ -40,6 +45,8 @@ export interface PostgresCapacityMetrics {
   readCapacityShortfallRps: number;
   writeCapacityShortfallRps: number;
   state: PostgresCapacityState;
+  /** Placement-aware mechanism evidence when workload affinity is active. */
+  placement?: MechanismPlacementEvidence;
 }
 
 export type PostgresCapacityResult =
@@ -102,6 +109,7 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
   if (!propagation.valid) return propagation;
 
   const architecture = input.architecture as Architecture;
+  const challenge = input.challenge;
   const postgres: Record<string, PostgresCapacityMetrics> = {};
   const events = [...propagation.events];
 
@@ -117,9 +125,21 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
     const readCapacityRps = postgresReadCapacityForConfig(config);
     const writeCapacityRps = postgresWriteCapacityForConfig(config);
     const traffic = propagation.traffic[component.id];
+    const handledRps = traffic.readRps + traffic.writeRps;
+    const placement = resolveMechanismPlacement({
+      challenge,
+      catalogType: "postgres",
+      nodeId: component.id,
+      architecture,
+      playerIntent: 1,
+      handledRps,
+    });
+    const capacityScale = activeCapacityScale(placement);
+    const effectiveReadCapacityRps = readCapacityRps * capacityScale;
+    const effectiveWriteCapacityRps = writeCapacityRps * capacityScale;
     const { primaryReadRps, replicaReadRps } = distributePostgresReads(traffic.readRps, config);
-    const readUtilization = traffic.readRps / readCapacityRps;
-    const writeUtilization = traffic.writeRps / writeCapacityRps;
+    const readUtilization = effectiveReadCapacityRps > 0 ? traffic.readRps / effectiveReadCapacityRps : traffic.readRps > 0 ? Number.POSITIVE_INFINITY : 0;
+    const writeUtilization = effectiveWriteCapacityRps > 0 ? traffic.writeRps / effectiveWriteCapacityRps : traffic.writeRps > 0 ? Number.POSITIVE_INFINITY : 0;
     const effectiveUtilization = Math.max(readUtilization, writeUtilization);
     const metrics: PostgresCapacityMetrics = {
       readRps: traffic.readRps,
@@ -128,17 +148,18 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
       replicaReadRps,
       primaryReadCapacityRps,
       replicaReadCapacityRps,
-      readCapacityRps,
-      writeCapacityRps,
+      readCapacityRps: effectiveReadCapacityRps,
+      writeCapacityRps: effectiveWriteCapacityRps,
       readReplicaCount: config.readReplicaCount,
-      readUtilization,
-      writeUtilization,
-      effectiveUtilization,
-      readHandledRps: Math.min(traffic.readRps, readCapacityRps),
-      writeHandledRps: Math.min(traffic.writeRps, writeCapacityRps),
-      readCapacityShortfallRps: Math.max(0, traffic.readRps - readCapacityRps),
-      writeCapacityShortfallRps: Math.max(0, traffic.writeRps - writeCapacityRps),
-      state: stateForUtilization(effectiveUtilization),
+      readUtilization: readUtilization === Number.POSITIVE_INFINITY ? traffic.readRps : readUtilization,
+      writeUtilization: writeUtilization === Number.POSITIVE_INFINITY ? traffic.writeRps : writeUtilization,
+      effectiveUtilization: effectiveUtilization === Number.POSITIVE_INFINITY ? Math.max(traffic.readRps, traffic.writeRps) : effectiveUtilization,
+      readHandledRps: Math.min(traffic.readRps, effectiveReadCapacityRps),
+      writeHandledRps: Math.min(traffic.writeRps, effectiveWriteCapacityRps),
+      readCapacityShortfallRps: Math.max(0, traffic.readRps - effectiveReadCapacityRps),
+      writeCapacityShortfallRps: Math.max(0, traffic.writeRps - effectiveWriteCapacityRps),
+      state: stateForUtilization(effectiveUtilization === Number.POSITIVE_INFINITY ? 2 : effectiveUtilization),
+      ...(placement && challenge.workloadAffinity ? { placement } : {}),
     };
     postgres[component.id] = metrics;
     events.push(...capacityEvents(component.id, metrics));

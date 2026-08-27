@@ -1,8 +1,35 @@
-import { isValidRegion, type ChallengeDefinition, type RequirementComparator, type RequirementType } from "@faultline/core";
+import {
+  isValidRegion,
+  type ArchitecturalRoleId,
+  type ChallengeDefinition,
+  type RequirementComparator,
+  type RequirementType,
+  type WorkloadMechanismId,
+} from "@faultline/core";
 
 const slugPattern = /^[a-z][a-z0-9-]*$/;
 const requirementTypes = new Set<RequirementType>(["throughput", "latency", "headroom", "budget"]);
 const comparators = new Set<RequirementComparator>(["gte", "lte", "lt"]);
+const workloadMechanismIds = new Set<WorkloadMechanismId>([
+  "edge_cache",
+  "data_cache",
+  "request_fanout",
+  "geo_routing",
+  "stateless_compute",
+  "durable_store",
+]);
+const architecturalRoleIds = new Set<ArchitecturalRoleId>([
+  "edge_ingress",
+  "path_middleware",
+  "compute",
+  "read_aside",
+  "write_path",
+  "geo_route",
+  "primary_store",
+  "replica_store",
+  "unreachable",
+  "misplaced",
+]);
 /** Safe tolerance for geographic fraction sums (100%). */
 const GEOGRAPHIC_FRACTION_SUM_TOLERANCE = 1e-9;
 
@@ -20,6 +47,10 @@ function isFinitePositiveNumber(value: unknown): value is number {
 
 function isFiniteUnitInterval(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 export class ChallengeDefinitionError extends Error {
@@ -147,6 +178,76 @@ export function assertChallengeDefinition(definition: unknown): asserts definiti
       Array.isArray(value) && value.length > 0 && value.length <= 8 && value.every((item) => isNonEmptyString(item) && item.length <= 120 && !/\d/.test(item));
     if (!isRecord(policy) || !validEntries(policy.focusThemes) || !validEntries(policy.prohibitedRevealCategories)) {
       throw new ChallengeDefinitionError(`Challenge "${definition.slug}" has an invalid coachingPolicy.`);
+    }
+  }
+
+  if (definition.workloadAffinity !== undefined) {
+    const affinity = definition.workloadAffinity;
+    if (!isRecord(affinity)) {
+      throw new ChallengeDefinitionError(`Challenge "${definition.slug}" workloadAffinity must be an object when set.`);
+    }
+
+    const assertRoleMultiplierMap = (value: unknown, context: string): void => {
+      if (!isRecord(value)) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" ${context} must be an object.`);
+      }
+      for (const [role, multiplier] of Object.entries(value)) {
+        if (!architecturalRoleIds.has(role as ArchitecturalRoleId)) {
+          throw new ChallengeDefinitionError(`Challenge "${definition.slug}" ${context} references unknown role "${role}".`);
+        }
+        if (!isFiniteUnitInterval(multiplier)) {
+          throw new ChallengeDefinitionError(`Challenge "${definition.slug}" ${context}.${role} must be between 0 and 1.`);
+        }
+      }
+    };
+
+    if (!isRecord(affinity.mechanisms) || Object.keys(affinity.mechanisms).length === 0) {
+      throw new ChallengeDefinitionError(
+        `Challenge "${definition.slug}" workloadAffinity.mechanisms must be a non-empty object when workloadAffinity is set.`,
+      );
+    }
+    for (const [mechanismId, mechanismAffinity] of Object.entries(affinity.mechanisms)) {
+      if (!workloadMechanismIds.has(mechanismId as WorkloadMechanismId)) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" workloadAffinity references unknown mechanism "${mechanismId}".`);
+      }
+      if (!isRecord(mechanismAffinity) || !isFiniteUnitInterval(mechanismAffinity.maxEffectiveness)) {
+        throw new ChallengeDefinitionError(
+          `Challenge "${definition.slug}" workloadAffinity.mechanisms.${mechanismId}.maxEffectiveness must be between 0 and 1.`,
+        );
+      }
+      if (mechanismAffinity.byRole !== undefined) {
+        assertRoleMultiplierMap(mechanismAffinity.byRole, `workloadAffinity.mechanisms.${mechanismId}.byRole`);
+      }
+      if (mechanismAffinity.defaultRoleMultiplier !== undefined && !isFiniteUnitInterval(mechanismAffinity.defaultRoleMultiplier)) {
+        throw new ChallengeDefinitionError(
+          `Challenge "${definition.slug}" workloadAffinity.mechanisms.${mechanismId}.defaultRoleMultiplier must be between 0 and 1.`,
+        );
+      }
+      if (mechanismAffinity.reuseConcentration !== undefined && !isFiniteUnitInterval(mechanismAffinity.reuseConcentration)) {
+        throw new ChallengeDefinitionError(
+          `Challenge "${definition.slug}" workloadAffinity.mechanisms.${mechanismId}.reuseConcentration must be between 0 and 1.`,
+        );
+      }
+      if (mechanismAffinity.unitCostPressure !== undefined && !isNonNegativeNumber(mechanismAffinity.unitCostPressure)) {
+        throw new ChallengeDefinitionError(
+          `Challenge "${definition.slug}" workloadAffinity.mechanisms.${mechanismId}.unitCostPressure must be a non-negative number.`,
+        );
+      }
+      if (
+        mechanismAffinity.processingLatencyPenaltyMs !== undefined &&
+        !isNonNegativeNumber(mechanismAffinity.processingLatencyPenaltyMs)
+      ) {
+        throw new ChallengeDefinitionError(
+          `Challenge "${definition.slug}" workloadAffinity.mechanisms.${mechanismId}.processingLatencyPenaltyMs must be a non-negative number.`,
+        );
+      }
+      if (mechanismAffinity.note !== undefined && !isNonEmptyString(mechanismAffinity.note)) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" workloadAffinity.mechanisms.${mechanismId}.note must be a non-empty string when set.`);
+      }
+    }
+
+    if (affinity.roleDefaults !== undefined) {
+      assertRoleMultiplierMap(affinity.roleDefaults, "workloadAffinity.roleDefaults");
     }
   }
 

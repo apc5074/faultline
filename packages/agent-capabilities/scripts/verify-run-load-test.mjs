@@ -27,7 +27,7 @@ const architecture = {
 };
 const context = { challenge, architecture, simulation: { available: true, components: {} } };
 const registry = createDefaultCapabilityRegistry();
-assert.deepEqual(resolveExperimentCapabilities(registry, context).names, ["run_load_test"]);
+assert.deepEqual(resolveExperimentCapabilities(registry, context).names, ["run_load_test", "change_traffic_pattern", "inject_component_failure"]);
 const before = JSON.stringify({ architecture, challenge });
 const defaultResult = await registry.invoke("run_load_test", context, {});
 assert.equal(defaultResult.ok, true);
@@ -37,5 +37,11 @@ assert.equal(JSON.stringify({ architecture, challenge }), before);
 const invalid = await registry.invoke("run_load_test", context, { multiplier: 4 });
 assert.deepEqual(invalid, { ok: false, code: "INVALID_INPUT", message: "multiplier must be one of 1.25, 1.5, 2, 3, or 5." });
 const unavailable = resolveExperimentCapabilities(registry, { challenge, architecture, simulation: { available: false } });
-assert.deepEqual(unavailable.skipped, [{ name: "run_load_test", reason: "unavailable" }]);
+assert.deepEqual(unavailable.skipped, [
+  { name: "run_load_test", reason: "unavailable" },
+  { name: "change_traffic_pattern", reason: "unavailable" },
+  { name: "flush_cache", reason: "unavailable" },
+  { name: "inject_component_failure", reason: "unavailable" },
+  { name: "inject_region_failure", reason: "unavailable" },
+]);
 console.log("run_load_test capability verification passed");

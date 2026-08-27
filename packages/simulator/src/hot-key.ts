@@ -16,6 +16,10 @@ import type { Architecture, ChallengeDefinition, Connection } from "@faultline/c
 import { evaluateCacheOffload } from "./cache.js";
 import type { TrafficPropagationInput } from "./traffic.js";
 import {
+  hotKeyViralRedirectRpsWithReuseConcentration,
+  resolveCacheConfiguredHitRate,
+} from "./workload-affinity.js";
+import {
   validateArchitectureForSimulation,
   type SimulationValidationError,
 } from "./validation.js";
@@ -116,7 +120,8 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
   if (!validation.valid) return validation;
 
   const challenge = input.challenge as ChallengeDefinition;
-  const viralRedirectRps = viralRedirectRpsForChallenge(challenge);
+  const baseViralRedirectRps = viralRedirectRpsForChallenge(challenge);
+  const viralRedirectRps = hotKeyViralRedirectRpsWithReuseConcentration(challenge, baseViralRedirectRps);
   if (viralRedirectRps <= 0) return { valid: true, hotKey: inactiveResult() };
 
   const architecture = validation.architecture;
@@ -159,9 +164,16 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
         if (parsed.success) {
           const config = parsed.data as CdnConfig;
           const eligible = pending * config.coverage;
+          const { finalConfiguredHitRate } = resolveCacheConfiguredHitRate({
+            componentId: component.id,
+            catalogType: "cdn",
+            playerIntent: cdnHitRateForConfig(config),
+            architecture,
+            challenge,
+          });
           const cache = evaluateCacheOffload({
             eligibleRps: eligible,
-            configuredHitRate: cdnHitRateForConfig(config),
+            configuredHitRate: finalConfiguredHitRate,
             capacityRps: cdnThroughputCapacityForConfig(config),
           });
           absorbed = cache.hitRps;
@@ -178,9 +190,16 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
           hotKeyCapacityRps = model.hotKeyCapacityRps;
           hotKeyUtilization = hotKeyCapacityRps > 0 ? pending / hotKeyCapacityRps : null;
           saturated = pending > model.hotKeyCapacityRps;
+          const { finalConfiguredHitRate } = resolveCacheConfiguredHitRate({
+            componentId: component.id,
+            catalogType: "redis",
+            playerIntent: redisHitRateForConfig(config),
+            architecture,
+            challenge,
+          });
           const cache = evaluateCacheOffload({
             eligibleRps: pending,
-            configuredHitRate: redisHitRateForConfig(config),
+            configuredHitRate: finalConfiguredHitRate,
             capacityRps: Math.min(model.throughputRps, model.hotKeyCapacityRps),
           });
           absorbed = cache.hitRps;

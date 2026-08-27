@@ -3,11 +3,13 @@ import type { VisualIntent, VisualIntentHandler } from "@faultline/webmcp";
 
 import type { AgentSessionStore } from "./AgentSessionProvider";
 
-/** Bridge WebMCP visual intents into the client session store. */
-export function createVisualIntentHandler(
-  store: AgentSessionStore,
-  _getArchitecture: () => Architecture,
-): VisualIntentHandler {
+/**
+ * The single client-side visual-command publisher. Adapters produce validated
+ * intents; this publisher is the only place that applies coaching state.
+ * Playback/observation commands can be added here without giving an adapter
+ * its own annotation store.
+ */
+export function createVisualCommandPublisher(store: AgentSessionStore): VisualIntentHandler {
   return (intent: VisualIntent) => {
     if (intent.kind === "annotation") {
       store.applyAnnotations([intent.annotation]);
@@ -15,4 +17,12 @@ export function createVisualIntentHandler(
     }
     store.clearAnnotations(intent.scope, intent.componentId);
   };
+}
+
+/** @deprecated Use createVisualCommandPublisher. */
+export function createVisualIntentHandler(
+  store: AgentSessionStore,
+  _getArchitecture?: () => Architecture,
+): VisualIntentHandler {
+  return createVisualCommandPublisher(store);
 }

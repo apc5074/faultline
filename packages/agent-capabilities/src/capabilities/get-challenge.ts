@@ -4,6 +4,10 @@ import type { AgentCapability } from "../capability.js";
 import type { AgentContext } from "../context.js";
 import { capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
+import {
+  compactWorkloadAffinity,
+  type CompactWorkloadAffinity,
+} from "../workload-fit-evidence.js";
 
 /** Compact special-scenario facts exposed to the model (never solution hints). */
 export interface ChallengeSpecialScenario {
@@ -21,6 +25,8 @@ export interface GetChallengeOutput {
   };
   readonly specialScenarios: readonly ChallengeSpecialScenario[];
   readonly budgetMonthly: number;
+  /** Mechanism ceilings + notes for this workload — not a placement recipe. */
+  readonly workloadAffinity?: CompactWorkloadAffinity;
 }
 
 function redirectsPerSecond(challenge: ChallengeDefinition): number {
@@ -42,6 +48,7 @@ function specialScenarios(challenge: ChallengeDefinition): ChallengeSpecialScena
  * Describes the problem only — never expected architectures or recommended components.
  */
 export function buildGetChallengeOutput(challenge: ChallengeDefinition): GetChallengeOutput {
+  const workloadAffinity = compactWorkloadAffinity(challenge);
   return {
     slug: challenge.slug,
     title: challenge.title,
@@ -51,6 +58,7 @@ export function buildGetChallengeOutput(challenge: ChallengeDefinition): GetChal
     },
     specialScenarios: specialScenarios(challenge),
     budgetMonthly: challenge.monthlyBudget,
+    ...(workloadAffinity ? { workloadAffinity } : {}),
   };
 }
 
@@ -61,7 +69,7 @@ export const getChallengeCapability: AgentCapability<
 > = {
   name: "get_challenge",
   description:
-    "Inspect the challenge the player is solving: workload, special scenarios, and monthly budget. Does not reveal solutions.",
+    "Inspect the challenge the player is solving: workload, special scenarios, monthly budget, and compact workload-affinity mechanism ceilings when authored. Does not reveal solutions or placement recipes.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,
@@ -73,3 +81,5 @@ export const getChallengeCapability: AgentCapability<
     return capabilityOk(buildGetChallengeOutput(context.challenge));
   },
 };
+
+export type { CompactWorkloadAffinity };

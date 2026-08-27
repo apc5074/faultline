@@ -24,6 +24,7 @@ import {
   connectionFromFlow,
   createComponentInstance,
   formatCost,
+  reconnectAroundComponent,
   resolveInitialArchitecture,
   worldSelectionForComponent,
 } from "@/features/architecture-canvas/playground-architecture-utils";
@@ -49,6 +50,7 @@ export function usePlaygroundWorkspace() {
   const { session: officialSession, bumpRankRefresh } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(resolveInitialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [attentionComponentId, setAttentionComponentId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
   const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
@@ -127,6 +129,7 @@ export function usePlaygroundWorkspace() {
     }),
     [],
   );
+
   const playbackEdgeLoads = useMemo(() => {
     const map = new Map<string, number>();
     if (!playbackVisualsActive) return map;
@@ -200,6 +203,8 @@ export function usePlaygroundWorkspace() {
 
     return architecture.connections.map((connection) =>
       connectionToEdge(connection, {
+        selected: connection.id === selectedConnectionId,
+        deletable: !playbackVisualsActive,
         activeConnectionIds,
         trafficActive: showSimulationVisuals || playbackVisualsActive,
         resultIsStale,
@@ -218,6 +223,7 @@ export function usePlaygroundWorkspace() {
     architecture.connections,
     architecture.components,
     activeConnectionIds,
+    selectedConnectionId,
     showSimulationVisuals,
     playbackVisualsActive,
     resultIsStale,
@@ -236,6 +242,12 @@ export function usePlaygroundWorkspace() {
       setAttentionComponentId(null);
     }
   }, [architecture.components, attentionComponentId]);
+
+  useEffect(() => {
+    if (selectedConnectionId && !architecture.connections.some((connection) => connection.id === selectedConnectionId)) {
+      setSelectedConnectionId(null);
+    }
+  }, [architecture.connections, selectedConnectionId]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<PlaygroundFlowNode>[]) => {
@@ -279,19 +291,26 @@ export function usePlaygroundWorkspace() {
               connection.sourceComponentId === change.id || connection.targetComponentId === change.id,
           )
           .map((connection) => connection.id);
+        const connectionsBeforeDelete = architecture.connections;
         notifyPacketReroute({ componentId: change.id, connectionIds });
 
         window.setTimeout(() => {
           setArchitecture((current) => {
             const components = current.components.filter((component) => component.id !== change.id);
             const componentIds = new Set(components.map((component) => component.id));
+            const connections = current.connections.filter(
+              (connection) =>
+                componentIds.has(connection.sourceComponentId) && componentIds.has(connection.targetComponentId),
+            );
+            const replacements = reconnectAroundComponent(
+              { ...current, components, connections },
+              change.id,
+              connectionsBeforeDelete,
+            );
             return {
               ...current,
               components,
-              connections: current.connections.filter(
-                (connection) =>
-                  componentIds.has(connection.sourceComponentId) && componentIds.has(connection.targetComponentId),
-              ),
+              connections: [...connections, ...replacements],
             };
           });
           setDeletingNodeIds((current) => {
@@ -310,6 +329,7 @@ export function usePlaygroundWorkspace() {
         const newlySelected = selectChanges.find((change) => change.selected);
         const nextId = newlySelected ? newlySelected.id : null;
         setSelectedComponentId(nextId);
+        setSelectedConnectionId(null);
         setWorldSelection(worldSelectionForComponent(architecture, nextId));
       }
       for (const change of changes) {
@@ -449,14 +469,33 @@ export function usePlaygroundWorkspace() {
     }, PLAYGROUND_EDGE_PULSE_MS);
   }, []);
 
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    const removedIds = new Set(changes.filter((change) => change.type === "remove").map((change) => change.id));
-    if (removedIds.size === 0) return;
-    setArchitecture((current) => ({
-      ...current,
-      connections: current.connections.filter((connection) => !removedIds.has(connection.id)),
-    }));
-  }, []);
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      const selectedChanges = changes.filter((change) => change.type === "select");
+      if (selectedChanges.length > 0) {
+        const newlySelected = selectedChanges.find((change) => change.selected);
+        if (newlySelected) {
+          setSelectedConnectionId(newlySelected.id);
+          setSelectedComponentId(null);
+          setWorldSelection(null);
+        } else if (selectedChanges.every((change) => !change.selected)) {
+          setSelectedConnectionId(null);
+        }
+      }
+
+      if (playback.playbackRunning) return;
+
+      const removedIds = new Set(changes.filter((change) => change.type === "remove").map((change) => change.id));
+      if (removedIds.size === 0) return;
+
+      setArchitecture((current) => ({
+        ...current,
+        connections: current.connections.filter((connection) => !removedIds.has(connection.id)),
+      }));
+      setSelectedConnectionId((current) => (current && removedIds.has(current) ? null : current));
+    },
+    [playback.playbackRunning],
+  );
 
   const onRunSimulation = useCallback(() => {
     const runKey = architectureSimulationKey(architecture);
@@ -540,6 +579,7 @@ export function usePlaygroundWorkspace() {
   const loadHeroScene = useCallback(() => {
     playback.reset();
     setSelectedComponentId(null);
+    setSelectedConnectionId(null);
     setAttentionComponentId(null);
     setWorldSelection(null);
     setSimulationResult(null);
@@ -687,6 +727,7 @@ export function usePlaygroundWorkspace() {
     enclosureRegions,
     showCanvasEmptyState,
     playback,
+    playbackVisualsActive,
     onNodesChange,
     onConnect,
     onConnectStart,

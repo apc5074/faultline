@@ -8,7 +8,8 @@ import {
   useAgentContextFactory,
   useAgentSessionStore,
 } from "@/features/agent-session/AgentSessionProvider";
-import { createVisualIntentHandler } from "@/features/agent-session/visual-intent-bridge";
+import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
+import type { ExperimentResult } from "@faultline/core";
 import type { WebMcpStatus } from "./WebMcpStatusPlate";
 
 /**
@@ -18,16 +19,18 @@ import type { WebMcpStatus } from "./WebMcpStatusPlate";
 export function WebMcpRegistration({
   reconciliationKey,
   onStatusChange,
+  onExperimentResult,
 }: {
   reconciliationKey: string;
   onStatusChange: (status: WebMcpStatus) => void;
+  onExperimentResult?: (result: ExperimentResult) => void;
 }) {
   const getContext = useAgentContextFactory();
   const sessionStore = useAgentSessionStore();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const onVisualIntent = useMemo(
-    () => createVisualIntentHandler(sessionStore, () => getContext().context.architecture),
-    [sessionStore, getContext],
+    () => createVisualCommandPublisher(sessionStore),
+    [sessionStore],
   );
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export function WebMcpRegistration({
       signal: controller.signal,
       development,
       onVisualIntent,
+      ...(onExperimentResult ? { onExperimentResult } : {}),
     }).then((result) => {
       if (!active) return;
       const state = result.readToolNames.length >= 9 && result.visualToolNames.length === 4 ? "ready" : "partial";

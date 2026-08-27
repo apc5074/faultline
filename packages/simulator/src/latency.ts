@@ -275,10 +275,12 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
   ];
 
   for (const [componentId, metrics] of Object.entries(services.services)) {
-    const p95LatencyMs = latencyForUtilization({
-      baseLatencyMs: serviceBaseP95LatencyMs,
-      utilization: metrics.utilization,
-    });
+    const penalty = metrics.placement?.participation === "active" ? metrics.placement.processingLatencyPenaltyMs : 0;
+    const p95LatencyMs =
+      latencyForUtilization({
+        baseLatencyMs: serviceBaseP95LatencyMs,
+        utilization: metrics.utilization,
+      }) + penalty;
     components[componentId] = {
       utilization: metrics.utilization,
       baseLatencyMs: serviceBaseP95LatencyMs,
@@ -292,10 +294,12 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
   }
 
   for (const [componentId, metrics] of Object.entries(postgres.postgres)) {
-    const p95LatencyMs = latencyForUtilization({
-      baseLatencyMs: postgresBaseP95LatencyMs,
-      utilization: metrics.effectiveUtilization,
-    });
+    const penalty = metrics.placement?.participation === "active" ? metrics.placement.processingLatencyPenaltyMs : 0;
+    const p95LatencyMs =
+      latencyForUtilization({
+        baseLatencyMs: postgresBaseP95LatencyMs,
+        utilization: metrics.effectiveUtilization,
+      }) + penalty;
     components[componentId] = {
       utilization: metrics.effectiveUtilization,
       baseLatencyMs: postgresBaseP95LatencyMs,

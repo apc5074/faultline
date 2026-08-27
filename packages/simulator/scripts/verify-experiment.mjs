@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { componentRegistry } from "@faultline/component-catalog";
 import { tinyApiChallenge, urlShortenerChallenge } from "@faultline/challenges";
-import { evaluateExperiment, evaluateRequirements } from "../dist/index.js";
+import { evaluateExperiment, evaluateRequirements, SIMULATOR_VERSION } from "../dist/index.js";
 
 const architecture = {
   version: 1,
@@ -33,7 +33,7 @@ const experiment = evaluateExperiment({
 assert.equal(experiment.ok, true);
 if (!experiment.ok) throw new Error("Expected successful experiment.");
 assert.equal(experiment.data.simulated, true);
-assert.equal(experiment.data.simulatorVersion, "1");
+assert.equal(experiment.data.simulatorVersion, SIMULATOR_VERSION);
 assert.equal(experiment.data.type, "traffic_multiplier");
 assert.equal(experiment.data.baseline.allRequirementsPass, baseline.allRequirementsPass);
 assert.equal(experiment.data.baseline.p95LatencyMs, baseline.p95LatencyMs);

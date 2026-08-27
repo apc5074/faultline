@@ -1,6 +1,7 @@
 import type { Architecture, ChallengeDefinition, CostResult } from "@faultline/core";
 
 import type { AgentRegionalEvidence } from "./regional-evidence.js";
+import type { AgentWorkloadFitEvidence } from "./workload-fit-evidence.js";
 
 /**
  * One capacity resource projected from shared simulator output.
@@ -39,6 +40,8 @@ export interface AgentComponentEvidence {
   readonly state?: string;
   /** Optional structured capacity rows; when omitted, estimate_capacity may project from metrics. */
   readonly capacity?: readonly AgentCapacityEntry[];
+  /** Workload affinity placement evidence when the simulator produced it. */
+  readonly workloadFit?: AgentWorkloadFitEvidence;
 }
 
 /**

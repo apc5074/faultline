@@ -36,4 +36,5 @@ export type {
   PlaybackSpeed,
   RouteLinger,
 } from "./types";
+export { buildComponentPlaybackVisuals, type PlaybackVisualContext } from "./playback-component-visuals";
 export { usePlaybackController, type PlaybackPhase } from "./use-playback-controller";

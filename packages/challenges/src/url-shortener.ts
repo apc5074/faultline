@@ -18,7 +18,7 @@ export const urlShortenerTotalRps = urlShortenerRedirectRps + urlShortenerWriteR
  */
 export const urlShortenerChallenge: ChallengeDefinition = {
   slug: "url-shortener",
-  version: 1,
+  version: 2,
   title: "Global URL Shortener",
   prompt:
     "Design infrastructure for a global URL shortening service. It must absorb heavy redirect traffic, accept new links, survive a viral short URL, and stay within latency, capacity headroom, and monthly budget — without a prescribed topology.",
@@ -49,8 +49,59 @@ export const urlShortenerChallenge: ChallengeDefinition = {
     replicationBytesPerWrite: 512,
   },
   coachingPolicy: {
-    focusThemes: ["hot-key resilience", "read scaling", "global latency"],
-    prohibitedRevealCategories: ["canonical topology", "specific component requirements", "solution-only thresholds"],
+    focusThemes: [
+      "hot-key resilience",
+      "read scaling",
+      "global latency",
+      "cache-workload-fit",
+      "placement-fit",
+      "mechanism-fit",
+    ],
+    prohibitedRevealCategories: [
+      "canonical topology",
+      "specific component requirements",
+      "solution-only thresholds",
+    ],
+  },
+  workloadAffinity: {
+    roleDefaults: {
+      unreachable: 0,
+      misplaced: 0.05,
+      write_path: 0.1,
+    },
+    mechanisms: {
+      edge_cache: {
+        maxEffectiveness: 0.88,
+        byRole: { edge_ingress: 1.0, path_middleware: 0.4, misplaced: 0.05 },
+        reuseConcentration: 0.7,
+        note: "Redirects are highly edge-cacheable when CDN sits on the user path.",
+      },
+      data_cache: {
+        maxEffectiveness: 0.3,
+        byRole: { read_aside: 1.0, edge_ingress: 0.25, path_middleware: 0.2 },
+        reuseConcentration: 0.8,
+        note: "In-memory cache helps hot keys beside the DB; weak as a substitute for edge cache.",
+      },
+      request_fanout: {
+        maxEffectiveness: 0.9,
+        byRole: { path_middleware: 1.0 },
+        note: "Load balancing pays off when multiple healthy upstreams exist on path.",
+      },
+      geo_routing: {
+        maxEffectiveness: 0.85,
+        byRole: { geo_route: 1.0, path_middleware: 0.5 },
+        note: "Routing matters when traffic spans regions.",
+      },
+      stateless_compute: {
+        maxEffectiveness: 1.0,
+        byRole: { compute: 1.0 },
+      },
+      durable_store: {
+        maxEffectiveness: 1.0,
+        byRole: { primary_store: 1.0, replica_store: 1.0 },
+        unitCostPressure: 1.0,
+      },
+    },
   },
   unscoredTargets: [
     {

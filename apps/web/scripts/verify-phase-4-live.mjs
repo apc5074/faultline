@@ -123,15 +123,22 @@ const cacheHeavy = {
   components: [
     traffic,
     C("cdn", "cdn-01", { coverage: 1, ttlBand: "long", tier: "large" }, 120),
-    C("service", "service-01", { size: "large", instances: 8 }, 350),
+    C("load-balancer", "lb-01", { policy: "equal" }, 220),
+    C("service", "service-01", { size: "large", instances: 6 }, 350),
+    C("service", "service-02", { size: "large", instances: 6 }, 350),
     C("redis", "redis-01", { mode: "standalone", tier: "large", ttlBand: "long" }, 550),
-    C("postgres", "postgres-01", { tier: "large", readReplicaCount: 1 }, 800),
+    C("postgres", "postgres-01", { tier: "large", readReplicaCount: 2 }, 800),
   ],
   connections: [
     req("t-c", "traffic-01", "cdn-01"),
-    req("c-s", "cdn-01", "service-01", "origin_out", "request_in"),
-    db("s-r", "service-01", "redis-01", "database_out", "cache_in"),
+    req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+    req("lb-s1", "lb-01", "service-01"),
+    req("lb-s2", "lb-01", "service-02"),
+    db("s1-r", "service-01", "redis-01", "database_out", "cache_in"),
+    db("s2-r", "service-02", "redis-01", "database_out", "cache_in"),
     db("r-p", "redis-01", "postgres-01", "origin_out", "database_in"),
+    db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+    db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
   ],
 };
 
@@ -140,13 +147,18 @@ const cdnHeavy = {
   components: [
     traffic,
     C("cdn", "cdn-01", { coverage: 1, ttlBand: "long", tier: "large" }, 150),
-    C("service", "service-01", { size: "large", instances: 8 }, 400),
+    C("load-balancer", "lb-01", { policy: "equal" }, 220),
+    C("service", "service-01", { size: "large", instances: 6 }, 300),
+    C("service", "service-02", { size: "large", instances: 6 }, 300),
     C("postgres", "postgres-01", { tier: "large", readReplicaCount: 2 }, 700),
   ],
   connections: [
     req("t-c", "traffic-01", "cdn-01"),
-    req("c-s", "cdn-01", "service-01", "origin_out", "request_in"),
-    db("s-p", "service-01", "postgres-01", "database_out", "database_in"),
+    req("c-l", "cdn-01", "lb-01", "origin_out", "request_in"),
+    req("lb-s1", "lb-01", "service-01"),
+    req("lb-s2", "lb-01", "service-02"),
+    db("s1-p", "service-01", "postgres-01", "database_out", "database_in"),
+    db("s2-p", "service-02", "postgres-01", "database_out", "database_in"),
   ],
 };
 
@@ -244,6 +256,9 @@ assert.equal(activeGuest.json.ok, true);
 assert.equal(activeGuest.json.challenge.slug, "url-shortener");
 const challengeVersion = activeGuest.json.challenge.version;
 assert.equal(challengeVersion, urlShortenerChallenge.version);
+assert.ok(activeGuest.json.challenge.config.workloadAffinity?.mechanisms?.edge_cache);
+assert.ok(activeGuest.json.challenge.config.workloadAffinity?.mechanisms?.data_cache);
+assert.equal(activeGuest.json.challenge.simulatorVersion, SIMULATOR_VERSION);
 
 const publicFastest = await api(new CookieJar(), "/api/leaderboards/fastest");
 assert.equal(publicFastest.response.status, 200);

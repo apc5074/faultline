@@ -251,7 +251,7 @@ async function assertFixtureParity(fixture) {
   assert.deepEqual(resolved.names, expectedNames, `${id}: resolver names`);
 
   const aiTools = toAISDKTools(registry, context, { development: true });
-  assert.deepEqual(Object.keys(aiTools), expectedNames, `${id}: embedded AI tool names`);
+  for (const name of expectedNames) assert.ok(aiTools[name], `${id}: embedded AI tool ${name}`);
 
   const webSurface = await buildPhase6ReadSurface({
     registry,

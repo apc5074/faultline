@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
+import assert from "node:assert/strict";
 import { hashChallengeConfig, urlShortenerChallenge } from "@faultline/challenges";
 import { SIMULATOR_VERSION } from "@faultline/simulator";
 
@@ -55,6 +56,7 @@ const supabase = createClient(url, serviceKey, {
 });
 
 const definition = urlShortenerChallenge;
+assert.ok(definition.workloadAffinity?.mechanisms?.edge_cache, "seed must publish workloadAffinity");
 const configHash = hashChallengeConfig(definition);
 
 const existingVersion = await supabase
@@ -106,6 +108,9 @@ if (existingVersion.data) {
   console.log(`Inserted challenge_versions ${challengeVersionId}`);
   console.log(`config_hash=${configHash}`);
   console.log(`simulator_version=${SIMULATOR_VERSION}`);
+  console.log(
+    `Republish note: url-shortener v${definition.version} + simulator v${SIMULATOR_VERSION} includes workloadAffinity — re-seed after deploy.`,
+  );
 }
 
 const now = new Date();

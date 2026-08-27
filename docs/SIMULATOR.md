@@ -54,8 +54,95 @@ The World view is a lightweight SVG map in `apps/web` driven by the same canonic
 
 ## Hot-key scenario
 
-`evaluateHotKeyScenario` models concentrated viral-key redirect traffic when `challenge.workload.hotKeyReadFraction` is set. Viral RPS is `requestsPerSecond × readRatio × hotKeyReadFraction`. That volume propagates through the real architecture (CDN → Service → Redis → Postgres) using the same request/`read_write` edges as aggregate traffic. CDN and Redis absorb viral volume through shared `evaluateCacheOffload` hit/capacity rules; Redis saturation uses per-key `hotKeyCapacityRps` so aggregate cache utilization cannot hide a single-key bottleneck. Postgres hot-key pressure is measured against primary read capacity only—read replicas do not shard one viral key. When the fraction is omitted or zero (Tiny API), the scenario is inactive and does not affect pass/fail. When active, overall pass also requires the hot-key scenario to pass.
+`evaluateHotKeyScenario` models concentrated viral-key redirect traffic when `challenge.workload.hotKeyReadFraction` is set. Viral RPS is `requestsPerSecond × readRatio × hotKeyReadFraction`, optionally scaled by challenge `workloadAffinity` cache `reuseConcentration` when authored (`data_cache` preferred, else `edge_cache`; default 1.0 preserves legacy load). That volume propagates through the real architecture (CDN → Service → Redis → Postgres) using the same request/`read_write` edges as aggregate traffic. CDN and Redis absorb viral volume through the same placement-aware configured hit rate as aggregate traffic (`resolveCacheConfiguredHitRate` in `workload-affinity.ts`); Redis saturation uses per-key `hotKeyCapacityRps` so aggregate cache utilization cannot hide a single-key bottleneck. Postgres hot-key pressure is measured against primary read capacity only—read replicas do not shard one viral key. When the fraction is omitted or zero (Tiny API), the scenario is inactive and does not affect pass/fail. When active, overall pass also requires the hot-key scenario to pass.
+
+## Workload affinity
+
+`packages/simulator/src/workload-affinity.ts` is the single source of truth for placement-aware scoring. It is pure and topology-only: no `challenge.slug` branches.
+
+### Formula family
+
+```text
+mechanismFit     = challenge.workloadAffinity.mechanisms[mechanismId].maxEffectiveness   // 1.0 if omitted
+placementFit     = byRole[role] ?? defaultRoleMultiplier ?? roleDefaults[role] ?? 1.0
+playerIntent     = dial-derived (TTL/coverage/size/fan-out, …)
+challengeCeiling = mechanismFit × placementFit
+effective        = challengeCeiling × playerIntent     // only when ACTIVE; IDLE → 0 benefit
+```
+
+Caches apply `effective` as the configured hit rate before capacity caps (`resolveCacheConfiguredHitRate`). Non-cache ACTIVE capacity scales with `activeCapacityScale(placement)`. Missing affinity ⇒ mechanismFit `1.0` (legacy).
+
+### Participation states
+
+`resolveParticipationState(handledRps)` → `active` when `handledRps > 0`, else `idle`.
+
+| State | Capacity / absorb | Usage-cost pressure | Latency penalty | Visuals |
+| --- | --- | --- | --- | --- |
+| ACTIVE | Scaled by `effective` | `unitCostPressure` when authored | `processingLatencyPenaltyMs` when authored | Busy path volumes |
+| IDLE | No affinity benefit | Multiplier stays `1.0` (base catalog $ only) | None | Quiet / unused |
+
+### Mechanism map (catalog → job)
+
+| Catalog type | Mechanism |
+| --- | --- |
+| `cdn` | `edge_cache` |
+| `redis` | `data_cache` |
+| `load-balancer` | `request_fanout` |
+| `global-router` | `geo_routing` |
+| `service` | `stateless_compute` |
+| `postgres` | `durable_store` |
+
+Unmapped types (e.g. `traffic-source`) return `null` — no affinity scoring.
+
+### Role predicates
+
+`resolveNodeRole` derives roles from request / `read_write` reachability:
+
+| Role | Typical meaning |
+| --- | --- |
+| `edge_ingress` | Reachable from traffic before compute on the request path |
+| `path_middleware` | On request path between edge and compute |
+| `compute` | Service that can handle requests |
+| `read_aside` | Cache adjacent to a store on the service read path |
+| `write_path` | Only on mutate/write edges |
+| `geo_route` | Router when geographic routing is active |
+| `primary_store` / `replica_store` | Durable store roles |
+| `unreachable` | No traffic can reach the node |
+| `misplaced` | Reachable but wiring does not match a productive pattern |
+
+Defaults when `byRole` omits a role: mechanism `defaultRoleMultiplier`, else challenge `roleDefaults`, else `1.0`. Level 1 authors demote `unreachable` / `misplaced` / `write_path` via `roleDefaults`.
+
+### Apply sites
+
+| Site | Behavior |
+| --- | --- |
+| Cache absorb (`traffic.ts`, hot-key) | Placement-aware configured hit rate → hit/miss RPS and forwarded origin volume |
+| Service / Postgres capacity | ACTIVE scale from placement evidence |
+| Latency | Optional additive `processingLatencyPenaltyMs` on ACTIVE in-role work |
+| Cost | `unitCostPressure` on usage-sensitive lines for ACTIVE handled work only |
+| Events / volumes | `traffic_routed` and cache metrics carry affinity-scaled RPS that UI playback consumes |
+
+Do not invent a second client-side “display hit rate” from challenge tables — canvas glyphs and edge particles render simulator volumes only.
+
+### Hot-key interaction
+
+Viral redirect RPS may be scaled by authored cache `reuseConcentration` (`data_cache` preferred, else `edge_cache`; default `1.0`). CDN/Redis still use the same placement-aware hit-rate path as aggregate traffic. Redis hot-key saturation uses per-key `hotKeyCapacityRps`.
+
+### Traffic volume + event fields visuals consume
+
+Presentation layers must consume complete simulator batches:
+
+- `traffic_routed` — `requestsPerSecond` (and geographic origin when present) on connections/components
+- Cache results — `hitRps`, `missRps`, `eligibleRps`, `downstreamAvoidedRps`, plus placement evidence (`role`, `mechanismId`, `challengeCeiling`, `playerIntent`, `effectiveConfiguredHitRate`)
+- Service / Postgres metrics — utilization, handled/unmet RPS, optional `placement` (`participation`, `role`, `mechanismId`, `challengeCeiling`, `playerIntent`, `effective`, pressures)
+- Hot-key scenario outcomes — pass/fail + path pressure facts
+
+UI must never invent ambient traffic, random routing, or unmodeled resource meters.
 
 ## Simulator version
 
 `SIMULATOR_VERSION` in `@faultline/simulator` is recorded on each published `challenge_versions` row. Competition-affecting simulator changes require bumping this value and publishing a new challenge version so official attempts are never silently re-scored under incompatible semantics.
+
+**v2** (with `url-shortener` challenge **v2**): workload affinity — placement-aware cache ceilings, non-cache capacity/latency/cost pressure, and hot-key `reuseConcentration`. Republish via `pnpm --filter @faultline/web seed:daily-challenge` after deploy when competition semantics change.
+
+Competition note: bumping `SIMULATOR_VERSION` (or challenge `version`) without republishing leaves official attempts on the previous immutable `challenge_versions` row. Local play and official verify must agree on the same simulator + challenge pair (`docs/PRODUCTION.md`).

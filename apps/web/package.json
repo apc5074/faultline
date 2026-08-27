@@ -33,6 +33,8 @@
     "verify:agent-help-chips": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-help-chips.mjs",
     "verify:agent-annotations": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-annotations.mjs",
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
+    "verify:competition-config": "pnpm run build:deps && node --experimental-strip-types scripts/verify-competition-config.mjs",
+    "verify:workload-evidence": "pnpm run build:deps && node --experimental-strip-types scripts/verify-workload-evidence.mjs",
     "verify:submission-limit": "node --experimental-strip-types scripts/verify-submission-limit.mjs",
     "verify:security-headers": "node --experimental-strip-types scripts/verify-security-headers.mjs",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"

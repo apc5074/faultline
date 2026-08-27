@@ -3,6 +3,20 @@
  * No randomness. Capacity caps realized hits; excess eligible traffic misses.
  */
 
+import type { ArchitecturalRoleId, WorkloadMechanismId } from "@faultline/core";
+
+/** Placement-aware scoring evidence attached once a cache's configured hit rate is passed through workload affinity (see workload-affinity.ts). */
+export interface CachePlacementEvidence {
+  role: ArchitecturalRoleId;
+  mechanismId: WorkloadMechanismId;
+  /** `maxEffectiveness × roleMultiplier` for this mechanism/role on the active challenge. */
+  challengeCeiling: number;
+  /** Raw dial-derived hit-rate intent before the challenge × role ceiling is applied. */
+  playerIntent: number;
+  /** `challengeCeiling × playerIntent`, before any cold-cache experiment override to 0. */
+  effectiveConfiguredHitRate: number;
+}
+
 export interface CacheOffloadInput {
   /** Traffic that may be served from cache (redirects/reads after eligibility filters). */
   eligibleRps: number;

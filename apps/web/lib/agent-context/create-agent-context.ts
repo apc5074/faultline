@@ -1,10 +1,15 @@
 import type {
   AgentContext,
   AgentSessionState,
+  AgentWorkloadFitEvidence,
   LiveAgentSnapshot,
 } from "@faultline/agent-capabilities";
-import { createEmptyAgentSessionState } from "@faultline/agent-capabilities";
-import { buildAgentRegionalEvidence } from "@faultline/agent-capabilities";
+import {
+  buildAgentRegionalEvidence,
+  createEmptyAgentSessionState,
+  workloadFitFromCacheMetrics,
+  workloadFitFromPlacement,
+} from "@faultline/agent-capabilities";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { evaluateRequirements, type RequirementsEvaluationResult } from "@faultline/simulator";
@@ -17,20 +22,40 @@ function numericMetrics(value: object): Record<string, number> {
   return metrics;
 }
 
-function simulationEvidence(result: RequirementsEvaluationResult): AgentContext["simulation"] {
+type ComponentEvidenceRow = {
+  metrics: Record<string, number>;
+  state?: string;
+  workloadFit?: AgentWorkloadFitEvidence;
+};
+
+function componentEvidence(
+  metrics: object & { state?: string },
+  workloadFit: AgentWorkloadFitEvidence | undefined,
+): ComponentEvidenceRow {
+  return {
+    metrics: numericMetrics(metrics),
+    ...(typeof metrics.state === "string" ? { state: metrics.state } : {}),
+    ...(workloadFit ? { workloadFit } : {}),
+  };
+}
+
+function simulationEvidence(
+  result: RequirementsEvaluationResult,
+  challenge: ChallengeDefinition,
+): AgentContext["simulation"] {
   if (!result.valid) {
     return { available: false, validationErrors: result.errors.map((error) => error.message) };
   }
 
-  const components: Record<string, { metrics: Record<string, number>; state?: string }> = {};
+  const components: Record<string, ComponentEvidenceRow> = {};
   for (const [componentId, metrics] of Object.entries(result.services)) {
-    components[componentId] = { metrics: numericMetrics(metrics), state: metrics.state };
+    components[componentId] = componentEvidence(metrics, workloadFitFromPlacement(metrics.placement));
   }
   for (const [componentId, metrics] of Object.entries(result.postgres)) {
-    components[componentId] = { metrics: numericMetrics(metrics), state: metrics.state };
+    components[componentId] = componentEvidence(metrics, workloadFitFromPlacement(metrics.placement));
   }
   for (const [componentId, metrics] of Object.entries(result.caches)) {
-    components[componentId] = { metrics: numericMetrics(metrics) };
+    components[componentId] = componentEvidence(metrics, workloadFitFromCacheMetrics(metrics, challenge));
   }
 
   const throughput = result.requirements.find((requirement) => requirement.type === "throughput");
@@ -56,7 +81,7 @@ export function createAgentContext(architecture: Architecture, challenge: Challe
   return {
     challenge,
     architecture,
-    simulation: simulationEvidence(result),
+    simulation: simulationEvidence(result, challenge),
     ...(result.valid ? { cost: result.cost } : {}),
     user: { authenticated: false },
   };

@@ -57,6 +57,47 @@ assert.equal(output.budgetMonthly, 85_000);
 assert.equal("prompt" in output, false);
 assert.equal("allowedComponentTypes" in output, false);
 assert.equal("requirements" in output, false);
+assert.equal("workloadAffinity" in output, false);
+
+const withAffinity = {
+  ...urlShortenerLike,
+  workloadAffinity: {
+    mechanisms: {
+      data_cache: {
+        maxEffectiveness: 0.3,
+        byRole: { read_aside: 1.0, edge_ingress: 0.25 },
+        unitCostPressure: 1.4,
+        note: "In-memory cache helps hot keys beside the DB.",
+      },
+      edge_cache: {
+        maxEffectiveness: 0.88,
+        note: "Redirects are highly edge-cacheable.",
+      },
+    },
+  },
+};
+
+const affinityOutput = buildGetChallengeOutput(withAffinity);
+assert.ok(affinityOutput.workloadAffinity);
+assert.deepEqual(affinityOutput.workloadAffinity, {
+  mechanisms: [
+    {
+      mechanismId: "data_cache",
+      maxEffectiveness: 0.3,
+      note: "In-memory cache helps hot keys beside the DB.",
+      unitCostPressure: 1.4,
+    },
+    {
+      mechanismId: "edge_cache",
+      maxEffectiveness: 0.88,
+      note: "Redirects are highly edge-cacheable.",
+    },
+  ],
+});
+const affinitySerialized = JSON.stringify(affinityOutput.workloadAffinity);
+assert.ok(!affinitySerialized.includes("byRole"));
+assert.ok(!affinitySerialized.includes("read_aside"));
+assert.ok(!affinitySerialized.includes("edge_ingress"));
 
 const noHotKey = buildGetChallengeOutput(tinyLike);
 assert.deepEqual(noHotKey.specialScenarios, []);

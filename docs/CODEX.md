@@ -1,0 +1,138 @@
+# Codex project memory
+
+This is the short operational guide for agents editing Faultline. It complements
+the product and architecture documents; it does not replace the active phase
+plan or package source code.
+
+## Working snapshot
+
+- Product: Faultline, a daily distributed-systems design game.
+- Product rule: the human changes the architecture, the deterministic simulator
+  determines truth, and the agent inspects or challenges the design.
+- Current priority: finish an excellent Level 1 Global URL Shortener before
+  adding breadth.
+- Active plan: `plans/phase 9/plan.md`. Check its ticket checkboxes and entry
+  gates before starting implementation. The current next ticket is VIS-003
+  unless the plan has changed.
+- The worktree may contain unfinished user changes. Run `git status` first and
+  preserve unrelated edits.
+
+## Where changes belong
+
+| Need | Start here | Keep out of |
+| --- | --- | --- |
+| Serializable architecture, IDs, regions, experiment contracts | `packages/core/src` | React components and adapters |
+| Component definitions and ports | `packages/component-catalog/src` | Challenge-specific conditionals |
+| Level rules, workload, targets, validation | `packages/challenges/src` | UI and agent capability code |
+| Traffic, capacity, latency, geography, cost, experiments, events | `packages/simulator/src` | Browser-only presentation logic |
+| Agent schemas, capability execution, resolver, session context | `packages/agent-capabilities/src` | AI SDK and WebMCP adapters |
+| AI SDK tool conversion and request/session wiring | `apps/web/lib/ai` | Duplicated domain execution |
+| WebMCP registration and adapter behavior | `packages/webmcp/src` | A second capability registry |
+| Canvas, map, playback, annotations, panels | `apps/web/features` | New simulator semantics |
+| Persistence, official attempts, server re-simulation | `apps/web/lib`, `apps/web/app/api`, `supabase` | Client-only result authority |
+
+Use package barrel exports (`src/index.ts`) when a contract is public. Follow an
+existing import path before creating a new abstraction.
+
+## Edit routing checklist
+
+1. Read the relevant ticket in `plans/phase N/plan.md` and its dependency gate.
+2. Read only the contract docs needed for that ticket:
+   `ARCHITECTURE`, `SIMULATOR`, `COMPONENTS`, `CHALLENGES`, `COST_MODEL`,
+   `AI`, `WEBMCP`, or `PRODUCTION`.
+3. Locate the canonical type/function and its barrel export before editing a
+   consumer. Do not recreate a domain calculation in the UI.
+4. For a new component, update the component catalog and challenge allowance;
+   do not add a component-specific simulator shortcut.
+5. For new agent behavior, add one adapter-neutral capability first, then use
+   the existing AI SDK and WebMCP adapters. Resolve availability from the live
+   architecture/context rather than hard-coding it in a React component.
+6. For visuals, consume complete simulator/result event batches. Presentation
+   state is ephemeral and must never become architecture or official-submission
+   input.
+7. Validate untrusted architecture, capability input, and adapter payloads at
+   their boundary with the existing schemas/parsers.
+8. Inspect `git diff` before finishing and report targeted checks run.
+
+## Non-negotiable boundaries
+
+- `@faultline/simulator` is deterministic and independent of React, the DOM,
+  AI, Supabase, and network calls.
+- The same canonical `Architecture` feeds the logical canvas, world map,
+  simulator, agent context, and official submission validation.
+- The simulator—not an LLM or browser heuristic—owns pass/fail, metrics,
+  routing, capacity, latency, cost, and experiment outcomes.
+- Embedded AI and WebMCP share semantic capabilities and schemas. Adapters
+  translate and register; they do not duplicate domain logic.
+- Agents may inspect, trace, annotate, and run explicitly supported temporary
+  experiments, but may not mutate architecture, official attempts, or
+  leaderboard state.
+- Geography, workload affinity, cache behavior, hot-key behavior, and cost are
+  real modeled constraints when the active challenge enables them.
+- Visual animation is bounded presentation of authoritative events. Never add
+  ambient/fake traffic, random routing, inferred cache hits, or unmodeled
+  resource metrics.
+- A simulator-semantic change requires reviewing `SIMULATOR_VERSION` and the
+  challenge publishing/official-score implications.
+
+## Verification map
+
+Start with the smallest check that covers the changed boundary, then run the
+repository typecheck/build when the change crosses packages.
+
+| Changed area | First targeted check | Broader check |
+| --- | --- | --- |
+| Core contracts | `pnpm --filter @faultline/core verify` | `pnpm typecheck` |
+| Catalog | `pnpm --filter @faultline/component-catalog verify` | `pnpm typecheck` |
+| Challenge rules | `pnpm --filter @faultline/challenges verify` | `pnpm typecheck` |
+| Simulator semantics | `pnpm --filter @faultline/simulator verify` | `pnpm build` |
+| Workload affinity (helpers, placement, Level 1 calibration, agent fit, UI evidence) | `pnpm verify:affinity` | `pnpm --filter @faultline/simulator verify` |
+| Agent capabilities | `pnpm --filter @faultline/agent-capabilities verify` | `pnpm typecheck` |
+| WebMCP adapter | `pnpm --filter @faultline/webmcp verify` | `pnpm typecheck` |
+| Web UI behavior | the matching `apps/web` `verify:*` script | `pnpm build` |
+
+Useful focused web checks include `verify:agent-session`,
+`verify:dynamic-surface-parity`, `verify:workload-evidence`,
+`verify:presentation-playback`, and `verify:presentation-events` when those
+files are involved. For affinity foundation lock across packages, prefer
+`pnpm verify:affinity` from the repo root. Check `apps/web/package.json` for the
+current script name; don’t invent a command from an older phase.
+
+## Common traps
+
+- `ui` coordinates and view mode are presentation state, not simulator input.
+- Regional deployments are placement of one logical component, not a second
+  architecture model. Regional capacity totals must match logical totals.
+- Postgres read and write pressure are distinct; replicas do not shard one
+  viral hot key, and writes remain primary-only.
+- Geographic latency is supplied by simulator results. Do not copy the latency
+  matrix into UI code or double-count round trips.
+- A cold cache, failed component, failed region, or reroute in an experiment is
+  simulated evidence. Never label it as a real outage or show invented repair,
+  failover, or promotion.
+- Stale results must remain visibly stale after an architecture edit. Do not
+  silently reuse them as current evidence.
+- Keep timers in one playback/controller layer. Cards, edges, map arcs, and
+  chat should consume derived state rather than each scheduling animation.
+- Do not add Level 2/3 components or infrastructure unless the active ticket
+  requires them.
+
+## Candidate memory files
+
+Keep durable, cross-cutting rules here and in the root `AGENTS.md`. Add more
+files only when a directory has local rules that would otherwise be repeated in
+every task.
+
+| Priority | Candidate | Add when |
+| --- | --- | --- |
+| P0 | `AGENTS.md` | A repository-wide invariant or workflow changes |
+| P0 | `docs/CODEX.md` (this file) | Editing routes, traps, verification, or project snapshot change |
+| P1 | `packages/simulator/AGENTS.md` | Simulator-specific determinism/test conventions recur in tasks |
+| P1 | `packages/agent-capabilities/AGENTS.md` | Capability schema/resolver/adapter parity rules need local examples |
+| P1 | `apps/web/AGENTS.md` | UI work repeatedly needs playback, stale-state, and client/server boundaries |
+| P2 | `packages/webmcp/AGENTS.md` | WebMCP lifecycle and registration details grow beyond `docs/WEBMCP.md` |
+| P2 | `docs/DECISIONS.md` | Several architecture decisions need dated rationale, not task instructions |
+
+Do not create a generic `memory.md` full of transient status. Put changing work
+status in the phase plan, durable semantics in the domain docs, and stable edit
+guidance in this file.
