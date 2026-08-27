@@ -14,8 +14,9 @@ export interface CapabilityJsonSchema {
 }
 
 export interface CapabilityJsonSchemaProperty {
-  readonly type: "string";
+  readonly type: "string" | "number";
   readonly minLength?: number;
+  readonly enum?: readonly (string | number)[];
 }
 
 /** A schema boundary shared by future AI SDK and WebMCP adapters. */

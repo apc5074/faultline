@@ -15,7 +15,29 @@ export type GlyphType =
 
 export type GlyphRenderType = GlyphType | "fallback";
 
-export type GlyphState = "idle" | "selected" | "processing" | "overloaded" | "failed";
+/** Shared visual states. `overloaded` remains as a compatibility alias for existing result mapping. */
+export type GlyphState =
+  | "idle"
+  | "selected"
+  | "processing"
+  | "warning"
+  | "critical"
+  | "saturated"
+  | "overloaded"
+  | "failed"
+  | "stale";
+
+export const GLYPH_STATES: readonly GlyphState[] = [
+  "idle",
+  "selected",
+  "processing",
+  "warning",
+  "critical",
+  "saturated",
+  "overloaded",
+  "failed",
+  "stale",
+];
 
 export const GLYPH_TYPES: readonly GlyphType[] = [
   "user",
@@ -33,6 +55,8 @@ export const GLYPH_TYPES: readonly GlyphType[] = [
   "object_storage",
 ];
 
+export type GlyphMachineSize = "small" | "medium" | "large";
+
 export interface ComponentGlyphProps {
   type: GlyphRenderType;
   state: GlyphState;
@@ -43,11 +67,21 @@ export interface ComponentGlyphProps {
   instances?: number;
   capacity?: number;
   depth?: number;
+  slotCount?: number;
+  queueDepth?: number;
   replicas?: number;
+  fanOutCount?: number;
+  deliveryCount?: number;
+  documentSlots?: number;
+  objectMarks?: number;
+  rejectedCount?: number;
+  answerCount?: number;
   armAngle?: number;
   passCount?: number;
   processingCount?: number;
   cacheHitFlash?: boolean;
+  /** Catalog size/tier dial — drives chassis scale and internal density. */
+  machineSize?: GlyphMachineSize;
 }
 
 /** Props derived from catalog state — visual dimensions and runtime state are applied by callers. */

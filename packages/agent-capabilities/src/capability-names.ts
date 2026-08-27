@@ -18,8 +18,12 @@ export const PHASE_7_DYNAMIC_CAPABILITY_NAMES = [
   "inspect_regional_traffic",
 ] as const;
 
+/** Phase 8 experiment capabilities; resolved on their own non-read surface. */
+export const PHASE_8_EXPERIMENT_CAPABILITY_NAMES = ["run_load_test"] as const;
+
 export type BaselineReadCapabilityName = (typeof BASELINE_READ_CAPABILITY_NAMES)[number];
 export type Phase7DynamicCapabilityName = (typeof PHASE_7_DYNAMIC_CAPABILITY_NAMES)[number];
+export type Phase8ExperimentCapabilityName = (typeof PHASE_8_EXPERIMENT_CAPABILITY_NAMES)[number];
 export type ResolvedCapabilityName = BaselineReadCapabilityName | Phase7DynamicCapabilityName;
 
 /** Baseline visual coaching capabilities available on every Level 1 canvas. */

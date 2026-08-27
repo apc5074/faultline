@@ -14,6 +14,7 @@ The Vercel project deploys `apps/web` (Root Directory). Its production branch is
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe | Optional legacy fallback | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_FAULTLINE_AI_ENABLED` | Browser-safe feature flag | No (defaults off) | Local `.env`; Vercel Preview/Production **Environment Variables** (plain config, not a secret) |
+| `NEXT_PUBLIC_FAULTLINE_DEV_EXPERIMENTS` | Browser-safe local experiment harness flag | No (defaults off; production hard-disabled) | Local `.env` or test environment only; never enable for Production |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only | No | Local `.env`; Vercel Preview/Production environment settings |
 | `AI_GATEWAY_API_KEY` | Server-only secret | Only when AI enabled | Local `.env`; Vercel Preview/Production **Secrets** |
 | `FAULTLINE_AGENT_MODEL` | Server-only | Only when AI enabled | Local `.env`; Vercel Preview/Production environment settings |

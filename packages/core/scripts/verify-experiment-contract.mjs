@@ -44,6 +44,14 @@ const arbitraryMultiplier = validateExperimentDefinition({
 });
 assert.equal(arbitraryMultiplier.success, false);
 
+for (const multiplier of [0, -1, 1, 2.25, 10, NaN, Infinity]) {
+  assert.equal(
+    validateExperimentDefinition({ type: "traffic_multiplier", parameters: { multiplier } }).success,
+    false,
+    `traffic multiplier ${multiplier} must be rejected`,
+  );
+}
+
 const validTypes = [
   { type: "traffic_multiplier", parameters: { multiplier: 5 } },
   { type: "hot_key", parameters: { hotKeyReadFraction: 0.5 } },

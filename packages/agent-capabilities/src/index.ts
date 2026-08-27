@@ -10,6 +10,7 @@ export * from "./result.js";
 export * from "./registry.js";
 export * from "./resolve-capabilities.js";
 export * from "./resolve-visual-capabilities.js";
+export * from "./resolve-experiment-capabilities.js";
 export * from "./schemas.js";
 export * from "./visual-executors.js";
 export * from "./visual-schemas.js";

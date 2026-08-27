@@ -15,6 +15,20 @@ import { evaluateRequirements, type RequirementsEvaluationResult } from "./requi
 import type { SimulationEvent, TrafficPropagationInput } from "./traffic.js";
 import { SIMULATOR_VERSION } from "./version.js";
 
+function applyTrafficMultiplier(
+  challenge: ChallengeDefinition,
+  multiplier: NonNullable<ExperimentOverlay["trafficMultiplier"]>,
+): ChallengeDefinition {
+  return {
+    ...challenge,
+    workload: {
+      ...challenge.workload,
+      // All downstream workload quantities are derived from this one demand value.
+      requestsPerSecond: challenge.workload.requestsPerSecond * multiplier,
+    },
+  };
+}
+
 export interface ExperimentEvaluationInput {
   architecture: unknown;
   challenge: ChallengeDefinition;
@@ -165,16 +179,14 @@ function challengeWithOverlay(
 
   // Workload consumers (traffic, geography, cache, hot-key, transfer cost, and
   // requirement evaluation) all derive from this one immutable challenge copy.
-  return {
-    ...challenge,
-    workload: {
-      ...challenge.workload,
-      ...(multiplier !== undefined
-        ? { requestsPerSecond: challenge.workload.requestsPerSecond * multiplier }
-        : {}),
-      ...(hotKeyReadFraction !== undefined ? { hotKeyReadFraction } : {}),
-    },
-  };
+  const overlaidChallenge =
+    multiplier === undefined ? challenge : applyTrafficMultiplier(challenge, multiplier);
+  return hotKeyReadFraction === undefined
+    ? overlaidChallenge
+    : {
+        ...overlaidChallenge,
+        workload: { ...overlaidChallenge.workload, hotKeyReadFraction },
+      };
 }
 
 function evaluateSimulation(

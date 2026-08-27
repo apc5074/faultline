@@ -1,5 +1,32 @@
 import type { CapabilityInputSchema } from "./capability.js";
 
+export interface RunLoadTestInput {
+  readonly multiplier: 1.25 | 1.5 | 2 | 3 | 5;
+}
+
+const loadTestMultipliers = [1.25, 1.5, 2, 3, 5] as const;
+
+/** Shared bounded load-test input; omission is normalized to the default multiplier. */
+export const runLoadTestInputSchema: CapabilityInputSchema<RunLoadTestInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: { multiplier: { type: "number", enum: loadTestMultipliers } },
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (input === undefined || input === null) return { success: true as const, data: { multiplier: 2 as const } };
+    if (!isRecord(input)) return { success: false as const, errors: ["run_load_test input must be an object."] };
+    if (!hasOnlyKeys(input, ["multiplier"])) {
+      return { success: false as const, errors: ["run_load_test input contains unknown properties."] };
+    }
+    if (input.multiplier === undefined) return { success: true as const, data: { multiplier: 2 as const } };
+    if (typeof input.multiplier !== "number" || !loadTestMultipliers.includes(input.multiplier as (typeof loadTestMultipliers)[number])) {
+      return { success: false as const, errors: ["multiplier must be one of 1.25, 1.5, 2, 3, or 5."] };
+    }
+    return { success: true as const, data: { multiplier: input.multiplier as RunLoadTestInput["multiplier"] } };
+  },
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

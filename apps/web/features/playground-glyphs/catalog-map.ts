@@ -1,136 +1,55 @@
-import type { LoadBalancerConfig, PostgresConfig, RedisConfig, ServiceConfig } from "@faultline/component-catalog";
-import type { ComponentDefinition, ComponentInstance, JsonObject } from "@faultline/core";
+import { componentRegistry } from "@faultline/component-catalog";
+import type { ComponentDefinition, ComponentInstance } from "@faultline/core";
 
-import { GLYPH_SIZES } from "./glyph-sizes";
-import type { CatalogGlyphProps, GlyphRenderType, GlyphType } from "./glyph-types";
+import { GLYPH_SIZES } from "./glyph-sizes.ts";
+import { glyphFamilyRegistry, hasGlyphFamily } from "./glyph-registry.ts";
+import type { CatalogGlyphProps, GlyphMachineSize, GlyphRenderType, GlyphType } from "./glyph-types.ts";
 
-/** Stable catalog type → visual glyph type. Unlisted types fall back to a labeled rectangle. */
-export const CATALOG_GLYPH_MAP: Readonly<Record<string, GlyphType>> = {
-  "traffic-source": "user",
-  service: "server",
-  "load-balancer": "load_balancer",
-  redis: "cache",
-  postgres: "sql_db",
-  cdn: "cdn",
-  "global-router": "global_router",
+/** Chassis scale from catalog size/tier. Kept subtle so layout stays stable. */
+const MACHINE_SIZE_SCALE: Readonly<Record<GlyphMachineSize, number>> = {
+  small: 0.88,
+  medium: 1,
+  large: 1.14,
 };
 
-const TIER_VISUAL_CAPACITY: Readonly<Record<string, number>> = {
-  small: 9,
-  medium: 16,
-  large: 25,
-};
+/** Compatibility view generated from catalog descriptors; it is not the source of glyph identity. */
+export const CATALOG_GLYPH_MAP: Readonly<Record<string, GlyphType>> = Object.freeze(
+  Object.fromEntries(
+    componentRegistry.list().flatMap((definition) =>
+      hasGlyphFamily(definition.presentation.glyph) ? [[definition.type, definition.presentation.glyph]] : [],
+    ),
+  ),
+);
 
 export function catalogTypeToGlyphType(catalogType: string): GlyphRenderType {
-  return CATALOG_GLYPH_MAP[catalogType] ?? "fallback";
+  const definition = componentRegistry.has(catalogType) ? componentRegistry.get(catalogType) : undefined;
+  const glyph = definition?.presentation.glyph;
+  return glyph && hasGlyphFamily(glyph) ? glyph : "fallback";
 }
 
-function tierToVisualCapacity(tier: string | undefined): number {
-  if (tier && tier in TIER_VISUAL_CAPACITY) {
-    return TIER_VISUAL_CAPACITY[tier];
-  }
-  return TIER_VISUAL_CAPACITY.medium;
-}
-
-function parseConfig<T extends JsonObject>(
-  definition: ComponentDefinition,
-  config: JsonObject,
-): T {
-  const parsed = definition.configSchema.safeParse(config);
-  if (parsed.success) {
-    return parsed.data as T;
-  }
-  return definition.defaultConfig as T;
-}
-
-function serviceInstances(component: ComponentInstance, config: ServiceConfig): number {
-  const regionalTotal = component.deployments.reduce((sum, deployment) => {
-    const instances = deployment.config.instances;
-    return sum + (typeof instances === "number" && Number.isFinite(instances) ? instances : 0);
-  }, 0);
-  return regionalTotal > 0 ? regionalTotal : config.instances;
-}
-
-function postgresReplicaCount(component: ComponentInstance, config: PostgresConfig): number {
-  const deploymentReplicas = component.deployments.filter(
-    (deployment) => deployment.config.role === "replica",
-  ).length;
-  return deploymentReplicas > 0 ? deploymentReplicas : config.readReplicaCount;
-}
-
-function loadBalancerArmAngle(policy: LoadBalancerConfig["policy"]): number {
-  // Equal policy steps sequentially; capacity-weighted sweeps toward the quietest line.
-  return policy === "capacity_weighted" ? 18 : -12;
-}
-
-function propsForCatalogType(
-  catalogType: string,
-  component: ComponentInstance,
-  definition: ComponentDefinition,
-): CatalogGlyphProps {
-  switch (catalogType) {
-    case "traffic-source":
-      return { type: "user" };
-
-    case "service": {
-      const config = parseConfig<ServiceConfig>(definition, component.config);
-      return { type: "server", instances: serviceInstances(component, config) };
-    }
-
-    case "load-balancer": {
-      const config = parseConfig<LoadBalancerConfig>(definition, component.config);
-      return { type: "load_balancer", armAngle: loadBalancerArmAngle(config.policy) };
-    }
-
-    case "redis": {
-      const config = parseConfig<RedisConfig>(definition, component.config);
-      const baseCapacity = tierToVisualCapacity(config.tier);
-      return {
-        type: "cache",
-        capacity: config.mode === "replicated" ? Math.round(baseCapacity * 1.5) : baseCapacity,
-      };
-    }
-
-    case "postgres": {
-      const config = parseConfig<PostgresConfig>(definition, component.config);
-      return {
-        type: "sql_db",
-        replicas: postgresReplicaCount(component, config),
-      };
-    }
-
-    case "cdn":
-      return { type: "cdn" };
-
-    case "global-router":
-      return { type: "global_router" };
-
-    default:
-      return { type: "fallback", fallbackLabel: definition.label };
-  }
-}
-
-/** Pure catalog → glyph props. No simulator calls. */
+/** Pure catalog descriptor → static glyph props. No simulator calls or live metrics. */
 export function glyphPropsFromComponent(
   component: ComponentInstance,
   definition: ComponentDefinition,
 ): CatalogGlyphProps {
-  const glyphType = catalogTypeToGlyphType(component.type);
-  if (glyphType === "fallback") {
-    return { type: "fallback", fallbackLabel: definition.label };
-  }
-  return propsForCatalogType(component.type, component, definition);
+  const glyph = definition.presentation.glyph;
+  const adapter = glyphFamilyRegistry[glyph as GlyphType];
+  return adapter ? adapter(component, definition) : { type: "fallback", fallbackLabel: definition.label };
 }
 
 export function glyphDimensionsForProps(props: CatalogGlyphProps): { width: number; height: number } {
-  if (props.type === "fallback") {
-    return { width: 64, height: 56 };
-  }
-  const size = GLYPH_SIZES[props.type];
-  if (!size) {
-    return { width: 64, height: 56 };
-  }
-  return { width: size.w, height: size.h };
+  if (props.type === "fallback") return { width: 64, height: 56 };
+  const base = GLYPH_SIZES[props.type];
+  if (!base) return { width: 64, height: 56 };
+  // Server size changes rack density, not chassis footprint. CDN/Postgres still scale.
+  const scale =
+    props.type === "cdn" || props.type === "sql_db"
+      ? MACHINE_SIZE_SCALE[props.machineSize ?? "medium"]
+      : 1;
+  return {
+    width: Math.round(base.w * scale),
+    height: Math.round(base.h * scale),
+  };
 }
 
 /** Level 1 catalog types that must each resolve to a distinct mini silhouette. */

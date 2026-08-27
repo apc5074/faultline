@@ -18,11 +18,17 @@ export function outlineProps(state: GlyphState): GlyphOutlineProps {
   if (state === "selected") {
     return { stroke: GLYPH_INK.ink, strokeWidth: 3.5 };
   }
-  if (state === "overloaded") {
+  if (state === "critical" || state === "saturated" || state === "overloaded") {
     return { stroke: GLYPH_INK.ink, strokeWidth: 3 };
+  }
+  if (state === "warning") {
+    return { stroke: GLYPH_INK.ink, strokeWidth: 2.5 };
   }
   if (state === "failed") {
     return { stroke: GLYPH_INK.signalRed, strokeWidth: 2.5, strokeDasharray: "5 3" };
+  }
+  if (state === "stale") {
+    return { stroke: GLYPH_INK.inkFaint, strokeWidth: 1.5, strokeDasharray: "2 3" };
   }
   return { stroke: GLYPH_INK.ink, strokeWidth: 2.25 };
 }

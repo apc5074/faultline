@@ -68,9 +68,15 @@ importers:
 
   packages/agent-capabilities:
     dependencies:
+      '@faultline/component-catalog':
+        specifier: workspace:*
+        version: link:../component-catalog
       '@faultline/core':
         specifier: workspace:*
         version: link:../core
+      '@faultline/simulator':
+        specifier: workspace:*
+        version: link:../simulator
     devDependencies:
       '@types/node':
         specifier: 24.10.1

@@ -303,12 +303,16 @@ export function usePlaygroundWorkspace() {
         }, PLAYGROUND_DELETE_MS);
       }
 
+      const selectChanges = changes.filter((change) => change.type === "select");
+      if (selectChanges.length > 0) {
+        // React Flow emits deselect+select in one batch; prefer the newly selected node
+        // so switching components does not briefly clear into the challenge sidebar.
+        const newlySelected = selectChanges.find((change) => change.selected);
+        const nextId = newlySelected ? newlySelected.id : null;
+        setSelectedComponentId(nextId);
+        setWorldSelection(worldSelectionForComponent(architecture, nextId));
+      }
       for (const change of changes) {
-        if (change.type === "select") {
-          const nextId = change.selected ? change.id : null;
-          setSelectedComponentId(nextId);
-          setWorldSelection(worldSelectionForComponent(architecture, nextId));
-        }
         if (change.type === "remove" && change.id === selectedComponentId) {
           setSelectedComponentId(null);
           setWorldSelection(null);

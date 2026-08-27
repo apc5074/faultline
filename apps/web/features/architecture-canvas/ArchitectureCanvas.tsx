@@ -5,6 +5,7 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useState } from "react";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
+import { DevExperimentControls } from "@/features/experiments/DevExperimentControls";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
@@ -85,6 +86,7 @@ function ArchitectureWorkspace() {
               </button>
             ) : null}
           </div>
+          <DevExperimentControls architecture={workspace.architecture} challenge={activeChallenge} />
           {aiEnabled ? <WebMcpStatusPlate status={webMcpStatus} /> : null}
         </header>
 

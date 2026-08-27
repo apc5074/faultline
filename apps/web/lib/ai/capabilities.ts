@@ -2,6 +2,7 @@ import { dynamicTool, jsonSchema, type Tool } from "ai";
 import {
   createEmptyAgentSessionState,
   resolveCapabilities,
+  resolveExperimentCapabilities,
   type AgentCapability,
   type AgentCapabilityRegistry,
   type AgentContext,
@@ -56,8 +57,9 @@ export function toAISDKTools(
 ): FaultlineAISDKTools {
   const { session = createEmptyAgentSessionState(), ...resolveOptions } = options;
   const resolved = resolveCapabilities(registry, context, resolveOptions);
+  const experiments = resolveExperimentCapabilities(registry, context);
   return Object.fromEntries(
-    resolved.capabilities.map((capability) => [
+    [...resolved.capabilities, ...experiments.capabilities].map((capability) => [
       capability.name,
       toAISDKTool(capability, registry, context, session),
     ]),

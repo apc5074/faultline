@@ -13,6 +13,7 @@ import { getMetricsCapability } from "./get-metrics.js";
 import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
 import { BASELINE_VISUAL_CAPABILITIES } from "./visual-capabilities.js";
+import { runLoadTestCapability } from "./run-load-test.js";
 
 export {
   getSessionFocusCapability,
@@ -89,6 +90,7 @@ export {
   highlightConnectionCapability,
 } from "./visual-capabilities.js";
 export type { ClearAnnotationsIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
+export { runLoadTestCapability } from "./run-load-test.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
@@ -106,5 +108,6 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     inspectReplicationCapability,
     inspectRegionalTrafficCapability,
     ...BASELINE_VISUAL_CAPABILITIES,
+    runLoadTestCapability,
   ]);
 }

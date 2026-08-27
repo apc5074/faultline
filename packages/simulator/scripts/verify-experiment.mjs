@@ -61,6 +61,14 @@ assert.ok(experiment.data.delta.metrics.headroom < 0);
 assert.deepEqual(architecture, input.architecture);
 assert.equal(tinyApiChallenge.workload.requestsPerSecond, input.challenge.workload.requestsPerSecond);
 
+for (const multiplier of [1.25, 1.5, 2, 3, 5]) {
+  const candidate = evaluateExperiment({
+    ...input,
+    experiment: { type: "traffic_multiplier", parameters: { multiplier } },
+  });
+  assert.equal(candidate.ok, true, `multiplier ${multiplier} should evaluate`);
+}
+
 const hotKeyExperiment = evaluateExperiment({
   ...input,
   experiment: { type: "hot_key", parameters: { hotKeyReadFraction: 0.25 } },
@@ -157,6 +165,41 @@ const invalidServiceFailure = evaluateExperiment({
 assert.equal(invalidServiceFailure.ok, false);
 if (!invalidServiceFailure.ok) assert.equal(invalidServiceFailure.code, "UNSUPPORTED_TARGET");
 
+const loadBalancedArchitecture = {
+  version: 1,
+  components: [
+    architecture.components[0],
+    { id: "lb-01", type: "load-balancer", config: { policy: "equal" }, deployments: [], ui: { x: 120, y: 0 } },
+    { id: "service-a", type: "service", config: { instances: 2 }, deployments: [], ui: { x: 300, y: -60 } },
+    { id: "service-b", type: "service", config: { instances: 2 }, deployments: [], ui: { x: 300, y: 60 } },
+  ],
+  connections: [
+    { id: "traffic-lb", sourceComponentId: "traffic-01", sourcePortId: "request_out", targetComponentId: "lb-01", targetPortId: "request_in", type: "request" },
+    { id: "lb-a", sourceComponentId: "lb-01", sourcePortId: "request_out", targetComponentId: "service-a", targetPortId: "request_in", type: "request" },
+    { id: "lb-b", sourceComponentId: "lb-01", sourcePortId: "request_out", targetComponentId: "service-b", targetPortId: "request_in", type: "request" },
+  ],
+};
+const loadBalancedChallenge = {
+  ...tinyApiChallenge,
+  allowedComponentTypes: [...tinyApiChallenge.allowedComponentTypes, "load-balancer"],
+};
+const redistributedFailure = evaluateExperiment({
+  architecture: loadBalancedArchitecture,
+  challenge: loadBalancedChallenge,
+  registry: componentRegistry,
+  experiment: { type: "component_failure", parameters: { componentId: "service-a" } },
+});
+assert.equal(redistributedFailure.ok, true);
+if (!redistributedFailure.ok) throw new Error("Expected redistributed service failure experiment.");
+assert.equal(
+  redistributedFailure.data.events.some((event) => event.type === "traffic_routed" && event.componentId === "service-a"),
+  false,
+);
+const healthyServiceTraffic = redistributedFailure.data.events.find(
+  (event) => event.type === "traffic_routed" && event.componentId === "service-b" && event.data.kind === "request",
+);
+assert.equal(healthyServiceTraffic?.data.requestsPerSecond, tinyApiChallenge.workload.requestsPerSecond);
+
 const firstRun = JSON.stringify(experiment.data);
 const secondRun = JSON.stringify(
   evaluateExperiment({
@@ -210,6 +253,31 @@ const regionalArchitecture = {
     { id: "s-p", sourceComponentId: "service-01", sourcePortId: "database_out", targetComponentId: "postgres-01", targetPortId: "database_in", type: "read_write" },
   ],
 };
+const regionalMultiplier = evaluateExperiment({
+  architecture: regionalArchitecture,
+  challenge: urlShortenerChallenge,
+  registry: componentRegistry,
+  experiment: { type: "traffic_multiplier", parameters: { multiplier: 2 } },
+});
+assert.equal(regionalMultiplier.ok, true);
+if (!regionalMultiplier.ok) throw new Error("Expected regional multiplier experiment.");
+assert.equal(regionalMultiplier.data.parameters.multiplier, 2);
+const regionalStarted = regionalMultiplier.data.events.find((event) => event.type === "simulation_started");
+assert.equal(regionalStarted?.data.requestsPerSecond, urlShortenerChallenge.workload.requestsPerSecond * 2);
+const regionalRoutes = regionalMultiplier.data.events.filter(
+  (event) =>
+    event.type === "traffic_routed" &&
+    event.componentId === "service-01" &&
+    event.data.originRegion !== undefined,
+);
+assert.ok(regionalRoutes.length > 0);
+const regionalRouteByOrigin = new Map(
+  regionalRoutes.map((event) => [event.data.originRegion, Number(event.data.requestsPerSecond ?? 0)]),
+);
+assert.equal(
+  [...regionalRouteByOrigin.values()].reduce((sum, rps) => sum + rps, 0),
+  urlShortenerChallenge.workload.requestsPerSecond * 2,
+);
 const regionalFailure = evaluateExperiment({
   architecture: regionalArchitecture,
   challenge: urlShortenerChallenge,
@@ -223,6 +291,15 @@ assert.ok(regionalFailure.data.events.some((event) => event.type === "traffic_re
 assert.ok(regionalFailure.data.events.some((event) => event.type === "database_unavailable"));
 assert.ok(regionalFailure.data.events.some((event) => event.type === "unroutable_demand"));
 assert.ok(regionalFailure.data.outcome.throughputRatio < regionalFailure.data.baseline.throughputRatio);
+assert.equal(regionalFailure.data.baseline.valid, true);
+assert.ok(
+  !regionalFailure.data.events.some(
+    (event) =>
+      event.type === "traffic_routed" &&
+      event.data.destinationRegion === "us-east" &&
+      event.data.kind === "request",
+  ),
+);
 assert.deepEqual(regionalArchitecture.components[2].deployments.map((deployment) => deployment.regionId), ["us-east", "europe"]);
 
 console.log("experiment evaluation verified");
