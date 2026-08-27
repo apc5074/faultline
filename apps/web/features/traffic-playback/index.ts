@@ -6,6 +6,24 @@ export type { PlaybackMechanismProps } from "./playback-mechanism";
 export { buildSimGraph, mergeSimVisuals } from "./architecture-sim-graph";
 export { pointOnOrthogonalPath } from "./path-geometry";
 export { PlaybackPacketGlyph } from "./PlaybackPacketGlyph";
+export { impactSlotSeed, randomizedImpactSlots } from "./impact-slots";
+export type { ImpactSlotSeed } from "./impact-slots";
+export { createPlaybackEvents } from "./presentation-events";
+export type {
+  AuthoritativePlaybackEvent,
+  CreatePlaybackEventsInput,
+  PlaybackEvent,
+  PlaybackEventSource,
+} from "./presentation-events";
+export {
+  advancePresentationPlayback,
+  cancelPresentationPlayback,
+  createPresentationPlaybackState,
+  preparePresentationPlayback,
+  settlePresentationPlayback,
+  startPresentationPlayback,
+} from "./presentation-playback";
+export type { PresentationPlaybackPhase, PresentationPlaybackState } from "./presentation-playback";
 export { catalogTypeToSimType } from "./sim-types";
 export type { SimComponent, SimConnection, SimPacket } from "./sim-types";
 export { resetTickSimulationState, tickSimulation } from "./tick-simulation";

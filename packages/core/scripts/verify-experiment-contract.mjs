@@ -14,6 +14,14 @@ const roundTrip = JSON.parse(
 assert.deepEqual(roundTrip, { type: "traffic_multiplier", parameters: { multiplier: 2 } });
 assert.equal(validateExperimentDefinition(roundTrip).success, true);
 
+for (const multiplier of [1.25, 1.5, 2, 3, 5]) {
+  assert.equal(
+    validateExperimentDefinition({ type: "traffic_multiplier", parameters: { multiplier } }).success,
+    true,
+    `traffic multiplier ${multiplier} must be accepted`,
+  );
+}
+
 const overlay = definitionToOverlay({ type: "cache_flush", parameters: { componentId: "redis-01" } });
 assert.deepEqual(overlay, { coldCacheComponentIds: ["redis-01"] });
 assert.equal(isEmptyOverlay({}), true);
@@ -29,6 +37,12 @@ const invalidMultiplier = validateExperimentDefinition({
 assert.equal(invalidMultiplier.success, false);
 if (invalidMultiplier.success) throw new Error("Expected invalid multiplier.");
 assert.equal(invalidMultiplier.errors[0]?.code, "INVALID_INPUT");
+
+const arbitraryMultiplier = validateExperimentDefinition({
+  type: "traffic_multiplier",
+  parameters: { multiplier: 2.5 },
+});
+assert.equal(arbitraryMultiplier.success, false);
 
 const validTypes = [
   { type: "traffic_multiplier", parameters: { multiplier: 5 } },

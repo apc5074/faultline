@@ -130,54 +130,24 @@ export function StartOfficialAttempt() {
   };
 
   return (
-    <aside className="official-attempt" aria-label="Official attempt">
-      <p className="official-attempt__title">Competition</p>
-      {state.status === "loading" ? (
-        <p className="official-attempt__status">Checking identity…</p>
-      ) : null}
-      {state.status === "idle" ? (
-        <p className="official-attempt__status">
-          {state.alias
-            ? `Playing as ${state.alias} — start when ready`
-            : "Playing as guest — local runs only"}
-        </p>
-      ) : null}
-      {state.status === "misconfigured" ? (
-        <p className="official-attempt__status">Supabase not configured</p>
-      ) : null}
-      {state.status === "error" ? (
-        <p className="official-attempt__status official-attempt__status--error" role="status">
-          {state.message}
-        </p>
-      ) : null}
+    <aside className="official-attempt official-attempt--compact" aria-label="Official attempt">
       {state.status === "active" ? (
-        <>
-          <p className="official-attempt__status official-attempt__status--ready" role="status">
-            Playing as {state.alias}
-          </p>
-          <p className="official-attempt__timer tabular" aria-label="Official run elapsed time">
-            Official Run {formatElapsed(state.startedAt, nowMs)}
-          </p>
-          <p className="official-attempt__hint">Elapsed time is display-only; ranking uses server time.</p>
-        </>
-      ) : null}
-      {state.status !== "active" ? (
+        <p className="official-attempt__timer tabular" role="status" aria-label="Official run elapsed time">
+          Attempt {formatElapsed(state.startedAt, nowMs)}
+        </p>
+      ) : (
         <button
           type="button"
           className="official-attempt__button"
           onClick={startOfficialAttempt}
           disabled={pending || state.status === "misconfigured" || state.status === "loading"}
         >
-          {pending ? "Starting…" : "Start Official Attempt"}
+          {pending || state.status === "loading" ? "Starting…" : "Start Attempt"}
         </button>
-      ) : (
-        <p className="official-attempt__active-label" role="status">
-          Official Attempt Active
-        </p>
       )}
-      {state.status !== "active" ? (
-        <p className="official-attempt__hint">
-          Builds and simulations work without signing in. Official ranking needs an intentional start.
+      {state.status === "error" ? (
+        <p className="official-attempt__status official-attempt__status--error" role="status">
+          {state.message}
         </p>
       ) : null}
     </aside>

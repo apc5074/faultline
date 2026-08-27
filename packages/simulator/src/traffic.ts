@@ -10,7 +10,14 @@ import {
   type ServiceConfig,
   ComponentRegistry,
 } from "@faultline/component-catalog";
-import type { Architecture, ChallengeDefinition, Connection, JsonObject, RegionId } from "@faultline/core";
+import type {
+  Architecture,
+  ChallengeDefinition,
+  Connection,
+  ExperimentOverlay,
+  JsonObject,
+  RegionId,
+} from "@faultline/core";
 import { isValidRegion } from "@faultline/core";
 
 import { evaluateCacheOffload, type CacheResult } from "./cache.js";
@@ -58,6 +65,8 @@ export interface TrafficPropagationInput {
   architecture: unknown;
   challenge: ChallengeDefinition;
   registry: ComponentRegistry;
+  /** Temporary experiment state; never persisted to canonical architecture. */
+  overlay?: ExperimentOverlay;
 }
 
 export type TrafficPropagationResult =
@@ -72,6 +81,8 @@ export type TrafficPropagationResult =
       /** Deterministic geographic route records for visualization. */
       geographicRoutes: readonly GeographicRoute[];
       events: readonly SimulationEvent[];
+      /** Request demand with no healthy reachable Service during an experiment. */
+      unroutableRps: number;
     }
   | { valid: false; errors: readonly SimulationValidationError[] };
 
@@ -196,24 +207,31 @@ function cacheLoadEvents(componentId: string, cache: CacheResult): SimulationEve
 }
 
 function evaluateCdnCache(
+  componentId: string,
   incomingRps: number,
   config: CdnConfig,
   readRatio: number,
+  overlay?: ExperimentOverlay,
 ): CacheResult {
   const redirectRps = incomingRps * readRatio;
   const eligibleRps = redirectRps * config.coverage;
   return evaluateCacheOffload({
     eligibleRps,
-    configuredHitRate: cdnHitRateForConfig(config),
+    configuredHitRate: overlay?.coldCacheComponentIds?.includes(componentId) ? 0 : cdnHitRateForConfig(config),
     capacityRps: cdnThroughputCapacityForConfig(config),
   });
 }
 
-function evaluateRedisCache(readRps: number, config: RedisConfig): CacheResult {
+function evaluateRedisCache(
+  componentId: string,
+  readRps: number,
+  config: RedisConfig,
+  overlay?: ExperimentOverlay,
+): CacheResult {
   const model = redisEffectiveModel(config);
   return evaluateCacheOffload({
     eligibleRps: readRps,
-    configuredHitRate: redisHitRateForConfig(config),
+    configuredHitRate: overlay?.coldCacheComponentIds?.includes(componentId) ? 0 : redisHitRateForConfig(config),
     capacityRps: model.throughputRps,
   });
 }
@@ -230,7 +248,7 @@ function evaluateRedisCache(readRps: number, config: RedisConfig): CacheResult {
  * Redis (data cache) absorbs eligible read hits before Postgres.
  * Writes never hit either cache. Layers compose sequentially on remaining traffic.
  */
-export function propagateTraffic({ architecture: input, challenge, registry }: TrafficPropagationInput): TrafficPropagationResult {
+export function propagateTraffic({ architecture: input, challenge, registry, overlay }: TrafficPropagationInput): TrafficPropagationResult {
   const validation = validateArchitectureForSimulation({ architecture: input, challenge, registry });
   if (!validation.valid) return validation;
 
@@ -239,10 +257,10 @@ export function propagateTraffic({ architecture: input, challenge, registry }: T
   const useGeographicRouting = regionalWorkload.active && architectureHasServiceDeployments(architecture);
 
   if (useGeographicRouting) {
-    return propagateGeographicTraffic(architecture, challenge, registry, regionalWorkload);
+    return propagateGeographicTraffic(architecture, challenge, registry, regionalWorkload, overlay);
   }
 
-  return propagateLogicalTraffic(architecture, challenge, registry, regionalWorkload);
+  return propagateLogicalTraffic(architecture, challenge, registry, regionalWorkload, overlay);
 }
 
 function emptyRegionalTraffic(): Record<string, Record<string, RegionalComponentTraffic>> {
@@ -254,21 +272,29 @@ function propagateLogicalTraffic(
   challenge: ChallengeDefinition,
   registry: ComponentRegistry,
   regionalWorkload: RegionalWorkload,
+  overlay?: ExperimentOverlay,
 ): Extract<TrafficPropagationResult, { valid: true }> {
   const traffic = Object.fromEntries(
     stableById(architecture.components).map((component) => [component.id, createTraffic()]),
   ) as Record<string, ComponentTraffic>;
   const caches: Record<string, CacheResult> = {};
+  let unroutableRps = 0;
   const events: SimulationEvent[] = [{ type: "simulation_started", data: { requestsPerSecond: challenge.workload.requestsPerSecond } }];
   const sources = stableById(architecture.components.filter((component) => component.type === "traffic-source"));
   const workloadPerSource = challenge.workload.requestsPerSecond / sources.length;
 
   for (const source of sources) {
     const edges = requestEdgesFrom(architecture, source.id);
-    const trafficPerEdge = workloadPerSource / edges.length;
     traffic[source.id].outgoingRps += workloadPerSource;
+    const eligibleEdges = edges.filter((edge) => !overlay?.failedComponentIds?.includes(edge.targetComponentId));
+    if (eligibleEdges.length === 0) {
+      unroutableRps += workloadPerSource;
+      events.push({ type: "traffic_routed", componentId: source.id, data: { requestsPerSecond: workloadPerSource, kind: "unroutable" } });
+      continue;
+    }
+    const trafficPerEdge = workloadPerSource / eligibleEdges.length;
 
-    for (const edge of edges) {
+    for (const edge of eligibleEdges) {
       traffic[edge.targetComponentId].incomingRps += trafficPerEdge;
       events.push({
         type: "traffic_routed",
@@ -296,13 +322,21 @@ function propagateLogicalTraffic(
       if (isEdgeCache(simulation)) {
         const parsed = registry.get(forwarder.type).configSchema.safeParse(forwarder.config);
         if (!parsed.success) continue;
-        const cache = evaluateCdnCache(pendingRps, parsed.data as CdnConfig, challenge.workload.readRatio);
+        const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, challenge.workload.readRatio, overlay);
         caches[forwarder.id] = cache;
         events.push(...cacheLoadEvents(forwarder.id, cache));
         forwardRps = pendingRps - cache.hitRps;
       }
 
-      const allocations = allocateForwardedRequestRps(forwardRps, edges, architecture, registry, forwarder.id);
+      const eligibleEdges = edges.filter((edge) => !overlay?.failedComponentIds?.includes(edge.targetComponentId));
+      if (eligibleEdges.length === 0 && forwardRps > 0) {
+        unroutableRps += forwardRps;
+        traffic[forwarder.id].outgoingRps += pendingRps;
+        events.push({ type: "traffic_routed", componentId: forwarder.id, data: { requestsPerSecond: forwardRps, kind: "unroutable" } });
+        forwardedAny = true;
+        continue;
+      }
+      const allocations = allocateForwardedRequestRps(forwardRps, eligibleEdges, architecture, registry, forwarder.id);
       traffic[forwarder.id].outgoingRps += pendingRps;
       forwardedAny = true;
 
@@ -356,7 +390,7 @@ function propagateLogicalTraffic(
     const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
     if (!parsed.success) continue;
 
-    const cache = evaluateRedisCache(pendingReads, parsed.data as RedisConfig);
+    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, overlay);
     caches[cacheComponent.id] = cache;
     events.push(...cacheLoadEvents(cacheComponent.id, cache));
 
@@ -391,6 +425,7 @@ function propagateLogicalTraffic(
     regionalTraffic: emptyRegionalTraffic(),
     geographicRoutes: [],
     events,
+    unroutableRps,
   };
 }
 
@@ -399,6 +434,7 @@ function propagateGeographicTraffic(
   challenge: ChallengeDefinition,
   registry: ComponentRegistry,
   regionalWorkload: RegionalWorkload,
+  overlay?: ExperimentOverlay,
 ): Extract<TrafficPropagationResult, { valid: true }> {
   const traffic = Object.fromEntries(
     stableById(architecture.components).map((component) => [component.id, createTraffic()]),
@@ -406,6 +442,7 @@ function propagateGeographicTraffic(
   const regionalTraffic: Record<string, Record<string, RegionalComponentTraffic>> = {};
   const geographicRoutes: GeographicRoute[] = [];
   const caches: Record<string, CacheResult> = {};
+  let unroutableRps = 0;
   const events: SimulationEvent[] = [
     {
       type: "simulation_started",
@@ -428,9 +465,15 @@ function propagateGeographicTraffic(
       const reachableServices = findReachableServices(architecture, [source.id], (component) =>
         isForwarder(component),
       );
-      const candidates = serviceDeploymentCandidates(reachableServices);
-      const selected = selectNearestHealthyDeployment(origin.regionId, candidates);
-      if (!selected) continue;
+      const candidates = serviceDeploymentCandidates(
+        reachableServices.filter((service) => !overlay?.failedComponentIds?.includes(service.id)),
+      );
+      const selected = selectNearestHealthyDeployment(origin.regionId, candidates, overlay?.failedRegionIds);
+      if (!selected) {
+        unroutableRps += rpsPerSource;
+        events.push({ type: "traffic_routed", componentId: source.id, data: { requestsPerSecond: rpsPerSource, kind: "unroutable", originRegion: origin.regionId } });
+        continue;
+      }
 
       const networkLatencyMs = getRegionLatencyMs(origin.regionId, selected.regionId);
 
@@ -489,7 +532,7 @@ function propagateGeographicTraffic(
         if (!target) continue;
 
         if (target.type === "redis") {
-          const redisDeployment = selectRedisDeploymentForServiceRegion(target, selected.regionId);
+          const redisDeployment = selectRedisDeploymentForServiceRegion(target, selected.regionId, overlay?.failedRegionIds);
           const redisRegion: RegionId = isValidRegion(redisDeployment?.regionId)
             ? redisDeployment.regionId
             : selected.regionId;
@@ -540,6 +583,12 @@ function propagateGeographicTraffic(
             regionalTraffic,
             geographicRoutes,
             events,
+            excludedRegionIds: overlay?.failedRegionIds,
+            unroutable: {
+              add: (rps) => {
+                unroutableRps += rps;
+              },
+            },
           });
         }
       }
@@ -553,7 +602,7 @@ function propagateGeographicTraffic(
     if (pendingRps <= 0) continue;
     const parsed = registry.get(forwarder.type).configSchema.safeParse(forwarder.config);
     if (!parsed.success) continue;
-    const cache = evaluateCdnCache(pendingRps, parsed.data as CdnConfig, challenge.workload.readRatio);
+    const cache = evaluateCdnCache(forwarder.id, pendingRps, parsed.data as CdnConfig, challenge.workload.readRatio, overlay);
     caches[forwarder.id] = cache;
     events.push(...cacheLoadEvents(forwarder.id, cache));
     traffic[forwarder.id].outgoingRps += pendingRps;
@@ -578,7 +627,7 @@ function propagateGeographicTraffic(
 
     const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
     if (!parsed.success) continue;
-    const cache = evaluateRedisCache(pendingReads, parsed.data as RedisConfig);
+    const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, overlay);
     caches[cacheComponent.id] = cache;
     events.push(...cacheLoadEvents(cacheComponent.id, cache));
 
@@ -636,6 +685,12 @@ function propagateGeographicTraffic(
           regionalTraffic,
           geographicRoutes,
           events,
+          excludedRegionIds: overlay?.failedRegionIds,
+          unroutable: {
+            add: (rps) => {
+              unroutableRps += rps;
+            },
+          },
         });
       }
     }
@@ -652,6 +707,7 @@ function propagateGeographicTraffic(
     regionalTraffic,
     geographicRoutes,
     events,
+    unroutableRps,
   };
 }
 
@@ -727,16 +783,41 @@ function routeToPostgres(input: {
   regionalTraffic: Record<string, Record<string, RegionalComponentTraffic>>;
   geographicRoutes: GeographicRoute[];
   events: SimulationEvent[];
+  excludedRegionIds?: readonly string[];
+  unroutable: { add: (rps: number) => void };
 }): void {
-  const { postgres, serviceRegionId, readRps, writeRps, edgeId, traffic, regionalTraffic, geographicRoutes, events } =
-    input;
+  const {
+    postgres,
+    serviceRegionId,
+    readRps,
+    writeRps,
+    edgeId,
+    traffic,
+    regionalTraffic,
+    geographicRoutes,
+    events,
+    excludedRegionIds,
+    unroutable,
+  } = input;
 
-  const writeDeployment = selectPostgresDeploymentForTraffic(postgres, serviceRegionId, "write");
-  const readDeployment = selectPostgresDeploymentForTraffic(postgres, serviceRegionId, "read");
+  const writeDeployment = selectPostgresDeploymentForTraffic(postgres, serviceRegionId, "write", excludedRegionIds);
+  const readDeployment = selectPostgresDeploymentForTraffic(postgres, serviceRegionId, "read", excludedRegionIds);
 
-  traffic[postgres.id].incomingRps += readRps + writeRps;
-  traffic[postgres.id].readRps += readRps;
-  traffic[postgres.id].writeRps += writeRps;
+  const routedReadRps = readDeployment ? readRps : 0;
+  const routedWriteRps = writeDeployment ? writeRps : 0;
+  const unavailableRps = readRps - routedReadRps + writeRps - routedWriteRps;
+  traffic[postgres.id].incomingRps += routedReadRps + routedWriteRps;
+  traffic[postgres.id].readRps += routedReadRps;
+  traffic[postgres.id].writeRps += routedWriteRps;
+  if (unavailableRps > 0) {
+    unroutable.add(unavailableRps);
+    events.push({
+      type: "traffic_routed",
+      connectionId: edgeId,
+      componentId: postgres.id,
+      data: { requestsPerSecond: unavailableRps, kind: "unroutable", reason: "database_unavailable" },
+    });
+  }
 
   if (writeDeployment && writeRps > 0 && isValidRegion(writeDeployment.regionId)) {
     addRegionalTraffic(regionalTraffic, postgres.id, writeDeployment.regionId, {
@@ -775,8 +856,8 @@ function routeToPostgres(input: {
     connectionId: edgeId,
     componentId: postgres.id,
     data: {
-      readRequestsPerSecond: readRps,
-      writeRequestsPerSecond: writeRps,
+      readRequestsPerSecond: routedReadRps,
+      writeRequestsPerSecond: routedWriteRps,
       kind: "read_write",
       serviceRegion: serviceRegionId,
       writeRegion: writeDeployment?.regionId ?? "",

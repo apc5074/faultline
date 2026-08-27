@@ -44,6 +44,12 @@ export const trafficSourceDefinition: ComponentDefinition<TrafficSourceConfig> =
       unit: "requests/sec",
     },
   ],
+  presentation: {
+    glyph: "user",
+    size: "standard",
+    visualConfig: [],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     injectsChallengeWorkload: true,
   },

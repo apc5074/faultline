@@ -118,6 +118,15 @@ export const serviceDefinition: ComponentDefinition<ServiceConfig> = {
     { id: "headroom", label: "Headroom", unit: "requests/sec" },
     { id: "p95_latency", label: "p95 latency", unit: "milliseconds" },
   ],
+  presentation: {
+    glyph: "server",
+    size: "standard",
+    visualConfig: [
+      { name: "instances", source: "config", path: "instances" },
+      { name: "regionalInstances", source: "deployment", path: "config.instances" },
+    ],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     sizeModels: serviceSizeModels as unknown as JsonObject,
     baseP95LatencyMs: serviceBaseP95LatencyMs,

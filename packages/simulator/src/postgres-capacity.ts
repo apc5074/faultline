@@ -152,6 +152,7 @@ export function evaluatePostgresCapacity(input: TrafficPropagationInput): Postgr
     regionalTraffic: propagation.regionalTraffic,
     geographicRoutes: propagation.geographicRoutes,
     events,
+    unroutableRps: propagation.unroutableRps,
     postgres,
   };
 }

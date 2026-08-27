@@ -457,6 +457,13 @@ main {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.playground-topbar__wordmark:hover {
+  color: var(--color-ink);
 }
 
 .playground-topbar__view-label {
@@ -484,8 +491,7 @@ main {
   color: var(--color-ink-faint);
 }
 
-.playground-topbar__hero,
-.playground-topbar__brief {
+.playground-topbar__hero {
   padding: 0;
   border: 0;
   background: transparent;
@@ -498,12 +504,11 @@ main {
   cursor: pointer;
 }
 
-.playground-topbar__hero:hover,
-.playground-topbar__brief:hover {
+.playground-topbar__hero:hover {
   color: var(--color-ink-faint);
 }
 
-.playground-topbar__brief:focus-visible,
+.playground-corner-hud__briefing:focus-visible,
 .level-briefing__close:focus-visible,
 .level-briefing__start:focus-visible {
   outline: 2px solid var(--color-signal-red);
@@ -1022,6 +1027,51 @@ main {
   transform: translateX(-50%);
 }
 
+.playground-canvas-region {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.playground-corner-hud {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  max-width: min(240px, 45%);
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
+}
+
+.playground-corner-hud > :last-child {
+  border-bottom: 0;
+}
+
+.playground-corner-hud__briefing {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-faint);
+  font: inherit;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.playground-corner-hud__briefing:hover {
+  background: var(--color-paper-dark);
+  color: var(--color-ink);
+}
+
 .playground-inspector-column {
   display: flex;
   flex-shrink: 0;
@@ -1032,30 +1082,12 @@ main {
   background: var(--color-paper);
 }
 
-.playground-data-plates__toggle {
-  flex-shrink: 0;
-  width: 100%;
-  margin: 0;
-  padding: 0.45rem 0.65rem;
-  border: 0;
-  border-bottom: 1px solid var(--color-ink-hairline);
-  background: var(--color-paper-dark);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 0.55rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-align: left;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.playground-data-plates__content {
-  display: grid;
-  gap: 0;
-  max-height: 42vh;
+.playground-sidebar-challenge {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   overflow: auto;
-  border-bottom: 1px solid var(--color-ink-hairline);
 }
 
 .playground-inspector {
@@ -2272,6 +2304,23 @@ h1 {
   background: var(--color-paper);
 }
 
+.official-attempt--compact {
+  padding: 0.5rem 0.6rem;
+}
+
+.official-attempt--compact .official-attempt__button {
+  margin-top: 0;
+}
+
+.official-attempt--compact .official-attempt__timer {
+  margin: 0;
+  text-align: center;
+}
+
+.official-attempt--compact .official-attempt__status {
+  margin-top: 0.45rem;
+}
+
 .official-attempt__title {
   margin: 0;
   font-size: 0.62rem;
@@ -2340,13 +2389,35 @@ h1 {
   position: relative;
   z-index: 20;
   flex-shrink: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 0;
+  gap: 0.5rem;
   height: 40px;
   padding: 0 1rem;
   border-top: 1px solid var(--color-ink-hairline);
   background: var(--color-paper-dark);
+}
+
+.sim-bar__cluster {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.sim-bar__cluster--start {
+  justify-content: flex-start;
+}
+
+.sim-bar__cluster--center {
+  justify-content: center;
+  justify-self: center;
+}
+
+.sim-bar__cluster--end {
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 0;
 }
 
 .sim-bar__transport,
@@ -2419,20 +2490,6 @@ h1 {
   height: 20px;
   margin: 0 0.75rem;
   background: var(--color-ink-hairline);
-}
-
-.sim-bar__state {
-  margin: 0 0 0 0.75rem;
-  color: var(--color-ink-faint);
-  font-size: 0.55rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.sim-bar__spacer {
-  flex: 1;
-  min-width: 0.5rem;
 }
 
 .sim-bar__agent-help {

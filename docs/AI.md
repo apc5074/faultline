@@ -1,26 +1,38 @@
 # AI
 
-Embedded AI will interpret simulator evidence and help challenge a human design. It never invents metrics or decides correctness; the deterministic simulator does.
+Faultline's primary coaching interface is an external agent connected through browser WebMCP. The built-in **AI Engineer** remains available as an optional, collapsed panel; it uses the same coaching policy and semantic capability layer.
 
-`packages/agent-capabilities` defines adapter-neutral semantic capability contracts. A capability has a name, description, validated input boundary, mode (`read`, `experiment`, or `visual`), availability predicate, execution contract, and optional annotations. The embedded AI and WebMCP adapters will consume that layer instead of duplicating business logic.
+Neither interface decides whether a design passes. The deterministic simulator is the source of truth for metrics, requirements, cost, and official scoring.
 
-Business logic must live beneath adapters: future AI SDK and WebMCP implementations will delegate to the same semantic capability.
+## Shared semantic layer
 
-## Capability registry
+`packages/agent-capabilities` defines adapter-neutral capability contracts. A capability has a validated input boundary, mode (`read`, `visual`, or reserved `experiment`), availability predicate, execution contract, and safety annotations.
 
-`AgentCapabilityRegistry` registers Phase 5 read capabilities and exposes `list`, `available(context)`, and `invoke` (validate input → execute → `CapabilityResult`). Capabilities must not import the AI SDK.
+Domain logic lives below adapters. The WebMCP adapter and built-in agent must delegate to this shared registry rather than duplicate architecture, simulator, or cost rules.
 
-`AgentContext` is an immutable per-request snapshot (`challenge`, `architecture`, optional simulation/cost evidence). Capabilities read that snapshot only.
+Each invocation receives a fresh `AgentContext` plus `AgentSessionState`:
 
-## Capabilities
+- `AgentContext`: challenge, canonical architecture, and optional simulation/cost evidence.
+- `AgentSessionState`: current human focus, pending help request, annotations, and revision.
 
-| Name | Mode | Purpose |
-| --- | --- | --- |
-| `get_challenge` | read | Compact challenge problem statement: workload, special scenarios, budget. Never reveals solutions. |
-| `get_requirements` | read | Configured success criteria and deferred targets. Never evaluates pass/fail. |
-| `get_architecture` | read | Compact semantic architecture from canonical state (config, deployments, connections; no UI). |
-| `inspect_component` | read | One component: config, simulator metrics, and cost from AgentContext evidence. |
-| `estimate_capacity` | read | Capacity/load/headroom and bottleneck from simulator evidence (optional componentId). |
-| `get_metrics` | read | Compact simulator truth: system outcomes, component metrics, scenarios; explicit when unavailable. |
+The session helps an agent respond to human intent; it does not authorize an agent to edit architecture.
 
-No AI integration endpoint is implemented yet.
+## Coaching behavior
+
+Agents must call `get_coaching_policy` before coaching. The policy requires an interviewer/reviewer voice: inspect evidence before asserting, provide one finding and one question, and do not reveal a canonical topology or solution thresholds.
+
+Use simulator evidence when available and say when it is unavailable. Do not invent metrics, infer pass/fail independently, or prescribe a single technology stack as the answer.
+
+When discussing a named component or existing connection, an external agent should use the appropriate visual capability so the player can see the reference on the canvas. Visual marks are annotations only.
+
+## Built-in AI Engineer
+
+`POST /api/agent` is an optional streaming coaching route. It is disabled unless `NEXT_PUBLIC_FAULTLINE_AI_ENABLED=true`; with the flag off, the UI, help chips, annotations, WebMCP registration, and route stay unavailable.
+
+The panel is intentionally collapsed as **Built-in agent (optional)**. It interprets evidence and may direct attention to a component, but the player still owns all architecture changes.
+
+## Official competition
+
+An agent may help a player inspect a design, but it must not submit, score, or modify it. Official submission is server-side: the server re-simulates the submitted canonical architecture and ignores browser-provided metrics and pass/fail claims.
+
+See [WEBMCP.md](./WEBMCP.md) for the exact external tool catalog and [WEBMCP_COMPETITION.md](./WEBMCP_COMPETITION.md) for the competitor configuration prompt and fair-play rules.

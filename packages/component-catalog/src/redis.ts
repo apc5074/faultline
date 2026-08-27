@@ -147,6 +147,15 @@ export const redisDefinition: ComponentDefinition<RedisConfig> = {
     { id: "hot_key_utilization", label: "Hot-key utilization", unit: "ratio" },
     { id: "reads_avoided", label: "Reads avoided at Postgres", unit: "requests/sec" },
   ],
+  presentation: {
+    glyph: "cache",
+    size: "standard",
+    visualConfig: [
+      { name: "mode", source: "config", path: "mode" },
+      { name: "tier", source: "config", path: "tier" },
+    ],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     role: "data_cache",
     cacheCapable: true,

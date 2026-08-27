@@ -163,6 +163,16 @@ export const postgresDefinition: ComponentDefinition<PostgresConfig> = {
     { id: "read_replica_count", label: "Read replica count", unit: "count" },
     { id: "p95_latency", label: "p95 latency", unit: "ms" },
   ],
+  presentation: {
+    glyph: "sql_db",
+    size: "standard",
+    visualConfig: [
+      { name: "tier", source: "config", path: "tier" },
+      { name: "readReplicaCount", source: "config", path: "readReplicaCount" },
+      { name: "deploymentRoles", source: "deployment", path: "config.role" },
+    ],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     baseP95LatencyMs: postgresBaseP95LatencyMs,
     readAndWriteCapacityAreIndependent: true,

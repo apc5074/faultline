@@ -26,15 +26,17 @@ const evaluation = evaluateRequirements({
 assert.equal(evaluation.valid, true);
 if (!evaluation.valid) throw new Error("Expected valid hero scene evaluation.");
 
-assert.ok(evaluation.geographicRoutes.length > 0, "hero scene should emit geographic routes");
-assert.ok(
-  evaluation.geographicRoutes.some((route) => route.originRegion === "europe"),
-  "europe origin traffic expected",
-);
 assert.ok(evaluation.caches["hero-cdn"], "CDN metrics expected");
-assert.ok(evaluation.caches["hero-redis"], "Redis metrics expected");
-assert.ok(evaluation.services["hero-service-a"], "service-a metrics expected");
-assert.ok(evaluation.services["hero-service-b"], "service-b metrics expected");
-assert.ok(evaluation.services["hero-service-c"], "service-c metrics expected");
+assert.ok(evaluation.services["hero-service"], "service metrics expected");
+assert.ok(evaluation.postgres["hero-postgres"], "postgres metrics expected");
 
-console.log("level 1 hero scene verified");
+for (const requirement of evaluation.requirements) {
+  assert.equal(
+    requirement.passed,
+    true,
+    `${requirement.id} should pass: ${requirement.explanation}`,
+  );
+}
+assert.equal(evaluation.hotKey?.passed, true, evaluation.hotKey?.explanation);
+
+console.log("level 1 hero scene verified (requirements pass)");

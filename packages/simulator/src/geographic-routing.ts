@@ -127,8 +127,11 @@ export function serviceDeploymentCandidates(services: readonly ComponentInstance
 export function selectNearestHealthyDeployment(
   originRegionId: RegionId,
   candidates: readonly DeploymentCandidate[],
+  excludedRegionIds: readonly string[] = [],
 ): DeploymentCandidate | null {
-  const healthy = candidates.filter((candidate) => isHealthyRegion(candidate.regionId));
+  const healthy = candidates.filter(
+    (candidate) => isHealthyRegion(candidate.regionId) && !excludedRegionIds.includes(candidate.regionId),
+  );
   if (healthy.length === 0) return null;
 
   const ranked = [...healthy].sort((left, right) => {
@@ -157,10 +160,11 @@ export function redisDeploymentInRegion(
 export function selectRedisDeploymentForServiceRegion(
   redis: ComponentInstance,
   serviceRegionId: RegionId,
+  excludedRegionIds: readonly string[] = [],
 ): RegionDeployment | null {
   if (redis.deployments.length === 0) return null;
   const local = redisDeploymentInRegion(redis, serviceRegionId);
-  if (local && isHealthyRegion(local.regionId)) return local;
+  if (local && isHealthyRegion(local.regionId) && !excludedRegionIds.includes(local.regionId)) return local;
 
   const candidates: DeploymentCandidate[] = redis.deployments
     .filter((deployment) => isValidRegion(deployment.regionId))
@@ -169,7 +173,7 @@ export function selectRedisDeploymentForServiceRegion(
       deployment,
       regionId: deployment.regionId as RegionId,
     }));
-  return selectNearestHealthyDeployment(serviceRegionId, candidates)?.deployment ?? null;
+  return selectNearestHealthyDeployment(serviceRegionId, candidates, excludedRegionIds)?.deployment ?? null;
 }
 
 /**
@@ -180,17 +184,27 @@ export function selectPostgresDeploymentForTraffic(
   postgres: ComponentInstance,
   serviceRegionId: RegionId,
   kind: "read" | "write",
+  excludedRegionIds: readonly string[] = [],
 ): RegionDeployment | null {
   if (postgres.deployments.length === 0) return null;
   const primary = postgresPrimaryDeployment(postgres.deployments);
   if (!primary || !isValidRegion(primary.regionId)) return null;
 
-  if (kind === "write") return primary;
+  // A region failure never promotes a replica. Writes are unavailable while the
+  // primary's region is excluded; this is deliberate experiment truth, not a
+  // topology mutation.
+  if (kind === "write") {
+    return excludedRegionIds.includes(primary.regionId) ? null : primary;
+  }
 
   const localReplica = postgresReplicaDeployments(postgres.deployments).find(
-    (deployment) => deployment.regionId === serviceRegionId && isHealthyRegion(deployment.regionId),
+    (deployment) =>
+      deployment.regionId === serviceRegionId &&
+      isHealthyRegion(deployment.regionId) &&
+      !excludedRegionIds.includes(deployment.regionId),
   );
-  return localReplica ?? primary;
+  if (localReplica) return localReplica;
+  return excludedRegionIds.includes(primary.regionId) ? null : primary;
 }
 
 export function addRegionalTraffic(

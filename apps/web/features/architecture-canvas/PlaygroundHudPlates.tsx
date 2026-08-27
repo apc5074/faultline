@@ -1,7 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
-
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, RequirementDefinition, RequirementResult } from "@faultline/core";
 import { estimateMonthlyCost } from "@faultline/simulator";
@@ -16,31 +14,6 @@ import {
 } from "@/features/architecture-canvas/playground-challenge";
 import { formatCost } from "@/features/architecture-canvas/playground-architecture-utils";
 import type { SimulationRunState, SuccessfulSimulation } from "@/features/architecture-canvas/playground-types";
-
-export function PlaygroundDataPlates({
-  expanded,
-  onToggle,
-  children,
-}: {
-  expanded: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="playground-data-plates">
-      <button
-        type="button"
-        className="playground-data-plates__toggle"
-        onClick={onToggle}
-        aria-expanded={expanded}
-      >
-        Challenge & competition
-        <span aria-hidden="true">{expanded ? " ▾" : " ▸"}</span>
-      </button>
-      {expanded ? <div className="playground-data-plates__content">{children}</div> : null}
-    </div>
-  );
-}
 
 function formatCompactCost(amount: number): string {
   if (amount >= 1_000) {
@@ -82,33 +55,6 @@ export function BudgetHud({
           Over budget
         </p>
       ) : null}
-      {cost.lineItems.length > 0 ? (
-        <details className="hud-plate__details">
-          <summary className="hud-plate__details-summary">Breakdown</summary>
-          <dl className="hud-plate__spec tabular">
-            {cost.lineItems.map((lineItem) => {
-              const component = architecture.components.find((candidate) => candidate.id === lineItem.componentId);
-              const label =
-                lineItem.label ??
-                (component && componentRegistry.has(component.type)
-                  ? componentRegistry.get(component.type).label
-                  : lineItem.componentId);
-              return (
-                <div key={lineItem.componentId}>
-                  <dt>{label}</dt>
-                  <dd>{formatCost(lineItem.amount)}</dd>
-                </div>
-              );
-            })}
-            <div className="hud-plate__spec-total">
-              <dt>Total</dt>
-              <dd className={overBudget ? "hud-plate__spec-total--over" : undefined}>{formatCost(cost.monthlyTotal)}</dd>
-            </div>
-          </dl>
-        </details>
-      ) : (
-        <p className="hud-plate__empty">Add components to estimate monthly cost.</p>
-      )}
     </aside>
   );
 }

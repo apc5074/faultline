@@ -59,7 +59,6 @@ export function usePlaygroundWorkspace() {
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const [officialSubmitting, setOfficialSubmitting] = useState(false);
   const [officialSummary, setOfficialSummary] = useState<string | null>(null);
-  const [dataPlatesExpanded, setDataPlatesExpanded] = useState(true);
   const [connectingFrom, setConnectingFrom] = useState<ConnectingFrom | null>(null);
   const [settlingNodeIds, setSettlingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -491,10 +490,6 @@ export function usePlaygroundWorkspace() {
     }, 0);
   }, [architecture]);
 
-  const handleSimBarStep = useCallback(() => {
-    playback.step(architecture);
-  }, [architecture, playback]);
-
   useEffect(() => {
     registerPacketRerouteHandler(({ componentId }) => {
       playback.markComponentFailed(componentId);
@@ -681,8 +676,6 @@ export function usePlaygroundWorkspace() {
     officialSubmitting,
     officialSummary,
     officialSession,
-    dataPlatesExpanded,
-    setDataPlatesExpanded,
     semanticZoomOut,
     setSemanticZoomOut,
     nodes,
@@ -701,7 +694,6 @@ export function usePlaygroundWorkspace() {
     onConfigChange,
     onDeploymentsChange,
     handleSimBarRun,
-    handleSimBarStep,
     handleSimBarReset,
     handleViewModeChange,
     loadHeroScene,

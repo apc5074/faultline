@@ -44,6 +44,12 @@ function definition(type, ports) {
     configSchema: schema,
     ports,
     metrics: [{ id: "load", label: "Load", unit: "rps" }],
+    presentation: {
+      glyph: "server",
+      size: "standard",
+      visualConfig: [],
+      supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+    },
     simulation: {},
     cost: {},
     regionSupport: false,
@@ -69,9 +75,57 @@ assert.equal(registry.list().length, 3);
 assert.throws(() => registry.register(definition("service", [])), DuplicateComponentTypeError);
 assert.throws(() => registry.get("missing"), UnknownComponentTypeError);
 assert.throws(() => registry.register({ ...definition("broken", []), defaultConfig: [] }), ComponentDefinitionError);
+assert.throws(() => registry.register({ ...definition("missing-presentation", []), presentation: undefined }), ComponentDefinitionError);
+assert.throws(
+  () => registry.register({ ...definition("bad-glyph", []), presentation: { ...definition("x", []).presentation, glyph: "Server" } }),
+  ComponentDefinitionError,
+);
+assert.throws(
+  () => registry.register({ ...definition("bad-size", []), presentation: { ...definition("x", []).presentation, size: "huge" } }),
+  ComponentDefinitionError,
+);
+assert.throws(
+  () => registry.register({
+    ...definition("bad-state", []),
+    presentation: { ...definition("x", []).presentation, supportedStates: ["idle", "busy"] },
+  }),
+  ComponentDefinitionError,
+);
+assert.throws(
+  () => registry.register({
+    ...definition("duplicate-binding", []),
+    presentation: {
+      ...definition("x", []).presentation,
+      visualConfig: [
+        { name: "tier", source: "config", path: "tier" },
+        { name: "tier", source: "config", path: "mode" },
+      ],
+    },
+  }),
+  ComponentDefinitionError,
+);
+assert.throws(
+  () => registry.register({
+    ...definition("non-serializable-presentation", []),
+    presentation: { ...definition("x", []).presentation, unsupported: () => "not JSON" },
+  }),
+  ComponentDefinitionError,
+);
+
+for (const registeredDefinition of componentRegistry.list()) {
+  assert.ok(registeredDefinition.presentation, `${registeredDefinition.type} has a presentation descriptor`);
+  assert.ok(registeredDefinition.presentation.glyph.length > 0);
+  assert.ok(registeredDefinition.presentation.supportedStates.includes("idle"));
+}
 
 assert.equal(componentRegistry.get("traffic-source"), trafficSourceDefinition);
 assert.deepEqual(trafficSourceDefinition.defaultConfig, { label: "Incoming traffic" });
+assert.deepEqual(trafficSourceDefinition.presentation, {
+  glyph: "user",
+  size: "standard",
+  visualConfig: [],
+  supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+});
 assert.deepEqual(trafficSourceDefinition.ports, [
   { id: "request_out", label: "Requests", direction: "output", connectionTypes: ["request"] },
 ]);

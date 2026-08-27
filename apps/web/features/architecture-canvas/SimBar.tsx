@@ -23,20 +23,6 @@ function formatCost(amount: number): string {
   }).format(amount);
 }
 
-function statusLabel(
-  runState: SimulationRunState,
-  resultIsStale: boolean,
-  playbackRunning: boolean,
-  playbackPaused: boolean,
-): string {
-  if (runState === "running") return "Evaluating…";
-  if (playbackRunning && !playbackPaused) return "Playing";
-  if (playbackPaused) return "Paused";
-  if (runState === "complete") return resultIsStale ? "Stale" : "Complete";
-  if (runState === "error") return resultIsStale ? "Stale" : "Error";
-  return "Idle";
-}
-
 function SimBarStatusPlate({
   runState,
   resultIsStale,
@@ -145,7 +131,6 @@ export type SimBarProps = {
   officialSummary: string | null;
   onRun: () => void;
   onPause: () => void;
-  onStep: () => void;
   onReset: () => void;
   onSpeedChange: (speed: PlaybackSpeed) => void;
   onViewModeChange: (mode: "logical" | "world") => void;
@@ -168,7 +153,6 @@ export function SimBar({
   officialSummary,
   onRun,
   onPause,
-  onStep,
   onReset,
   onSpeedChange,
   onViewModeChange,
@@ -180,93 +164,88 @@ export function SimBar({
 
   return (
     <footer className="sim-bar" aria-label="Simulation controls">
-      <div className="sim-bar__transport" role="group" aria-label="Playback transport">
-        <button
-          type="button"
-          className={`sim-bar__button sim-bar__button--run${playbackActive ? " sim-bar__button--run-active" : ""}`}
-          disabled={simBusy}
-          onClick={playbackActive ? onPause : onRun}
-        >
-          {simBusy ? "running…" : playbackActive ? "pause" : "run"}
-        </button>
-        <button type="button" className="sim-bar__button sim-bar__button--joined" disabled={simBusy} onClick={onStep}>
-          step
-        </button>
-        <button type="button" className="sim-bar__button sim-bar__button--joined" disabled={simBusy} onClick={onReset}>
-          reset
-        </button>
-      </div>
+      <div className="sim-bar__cluster sim-bar__cluster--start" aria-hidden="true" />
 
-      <div className="sim-bar__divider" aria-hidden />
-
-      <div className="sim-bar__speed" role="group" aria-label="Playback speed">
-        {SPEEDS.map((speed, index) => (
+      <div className="sim-bar__cluster sim-bar__cluster--center">
+        <div className="sim-bar__transport" role="group" aria-label="Playback transport">
           <button
-            key={speed}
             type="button"
-            className={`sim-bar__button sim-bar__button--speed${playbackSpeed === speed ? " sim-bar__button--speed-active" : ""}${index === 0 ? " sim-bar__button--speed-first" : " sim-bar__button--joined"}`}
-            onClick={() => onSpeedChange(speed)}
+            className={`sim-bar__button sim-bar__button--run${playbackActive ? " sim-bar__button--run-active" : ""}`}
+            disabled={simBusy}
+            onClick={playbackActive ? onPause : onRun}
           >
-            {speed}×
+            {simBusy ? "running…" : playbackActive ? "pause" : "run"}
           </button>
-        ))}
+          <button type="button" className="sim-bar__button sim-bar__button--joined" disabled={simBusy} onClick={onReset}>
+            reset
+          </button>
+        </div>
+
+        <div className="sim-bar__divider" aria-hidden />
+
+        <div className="sim-bar__speed" role="group" aria-label="Playback speed">
+          {SPEEDS.map((speed, index) => (
+            <button
+              key={speed}
+              type="button"
+              className={`sim-bar__button sim-bar__button--speed${playbackSpeed === speed ? " sim-bar__button--speed-active" : ""}${index === 0 ? " sim-bar__button--speed-first" : " sim-bar__button--joined"}`}
+              onClick={() => onSpeedChange(speed)}
+            >
+              {speed}×
+            </button>
+          ))}
+        </div>
+
+        <div className="sim-bar__divider" aria-hidden />
+
+        <div className="sim-bar__view" role="group" aria-label="Architecture view">
+          <button
+            type="button"
+            className={`sim-bar__button sim-bar__button--view${viewMode === "logical" ? " sim-bar__button--view-active" : ""}`}
+            aria-pressed={viewMode === "logical"}
+            onClick={() => onViewModeChange("logical")}
+          >
+            architecture
+          </button>
+          <button
+            type="button"
+            className={`sim-bar__button sim-bar__button--view sim-bar__button--joined${viewMode === "world" ? " sim-bar__button--view-active" : ""}`}
+            aria-pressed={viewMode === "world"}
+            onClick={() => onViewModeChange("world")}
+          >
+            world
+          </button>
+        </div>
       </div>
 
-      <div className="sim-bar__divider" aria-hidden />
+      <div className="sim-bar__cluster sim-bar__cluster--end">
+        {isFaultlineAiEnabled() ? (
+          <>
+            <AgentHelpChips selectedComponentId={selectedComponentId} />
+            <ClearAgentMarksButton />
+          </>
+        ) : null}
 
-      <div className="sim-bar__view" role="group" aria-label="Architecture view">
-        <button
-          type="button"
-          className={`sim-bar__button sim-bar__button--view${viewMode === "logical" ? " sim-bar__button--view-active" : ""}`}
-          aria-pressed={viewMode === "logical"}
-          onClick={() => onViewModeChange("logical")}
-        >
-          architecture
-        </button>
-        <button
-          type="button"
-          className={`sim-bar__button sim-bar__button--view sim-bar__button--joined${viewMode === "world" ? " sim-bar__button--view-active" : ""}`}
-          aria-pressed={viewMode === "world"}
-          onClick={() => onViewModeChange("world")}
-        >
-          world
-        </button>
+        <SimBarStatusPlate
+          runState={runState}
+          resultIsStale={resultIsStale}
+          errors={errors}
+          unexpectedError={unexpectedError}
+          result={result}
+          officialSummary={officialSummary}
+        />
+
+        {officialActive ? (
+          <button
+            type="button"
+            className="sim-bar__button sim-bar__button--official"
+            disabled={simBusy}
+            onClick={onSubmitOfficial}
+          >
+            {officialSubmitting ? "submitting…" : "submit official"}
+          </button>
+        ) : null}
       </div>
-
-      <p className="sim-bar__state" aria-live="polite">
-        {statusLabel(runState, resultIsStale, playbackRunning, playbackPaused)}
-      </p>
-
-      <div className="sim-bar__spacer" />
-
-      {isFaultlineAiEnabled() ? (
-        <>
-          <AgentHelpChips selectedComponentId={selectedComponentId} />
-          <ClearAgentMarksButton />
-        </>
-      ) : null}
-
-      <div className="sim-bar__divider" aria-hidden />
-
-      <SimBarStatusPlate
-        runState={runState}
-        resultIsStale={resultIsStale}
-        errors={errors}
-        unexpectedError={unexpectedError}
-        result={result}
-        officialSummary={officialSummary}
-      />
-
-      {officialActive ? (
-        <button
-          type="button"
-          className="sim-bar__button sim-bar__button--official"
-          disabled={simBusy}
-          onClick={onSubmitOfficial}
-        >
-          {officialSubmitting ? "submitting…" : "submit official"}
-        </button>
-      ) : null}
     </footer>
   );
 }

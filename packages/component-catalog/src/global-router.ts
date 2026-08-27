@@ -58,6 +58,12 @@ export const globalRouterDefinition: ComponentDefinition<GlobalRouterConfig> = {
     { id: "incoming_requests_per_second", label: "Incoming requests/sec", unit: "requests/sec" },
     { id: "forwarded_requests_per_second", label: "Forwarded requests/sec", unit: "requests/sec" },
   ],
+  presentation: {
+    glyph: "global_router",
+    size: "standard",
+    visualConfig: [],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     role: "global_router",
     forwardsRequests: true,

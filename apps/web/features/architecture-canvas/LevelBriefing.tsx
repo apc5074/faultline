@@ -360,10 +360,16 @@ export function useLevelBriefing() {
     setOpen(true);
   }, []);
 
+  const restartBriefing = useCallback(() => {
+    setStep(isGuestUser() ? "how-to" : "briefing");
+    setOpen(true);
+  }, []);
+
   return {
     open,
     step,
     openBriefing,
+    restartBriefing,
     advanceToProblem,
     closeBriefing,
   };

@@ -65,6 +65,12 @@ export const loadBalancerDefinition: ComponentDefinition<LoadBalancerConfig> = {
     { id: "incoming_requests_per_second", label: "Incoming requests/sec", unit: "requests/sec" },
     { id: "forwarded_requests_per_second", label: "Forwarded requests/sec", unit: "requests/sec" },
   ],
+  presentation: {
+    glyph: "load_balancer",
+    size: "standard",
+    visualConfig: [{ name: "policy", source: "config", path: "policy" }],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     role: "load_balancer",
     forwardsRequests: true,

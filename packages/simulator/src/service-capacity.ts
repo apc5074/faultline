@@ -82,6 +82,20 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
     if (!parsed.success) continue;
     const config = parsed.data as ServiceConfig;
     const incomingRps = propagation.traffic[component.id].incomingRps;
+    if (input.overlay?.failedComponentIds?.includes(component.id)) {
+      const metrics: ServiceCapacityMetrics = {
+        incomingRps,
+        capacityRps: 0,
+        handledRps: 0,
+        unmetRps: incomingRps,
+        utilization: incomingRps > 0 ? Number.POSITIVE_INFINITY : 0,
+        headroom: 0,
+        state: "saturated",
+      };
+      services[component.id] = metrics;
+      events.push(...capacityEvents(component.id, metrics));
+      continue;
+    }
     const capacityRps = serviceCapacityForConfig(config);
 
     const regionalIncoming = propagation.regionalTraffic[component.id];
@@ -148,6 +162,7 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
     regionalTraffic: propagation.regionalTraffic,
     geographicRoutes: propagation.geographicRoutes,
     events,
+    unroutableRps: propagation.unroutableRps,
     services,
   };
 }

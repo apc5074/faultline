@@ -9,7 +9,7 @@ import type {
   ExperimentSummary,
   RequirementResult,
 } from "@faultline/core";
-import { validateExperimentDefinition } from "@faultline/core";
+import { definitionToOverlay, isValidRegion, validateExperimentDefinition } from "@faultline/core";
 
 import { evaluateRequirements, type RequirementsEvaluationResult } from "./requirements.js";
 import type { SimulationEvent, TrafficPropagationInput } from "./traffic.js";
@@ -155,9 +155,37 @@ function computeDelta(baseline: ExperimentSummary, outcome: ExperimentSummary): 
   return delta;
 }
 
-function evaluateSimulation(input: TrafficPropagationInput, _overlay?: ExperimentOverlay): RequirementsEvaluationResult {
-  // EXP-001: overlay threading lands in EXP-002–EXP-006. Baseline path is unchanged.
-  return evaluateRequirements(input);
+function challengeWithOverlay(
+  challenge: ChallengeDefinition,
+  overlay: ExperimentOverlay | undefined,
+): ChallengeDefinition {
+  const multiplier = overlay?.trafficMultiplier;
+  const hotKeyReadFraction = overlay?.hotKeyReadFraction;
+  if (multiplier === undefined && hotKeyReadFraction === undefined) return challenge;
+
+  // Workload consumers (traffic, geography, cache, hot-key, transfer cost, and
+  // requirement evaluation) all derive from this one immutable challenge copy.
+  return {
+    ...challenge,
+    workload: {
+      ...challenge.workload,
+      ...(multiplier !== undefined
+        ? { requestsPerSecond: challenge.workload.requestsPerSecond * multiplier }
+        : {}),
+      ...(hotKeyReadFraction !== undefined ? { hotKeyReadFraction } : {}),
+    },
+  };
+}
+
+function evaluateSimulation(
+  input: TrafficPropagationInput,
+  overlay?: ExperimentOverlay,
+): RequirementsEvaluationResult {
+  return evaluateRequirements({
+    ...input,
+    challenge: challengeWithOverlay(input.challenge, overlay),
+    ...(overlay ? { overlay } : {}),
+  });
 }
 
 /**
@@ -179,6 +207,20 @@ export function evaluateExperiment(input: ExperimentEvaluationInput): Experiment
   }
 
   const definition = definitionResult.data;
+  if (definition.type === "hot_key") {
+    const baselineFraction = input.challenge.workload.hotKeyReadFraction ?? 0;
+    if (definition.parameters.hotKeyReadFraction <= baselineFraction) {
+      return {
+        ok: false,
+        code: "INVALID_INPUT",
+        message: "hot_key hotKeyReadFraction must exceed the challenge baseline fraction.",
+      };
+    }
+  }
+  if (definition.type === "region_failure" && !isValidRegion(definition.parameters.regionId)) {
+    return { ok: false, code: "UNSUPPORTED_TARGET", message: "region_failure target must be a known region." };
+  }
+  const overlay = definitionToOverlay(definition);
   const propagationInput: TrafficPropagationInput = {
     architecture: input.architecture,
     challenge: input.challenge,
@@ -196,7 +238,41 @@ export function evaluateExperiment(input: ExperimentEvaluationInput): Experiment
   }
 
   const baseline = toExperimentSummary(baselineResult);
-  const outcomeResult = evaluateSimulation(propagationInput);
+  if (definition.type === "region_failure") {
+    const serviceRegions = new Set(
+      (input.architecture as { components?: Array<{ type?: string; deployments?: Array<{ regionId?: string }> }> }).components
+        ?.filter((component) => component.type === "service")
+        .flatMap((component) => component.deployments?.map((deployment) => deployment.regionId) ?? [])
+        .filter((regionId): regionId is string => isValidRegion(regionId)) ?? [],
+    );
+    if (
+      !baselineResult.regionalWorkload.active ||
+      serviceRegions.size < 2 ||
+      !serviceRegions.has(definition.parameters.regionId) ||
+      [...serviceRegions].every((regionId) => regionId === definition.parameters.regionId)
+    ) {
+      return {
+        ok: false,
+        code: "UNAVAILABLE_EXPERIMENT",
+        message: "region_failure requires active geography, multi-region Service deployments including the target region, and a healthy alternate region.",
+      };
+    }
+  }
+  if (definition.type === "cache_flush" && !baselineResult.caches[definition.parameters.componentId]) {
+    return {
+      ok: false,
+      code: "UNSUPPORTED_TARGET",
+      message: "cache_flush target must be an existing CDN or Redis component on a simulated request path.",
+    };
+  }
+  if (definition.type === "component_failure" && !baselineResult.services[definition.parameters.componentId]) {
+    return {
+      ok: false,
+      code: "UNSUPPORTED_TARGET",
+      message: "component_failure target must be an existing Service component on a simulated request path.",
+    };
+  }
+  const outcomeResult = evaluateSimulation(propagationInput, overlay);
   if (!outcomeResult.valid) {
     return {
       ok: false,
@@ -218,7 +294,67 @@ export function evaluateExperiment(input: ExperimentEvaluationInput): Experiment
       baseline,
       outcome,
       delta,
-      events: outcomeResult.events.map(toExperimentEvent),
+      events: [
+        {
+          type: "experiment_started",
+          data: { experimentType: definition.type },
+        },
+        ...(definition.type === "traffic_multiplier"
+          ? [{
+              type: "traffic_multiplier_applied",
+              data: { multiplier: definition.parameters.multiplier },
+            }]
+          : []),
+        ...(definition.type === "hot_key"
+          ? [{
+              type: "hot_key_pattern_applied",
+              data: {
+                hotKeyReadFraction: definition.parameters.hotKeyReadFraction,
+                viralRedirectRps: outcome.hotKey.viralRedirectRps,
+              },
+            }]
+          : []),
+        ...(definition.type === "cache_flush"
+          ? [{
+              type: "cache_flushed",
+              componentId: definition.parameters.componentId,
+              data: { observation: "cold_cache", configuredHitRate: 0 },
+            }]
+          : []),
+        ...(definition.type === "component_failure"
+          ? [{ type: "component_failed", componentId: definition.parameters.componentId, data: { simulated: "true" } }]
+          : []),
+        ...(definition.type === "region_failure"
+          ? [{ type: "region_failed", data: { regionId: definition.parameters.regionId, simulated: "true" } }]
+          : []),
+        ...(definition.type === "region_failure" && baselineResult.geographicRoutes.some((baselineRoute) =>
+          baselineRoute.kind === "request" &&
+          baselineRoute.destinationRegion === definition.parameters.regionId &&
+          outcomeResult.geographicRoutes.some((outcomeRoute) =>
+            outcomeRoute.kind === "request" &&
+            outcomeRoute.originRegion === baselineRoute.originRegion &&
+            outcomeRoute.destinationRegion !== definition.parameters.regionId,
+          ),
+        )
+          ? [{ type: "traffic_rerouted", data: { failedRegion: definition.parameters.regionId, simulated: "true" } }]
+          : []),
+        ...outcomeResult.events.map(toExperimentEvent),
+        ...(outcomeResult.unroutableRps > 0
+          ? [{
+              type: "unroutable_demand",
+              data: { requestsPerSecond: outcomeResult.unroutableRps },
+            }]
+          : []),
+        ...(definition.type === "region_failure" && outcomeResult.events.some((event) =>
+          event.data.reason === "database_unavailable",
+        )
+          ? [{ type: "database_unavailable", data: { failedRegion: definition.parameters.regionId, simulated: "true" } }]
+          : []),
+        {
+          type: "experiment_completed",
+          data: { experimentType: definition.type },
+        },
+      ],
       simulatorVersion: SIMULATOR_VERSION,
     },
   };

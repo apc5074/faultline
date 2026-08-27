@@ -148,6 +148,12 @@ export const cdnDefinition: ComponentDefinition<CdnConfig> = {
     { id: "utilization", label: "Utilization", unit: "ratio" },
     { id: "capacity", label: "Capacity", unit: "requests/sec" },
   ],
+  presentation: {
+    glyph: "cdn",
+    size: "wide",
+    visualConfig: [],
+    supportedStates: ["idle", "processing", "warning", "critical", "saturated", "failed"],
+  },
   simulation: {
     role: "edge_cache",
     cacheCapable: true,

@@ -29,7 +29,7 @@ import { InkConnectionLine } from "@/features/architecture-canvas/InkConnectionL
 import { InkEdge, type InkEdgeData } from "@/features/architecture-canvas/InkEdge";
 import { nodeTypes } from "@/features/architecture-canvas/playground-flow-model";
 import type { FlowConnectionLike, PlaygroundFlowNode } from "@/features/architecture-canvas/playground-types";
-import { RegionEnclosuresLayer } from "@/features/architecture-canvas/RegionEnclosuresLayer";
+// import { RegionEnclosuresLayer } from "@/features/architecture-canvas/RegionEnclosuresLayer";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 import { isSemanticZoomOut } from "@/features/architecture-canvas/semantic-zoom";
 import { PlaybackPacketLayer, RouteLingerLayer, type PlaybackFrame } from "@/features/traffic-playback";
@@ -149,7 +149,8 @@ export function PlaygroundCanvas({
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#b8ae9e" />
-          <RegionEnclosuresLayer regionIds={enclosureRegions} semanticZoomOut={semanticZoomOut} />
+          {/* Region outlines hidden for now — uncomment to restore location enclosures. */}
+          {/* <RegionEnclosuresLayer regionIds={enclosureRegions} semanticZoomOut={semanticZoomOut} /> */}
           {isFaultlineAiEnabled() ? (
             <AgentAnnotationLayer architecture={architecture} semanticZoomOut={semanticZoomOut} />
           ) : null}

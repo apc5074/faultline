@@ -60,9 +60,13 @@ function handledShare(handled: number, demand: number): number {
 function throughputFromCapacity(
   services: Readonly<Record<string, ServiceCapacityMetrics>>,
   postgres: Readonly<Record<string, PostgresCapacityMetrics>>,
+  unroutableRps: number,
+  totalDemandRps: number,
 ): { ratio: number; focus: string } {
-  let ratio = 1;
-  let focus = "All services and databases handle the required workload.";
+  let ratio = totalDemandRps > 0 ? Math.max(0, (totalDemandRps - unroutableRps) / totalDemandRps) : 1;
+  let focus = unroutableRps > 0
+    ? `${unroutableRps.toLocaleString("en-US")} requests/sec had no healthy reachable Service`
+    : "All services and databases handle the required workload.";
 
   for (const [componentId, metrics] of Object.entries(services)) {
     const share = handledShare(metrics.handledRps, metrics.incomingRps);
@@ -214,7 +218,12 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
   const hotKeyResult = evaluateHotKeyScenario(input);
   if (!hotKeyResult.valid) return hotKeyResult;
 
-  const throughput = throughputFromCapacity(latency.services, latency.postgres);
+  const throughput = throughputFromCapacity(
+    latency.services,
+    latency.postgres,
+    latency.unroutableRps,
+    (input.challenge as ChallengeDefinition).workload.requestsPerSecond,
+  );
   const headroom = headroomFromCapacity(latency.services, latency.postgres);
   const cost = estimateMonthlyCost({
     architecture: input.architecture as Architecture,
@@ -261,6 +270,7 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     regionalWorkload: latency.regionalWorkload,
     regionalTraffic: latency.regionalTraffic,
     geographicRoutes: latency.geographicRoutes,
+    unroutableRps: latency.unroutableRps,
     events,
     services: latency.services,
     postgres: latency.postgres,
