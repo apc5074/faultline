@@ -35,6 +35,11 @@ import {
   queueCapacityModels,
   queueCapacityWorkUnitsForConfig,
   queueMonthlyCostForConfig,
+  workerDefinition,
+  workerSizes,
+  workerSizeModels,
+  workerCapacityForConfig,
+  workerMonthlyCostForConfig,
 } from "../dist/index.js";
 
 const schema = {
@@ -178,6 +183,7 @@ assert.deepEqual(Object.keys(definitionByType).sort(), [
   "redis",
   "service",
   "traffic-source",
+  "worker",
 ]);
 
 // The Level 1 graph vocabulary has one legal request chain and one legal
@@ -193,6 +199,9 @@ assertCompatible("cdn", "origin_out", "service", "request_in", "request");
 assertCompatible("service", "object_out", "object-storage", "object_in", "object_io");
 assertCompatible("object-storage", "object_out", "service", "object_in", "object_io");
 assertCompatible("service", "async_out", "queue", "queue_in", "async_work");
+assertCompatible("queue", "queue_out", "worker", "queue_in", "async_work");
+assertCompatible("object-storage", "object_out", "worker", "object_in", "object_io");
+assertCompatible("worker", "object_out", "object-storage", "object_in", "object_io");
 assertIncompatible("object-storage", "object_out", "postgres", "database_in", "read_write");
 assertCompatible("global-router", "route_out", "load-balancer", "request_in", "request");
 assertCompatible("global-router", "route_out", "service", "request_in", "request");
@@ -239,6 +248,24 @@ assert.deepEqual(queueDefinition.ports, [
 ]);
 assert.equal(queueDefinition.metrics.some((metric) => metric.id === "oldest_job_age"), true);
 assert.equal(queueDefinition.metrics.some((metric) => metric.id === "overflow_work_per_second"), true);
+assert.equal(componentRegistry.get("worker"), workerDefinition);
+assert.deepEqual(workerSizes, ["standard", "performance"]);
+assert.deepEqual(workerDefinition.defaultConfig, { size: "standard", instances: 1 });
+assert.equal(workerDefinition.configSchema.safeParse({}).success, false);
+assert.equal(workerDefinition.configSchema.safeParse({ size: "standard", instances: 1 }).success, true);
+assert.equal(workerDefinition.configSchema.safeParse({ size: "performance", instances: 20 }).success, true);
+assert.equal(workerDefinition.configSchema.safeParse({ size: "performance", instances: 21 }).success, false);
+assert.equal(workerSizeModels.performance.processingCapacityWorkUnitsPerSecond > workerSizeModels.standard.processingCapacityWorkUnitsPerSecond, true);
+assert.equal(workerCapacityForConfig({ size: "performance", instances: 2 }), 8_000);
+assert.equal(workerMonthlyCostForConfig({ size: "standard", instances: 2 }), 3_000);
+assert.equal(workerDefinition.simulation.asynchronous, true);
+assert.equal(workerDefinition.agentCapabilities.includes("slow_consumers"), true);
+assert.deepEqual(workerDefinition.ports, [
+  { id: "queue_in", label: "Background work", direction: "input", connectionTypes: ["async_work"] },
+  { id: "object_in", label: "Source objects", direction: "input", connectionTypes: ["object_io"] },
+  { id: "object_out", label: "Processed objects", direction: "output", connectionTypes: ["object_io"] },
+]);
+assert.equal(workerDefinition.metrics.some((metric) => metric.id === "processing_capacity"), true);
 assert.equal(objectStorageDefinition.metrics.some((metric) => metric.id === "upload_throughput"), true);
 assert.equal(objectStorageDefinition.metrics.some((metric) => metric.id === "origin_read_throughput"), true);
 assert.equal(objectStorageDefinition.simulation.separatesUploadWritesAndOriginReads, true);

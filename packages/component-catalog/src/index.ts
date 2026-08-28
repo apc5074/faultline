@@ -8,6 +8,7 @@ export * from "./service.js";
 export * from "./traffic-source.js";
 export * from "./object-storage.js";
 export * from "./queue.js";
+export * from "./worker.js";
 
 import { createComponentRegistry } from "./registry.js";
 import { cdnDefinition } from "./cdn.js";
@@ -19,6 +20,7 @@ import { serviceDefinition } from "./service.js";
 import { trafficSourceDefinition } from "./traffic-source.js";
 import { objectStorageDefinition } from "./object-storage.js";
 import { queueDefinition } from "./queue.js";
+import { workerDefinition } from "./worker.js";
 
 /** The single registered catalog shared by architecture validation and adapters. */
 export const componentRegistry = createComponentRegistry([
@@ -31,4 +33,5 @@ export const componentRegistry = createComponentRegistry([
   cdnDefinition,
   objectStorageDefinition,
   queueDefinition,
+  workerDefinition,
 ]);
