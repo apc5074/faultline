@@ -1345,7 +1345,10 @@ main {
 }
 
 .level-briefing__dialog {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 440px);
+  max-height: calc(100svh - 2rem);
   border: 2px solid var(--color-ink);
   background: var(--color-paper);
   box-shadow: 8px 8px 0 var(--color-ink);
@@ -1372,10 +1375,11 @@ main {
 
 .level-briefing__header {
   display: flex;
+  flex-shrink: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.15rem 1.2rem 0.95rem;
+  padding: 1rem 1.2rem 0.85rem;
   border-bottom: 1px solid var(--color-ink-hairline);
   background: var(--color-paper-dark);
 }
@@ -1419,104 +1423,9 @@ main {
 
 .level-briefing__body {
   display: grid;
-  gap: 1rem;
-  padding: 1.1rem 1.2rem 0.35rem;
-}
-
-.level-briefing__header-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.level-briefing__steps {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.level-briefing__steps span {
-  display: block;
-  width: 0.4rem;
-  height: 0.4rem;
-  border: 1px solid var(--color-ink-hairline);
-  background: transparent;
-}
-
-.level-briefing__steps span.is-active {
-  border-color: var(--color-ink);
-  background: var(--color-ink);
-}
-
-.level-briefing__steps span.is-done {
-  border-color: var(--color-ink);
-  background: var(--color-ink-hairline);
-}
-
-.level-briefing__body--swap {
-  animation: level-briefing-swap 0.2s ease-out;
-}
-
-@keyframes level-briefing-swap {
-  from {
-    opacity: 0;
-    transform: translateX(0.45rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .level-briefing__body--swap {
-    animation: none;
-  }
-}
-
-.level-briefing__howto {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.level-briefing__howto li {
-  display: grid;
-  grid-template-columns: 1.75rem minmax(0, 1fr);
-  gap: 0.55rem;
-  align-items: start;
-}
-
-.level-briefing__howto-num {
-  color: var(--color-signal-red);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  line-height: 1.4;
-}
-
-.level-briefing__howto h3 {
-  margin: 0 0 0.15rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.level-briefing__howto p {
-  margin: 0;
-  color: var(--color-ink-faint);
-  font-size: 0.68rem;
-  line-height: 1.5;
-}
-
-.level-briefing__flow {
-  display: block;
-  width: 100%;
-  color: var(--color-ink);
+  gap: 0.7rem;
+  padding: 1rem 1.2rem 0.35rem;
+  overflow-y: auto;
 }
 
 .level-briefing__scenario {
@@ -1530,6 +1439,13 @@ main {
   font-style: normal;
   font-weight: 700;
   border-bottom: 1px solid var(--color-ink);
+}
+
+.level-briefing__stakes {
+  margin: -0.35rem 0 0.15rem;
+  color: var(--color-ink-faint);
+  font-size: 0.66rem;
+  line-height: 1.55;
 }
 
 .level-briefing__traffic {
@@ -1582,32 +1498,27 @@ main {
 }
 
 .level-briefing__geo {
-  display: grid;
-  gap: 0.35rem;
-  margin: -0.25rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: -0.3rem 0 0.1rem;
   padding: 0;
   list-style: none;
 }
 
 .level-briefing__geo li {
-  display: grid;
-  grid-template-columns: minmax(4.5rem, 1fr) 2.5rem 1fr 1fr;
-  gap: 0.35rem;
-  align-items: baseline;
-  color: var(--color-ink-muted);
-  font-size: 0.63rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--color-ink-hairline);
+  color: var(--color-ink-faint);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
 }
 
 .level-briefing__geo strong {
   color: var(--color-ink);
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 700;
   text-transform: uppercase;
-}
-
-.level-briefing__geo span:not(:first-of-type) {
-  color: var(--color-ink-faint);
-  text-align: right;
 }
 
 .level-briefing__placement {
@@ -1744,7 +1655,8 @@ main {
 }
 
 .level-briefing__footer {
-  padding: 0.85rem 1.2rem 1.15rem;
+  flex-shrink: 0;
+  padding: 0.75rem 1.2rem 1rem;
 }
 
 .level-briefing__start {

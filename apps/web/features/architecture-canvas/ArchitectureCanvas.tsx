@@ -88,8 +88,6 @@ function ArchitectureWorkspace() {
       ) : null}
       <LevelBriefing
         open={briefing.open}
-        step={briefing.step}
-        onAdvance={briefing.advanceToProblem}
         onClose={briefing.closeBriefing}
       />
       <section className="playground-shell" aria-label="Architecture workspace">
