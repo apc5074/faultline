@@ -39,6 +39,9 @@ const ROLE_LABELS: Record<ArchitecturalRoleId, string> = {
   geo_route: "Geo routing — steering traffic across regions",
   primary_store: "Primary store — durable reads and writes",
   replica_store: "Read replica — read scaling only",
+  object_store: "Object store — durable large objects",
+  async_buffer: "Async buffer — holds work for later processing",
+  async_consumer: "Async consumer — drains background work",
   unreachable: "Unreachable — not on the active path",
   misplaced: "Misplaced — connected, wrong pattern for this workload",
 };
@@ -50,6 +53,9 @@ const MECHANISM_LABELS: Record<WorkloadMechanismId, string> = {
   geo_routing: "Geo routing — routes users toward nearby capacity",
   stateless_compute: "Stateless compute — API processing",
   durable_store: "Row store — durable link lookups",
+  object_store: "Object store — large durable blobs",
+  async_buffer: "Async buffer — absorbs work bursts",
+  async_consumer: "Async consumer — performs background work",
 };
 
 function formatPercent(ratio: number): string {

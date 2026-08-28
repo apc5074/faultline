@@ -33,6 +33,8 @@ export interface WorkloadDefinition {
   hotKeyReadFraction?: number;
 }
 
+export type { WorkloadChannel, WorkloadChannelKind } from "./workload.js";
+
 /**
  * Challenge-owned user traffic share for one region.
  * Fractions across the distribution must sum to 1.
@@ -84,7 +86,10 @@ export type WorkloadMechanismId =
   | "request_fanout"
   | "geo_routing"
   | "stateless_compute"
-  | "durable_store";
+  | "durable_store"
+  | "object_store"
+  | "async_buffer"
+  | "async_consumer";
 
 /** Where a component sits in the request/data path, derived by the simulator from topology. */
 export type ArchitecturalRoleId =
@@ -96,6 +101,9 @@ export type ArchitecturalRoleId =
   | "geo_route"
   | "primary_store"
   | "replica_store"
+  | "object_store"
+  | "async_buffer"
+  | "async_consumer"
   | "unreachable"
   | "misplaced";
 
@@ -138,6 +146,8 @@ export interface ChallengeDefinition {
   prompt: string;
   developmentOnly: boolean;
   workload: WorkloadDefinition;
+  /** Optional named demand streams for multi-workload levels. */
+  workloadChannels?: readonly import("./workload.js").WorkloadChannel[];
   /**
    * User traffic origin fractions by region.
    * Omit when geography is inactive (e.g. Tiny API). Belongs to the challenge, not RegionRegistry.

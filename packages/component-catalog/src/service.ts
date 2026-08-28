@@ -105,10 +105,28 @@ export const serviceDefinition: ComponentDefinition<ServiceConfig> = {
       connectionTypes: ["request"],
     },
     {
+      id: "object_in",
+      label: "Object storage",
+      direction: "input",
+      connectionTypes: ["object_io"],
+    },
+    {
       id: "database_out",
       label: "Database",
       direction: "output",
       connectionTypes: ["read_write"],
+    },
+    {
+      id: "object_out",
+      label: "Object storage",
+      direction: "output",
+      connectionTypes: ["object_io"],
+    },
+    {
+      id: "async_out",
+      label: "Background work",
+      direction: "output",
+      connectionTypes: ["async_work"],
     },
   ],
   metrics: [

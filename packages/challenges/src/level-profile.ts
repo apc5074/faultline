@@ -23,6 +23,7 @@ import {
   type TransferPayloadAssumptions,
   type UnscoredChallengeTarget,
   type WorkloadAffinity,
+  type WorkloadChannel,
   type WorkloadDefinition,
   type WorkloadMechanismId,
 } from "@faultline/core";
@@ -37,6 +38,7 @@ const LEVEL_PROFILE_TOP_LEVEL_KEYS = new Set([
   "narrative",
   "sandbox",
   "workload",
+  "workloadChannels",
   "geographicDistribution",
   "transferPayload",
   "scoring",
@@ -67,6 +69,9 @@ const volumePathIds = new Set<string>([
   "geo_routing",
   "stateless_compute",
   "durable_store",
+  "object_store",
+  "async_buffer",
+  "async_consumer",
   "origin_compute",
   "origin_store",
 ]);
@@ -136,8 +141,13 @@ export interface VolumeShareRange {
  */
 export interface VolumeBand {
   mechanismId: VolumePathId;
-  baselineShareOfRedirects: VolumeShareRange;
+  /** Level 1 compatibility field. Multi-workload levels use channel ranges. */
+  baselineShareOfRedirects?: VolumeShareRange;
+  /** Soft share relative to the named channel; never a scoring input. */
+  baselineShareOfChannel?: VolumeShareRange;
+  channelId?: string;
   hotKeyShareOfRedirects?: VolumeShareRange;
+  hotShareOfChannel?: VolumeShareRange;
   notes?: string;
 }
 
@@ -171,6 +181,8 @@ export interface LevelProfileV1 {
   narrative: LevelNarrative;
   sandbox: LevelSandbox;
   workload: WorkloadDefinition;
+  /** Optional named demand streams for multi-workload levels. */
+  workloadChannels?: readonly WorkloadChannel[];
   geographicDistribution?: readonly GeographicTrafficShare[];
   transferPayload?: TransferPayloadAssumptions;
   scoring: LevelScoring;
@@ -246,9 +258,24 @@ function assertVolumeProfile(value: unknown): asserts value is VolumeProfile {
     if (!isNonEmptyString(band.mechanismId) || !volumePathIds.has(band.mechanismId)) {
       throw new LevelProfileError(`${context}.mechanismId must be a known mechanism or origin path id.`);
     }
-    assertShareRange(band.baselineShareOfRedirects, `${context}.baselineShareOfRedirects`);
+    const hasRedirectRange = band.baselineShareOfRedirects !== undefined;
+    const hasChannelRange = band.baselineShareOfChannel !== undefined;
+    if (!hasRedirectRange && !hasChannelRange) {
+      throw new LevelProfileError(`${context} must define baselineShareOfRedirects or baselineShareOfChannel.`);
+    }
+    if (hasChannelRange && !isNonEmptyString(band.channelId)) {
+      throw new LevelProfileError(`${context}.channelId is required with baselineShareOfChannel.`);
+    }
+    if (hasRedirectRange) assertShareRange(band.baselineShareOfRedirects, `${context}.baselineShareOfRedirects`);
+    if (hasChannelRange) assertShareRange(band.baselineShareOfChannel, `${context}.baselineShareOfChannel`);
     if (band.hotKeyShareOfRedirects !== undefined) {
       assertShareRange(band.hotKeyShareOfRedirects, `${context}.hotKeyShareOfRedirects`);
+    }
+    if (band.hotShareOfChannel !== undefined) {
+      if (!isNonEmptyString(band.channelId)) {
+        throw new LevelProfileError(`${context}.channelId is required with hotShareOfChannel.`);
+      }
+      assertShareRange(band.hotShareOfChannel, `${context}.hotShareOfChannel`);
     }
     if (band.notes !== undefined && !isNonEmptyString(band.notes)) {
       throw new LevelProfileError(`${context}.notes must be a non-empty string when set.`);
@@ -276,6 +303,7 @@ export function challengeShapedFieldsFromLevelProfile(profile: LevelProfileV1): 
     prompt: profile.identity.prompt,
     developmentOnly: profile.identity.developmentOnly,
     workload: profile.workload,
+    ...(profile.workloadChannels ? { workloadChannels: profile.workloadChannels } : {}),
     ...(profile.geographicDistribution ? { geographicDistribution: profile.geographicDistribution } : {}),
     ...(profile.transferPayload ? { transferPayload: profile.transferPayload } : {}),
     ...(profile.coachingPolicy ? { coachingPolicy: profile.coachingPolicy } : {}),

@@ -6,6 +6,8 @@ export * from "./postgres.js";
 export * from "./redis.js";
 export * from "./service.js";
 export * from "./traffic-source.js";
+export * from "./object-storage.js";
+export * from "./queue.js";
 
 import { createComponentRegistry } from "./registry.js";
 import { cdnDefinition } from "./cdn.js";
@@ -15,8 +17,10 @@ import { postgresDefinition } from "./postgres.js";
 import { redisDefinition } from "./redis.js";
 import { serviceDefinition } from "./service.js";
 import { trafficSourceDefinition } from "./traffic-source.js";
+import { objectStorageDefinition } from "./object-storage.js";
+import { queueDefinition } from "./queue.js";
 
-/** The registered catalog grows only as Level 1 introduces new components. */
+/** The single registered catalog shared by architecture validation and adapters. */
 export const componentRegistry = createComponentRegistry([
   trafficSourceDefinition,
   serviceDefinition,
@@ -25,4 +29,6 @@ export const componentRegistry = createComponentRegistry([
   globalRouterDefinition,
   loadBalancerDefinition,
   cdnDefinition,
+  objectStorageDefinition,
+  queueDefinition,
 ]);

@@ -40,7 +40,7 @@ export interface ComponentInstance {
 }
 
 /** Supported semantic edge types for architecture connections. */
-export const supportedConnectionTypes = ["request", "read_write"] as const;
+export const supportedConnectionTypes = ["request", "read_write", "object_io", "async_work"] as const;
 export type ConnectionType = (typeof supportedConnectionTypes)[number];
 
 export interface Connection {

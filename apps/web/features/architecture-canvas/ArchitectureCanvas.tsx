@@ -108,7 +108,7 @@ function ArchitectureWorkspace() {
               </button>
             ) : null}
           </div>
-          <AccountAuthPlate nextPath="/level/1" compact />
+          <AccountAuthPlate nextPath="/level/1" minimal compact />
           {aiEnabled ? <WebMcpStatusPlate status={webMcpStatus} /> : null}
         </header>
         <Suspense fallback={null}>

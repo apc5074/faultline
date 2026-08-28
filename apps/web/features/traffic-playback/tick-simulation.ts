@@ -557,7 +557,10 @@ export function tickSimulation(
       comp.type === "cache"
         ? visibleDwellers.length
         : comp.type === "server"
-          ? processingDwellers.length
+          // ServerGlyph bays represent the configured pool, not individual
+          // packets. Average dwellers across instances so a burst does not
+          // light every rack and then collapse to one as packets drain.
+          ? Math.ceil(processingDwellers.length / Math.max(1, comp.instances))
           : Math.round((comp.type === "cdn" ? (passCount ?? 0) : processingPackets.length) * scale),
     );
 

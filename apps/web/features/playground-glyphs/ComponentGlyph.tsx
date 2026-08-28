@@ -108,6 +108,7 @@ function ServerGlyph({
                 fill={on ? GLYPH_INK.ink : "none"}
                 stroke={GLYPH_INK.ink}
                 strokeWidth={0.5}
+                className="server-bay"
               />
               <circle
                 cx={tx + tw - 9}

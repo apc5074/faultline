@@ -5,6 +5,7 @@ import {
   type RequirementComparator,
   type RequirementType,
   type WorkloadMechanismId,
+  type WorkloadChannelKind,
 } from "@faultline/core";
 
 const slugPattern = /^[a-z][a-z0-9-]*$/;
@@ -17,6 +18,9 @@ const workloadMechanismIds = new Set<WorkloadMechanismId>([
   "geo_routing",
   "stateless_compute",
   "durable_store",
+  "object_store",
+  "async_buffer",
+  "async_consumer",
 ]);
 const architecturalRoleIds = new Set<ArchitecturalRoleId>([
   "edge_ingress",
@@ -27,11 +31,15 @@ const architecturalRoleIds = new Set<ArchitecturalRoleId>([
   "geo_route",
   "primary_store",
   "replica_store",
+  "object_store",
+  "async_buffer",
+  "async_consumer",
   "unreachable",
   "misplaced",
 ]);
 /** Safe tolerance for geographic fraction sums (100%). */
 const GEOGRAPHIC_FRACTION_SUM_TOLERANCE = 1e-9;
+const workloadChannelKinds = new Set<WorkloadChannelKind>(["request", "object_io", "async_work"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,6 +59,66 @@ function isFiniteUnitInterval(value: unknown): value is number {
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function assertGeographicDistribution(value: unknown, context: string): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ChallengeDefinitionError(`${context} must be a non-empty array.`);
+  }
+  const seenRegions = new Set<string>();
+  let fractionTotal = 0;
+  for (const entry of value) {
+    if (!isRecord(entry) || !isNonEmptyString(entry.regionId) || !isFiniteUnitInterval(entry.fraction)) {
+      throw new ChallengeDefinitionError(`${context} has an invalid region entry.`);
+    }
+    if (!isValidRegion(entry.regionId)) {
+      throw new ChallengeDefinitionError(`${context} references unknown region "${entry.regionId}".`);
+    }
+    if (seenRegions.has(entry.regionId)) {
+      throw new ChallengeDefinitionError(`${context} has duplicate region "${entry.regionId}".`);
+    }
+    seenRegions.add(entry.regionId);
+    fractionTotal += entry.fraction;
+  }
+  if (Math.abs(fractionTotal - 1) > GEOGRAPHIC_FRACTION_SUM_TOLERANCE) {
+    throw new ChallengeDefinitionError(`${context} fractions must sum to 1.`);
+  }
+}
+
+function assertWorkloadChannels(value: unknown, challengeSlug: string): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" workloadChannels must be a non-empty array.`);
+  }
+  const ids = new Set<string>();
+  for (const channel of value) {
+    if (!isRecord(channel) || !isNonEmptyString(channel.id) || !slugPattern.test(channel.id)) {
+      throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" has an invalid workload channel id.`);
+    }
+    if (ids.has(channel.id)) {
+      throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" has duplicate workload channel "${channel.id}".`);
+    }
+    ids.add(channel.id);
+    if (!workloadChannelKinds.has(channel.kind as WorkloadChannelKind)) {
+      throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" workload channel "${channel.id}" has an invalid kind.`);
+    }
+    if (!isFinitePositiveNumber(channel.ratePerSecond)) {
+      throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" workload channel "${channel.id}" ratePerSecond must be positive.`);
+    }
+    for (const key of ["bytesPerOperation", "workUnitsPerOperation"] as const) {
+      if (channel[key] !== undefined && !isNonNegativeNumber(channel[key])) {
+        throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" workload channel "${channel.id}" ${key} must be non-negative.`);
+      }
+    }
+    if (channel.hotShare !== undefined && !isFiniteUnitInterval(channel.hotShare)) {
+      throw new ChallengeDefinitionError(`Challenge "${challengeSlug}" workload channel "${channel.id}" hotShare must be between 0 and 1.`);
+    }
+    if (channel.geographicDistribution !== undefined) {
+      assertGeographicDistribution(
+        channel.geographicDistribution,
+        `Challenge "${challengeSlug}" workload channel "${channel.id}" geographicDistribution`,
+      );
+    }
+  }
 }
 
 export class ChallengeDefinitionError extends Error {
@@ -80,6 +148,9 @@ export function assertChallengeDefinition(definition: unknown): asserts definiti
     Math.abs(readRatio + writeRatio - 1) > GEOGRAPHIC_FRACTION_SUM_TOLERANCE
   ) {
     throw new ChallengeDefinitionError(`Challenge "${definition.slug}" workload ratios must be non-negative and sum to 1.`);
+  }
+  if (definition.workloadChannels !== undefined) {
+    assertWorkloadChannels(definition.workloadChannels, definition.slug);
   }
   if (
     hotKeyReadFraction !== undefined &&

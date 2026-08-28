@@ -38,6 +38,7 @@
     "verify:accessibility-motion": "node --experimental-strip-types scripts/verify-accessibility-motion.mjs",
     "verify:performance-polish": "node --experimental-strip-types scripts/verify-performance-polish.mjs",
     "verify:copy-audit": "node --experimental-strip-types scripts/verify-copy-audit.mjs",
+    "verify:service-animation": "node --experimental-strip-types scripts/verify-service-animation.mjs",
     "verify:glyph-registry": "pnpm run build:deps && node --experimental-strip-types scripts/verify-glyph-registry.mjs",
     "verify:glyph-families": "node --experimental-strip-types scripts/verify-glyph-families.mjs",
     "verify:component-vertical-slices": "pnpm run build:deps && node --experimental-strip-types scripts/verify-component-vertical-slices.mjs",

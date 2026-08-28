@@ -387,13 +387,19 @@ main {
 }
 
 .home-page__help {
-  margin-left: auto;
   padding: 0.45rem 0.65rem;
   border: 1px solid var(--color-ink-hairline);
   background: var(--color-paper);
   color: var(--color-ink);
   font: inherit;
   cursor: pointer;
+}
+
+.home-page__nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
 }
 
 .home-page__help:focus-visible,
@@ -1071,7 +1077,13 @@ main {
 }
 
 .home-page__nav .account-auth-plate {
-  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.account-auth-plate--minimal-signed-in {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* ── Playground shell (T-02) ── */
@@ -1094,6 +1106,22 @@ main {
   padding: 0 1rem;
   border-bottom: 1px solid var(--color-ink-hairline);
   background: var(--color-paper-dark);
+}
+
+.playground-topbar .account-auth-plate {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: center;
+  flex-shrink: 0;
+  gap: 0.5rem;
+  max-height: 100%;
+}
+
+.playground-topbar .account-auth-plate--link .account-auth-plate__link-copy,
+.playground-topbar .account-auth-plate__hint,
+.playground-topbar .account-auth-plate__label {
+  display: none;
 }
 
 .playground-topbar__wordmark {
@@ -2617,6 +2645,10 @@ h1 {
 
 .node-pass {
   animation: node-pass 0.5s ease-in-out;
+}
+
+.server-bay {
+  transition: fill 180ms ease, opacity 180ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {

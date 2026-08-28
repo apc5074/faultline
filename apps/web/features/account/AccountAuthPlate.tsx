@@ -15,11 +15,14 @@ type PlateState =
 export function AccountAuthPlate({
   nextPath,
   compact = false,
+  minimal = false,
 }: {
   nextPath: string;
   compact?: boolean;
+  /** Home nav: sign-in button only, no link-progress copy. */
+  minimal?: boolean;
 }) {
-  const [state, setState] = useState<PlateState>({ status: "loading" });
+  const [state, setState] = useState<PlateState>(minimal ? { status: "guest" } : { status: "loading" });
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const signInHref = `/api/auth/github?next=${encodeURIComponent(nextPath)}`;
@@ -72,11 +75,35 @@ export function AccountAuthPlate({
     });
   }, [refresh]);
 
-  if (state.status === "loading" || state.status === "hidden") {
+  if (state.status === "loading") {
+    return null;
+  }
+
+  if (state.status === "hidden") {
     return null;
   }
 
   if (state.status === "permanent") {
+    if (minimal) {
+      return (
+        <div className={`account-auth-plate account-auth-plate--signed-in account-auth-plate--minimal-signed-in${compact ? " account-auth-plate--compact" : ""}`}>
+          <span className="account-auth-plate__alias">{state.alias}</span>
+          <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
+            Account
+          </a>
+          <button
+            type="button"
+            className="account-auth-plate__secondary"
+            onClick={handleSignOut}
+            disabled={pending}
+          >
+            Sign out
+          </button>
+          {signOutError ? <p className="account-auth-plate__error">{signOutError}</p> : null}
+        </div>
+      );
+    }
+
     return (
       <div className={`account-auth-plate account-auth-plate--signed-in${compact ? " account-auth-plate--compact" : ""}`}>
         <span className="account-auth-plate__label">Signed in</span>
@@ -98,6 +125,20 @@ export function AccountAuthPlate({
   }
 
   if (state.status === "anonymous") {
+    if (minimal) {
+      return (
+        <div className={`account-auth-plate${compact ? " account-auth-plate--compact" : ""}`}>
+          <a
+            className="account-auth-plate__button"
+            href={signInHref}
+            aria-busy={state.linkingPending}
+          >
+            {state.linkingPending ? "Signing in…" : "Sign in with GitHub"}
+          </a>
+        </div>
+      );
+    }
+
     return (
       <div className={`account-auth-plate account-auth-plate--link${compact ? " account-auth-plate--compact" : ""}`}>
         <div className="account-auth-plate__link-copy">

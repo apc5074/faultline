@@ -26,6 +26,15 @@ import {
   serviceDefinition,
   serviceMonthlyCostPerInstance,
   trafficSourceDefinition,
+  objectStorageDefinition,
+  objectStorageTiers,
+  objectStorageTierModels,
+  objectStorageMonthlyBaseCostForConfig,
+  queueDefinition,
+  queueCapacityTiers,
+  queueCapacityModels,
+  queueCapacityWorkUnitsForConfig,
+  queueMonthlyCostForConfig,
 } from "../dist/index.js";
 
 const schema = {
@@ -163,7 +172,9 @@ assert.deepEqual(Object.keys(definitionByType).sort(), [
   "cdn",
   "global-router",
   "load-balancer",
+  "object-storage",
   "postgres",
+  "queue",
   "redis",
   "service",
   "traffic-source",
@@ -179,6 +190,10 @@ assertCompatible("traffic-source", "request_out", "service", "request_in", "requ
 assertCompatible("cdn", "origin_out", "global-router", "request_in", "request");
 assertCompatible("cdn", "origin_out", "load-balancer", "request_in", "request");
 assertCompatible("cdn", "origin_out", "service", "request_in", "request");
+assertCompatible("service", "object_out", "object-storage", "object_in", "object_io");
+assertCompatible("object-storage", "object_out", "service", "object_in", "object_io");
+assertCompatible("service", "async_out", "queue", "queue_in", "async_work");
+assertIncompatible("object-storage", "object_out", "postgres", "database_in", "read_write");
 assertCompatible("global-router", "route_out", "load-balancer", "request_in", "request");
 assertCompatible("global-router", "route_out", "service", "request_in", "request");
 assertCompatible("load-balancer", "request_out", "service", "request_in", "request");
@@ -188,6 +203,46 @@ assertCompatible("redis", "origin_out", "postgres", "database_in", "read_write")
 assertIncompatible("traffic-source", "request_out", "postgres", "database_in", "request");
 assertIncompatible("service", "database_out", "postgres", "database_in", "request");
 assertIncompatible("cdn", "origin_out", "redis", "cache_in", "request");
+
+assert.equal(componentRegistry.get("object-storage"), objectStorageDefinition);
+assert.deepEqual(objectStorageTiers, ["standard", "high-throughput"]);
+assert.deepEqual(objectStorageDefinition.defaultConfig, { tier: "standard" });
+assert.equal(objectStorageDefinition.configSchema.safeParse({}).success, true);
+assert.deepEqual(objectStorageDefinition.configSchema.safeParse({}).data, { tier: "standard" });
+assert.equal(objectStorageDefinition.configSchema.safeParse({ tier: "high-throughput" }).success, true);
+assert.equal(objectStorageDefinition.configSchema.safeParse({ tier: "archive" }).success, false);
+assert.equal(objectStorageTierModels.standard.uploadCapacityBytesPerSecond > 0, true);
+assert.equal(objectStorageTierModels.standard.originReadCapacityBytesPerSecond > 0, true);
+assert.equal(objectStorageTierModels["high-throughput"].uploadCapacityBytesPerSecond > objectStorageTierModels.standard.uploadCapacityBytesPerSecond, true);
+assert.equal(objectStorageMonthlyBaseCostForConfig({ tier: "standard" }), objectStorageTierModels.standard.monthlyBaseCost);
+assert.deepEqual(objectStorageDefinition.ports, [
+  { id: "object_in", label: "Object operations", direction: "input", connectionTypes: ["object_io"] },
+  { id: "object_out", label: "Object reads", direction: "output", connectionTypes: ["object_io"] },
+]);
+
+assert.equal(componentRegistry.get("queue"), queueDefinition);
+assert.deepEqual(queueCapacityTiers, ["small", "large"]);
+assert.deepEqual(queueDefinition.defaultConfig, { capacityTier: "small" });
+assert.equal(queueDefinition.configSchema.safeParse({}).success, true);
+assert.deepEqual(queueDefinition.configSchema.safeParse({}).data, { capacityTier: "small" });
+assert.equal(queueDefinition.configSchema.safeParse({ capacityTier: "large" }).success, true);
+assert.equal(queueDefinition.configSchema.safeParse({ capacityTier: "unbounded" }).success, false);
+assert.equal(queueCapacityModels.large.capacityWorkUnits > queueCapacityModels.small.capacityWorkUnits, true);
+assert.equal(queueCapacityWorkUnitsForConfig({ capacityTier: "large" }), queueCapacityModels.large.capacityWorkUnits);
+assert.equal(queueMonthlyCostForConfig({ capacityTier: "small" }), queueCapacityModels.small.monthlyCost);
+assert.equal(queueDefinition.simulation.bounded, true);
+assert.equal(queueDefinition.simulation.queueDepthIsSimulatorEvidence, true);
+assert.equal(queueDefinition.agentCapabilities.includes("inspect_queue"), true);
+assert.deepEqual(queueDefinition.ports, [
+  { id: "queue_in", label: "Enqueue work", direction: "input", connectionTypes: ["async_work"] },
+  { id: "queue_out", label: "Consume work", direction: "output", connectionTypes: ["async_work"] },
+]);
+assert.equal(queueDefinition.metrics.some((metric) => metric.id === "oldest_job_age"), true);
+assert.equal(queueDefinition.metrics.some((metric) => metric.id === "overflow_work_per_second"), true);
+assert.equal(objectStorageDefinition.metrics.some((metric) => metric.id === "upload_throughput"), true);
+assert.equal(objectStorageDefinition.metrics.some((metric) => metric.id === "origin_read_throughput"), true);
+assert.equal(objectStorageDefinition.simulation.separatesUploadWritesAndOriginReads, true);
+assert.equal(objectStorageDefinition.regionSupport, false);
 
 assert.equal(componentRegistry.get("traffic-source"), trafficSourceDefinition);
 assert.deepEqual(trafficSourceDefinition.defaultConfig, { label: "Incoming traffic" });
@@ -217,7 +272,10 @@ assert.equal(serviceDefinition.configSchema.safeParse({ instances: 11 }).success
 assert.equal(serviceDefinition.configSchema.safeParse({ instances: 1.5 }).success, false);
 assert.deepEqual(serviceDefinition.ports, [
   { id: "request_in", label: "Requests", direction: "input", connectionTypes: ["request"] },
+  { id: "object_in", label: "Object storage", direction: "input", connectionTypes: ["object_io"] },
   { id: "database_out", label: "Database", direction: "output", connectionTypes: ["read_write"] },
+  { id: "object_out", label: "Object storage", direction: "output", connectionTypes: ["object_io"] },
+  { id: "async_out", label: "Background work", direction: "output", connectionTypes: ["async_work"] },
 ]);
 assert.equal(serviceDefinition.simulation.sizeModels.medium.capacityPerInstance, serviceCapacityPerInstance);
 assert.equal(serviceDefinition.simulation.baseP95LatencyMs, 20);

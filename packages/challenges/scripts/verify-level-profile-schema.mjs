@@ -274,6 +274,29 @@ assert.equal("volumeProfile" in challengeShaped, false);
 assert.equal("narrative" in challengeShaped, false);
 assert.equal("starterArchitecture" in challengeShaped, false);
 
+const multiWorkload = minimalProfile({
+  workloadChannels: [
+    { id: "upload", kind: "object_io", ratePerSecond: 100, bytesPerOperation: 1_000_000_000 },
+    { id: "processing", kind: "async_work", ratePerSecond: 100, workUnitsPerOperation: 40 },
+    { id: "playback-start", kind: "object_io", ratePerSecond: 150_000, bytesPerOperation: 1_024, hotShare: 0.6 },
+  ],
+  volumeProfile: {
+    bands: [
+      {
+        mechanismId: "async_buffer",
+        channelId: "processing",
+        baselineShareOfChannel: { min: 0, max: 1 },
+      },
+    ],
+    rules: {
+      baselineCdnOutranksDataCache: false,
+      hotKeyMayEmphasizeDataCache: false,
+    },
+  },
+});
+assert.doesNotThrow(() => assertLevelProfile(multiWorkload));
+assert.equal(challengeShapedFieldsFromLevelProfile(multiWorkload).workloadChannels?.[1].workUnitsPerOperation, 40);
+
 function rejects(mutator, pattern) {
   const candidate = minimalProfile();
   mutator(candidate);
@@ -330,6 +353,24 @@ rejects((profile) => {
 rejects((profile) => {
   profile.schemaVersion = 2;
 }, /schemaVersion/);
+
+rejects((profile) => {
+  profile.workloadChannels = [
+    { id: "processing", kind: "async_work", ratePerSecond: 100, workUnitsPerOperation: 40 },
+    { id: "processing", kind: "async_work", ratePerSecond: 100, workUnitsPerOperation: 40 },
+  ];
+}, /duplicate workload channel/i);
+
+rejects((profile) => {
+  profile.workloadChannels = [{ id: "processing", kind: "async_work", ratePerSecond: 0, workUnitsPerOperation: 40 }];
+}, /ratePerSecond/i);
+
+rejects((profile) => {
+  profile.volumeProfile = {
+    bands: [{ mechanismId: "async_buffer", baselineShareOfChannel: { min: 0, max: 1 } }],
+    rules: profile.volumeProfile.rules,
+  };
+}, /channelId/i);
 
 rejects((profile) => {
   profile.starterArchitecture = { version: 1, components: "nope", connections: [] };

@@ -12,8 +12,10 @@ export default function Home() {
       <section className="home-page__landing" aria-labelledby="home-page-title">
         <nav className="home-page__nav" aria-label="Primary navigation">
           <span className="home-page__wordmark">Faultline</span>
-          <HomeHelp />
-          <AccountAuthPlate nextPath="/" />
+          <div className="home-page__nav-actions">
+            <HomeHelp />
+            <AccountAuthPlate nextPath="/" minimal />
+          </div>
         </nav>
 
         <Suspense fallback={null}>
