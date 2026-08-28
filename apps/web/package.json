@@ -63,6 +63,7 @@
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",
     "verify:competition-config": "pnpm run build:deps && node --experimental-strip-types scripts/verify-competition-config.mjs",
     "verify:workload-evidence": "pnpm run build:deps && node --experimental-strip-types scripts/verify-workload-evidence.mjs",
+    "verify:level2-visual-evidence": "pnpm run build:deps && node --experimental-strip-types scripts/verify-level2-visual-evidence.mjs",
     "verify:approx-origin-traffic": "pnpm run build:deps && node --experimental-strip-types scripts/verify-approx-origin-traffic.mjs",
     "verify:service-region-seeding": "pnpm run build:deps && node --experimental-strip-types scripts/verify-service-region-seeding.mjs",
     "verify:geo-inspector-teaching": "node --experimental-strip-types scripts/verify-geo-inspector-teaching.mjs",

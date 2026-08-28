@@ -30,6 +30,9 @@ export type ComponentVisualEvidence = {
   missRps?: number;
   hitRate?: number;
   downstreamAvoidedRps?: number;
+  queueDepth?: number;
+  slotCount?: number;
+  objectMarks?: number;
   impactSeed?: string;
   evidenceLabel?: string;
 };
@@ -64,6 +67,38 @@ export function selectComponentVisualEvidence(input: ComponentVisualEvidenceInpu
     evidenceLabel: glyphEvidenceLabel(component.id, simulation, { resultIsStale }),
   };
   if (!simulation || resultIsStale) return base;
+
+  const level2Queue = simulation.level2?.queues[component.id];
+  if (level2Queue) {
+    return {
+      ...base,
+      state: level2Queue.utilization >= 1 ? "saturated" : level2Queue.queueDepth > 0 ? "processing" : "idle",
+      processingCount: level2Queue.queueDepth > 0 ? 1 : 0,
+      queueDepth: level2Queue.queueDepth,
+      slotCount: level2Queue.queueCapacity,
+      evidenceLabel: `${Math.round(level2Queue.queueDepth)} queued · ${Math.round(level2Queue.oldestJobAgeMs)}ms oldest`,
+    };
+  }
+  const level2Worker = simulation.level2?.workers[component.id];
+  if (level2Worker) {
+    return {
+      ...base,
+      state: level2Worker.processingUtilization >= 1 ? "saturated" : level2Worker.processingUtilization > 0 ? "processing" : "idle",
+      processingCount: Math.min(4, Math.ceil(level2Worker.processingUtilization * 4)),
+      evidenceLabel: `${Math.round(level2Worker.completedWorkPerSecond)} work/s · ${Math.round(level2Worker.processingUtilization * 100)}% utilized`,
+    };
+  }
+  const level2Storage = simulation.level2?.objectStorage[component.id];
+  if (level2Storage) {
+    const pressure = Math.max(level2Storage.uploadUtilization, level2Storage.originReadUtilization);
+    return {
+      ...base,
+      state: pressure >= 1 ? "saturated" : pressure > 0.7 ? "warning" : "idle",
+      processingCount: Math.min(4, Math.ceil(pressure * 4)),
+      objectMarks: level2Storage.storedBytes > 0 ? 3 : level2Storage.uploadThroughputBytesPerSecond > 0 ? 1 : 0,
+      evidenceLabel: `${Math.round(pressure * 100)}% I/O pressure`,
+    };
+  }
 
   const definition = componentRegistry.get(component.type);
   const glyph = glyphPropsFromComponent(component, definition);

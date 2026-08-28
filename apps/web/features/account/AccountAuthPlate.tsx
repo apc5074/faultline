@@ -10,7 +10,7 @@ type PlateState =
   | { status: "hidden" }
   | { status: "guest" }
   | { status: "anonymous"; alias: string | null; linkingPending: boolean }
-  | { status: "permanent"; alias: string };
+  | { status: "permanent"; alias: string; githubUsername?: string };
 
 export function AccountAuthPlate({
   nextPath,
@@ -48,7 +48,7 @@ export function AccountAuthPlate({
         });
         return;
       }
-      setState({ status: "permanent", alias: account.alias });
+      setState({ status: "permanent", alias: account.alias, githubUsername: account.githubUsername });
     } catch {
       setState({ status: "hidden" });
     }
@@ -87,7 +87,7 @@ export function AccountAuthPlate({
     if (minimal) {
       return (
         <div className={`account-auth-plate account-auth-plate--signed-in account-auth-plate--minimal-signed-in${compact ? " account-auth-plate--compact" : ""}`}>
-          <span className="account-auth-plate__alias">{state.alias}</span>
+          <span className="account-auth-plate__alias">{state.githubUsername ? `@${state.githubUsername}` : state.alias}</span>
           <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
             Account
           </a>
@@ -106,8 +106,8 @@ export function AccountAuthPlate({
 
     return (
       <div className={`account-auth-plate account-auth-plate--signed-in${compact ? " account-auth-plate--compact" : ""}`}>
-        <span className="account-auth-plate__label">Signed in</span>
-        <span className="account-auth-plate__alias">{state.alias}</span>
+        <span className="account-auth-plate__label">{state.githubUsername ? "GitHub" : "Signed in"}</span>
+        <span className="account-auth-plate__alias">{state.githubUsername ? `@${state.githubUsername}` : state.alias}</span>
         <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
           History
         </a>

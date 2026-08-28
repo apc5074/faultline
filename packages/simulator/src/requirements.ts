@@ -246,6 +246,7 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     traffic: latency.traffic,
     geographicRoutes: latency.geographicRoutes,
     challenge: input.challenge as ChallengeDefinition,
+    level2: latency.level2,
   });
   const snapshot: OutcomeSnapshot = {
     throughputRatio: throughput.ratio,
@@ -286,6 +287,7 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     regionalTraffic: latency.regionalTraffic,
     geographicRoutes: latency.geographicRoutes,
     unroutableRps: latency.unroutableRps,
+    level2: latency.level2,
     events,
     services: latency.services,
     postgres: latency.postgres,

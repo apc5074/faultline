@@ -10,6 +10,9 @@ export type PlaybackMechanismProps = {
   passCount?: number;
   cacheHitFlash?: boolean;
   processingSlotIndices?: readonly number[];
+  queueDepth?: number;
+  slotCount?: number;
+  objectMarks?: number;
 };
 
 const IDLE_VISUAL: ComponentPlaybackVisual = {
@@ -33,6 +36,9 @@ export function mechanismPropsFromPlayback(
     passCount: playback.passCount ?? 0,
     cacheHitFlash: playback.cacheHitFlash,
     processingSlotIndices: playback.processingSlotIndices,
+    queueDepth: playback.queueDepth,
+    slotCount: playback.slotCount,
+    objectMarks: playback.objectMarks,
   };
 }
 

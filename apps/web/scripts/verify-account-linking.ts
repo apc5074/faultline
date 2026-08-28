@@ -101,6 +101,9 @@ assert.match(plate, /alias, official attempt, submissions, and leaderboard rank/
 assert.match(plate, /sign-out/);
 
 const meRoute = read("app/api/auth/me/route.ts");
-assert.match(meRoute, /linkingState: linkIntentUserId \? "pending" : "idle"/);
+assert.match(meRoute, /linkIntentUserId/);
+assert.match(meRoute, /user\.is_anonymous !== true \|\| linkIntentUserId !== user\.id/);
+assert.match(meRoute, /clearAccountLinkIntent/);
+assert.match(meRoute, /linkingState: "idle"/);
 
 console.log("verify:account-linking ok");

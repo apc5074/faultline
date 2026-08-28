@@ -43,5 +43,6 @@ assert.deepEqual(unavailable.skipped, [
   { name: "flush_cache", reason: "unavailable" },
   { name: "inject_component_failure", reason: "unavailable" },
   { name: "inject_region_failure", reason: "unavailable" },
+  { name: "slow_consumers", reason: "unavailable" },
 ]);
 console.log("run_load_test capability verification passed");

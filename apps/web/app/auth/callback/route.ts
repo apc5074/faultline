@@ -30,7 +30,8 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const supabase = await createSupabaseServerClient();
+  const response = new NextResponse(null, { status: 302 });
+  const supabase = await createSupabaseServerClient(undefined, response);
   const adapter = createSupabaseAuthAdapter(supabase);
 
   if (url.searchParams.get("error") === "access_denied" && linkIntentUserId) {
@@ -40,6 +41,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const result = await handleOAuthCallback(adapter, {
     code: url.searchParams.get("code"),
+    flowId: url.searchParams.get("sb_flow_id"),
     providerError: url.searchParams.get("error"),
     next,
   });
@@ -49,17 +51,15 @@ export async function GET(request: Request): Promise<Response> {
       await recordAccountLinkAttempt(linkIntentUserId, result.code === "provider_denied" ? "cancelled" : "failed");
       await clearAccountLinkIntent();
     }
-    return NextResponse.redirect(
-      new URL(appendAuthCallbackQuery(result.next, { error: result.code }), origin),
-    );
+    response.headers.set("Location", new URL(appendAuthCallbackQuery(result.next, { error: result.code }), origin).toString());
+    return response;
   }
 
   const user = await adapter.getUser();
   if (!user) {
     await clearAccountLinkIntent();
-    return NextResponse.redirect(
-      new URL(appendAuthCallbackQuery(result.next, { error: "session_missing" }), origin),
-    );
+    response.headers.set("Location", new URL(appendAuthCallbackQuery(result.next, { error: "session_missing" }), origin).toString());
+    return response;
   }
 
   const finalize = finalizeAnonymousLink({
@@ -79,9 +79,8 @@ export async function GET(request: Request): Promise<Response> {
       await recordAccountLinkAttempt(linkIntentUserId, "failed");
     }
     await clearAccountLinkIntent();
-    return NextResponse.redirect(
-      new URL(appendAuthCallbackQuery(result.next, { error: mapFinalizeCode(finalize.code) }), origin),
-    );
+    response.headers.set("Location", new URL(appendAuthCallbackQuery(result.next, { error: mapFinalizeCode(finalize.code) }), origin).toString());
+    return response;
   }
 
   if (user.is_anonymous !== true) {
@@ -93,9 +92,8 @@ export async function GET(request: Request): Promise<Response> {
         await recordAccountLinkAttempt(linkIntentUserId, "failed");
       }
       await clearAccountLinkIntent();
-      return NextResponse.redirect(
-        new URL(appendAuthCallbackQuery(result.next, { error: "link_failed" }), origin),
-      );
+      response.headers.set("Location", new URL(appendAuthCallbackQuery(result.next, { error: "link_failed" }), origin).toString());
+      return response;
     }
   }
 
@@ -105,12 +103,10 @@ export async function GET(request: Request): Promise<Response> {
   await clearAccountLinkIntent();
 
   if (finalize.kind === "linked") {
-    return NextResponse.redirect(
-      new URL(appendAuthCallbackQuery(result.next, { linked: true }), origin),
-    );
+    response.headers.set("Location", new URL(appendAuthCallbackQuery(result.next, { linked: true }), origin).toString());
+    return response;
   }
 
-  return NextResponse.redirect(
-    new URL(appendAuthCallbackQuery(result.next, { signedIn: true }), origin),
-  );
+  response.headers.set("Location", new URL(appendAuthCallbackQuery(result.next, { signedIn: true }), origin).toString());
+  return response;
 }

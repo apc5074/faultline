@@ -19,6 +19,8 @@ import { flushCacheCapability } from "./flush-cache.js";
 import { injectComponentFailureCapability } from "./inject-component-failure.js";
 import { injectRegionFailureCapability } from "./inject-region-failure.js";
 import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
+import { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
+import { slowConsumersCapability } from "./slow-consumers.js";
 
 export {
   getSessionFocusCapability,
@@ -105,6 +107,8 @@ export { flushCacheCapability } from "./flush-cache.js";
 export { injectComponentFailureCapability } from "./inject-component-failure.js";
 export { injectRegionFailureCapability } from "./inject-region-failure.js";
 export { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
+export { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
+export { slowConsumersCapability } from "./slow-consumers.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
@@ -128,5 +132,10 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     injectComponentFailureCapability,
     injectRegionFailureCapability,
     inspectBottlenecksCapability,
+    inspectQueueCapability,
+    inspectProcessingCapability,
+    inspectObjectStorageCapability,
+    inspectPlaybackOriginCapability,
+    slowConsumersCapability,
   ]);
 }

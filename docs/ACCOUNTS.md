@@ -169,7 +169,7 @@ starts_at <= now() AND ends_at > now()
 | Surface | Exposes | Must not expose |
 | --- | --- | --- |
 | Leaderboards (`list_*_leaderboard`) | rank, alias, time, cost | `user_id`, email, architecture |
-| `GET /api/auth/me` | alias, anonymous flag, provider kind | email, tokens, raw OAuth |
+| `GET /api/auth/me` | alias, anonymous flag, provider kind, current player's validated GitHub handle | email, tokens, raw OAuth |
 | History (authenticated) | own verified outcomes | other users' rows, UUIDs |
 | Streak HUD | counts and day state | ranking implication |
 
@@ -248,10 +248,21 @@ Implemented in `isAuthCallbackRedirectAllowed` /
 | `SUPABASE_SERVICE_ROLE_KEY` | server only |
 | Anonymous sign-ins enabled | Supabase Auth dashboard / local `config.toml` |
 | GitHub OAuth app + provider enabled | Supabase Auth dashboard (client secret **not** in repo) |
+| Manual Identity Linking enabled | Supabase Auth configuration; required for anonymous `linkIdentity()` to preserve the existing `auth.users.id` |
 | Redirect URLs | Supabase Auth URL config: `{origin}/auth/callback` for local, Preview, Production |
 
 No new browser-exposed secrets for Phase 12. GitHub client credentials live in
 Supabase provider settings only.
+
+### Operator smoke-test checklist
+
+Before exposing the GitHub CTA in an environment, configure the GitHub OAuth
+app callback to Supabase's provider callback URL, enable the GitHub provider,
+and enable **Manual Identity Linking** in the Supabase Auth configuration.
+Then add that environment's `{origin}/auth/callback` to Supabase Auth's redirect
+URL allowlist and complete one anonymous-player link smoke test. Manual linking
+is required only when preserving an existing anonymous player's data; a missing
+setting causes Supabase to reject `linkIdentity()` before redirecting to GitHub.
 
 ## Planned API routes (AUTH-003 / AUTH-004)
 

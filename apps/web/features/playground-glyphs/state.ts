@@ -5,6 +5,7 @@ import type {
   PostgresCapacityMetrics,
   ServiceCapacityMetrics,
   SimulationEvent,
+  Level2SimulationResult,
 } from "@faultline/simulator";
 
 import { impactSlotSeed, randomizedImpactSlots } from "../traffic-playback/impact-slots.ts";
@@ -21,6 +22,7 @@ export type GlyphSimulationResult = {
   caches?: Readonly<Record<string, CacheResult & CachePlacementEvidence>>;
   events?: readonly SimulationEvent[];
   hotKey?: HotKeyScenarioResult;
+  level2?: Level2SimulationResult;
 };
 
 export interface DeriveGlyphStateOptions {
@@ -36,6 +38,9 @@ export interface GlyphMechanismValues {
   writeProcessingCount?: number;
   passCount?: number;
   processingSlotIndices?: readonly number[];
+  queueDepth?: number;
+  slotCount?: number;
+  objectMarks?: number;
 }
 
 type CapacityBandState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
@@ -107,6 +112,16 @@ export function deriveGlyphState(
     return cacheBandToGlyphState(cache);
   }
 
+  const queue = simulationResult.level2?.queues[componentId];
+  if (queue) return queue.utilization >= 1 ? "saturated" : queue.utilization > 0 ? "processing" : "idle";
+  const worker = simulationResult.level2?.workers[componentId];
+  if (worker) return worker.processingUtilization >= 1 ? "saturated" : worker.processingUtilization > 0 ? "processing" : "idle";
+  const storage = simulationResult.level2?.objectStorage[componentId];
+  if (storage) {
+    const pressure = Math.max(storage.uploadUtilization, storage.originReadUtilization);
+    return pressure >= 1 ? "saturated" : pressure > 0.7 ? "warning" : "idle";
+  }
+
   return "idle";
 }
 
@@ -131,6 +146,19 @@ export function deriveGlyphMechanismValues(
 ): GlyphMechanismValues {
   if (!simulationResult || options.resultIsStale) {
     return {};
+  }
+
+  const queue = simulationResult.level2?.queues[componentId];
+  if (queue) {
+    return { queueDepth: queue.queueDepth, slotCount: queue.queueCapacity, processingCount: queue.queueDepth > 0 ? 1 : 0 };
+  }
+  const worker = simulationResult.level2?.workers[componentId];
+  if (worker) {
+    return { processingCount: meterCellsFromUtilization(worker.processingUtilization, 4) };
+  }
+  const storage = simulationResult.level2?.objectStorage[componentId];
+  if (storage) {
+    return { objectMarks: storage.storedBytes > 0 ? 3 : storage.uploadThroughputBytesPerSecond > 0 ? 1 : 0, processingCount: meterCellsFromUtilization(Math.max(storage.uploadUtilization, storage.originReadUtilization), 4) };
   }
 
   const redirectRps = options.redirectRps;
@@ -348,6 +376,13 @@ export function glyphStateAriaLabel(
   if (cache) {
     return cache.saturated ? "saturated" : `${Math.round(cache.utilization * 100)}% utilization`;
   }
+
+  const queue = simulationResult?.level2?.queues[componentId];
+  if (queue) return `${Math.round(queue.queueDepth)} queued · ${Math.round(queue.oldestJobAgeMs)}ms oldest`;
+  const worker = simulationResult?.level2?.workers[componentId];
+  if (worker) return `${Math.round(worker.completedWorkPerSecond)} work/s · ${Math.round(worker.processingUtilization * 100)}% utilized`;
+  const storage = simulationResult?.level2?.objectStorage[componentId];
+  if (storage) return `${Math.round(Math.max(storage.uploadUtilization, storage.originReadUtilization) * 100)}% I/O pressure`;
 
   if (state !== "idle") {
     return state;

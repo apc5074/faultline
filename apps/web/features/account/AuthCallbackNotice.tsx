@@ -45,6 +45,12 @@ export function AuthCallbackNotice() {
     setMessage(null);
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!message || tone !== "success") return;
+    const timeout = setTimeout(() => setMessage(null), 6000);
+    return () => clearTimeout(timeout);
+  }, [message, tone]);
+
   if (!message) return null;
 
   return (
@@ -54,8 +60,13 @@ export function AuthCallbackNotice() {
       aria-live="polite"
     >
       <p>{message}</p>
-      <button type="button" className="auth-callback-notice__dismiss" onClick={() => setMessage(null)}>
-        Dismiss
+      <button
+        type="button"
+        className="auth-callback-notice__dismiss"
+        aria-label="Dismiss"
+        onClick={() => setMessage(null)}
+      >
+        <span aria-hidden="true">×</span>
       </button>
     </div>
   );

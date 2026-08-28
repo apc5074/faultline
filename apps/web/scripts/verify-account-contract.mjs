@@ -37,7 +37,10 @@ const permanent = {
   isAnonymous: false,
   alias: "SwiftFox42",
   provider: "github",
+  githubUsername: "octocat",
 };
-assert.equal(accountStatusFromAuthMe(permanent).kind, "permanent");
+const permanentAccount = accountStatusFromAuthMe(permanent);
+assert.equal(permanentAccount.kind, "permanent");
+assert.equal(permanentAccount.githubUsername, "octocat");
 
 console.log("verify:account-contract ok");

@@ -316,6 +316,7 @@ function workloadPanelForComponent(
     services: simulation.services,
     postgres: simulation.postgres,
     traffic: simulation.traffic,
+    level2: simulation.level2,
   });
   return { panel, emptyMessage: null };
 }

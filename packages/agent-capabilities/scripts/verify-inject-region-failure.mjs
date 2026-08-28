@@ -20,5 +20,5 @@ const logical = resolveExperimentCapabilities(registry, {
   challenge, architecture: { ...architecture, components: architecture.components.map((c) => ({ ...c, deployments: [] })) },
   simulation: { available: true, components: {} },
 });
-assert.deepEqual(logical.skipped.at(-1), { name: "inject_region_failure", reason: "unavailable" });
+assert.deepEqual(logical.skipped.find((skip) => skip.name === "inject_region_failure"), { name: "inject_region_failure", reason: "unavailable" });
 console.log("inject_region_failure capability verification passed");

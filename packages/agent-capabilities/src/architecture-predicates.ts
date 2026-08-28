@@ -48,6 +48,14 @@ export function phase7DynamicCapabilityPredicate(
       return architectureHasPostgresReplica(architecture);
     case "inspect_regional_traffic":
       return architectureHasMultiRegionDeployments(architecture);
+    case "inspect_queue":
+      return architecture.components.some((component) => component.type === "queue");
+    case "inspect_processing":
+      return architecture.components.some((component) => component.type === "worker");
+    case "inspect_object_storage":
+      return architecture.components.some((component) => component.type === "object-storage");
+    case "inspect_playback_origin":
+      return architecture.components.some((component) => component.type === "cdn" || component.type === "object-storage");
     default:
       return false;
   }

@@ -25,6 +25,7 @@ function simulationSnapshot(simulation: SuccessfulSimulation | null): GlyphSimul
     caches: simulation.caches,
     events: simulation.events,
     hotKey: simulation.hotKey,
+    level2: simulation.level2,
   };
 }
 

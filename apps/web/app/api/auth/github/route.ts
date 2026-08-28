@@ -24,7 +24,8 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.redirect(new URL(`/?auth_error=misconfigured`, request.url));
   }
 
-  const supabase = await createSupabaseServerClient();
+  const response = new NextResponse(null, { status: 302 });
+  const supabase = await createSupabaseServerClient(undefined, response);
   const adapter = createSupabaseAuthAdapter(supabase);
   const user = await adapter.getUser();
 
@@ -38,11 +39,14 @@ export async function GET(request: Request): Promise<Response> {
 
   if (!result.ok) {
     if (result.code === "already_signed_in") {
-      return NextResponse.redirect(new URL(next, origin));
+      response.headers.set("Location", new URL(next, origin).toString());
+      return response;
     }
     const errorCode = result.code === "oauth_start_failed" ? "link_failed" : result.code;
-    return NextResponse.redirect(new URL(`${next}?auth_error=${errorCode}`, origin));
+    response.headers.set("Location", new URL(`${next}?auth_error=${errorCode}`, origin).toString());
+    return response;
   }
 
-  return NextResponse.redirect(result.redirectUrl);
+  response.headers.set("Location", result.redirectUrl);
+  return response;
 }

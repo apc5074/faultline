@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 
 import {
   getSupabaseAuthHealthUrl,
@@ -44,6 +45,7 @@ export function getSupabasePublicConfig(): SupabasePublicConfig | null {
 /** Cookie-aware Supabase client for Server Components, Route Handlers, and Server Actions. */
 export async function createSupabaseServerClient(
   config: SupabasePublicConfig = requireSupabasePublicConfig(),
+  response?: NextResponse,
 ): Promise<SupabaseClient> {
   const cookieStore = await cookies();
 
@@ -56,12 +58,22 @@ export async function createSupabaseServerClient(
         try {
           for (const { name, value, options } of cookiesToSet) {
             cookieStore.set(name, value, options);
+            // OAuth route handlers return redirects. Mirror auth-cookie writes
+            // onto that exact response so PKCE verifiers and refreshed sessions
+            // survive the redirect chain.
+            response?.cookies.set(name, value, options);
           }
         } catch {
           // Called from a Server Component where cookies are read-only.
           // Proxy is responsible for refreshing sessions on navigation.
         }
       },
+    },
+    auth: {
+      // Keep concurrent/retried OAuth attempts separate. Supabase appends an
+      // sb_flow_id to the callback URL; the callback exchanges against that
+      // precise verifier instead of whichever flow started most recently.
+      experimental: { appendPkceFlowIdToRedirects: true },
     },
   });
 }

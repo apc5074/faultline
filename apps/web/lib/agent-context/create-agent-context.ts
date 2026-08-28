@@ -58,6 +58,15 @@ function simulationEvidence(
   for (const [componentId, metrics] of Object.entries(result.caches)) {
     components[componentId] = componentEvidence(metrics, workloadFitFromCacheMetrics(metrics, challenge));
   }
+  for (const [componentId, metrics] of Object.entries(result.level2?.queues ?? {})) {
+    components[componentId] = componentEvidence(metrics, undefined);
+  }
+  for (const [componentId, metrics] of Object.entries(result.level2?.workers ?? {})) {
+    components[componentId] = componentEvidence(metrics, undefined);
+  }
+  for (const [componentId, metrics] of Object.entries(result.level2?.objectStorage ?? {})) {
+    components[componentId] = componentEvidence(metrics, undefined);
+  }
 
   const throughput = result.requirements.find((requirement) => requirement.type === "throughput");
   return {
@@ -68,7 +77,11 @@ function simulationEvidence(
       throughputPass: throughput?.passed,
       minimumHeadroom: result.headroom,
     },
-    scenarios: { hotKey: { active: result.hotKey.active, passed: result.hotKey.passed } },
+    scenarios: {
+      hotKey: { active: result.hotKey.active, passed: result.hotKey.passed },
+      ...(result.level2 ? { processing: { deadlineCompletionRatio: result.level2.processing.deadlineCompletionRatio, deadlineMissRatio: result.level2.processing.deadlineMissRatio } } : {}),
+      ...(result.level2 ? { playback: result.level2.playback } : {}),
+    },
     regional: buildAgentRegionalEvidence({
       regionalWorkload: result.regionalWorkload,
       geographicRoutes: result.geographicRoutes,

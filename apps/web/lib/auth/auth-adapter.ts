@@ -6,7 +6,7 @@ export type AuthAdapter = {
   getUser(): Promise<User | null>;
   signInWithOAuth(input: { redirectTo: string }): Promise<{ url: string | null; error: AuthError | null }>;
   linkIdentity(input: { redirectTo: string }): Promise<{ url: string | null; error: AuthError | null }>;
-  exchangeCodeForSession(code: string): Promise<{ error: AuthError | null }>;
+  exchangeCodeForSession(code: string, flowId?: string | null): Promise<{ error: AuthError | null }>;
   signOut(): Promise<{ error: AuthError | null }>;
 };
 
@@ -31,8 +31,8 @@ export function createSupabaseAuthAdapter(supabase: SupabaseClient): AuthAdapter
       });
       return { url: data.url, error };
     },
-    async exchangeCodeForSession(code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+    async exchangeCodeForSession(code, flowId) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
       return { error };
     },
     async signOut() {

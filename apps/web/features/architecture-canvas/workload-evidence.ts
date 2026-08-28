@@ -9,6 +9,7 @@ import type {
   MechanismPlacementEvidence,
   PostgresCapacityMetrics,
   ServiceCapacityMetrics,
+  Level2SimulationResult,
 } from "@faultline/simulator";
 
 type CacheMetrics = CacheResult & {
@@ -64,6 +65,10 @@ function formatPercent(ratio: number): string {
 
 function formatRps(value: number): string {
   return `${Math.round(value).toLocaleString("en-US")} rps`;
+}
+
+function formatMegabytesPerSecond(value: number): string {
+  return `${Math.round(value).toLocaleString("en-US")} MB/s`;
 }
 
 function participationRow(
@@ -241,6 +246,7 @@ export function buildWorkloadEvidencePanel(input: {
   services?: Readonly<Record<string, ServiceCapacityMetrics>>;
   postgres?: Readonly<Record<string, PostgresCapacityMetrics>>;
   traffic?: Readonly<Record<string, { incomingRps: number; outgoingRps: number }>>;
+  level2?: Level2SimulationResult;
 }): WorkloadEvidencePanel | null {
   const { component, challenge } = input;
   const cache = input.caches?.[component.id];
@@ -251,6 +257,34 @@ export function buildWorkloadEvidencePanel(input: {
 
   const store = input.postgres?.[component.id];
   if (store) return postgresEvidence(store, challenge);
+
+  const queue = input.level2?.queues[component.id];
+  if (queue) {
+    return { rows: [
+      { label: "Queue depth", value: `${Math.round(queue.queueDepth)} / ${Math.round(queue.queueCapacity)}`, tone: queue.queueDepth > 0 ? "emphasis" : "neutral" },
+      { label: "Work flow", value: `${formatRps(queue.arrivalWorkPerSecond)} arriving · ${formatRps(queue.dequeueWorkPerSecond)} draining` },
+      { label: "Oldest job", value: `${Math.round(queue.oldestJobAgeMs)} ms` },
+      { label: "Backlog trend", value: `${formatRps(queue.backlogGrowthRate)} growth · ${formatRps(queue.overflowWorkPerSecond)} overflow` },
+    ], hint: "Queue depth is simulator evidence of buffered work; it does not create processing capacity." };
+  }
+  const worker = input.level2?.workers[component.id];
+  if (worker) {
+    return { rows: [
+      { label: "Processing", value: `${formatRps(worker.completedWorkPerSecond)} completed · ${formatRps(worker.processingCapacity)} capacity`, tone: "emphasis" },
+      { label: "Utilization", value: formatPercent(worker.processingUtilization) },
+      { label: "Processing delay", value: `${Math.round(worker.processingDelayMs)} ms` },
+      { label: "Unmet work", value: formatRps(worker.unmetWorkPerSecond) },
+    ], hint: "Workers drain queued processing work; adding API Services does not increase this capacity." };
+  }
+  const storage = input.level2?.objectStorage[component.id];
+  if (storage) {
+    return { rows: [
+      { label: "Upload writes", value: formatMegabytesPerSecond(storage.uploadThroughputBytesPerSecond / 1_000_000) },
+      { label: "Origin reads", value: formatMegabytesPerSecond(storage.originReadThroughputBytesPerSecond / 1_000_000) },
+      { label: "Stored data", value: `${Math.round(storage.storedBytes / 1_000_000_000)} GB` },
+      { label: "I/O pressure", value: `${formatPercent(Math.max(storage.uploadUtilization, storage.originReadUtilization))}`, tone: "emphasis" },
+    ], hint: "Object Storage carries media bytes; Postgres remains the metadata and processing-state store." };
+  }
 
   const traffic = input.traffic?.[component.id];
   if (component.type === "load-balancer") {

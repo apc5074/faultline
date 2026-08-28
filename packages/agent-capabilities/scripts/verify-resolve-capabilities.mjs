@@ -46,6 +46,10 @@ assert.deepEqual(first.skipped, [
   { name: "inspect_cache", reason: "unavailable" },
   { name: "inspect_replication", reason: "unavailable" },
   { name: "inspect_regional_traffic", reason: "unavailable" },
+  { name: "inspect_queue", reason: "unavailable" },
+  { name: "inspect_processing", reason: "unavailable" },
+  { name: "inspect_object_storage", reason: "unavailable" },
+  { name: "inspect_playback_origin", reason: "unavailable" },
 ]);
 
 const missingBaselineRegistry = createAgentCapabilityRegistry(
@@ -61,6 +65,10 @@ assert.deepEqual(productionMissing.skipped, [
   { name: "inspect_cache", reason: "unavailable" },
   { name: "inspect_replication", reason: "unavailable" },
   { name: "inspect_regional_traffic", reason: "unavailable" },
+  { name: "inspect_queue", reason: "unavailable" },
+  { name: "inspect_processing", reason: "unavailable" },
+  { name: "inspect_object_storage", reason: "unavailable" },
+  { name: "inspect_playback_origin", reason: "unavailable" },
 ]);
 assert.equal(productionMissing.names.includes("get_metrics"), false);
 
@@ -144,6 +152,10 @@ assert.deepEqual(unavailable.skipped, [
   { name: "inspect_cache", reason: "unavailable" },
   { name: "inspect_replication", reason: "unavailable" },
   { name: "inspect_regional_traffic", reason: "unavailable" },
+  { name: "inspect_queue", reason: "unavailable" },
+  { name: "inspect_processing", reason: "unavailable" },
+  { name: "inspect_object_storage", reason: "unavailable" },
+  { name: "inspect_playback_origin", reason: "unavailable" },
 ]);
 assert.equal(unavailable.names.includes("get_metrics"), false);
 

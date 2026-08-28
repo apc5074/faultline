@@ -6,9 +6,11 @@ import {
   type LevelProfileV1,
 } from "./level-profile.js";
 import urlShortenerLevelProfile from "./levels/url-shortener.level.json" with { type: "json" };
+import premiereNightLevelProfile from "./levels/premiere-night.level.json" with { type: "json" };
 
 const profilesBySlug: Readonly<Record<string, unknown>> = {
   "url-shortener": urlShortenerLevelProfile,
+  "premiere-night": premiereNightLevelProfile,
 };
 
 /**

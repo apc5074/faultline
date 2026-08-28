@@ -22,6 +22,9 @@ const CATALOG_TYPE_TO_MECHANISM: Readonly<Record<string, WorkloadMechanismId>> =
   "global-router": "geo_routing",
   service: "stateless_compute",
   postgres: "durable_store",
+  "object-storage": "object_store",
+  queue: "async_buffer",
+  worker: "async_consumer",
 };
 
 /** Traffic sources and any future unmapped catalog type return `null` — no mechanism, no affinity scoring. */
@@ -87,6 +90,10 @@ function dataReachableFrom(architecture: Architecture, seeds: Iterable<string>):
   return visited;
 }
 
+function hasIncomingEdgeFrom(architecture: Architecture, nodeId: string, type: Connection["type"], sourceTypes: readonly string[]): boolean {
+  return edgesOfType(architecture, type).some((edge) => edge.targetComponentId === nodeId && sourceTypes.includes(componentType(architecture, edge.sourceComponentId) ?? ""));
+}
+
 /**
  * Derives the architectural role of one node from graph position alone.
  *
@@ -138,6 +145,15 @@ export function resolveNodeRole(architecture: Architecture, nodeId: string, cont
 
     case "durable_store":
       return dataReachable.has(nodeId) ? "primary_store" : "unreachable";
+
+    case "object_store":
+      return hasIncomingEdgeFrom(architecture, nodeId, "object_io", ["service", "worker"]) ? "object_store" : "unreachable";
+
+    case "async_buffer":
+      return hasIncomingEdgeFrom(architecture, nodeId, "async_work", ["service"]) ? "async_buffer" : "unreachable";
+
+    case "async_consumer":
+      return hasIncomingEdgeFrom(architecture, nodeId, "async_work", ["queue"]) ? "async_consumer" : "unreachable";
 
     default:
       // Unmapped catalog type (including traffic sources): topology-only fallback.

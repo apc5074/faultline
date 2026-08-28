@@ -30,10 +30,12 @@ function createFakeAdapter(state) {
     },
     async linkIdentity() {
       state.linkStarted = true;
+      if (state.linkError) return { url: null, error: state.linkError };
       return { url: "https://example.test/link", error: null };
     },
-    async exchangeCodeForSession(code) {
+    async exchangeCodeForSession(code, flowId) {
       state.exchangedCode = code;
+      state.exchangedFlowId = flowId;
       if (state.exchangeError) return { error: state.exchangeError };
       state.user = fakeUser({ id: "permanent-1", isAnonymous: false });
       return { error: null };
@@ -85,6 +87,23 @@ console.log("start oauth — permanent user short-circuits");
   assert.equal(result.code, "already_signed_in");
 }
 
+console.log("start oauth — disabled manual linking is configuration error");
+{
+  const state = {
+    user: fakeUser({ id: "anon-1", isAnonymous: true }),
+    oauthStarted: false,
+    linkStarted: false,
+    linkError: { message: "Manual linking is disabled" },
+  };
+  const adapter = createFakeAdapter(state);
+  const result = await startGitHubOAuth(adapter, {
+    callbackUrl: "https://faultline.test/auth/callback?next=%2F",
+    next: "/",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "misconfigured");
+}
+
 console.log("callback — provider denial");
 {
   const state = { user: null };
@@ -113,9 +132,15 @@ console.log("callback — success");
 {
   const state = { user: null, exchangedCode: null };
   const adapter = createFakeAdapter(state);
-  const result = await handleOAuthCallback(adapter, { code: "abc", providerError: null, next: "/level/1" });
+  const result = await handleOAuthCallback(adapter, {
+    code: "abc",
+    flowId: "flow-1",
+    providerError: null,
+    next: "/level/1",
+  });
   assert.equal(result.ok, true);
   assert.equal(state.exchangedCode, "abc");
+  assert.equal(state.exchangedFlowId, "flow-1");
 }
 
 console.log("callback — expired code mapping");
@@ -126,6 +151,9 @@ console.log("callback — expired code mapping");
   assert.equal(result.ok, false);
   assert.equal(result.code, "expired_code");
 }
+
+console.log("auth error mapping — disabled provider is configuration error");
+assert.equal(mapAuthErrorToCallbackCode({ message: "Provider is disabled" }), "misconfigured");
 
 console.log("callback query builder");
 assert.match(appendAuthCallbackQuery("/", { error: "provider_denied" }), /\?auth_error=provider_denied/);
@@ -158,6 +186,7 @@ assert.doesNotMatch(githubRoute, /POST/);
 
 const callbackRoute = readFileSync(join(root, "app/auth/callback/route.ts"), "utf8");
 assert.match(callbackRoute, /exchangeCodeForSession|handleOAuthCallback/);
+assert.match(callbackRoute, /sb_flow_id/);
 assert.match(callbackRoute, /ensureProfileForUser/);
 
 console.log("verify:github-oauth ok");

@@ -1,15 +1,21 @@
 import {
   cdnMonthlyCostForConfig,
   cdnUsageMonthlyCost,
+  objectStorageMonthlyBaseCostForConfig,
+  objectStorageModelForConfig,
   loadBalancerMonthlyCost,
   postgresMonthlyCostForConfig,
   redisMonthlyCostForConfig,
   serviceMonthlyCostForConfig,
+  queueMonthlyCostForConfig,
+  workerMonthlyCostForConfig,
   ComponentRegistry,
   type CdnConfig,
   type PostgresConfig,
   type RedisConfig,
   type ServiceConfig,
+  type QueueConfig,
+  type WorkerConfig,
 } from "@faultline/component-catalog";
 import {
   parseArchitecture,
@@ -21,6 +27,7 @@ import {
 } from "@faultline/core";
 
 import type { GeographicRoute } from "./geographic-routing.js";
+import type { Level2SimulationResult } from "./level2.js";
 import { estimateCrossRegionTransferCost } from "./transfer-cost.js";
 import { mechanismIdForCatalogType, resolveMechanismAffinity } from "./workload-affinity.js";
 
@@ -45,6 +52,7 @@ export interface CostEstimationInput {
   geographicRoutes?: readonly GeographicRoute[];
   /** Challenge workload ratios + transferPayload for transfer projection. */
   challenge?: Pick<ChallengeDefinition, "workload" | "transferPayload" | "workloadAffinity">;
+  level2?: Level2SimulationResult;
 }
 
 function handledRpsForCost(
@@ -76,6 +84,7 @@ function priceComponent(
   registry: ComponentRegistry,
   traffic: CostEstimationInput["traffic"],
   challenge: CostEstimationInput["challenge"],
+  level2: CostEstimationInput["level2"],
 ): CostLineItem | null {
   if (!registry.has(component.type)) {
     throw new CostEstimationError(`Component "${component.id}" uses unknown type "${component.type}" and cannot be priced.`);
@@ -126,6 +135,24 @@ function priceComponent(
       amount: base + Math.round(usage * pressure),
     };
   }
+  if (component.type === "object-storage") {
+    const config = configResult.data as { tier: "standard" | "high-throughput" };
+    const evidence = level2?.objectStorage[component.id];
+    const model = objectStorageModelForConfig(config);
+    const storedGb = (evidence?.storedBytes ?? 0) / 1_000_000_000;
+    const monthlyOriginGb = ((evidence?.originReadThroughputBytesPerSecond ?? 0) * 2_592_000) / 1_000_000_000;
+    const monthlyRequests = ((evidence?.uploadThroughputBytesPerSecond ?? 0) > 0 ? 1 : 0) * 2_592_000 / 1_000_000;
+    return {
+      componentId: component.id,
+      amount: Math.round(objectStorageMonthlyBaseCostForConfig(config) + storedGb * model.storageCostPerGbMonth + monthlyRequests * model.requestCostPerMillion + monthlyOriginGb * model.originTransferCostPerGb),
+    };
+  }
+  if (component.type === "queue") {
+    return { componentId: component.id, amount: queueMonthlyCostForConfig(configResult.data as QueueConfig) };
+  }
+  if (component.type === "worker") {
+    return { componentId: component.id, amount: workerMonthlyCostForConfig(configResult.data as WorkerConfig) };
+  }
 
   throw new CostEstimationError(`Component "${component.id}" of type "${component.type}" has no cost model.`);
 }
@@ -137,10 +164,11 @@ export function estimateMonthlyCost({
   traffic,
   geographicRoutes,
   challenge,
+  level2,
 }: CostEstimationInput): CostResult {
   const architecture = parseArchitecture(input);
   const componentItems = architecture.components.flatMap((component) => {
-    const lineItem = priceComponent(component, registry, traffic, challenge);
+    const lineItem = priceComponent(component, registry, traffic, challenge, level2);
     return lineItem ? [lineItem] : [];
   });
   const transferItems = estimateCrossRegionTransferCost({

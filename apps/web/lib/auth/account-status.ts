@@ -52,6 +52,8 @@ export type AuthMeResponse =
       alias: string | null;
       /** Permanent users only; omitted when anonymous or unknown. */
       provider?: AccountProvider;
+      /** GitHub handle for the current player's private account UI only. */
+      githubUsername?: string;
       linkingState?: LinkingState;
     };
 
@@ -93,6 +95,7 @@ export type AccountStatus =
       userId: string;
       alias: string;
       provider: AccountProvider;
+      githubUsername?: string;
       linkingState: "idle";
     };
 
@@ -119,6 +122,7 @@ export function accountStatusFromAuthMe(response: AuthMeResponse): AccountStatus
     userId: response.userId,
     alias: response.alias ?? "",
     provider: response.provider ?? "github",
+    githubUsername: response.githubUsername,
     linkingState: "idle",
   };
 }

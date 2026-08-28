@@ -45,6 +45,7 @@ import {
   resolveMechanismPlacement,
   type RoleResolutionContext,
 } from "./workload-affinity.js";
+import { evaluateLevel2Workloads, type Level2SimulationResult } from "./level2.js";
 
 export interface ComponentTraffic {
   incomingRps: number;
@@ -62,6 +63,11 @@ export interface SimulationEvent {
     | "component_saturated"
     | "requirement_passed"
     | "requirement_failed"
+    | "workload_channel_evaluated"
+    | "queue_depth_changed"
+    | "processing_work_completed"
+    | "playback_path_evaluated"
+    | "object_io_pressure"
     | "simulation_finished";
   connectionId?: string;
   componentId?: string;
@@ -88,6 +94,8 @@ export type TrafficPropagationResult =
       /** Deterministic geographic route records for visualization. */
       geographicRoutes: readonly GeographicRoute[];
       events: readonly SimulationEvent[];
+      /** Deterministic multi-workload evidence, present for Level 2 challenges. */
+      level2?: Level2SimulationResult;
       /** Request demand with no healthy reachable Service during an experiment. */
       unroutableRps: number;
     }
@@ -338,11 +346,12 @@ export function propagateTraffic({ architecture: input, challenge, registry, ove
   const regionalWorkload = deriveRegionalWorkload(challenge);
   const useGeographicRouting = regionalWorkload.active && architectureHasServiceDeployments(architecture);
 
-  if (useGeographicRouting) {
-    return propagateGeographicTraffic(architecture, challenge, registry, regionalWorkload, overlay);
-  }
-
-  return propagateLogicalTraffic(architecture, challenge, registry, regionalWorkload, overlay);
+  const base = useGeographicRouting
+    ? propagateGeographicTraffic(architecture, challenge, registry, regionalWorkload, overlay)
+    : propagateLogicalTraffic(architecture, challenge, registry, regionalWorkload, overlay);
+  if (!base.valid) return base;
+  const level2 = evaluateLevel2Workloads({ architecture, challenge, registry, overlay });
+  return level2 ? { ...base, level2, events: [...base.events, ...level2.events] } : base;
 }
 
 function emptyRegionalTraffic(): Record<string, Record<string, RegionalComponentTraffic>> {

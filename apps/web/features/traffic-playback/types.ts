@@ -27,6 +27,9 @@ export interface ComponentPlaybackVisual {
   cacheHitFlash?: boolean;
   /** Cache cubes: seeded random slot order (servers stay sequential). */
   processingSlotIndices?: readonly number[];
+  queueDepth?: number;
+  slotCount?: number;
+  objectMarks?: number;
 }
 
 export interface EdgeLoad {

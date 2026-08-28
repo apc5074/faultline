@@ -841,15 +841,36 @@ main {
 }
 
 .auth-callback-notice {
+  position: absolute;
+  top: 4.25rem;
+  left: 50%;
+  z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 0 0 0.75rem;
-  padding: 0.65rem 0.8rem;
+  gap: 0.6rem;
+  width: max-content;
+  max-width: min(90vw, 24rem);
+  margin: 0;
+  padding: 0.5rem 0.65rem;
   border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper);
+  box-shadow: 3px 3px 0 var(--color-ink);
   font-size: 0.62rem;
   letter-spacing: 0.04em;
+  transform: translateX(-50%);
+  animation: auth-callback-notice-in 180ms ease-out;
+}
+
+@keyframes auth-callback-notice-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 .auth-callback-notice--error {
@@ -864,19 +885,33 @@ main {
 
 .auth-callback-notice p {
   margin: 0;
+  line-height: 1.5;
 }
 
 .auth-callback-notice__dismiss {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 0.55rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0.6;
   cursor: pointer;
+}
+
+.auth-callback-notice__dismiss:hover {
+  opacity: 1;
+}
+
+.auth-callback-notice__dismiss:focus-visible {
+  outline: 2px solid var(--color-signal-red);
+  outline-offset: 2px;
 }
 
 /* ── Account page / history (PROFILE-001) ── */
@@ -1047,6 +1082,30 @@ main {
   margin: 0 0 0.75rem;
   font-size: 1.35rem;
   letter-spacing: -0.04em;
+}
+
+.account-completion-graph {
+  display: grid;
+  grid-template-columns: repeat(12, 0.8rem);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 0.8rem);
+  gap: 0.16rem;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 0.9rem;
+  overflow-x: auto;
+}
+
+.account-completion-graph__day {
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper-dark);
+}
+
+.account-completion-graph__day--complete {
+  border-color: #18794e;
+  background: #27a868;
 }
 
 .account-streak__details {

@@ -16,6 +16,10 @@ export const PHASE_7_DYNAMIC_CAPABILITY_NAMES = [
   "inspect_cache",
   "inspect_replication",
   "inspect_regional_traffic",
+  "inspect_queue",
+  "inspect_processing",
+  "inspect_object_storage",
+  "inspect_playback_origin",
 ] as const;
 
 /** Phase 8 experiment capabilities; resolved on their own non-read surface. */
@@ -25,6 +29,7 @@ export const PHASE_8_EXPERIMENT_CAPABILITY_NAMES = [
   "flush_cache",
   "inject_component_failure",
   "inject_region_failure",
+  "slow_consumers",
 ] as const;
 export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 

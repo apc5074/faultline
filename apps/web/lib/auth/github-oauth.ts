@@ -13,6 +13,7 @@ export type StartGitHubOAuthResult =
 
 export type HandleOAuthCallbackInput = {
   code: string | null;
+  flowId?: string | null;
   providerError: string | null;
   next: string | null;
 };
@@ -38,6 +39,18 @@ export const AUTH_CALLBACK_ERROR_MESSAGES: Record<AuthCallbackErrorCode, string>
 export function mapAuthErrorToCallbackCode(error: AuthError | null): AuthCallbackErrorCode {
   if (!error) return "link_failed";
   const message = error.message.toLowerCase();
+  // Anonymous progress is preserved through Supabase's native linkIdentity
+  // flow. That flow is rejected until Manual Identity Linking is enabled in
+  // the Supabase Auth configuration; surface it as an operator configuration
+  // problem instead of implying the player can fix it by retrying.
+  if (
+    message.includes("manual linking") ||
+    message.includes("provider is disabled") ||
+    message.includes("provider is not enabled") ||
+    message.includes("unsupported provider")
+  ) {
+    return "misconfigured";
+  }
   if (message.includes("expired") || message.includes("invalid grant")) return "expired_code";
   if (message.includes("code") || message.includes("verifier") || message.includes("state")) {
     return "invalid_callback";
@@ -67,7 +80,12 @@ export async function startGitHubOAuth(
     : await adapter.signInWithOAuth({ redirectTo: input.callbackUrl });
 
   if (start.error || !start.url) {
-    return { ok: false, code: "oauth_start_failed", next };
+    const code = mapAuthErrorToCallbackCode(start.error);
+    return {
+      ok: false,
+      code: code === "misconfigured" ? "misconfigured" : "oauth_start_failed",
+      next,
+    };
   }
 
   return { ok: true, redirectUrl: start.url };
@@ -91,7 +109,7 @@ export async function handleOAuthCallback(
     return { ok: false, code: "invalid_callback", next };
   }
 
-  const exchanged = await adapter.exchangeCodeForSession(input.code);
+  const exchanged = await adapter.exchangeCodeForSession(input.code, input.flowId);
   if (exchanged.error) {
     return { ok: false, code: mapAuthErrorToCallbackCode(exchanged.error), next };
   }
