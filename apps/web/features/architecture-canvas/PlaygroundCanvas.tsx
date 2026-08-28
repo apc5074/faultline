@@ -107,7 +107,7 @@ export function PlaygroundCanvas({
       aria-label={viewMode === "logical" ? "Logical architecture canvas" : "World architecture map"}
     >
       {showCanvasEmptyState ? (
-        <p className="playground-canvas__empty-hint">Drag components from the rail · Connect ports · Press Run</p>
+        <p className="playground-canvas__empty-hint">Drag a component here to start. Connect ports, then Run.</p>
       ) : null}
       {interactionNotice ? (
         <p className="playground-canvas__interaction-notice" role="status">

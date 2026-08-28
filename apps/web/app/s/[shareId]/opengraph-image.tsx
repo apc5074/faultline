@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { unstable_cache } from "next/cache";
 
 import { getShareCard, ShareCardError, type ShareCardV1 } from "@/lib/share/cards";
 
@@ -38,7 +39,7 @@ function Card({ share }: { share: ShareCardV1 }) {
       </div>
       <div style={{ display: "flex", marginTop: "auto", justifyContent: "space-between", color: "#8a7f74", fontSize: 18 }}>
         <span>Budget ceiling ${formatMoney(share.budgetUsd)}</span>
-        <span>Latency {share.latencyP95Ms === undefined ? "—" : `${share.latencyP95Ms} ms`} · Headroom {share.headroom === undefined ? "—" : formatPercent(share.headroom)}</span>
+        <span>p95 latency {share.latencyP95Ms === undefined ? "—" : `${share.latencyP95Ms} ms`} · Headroom {share.headroom === undefined ? "—" : formatPercent(share.headroom)}</span>
       </div>
     </div>
   );
@@ -50,7 +51,8 @@ function Fact({ label, value, positive = false }: { label: string; value: string
 
 export default async function OpenGraphImage({ params }: { params: Promise<{ shareId: string }> }) {
   try {
-    const share = await getShareCard((await params).shareId);
+    const shareId = (await params).shareId;
+    const share = await unstable_cache(() => getShareCard(shareId), ["share-card", shareId], { revalidate: 3600 })();
     return new ImageResponse(<Card share={share} />, { ...size });
   } catch (error) {
     const status = error instanceof ShareCardError && error.code === "not_found" ? 404 : 500;

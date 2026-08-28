@@ -69,7 +69,7 @@ export default async function SharePage({ params }: SharePageProps) {
         </dl>
         <details className="share-card__evidence">
           <summary>Verified margins</summary>
-          <p>Latency: {share.latencyP95Ms === undefined ? "—" : `${share.latencyP95Ms} ms`} / target {share.latencyTargetMs === undefined ? "—" : `${share.latencyTargetMs} ms`}</p>
+          <p>p95 latency: {share.latencyP95Ms === undefined ? "—" : `${share.latencyP95Ms} ms`} / target {share.latencyTargetMs === undefined ? "—" : `${share.latencyTargetMs} ms`}</p>
           <p>Headroom: {share.headroom === undefined ? "—" : formatPercent(share.headroom)} / target {share.headroomTarget === undefined ? "—" : formatPercent(share.headroomTarget)}</p>
         </details>
         <footer className="share-card__footer">

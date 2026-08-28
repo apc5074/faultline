@@ -10,6 +10,7 @@ import { OfficialScorecard } from "@/features/official-attempt/OfficialScorecard
 import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
 import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
 import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
+import { PlayerStreakHud } from "@/features/account/PlayerStreakHud";
 import { DevExperimentControls } from "@/features/experiments/DevExperimentControls";
 import { ExperimentResultPanel } from "@/features/experiments/ExperimentResultPanel";
 import { publishExperimentResult, type PublishedExperimentResult } from "@/lib/experiments/experiment-result-publisher";
@@ -168,6 +169,7 @@ function ArchitectureWorkspace() {
                 }
               />
               <StartOfficialAttempt />
+              <PlayerStreakHud compact />
               <button
                 type="button"
                 className="playground-corner-hud__briefing"

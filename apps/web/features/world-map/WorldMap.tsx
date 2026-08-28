@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import { componentRegistry } from "@faultline/component-catalog";
 import {
@@ -136,7 +136,7 @@ function arcHighlighted(
   return false;
 }
 
-export function WorldMap({
+export const WorldMap = memo(function WorldMap({
   architecture,
   challenge,
   selectedComponentId,
@@ -360,4 +360,4 @@ export function WorldMap({
       </div>
     </div>
   );
-}
+});

@@ -264,7 +264,7 @@ Supabase provider settings only.
 | `POST /api/auth/sign-out` | Clear permanent session (no auto-anonymous) |
 | `POST /api/auth/sign-out` | Clear permanent session |
 | `GET /api/account/history` | Verified play history (PROFILE-001) — implemented |
-| `GET /api/account/streak` | Recomputed streak (STREAK-001) |
+| `GET /api/account/streak` | Recomputed streak (STREAK-001) — implemented |
 
 ## Planned migrations (not yet applied)
 
