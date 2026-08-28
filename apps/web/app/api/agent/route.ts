@@ -26,7 +26,7 @@ function activityLabel(toolName: string, input: unknown): { label: string; compo
   if (toolName === "inspect_replication") return { label: "Inspecting replication…" };
   if (toolName === "inspect_regional_traffic") return { label: "Inspecting regional traffic…" };
   if (toolName === "inspect_bottlenecks") return { label: "Ranking simulator bottlenecks…" };
-  if (["run_load_test", "change_traffic_pattern", "flush_cache", "inject_component_failure", "inject_region_failure"].includes(toolName)) return { label: "Running simulated experiment…" };
+  if (["run_load_test", "change_traffic_pattern", "flush_cache", "inject_component_failure", "inject_region_failure"].includes(toolName)) return { label: "Running simulated experiment — architecture unchanged…" };
   return null;
 }
 

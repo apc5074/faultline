@@ -101,7 +101,12 @@ export function PlayerRankHud() {
       ) : null}
 
       {state.status === "unavailable" ? (
-        <p className="hud-plate__empty">{state.message}</p>
+        <>
+          <p className="hud-plate__empty">{state.message}</p>
+          <button type="button" className="hud-plate__action" onClick={() => void refresh()}>
+            Retry
+          </button>
+        </>
       ) : null}
 
       {state.status === "ranked" ? (
@@ -115,6 +120,7 @@ export function PlayerRankHud() {
           <p className="hud-plate__meta tabular">
             Fastest #{state.fastestRank} · Cheapest #{state.cheapestRank}
           </p>
+          <p className="hud-plate__meta">Server-verified pass · within budget</p>
           <details className="hud-plate__details">
             <summary className="hud-plate__details-summary">Verified metrics</summary>
             <dl className="hud-plate__spec tabular">

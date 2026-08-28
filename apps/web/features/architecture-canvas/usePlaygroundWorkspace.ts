@@ -21,6 +21,7 @@ import { buildLevel1HeroScene } from "@/features/architecture-canvas/level1-hero
 import { activeChallenge, challengeRedirectRps } from "@/features/architecture-canvas/playground-challenge";
 import {
   architectureSimulationKey,
+  connectionCreateResult,
   connectionFromFlow,
   createComponentInstance,
   formatCost,
@@ -69,7 +70,9 @@ export function usePlaygroundWorkspace() {
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const [officialSubmitting, setOfficialSubmitting] = useState(false);
   const [officialSummary, setOfficialSummary] = useState<string | null>(null);
+  const [officialVerification, setOfficialVerification] = useState<Extract<SubmitOfficialResponse, { ok: true }> | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<ConnectingFrom | null>(null);
+  const [interactionNotice, setInteractionNotice] = useState<string | null>(null);
   const [settlingNodeIds, setSettlingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -102,8 +105,8 @@ export function usePlaygroundWorkspace() {
 
   const isValidConnection = useCallback(
     (connection: FlowConnection | Edge | FlowConnectionLike) =>
-      connectionFromFlow(connection, architecture.components) !== null,
-    [architecture.components],
+      connectionCreateResult(connection, architecture).ok,
+    [architecture],
   );
   const enclosureRegions = useMemo(
     () => enclosureRegionsForArchitecture(architecture, activeChallenge),
@@ -310,7 +313,7 @@ export function usePlaygroundWorkspace() {
   ]);
 
   const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
-  const showCanvasEmptyState = false;
+  const showCanvasEmptyState = architecture.components.length === 0;
 
   useEffect(() => {
     if (attentionComponentId && !architecture.components.some((component) => component.id === attentionComponentId)) {
@@ -323,6 +326,12 @@ export function usePlaygroundWorkspace() {
       setSelectedConnectionId(null);
     }
   }, [architecture.connections, selectedConnectionId]);
+
+  useEffect(() => {
+    if (!interactionNotice) return;
+    const timeoutId = window.setTimeout(() => setInteractionNotice(null), 4000);
+    return () => window.clearTimeout(timeoutId);
+  }, [interactionNotice]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<PlaygroundFlowNode>[]) => {
@@ -544,8 +553,24 @@ export function usePlaygroundWorkspace() {
     });
   }, []);
 
+  const clearConnectingFrom = useCallback(() => {
+    setConnectingFrom(null);
+  }, []);
+
+  const pulseConnection = useCallback((connectionId: string) => {
+    setPulsingEdgeIds((current) => new Set(current).add(connectionId));
+    window.setTimeout(() => {
+      setPulsingEdgeIds((current) => {
+        const next = new Set(current);
+        next.delete(connectionId);
+        return next;
+      });
+    }, PLAYGROUND_EDGE_PULSE_MS);
+  }, []);
+
   const onConnectStart = useCallback((_event: unknown, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
     if (!params.nodeId || !params.handleId || !params.handleType) return;
+    setInteractionNotice(null);
     setConnectingFrom({
       nodeId: params.nodeId,
       handleId: params.handleId,
@@ -554,41 +579,26 @@ export function usePlaygroundWorkspace() {
   }, []);
 
   const onConnectEnd = useCallback(() => {
-    setConnectingFrom(null);
-  }, []);
+    clearConnectingFrom();
+  }, [clearConnectingFrom]);
 
   const onConnect = useCallback((connection: FlowConnection) => {
-    setConnectingFrom(null);
-    let createdConnectionId: string | null = null;
+    clearConnectingFrom();
 
     setArchitecture((current) => {
-      const canonicalConnection = connectionFromFlow(connection, current.components);
-      if (!canonicalConnection) return current;
-      const isDuplicate = current.connections.some(
-        (existing) =>
-          existing.sourceComponentId === canonicalConnection.sourceComponentId &&
-          existing.sourcePortId === canonicalConnection.sourcePortId &&
-          existing.targetComponentId === canonicalConnection.targetComponentId &&
-          existing.targetPortId === canonicalConnection.targetPortId &&
-          existing.type === canonicalConnection.type,
-      );
-      if (isDuplicate) return current;
-      createdConnectionId = canonicalConnection.id;
-      return { ...current, connections: [...current.connections, canonicalConnection] };
-    });
+      const result = connectionCreateResult(connection, current);
+      if (!result.ok) {
+        queueMicrotask(() => setInteractionNotice(result.reason));
+        return current;
+      }
 
-    if (!createdConnectionId) return;
-
-    const pulseConnectionId = createdConnectionId;
-    setPulsingEdgeIds((current) => new Set(current).add(pulseConnectionId));
-    window.setTimeout(() => {
-      setPulsingEdgeIds((current) => {
-        const next = new Set(current);
-        next.delete(pulseConnectionId);
-        return next;
+      queueMicrotask(() => {
+        setInteractionNotice(null);
+        pulseConnection(result.connection.id);
       });
-    }, PLAYGROUND_EDGE_PULSE_MS);
-  }, []);
+      return { ...current, connections: [...current.connections, result.connection] };
+    });
+  }, [clearConnectingFrom, pulseConnection]);
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
@@ -622,6 +632,7 @@ export function usePlaygroundWorkspace() {
     const runKey = architectureSimulationKey(architecture);
     setRunState("running");
     setUnexpectedError(null);
+    setOfficialVerification(null);
     setOfficialSummary(null);
 
     window.setTimeout(() => {
@@ -754,6 +765,7 @@ export function usePlaygroundWorkspace() {
     setSimulationErrors([]);
     setUnexpectedError(null);
     setOfficialSummary(null);
+    setOfficialVerification(null);
     setRunState("idle");
   }, [clearExperimentPresentation, playback]);
 
@@ -777,6 +789,7 @@ export function usePlaygroundWorkspace() {
     setSimulationErrors([]);
     setUnexpectedError(null);
     setOfficialSummary(null);
+    setOfficialVerification(null);
     setRunState("idle");
     setLastRunKey(null);
     setArchitecture(buildLevel1HeroScene());
@@ -788,6 +801,7 @@ export function usePlaygroundWorkspace() {
     setOfficialSubmitting(true);
     setUnexpectedError(null);
     setOfficialSummary(null);
+    setOfficialVerification(null);
     setSimulationErrors([]);
 
     void (async () => {
@@ -806,6 +820,7 @@ export function usePlaygroundWorkspace() {
         setLastRunKey(runKey);
 
         if (!body.ok) {
+          setOfficialVerification(null);
           if (body.code === "invalid_architecture" && Array.isArray(body.details)) {
             setSimulationResult(null);
             setSimulationErrors(body.details as SimulationValidationError[]);
@@ -835,6 +850,7 @@ export function usePlaygroundWorkspace() {
         setSimulationErrors([]);
         setSimulationResult(outcome);
         setRunState("complete");
+        setOfficialVerification(body);
         if (playback.phase === "idle") {
           playback.start(architecture);
         }
@@ -929,6 +945,7 @@ export function usePlaygroundWorkspace() {
     showSimulationVisuals,
     officialSubmitting,
     officialSummary,
+    officialVerification,
     officialSession,
     semanticZoomOut,
     setSemanticZoomOut,
@@ -936,6 +953,7 @@ export function usePlaygroundWorkspace() {
     edges,
     enclosureRegions,
     showCanvasEmptyState,
+    interactionNotice,
     playback,
     playbackVisualsActive,
     presentExperiment,

@@ -2,10 +2,19 @@
 
 import type { ExperimentResult } from "@faultline/core";
 import { compareGeographicRoutes } from "@/features/world-map/route-comparison";
+import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
 
 function metric(value: number): string {
   return Number.isInteger(value) ? value.toLocaleString("en-US") : value.toFixed(2);
 }
+
+const EXPERIMENT_QUESTIONS: Record<ExperimentResult["type"], string> = {
+  traffic_multiplier: "Can this design absorb the doubled challenge demand?",
+  hot_key: "Can the data path withstand more reads concentrated on one URL?",
+  cache_flush: "How much origin pressure appears when this cache is cold?",
+  component_failure: "Does traffic remain serviceable when this Service is unavailable?",
+  region_failure: "Where does demand go when this region is unavailable?",
+};
 
 export function ExperimentResultPanel({
   result,
@@ -46,6 +55,8 @@ export function ExperimentResultPanel({
     .filter((event) => event.type === "unroutable_demand" && typeof event.data.requestsPerSecond === "number")
     .reduce((sum, event) => sum + (event.data.requestsPerSecond as number), 0);
   const routeChanges = compareGeographicRoutes(baselineEvents, result.events);
+  const failedOutcomeRequirements = result.outcome.requirements.filter((requirement) => !requirement.passed);
+  const requirementLabel = (id: string) => activeChallenge.requirements.find((requirement) => requirement.id === id)?.label ?? id;
   return <section className="experiment-result-panel" aria-label="Simulated experiment result">
     <div className="experiment-result-panel__heading">
       <strong>simulated · non-persistent</strong>
@@ -53,8 +64,19 @@ export function ExperimentResultPanel({
     </div>
     {stale ? <p className="experiment-result-panel__stale">stale — architecture changed; rerun to compare the new baseline</p> : null}
     <p><strong>{result.type}</strong> · {JSON.stringify(result.parameters)}</p>
+    <p><strong>test question:</strong> {EXPERIMENT_QUESTIONS[result.type]}</p>
     <p>requirements: {result.baseline.allRequirementsPass ? "pass" : "fail"} → {result.outcome.allRequirementsPass ? "pass" : "fail"}</p>
     <p>p95: {metric(result.baseline.p95LatencyMs)} → {metric(result.outcome.p95LatencyMs)} ms · headroom: {metric(result.baseline.headroom)} → {metric(result.outcome.headroom)}</p>
+    {failedOutcomeRequirements.length > 0 ? (
+      <details className="experiment-result-panel__evidence" open>
+        <summary>limiting simulator evidence · {failedOutcomeRequirements.length} failed</summary>
+        <ul>
+          {failedOutcomeRequirements.map((requirement) => (
+            <li key={requirement.id}><strong>{requirementLabel(requirement.id)}</strong> · {requirement.explanation}</li>
+          ))}
+        </ul>
+      </details>
+    ) : null}
     {affected.length > 0 ? <p>affected: {affected.join(", ")}</p> : null}
     {coldCaches.map((componentId) => (
       <p key={componentId} className="experiment-result-panel__cold-cache">

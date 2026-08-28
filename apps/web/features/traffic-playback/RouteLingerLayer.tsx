@@ -11,6 +11,7 @@ import {
   estimatePortPosition,
 } from "@/features/architecture-canvas/ink-edge-routing";
 
+import { ROUTE_LINGER_MS } from "./route-linger";
 import type { RouteLinger } from "./types";
 
 /** Hairline route ghosts that fade after a packet completes a round trip. */
@@ -73,6 +74,7 @@ export function RouteLingerLayer({
             fill="none"
             stroke="var(--color-ink-hairline)"
             strokeWidth={1}
+            style={{ ["--route-linger-duration" as string]: `${ROUTE_LINGER_MS}ms` }}
           />
         ))}
       </g>

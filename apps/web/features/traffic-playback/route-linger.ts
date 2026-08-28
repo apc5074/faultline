@@ -1,6 +1,7 @@
 import type { RouteLinger } from "./types";
 
-export const ROUTE_LINGER_MS = 1000;
+/** Short enough to keep the canvas readable while still showing a completed path. */
+export const ROUTE_LINGER_MS = 800;
 
 export function createRouteLingers(connectionIds: readonly string[], startedAt = performance.now()): RouteLinger[] {
   return connectionIds.map((connectionId, index) => ({

@@ -13,20 +13,40 @@ const STATUS_LABEL: Record<WebMcpSurfaceStatus, string> = {
   partial: "Partial registration",
 };
 
+const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
+  unsupported: "Optional — your game works without WebMCP",
+  registering: "Setting up optional agent tools…",
+  ready: "Connect your agent via WebMCP",
+  partial: "Some agent tools unavailable — gameplay unaffected",
+};
+
+const STARTER_PROMPTS = [
+  "Call get_coaching_policy first, then get_challenge. Tell me what evidence you need before reviewing my design.",
+  "Call get_session_focus. Inspect the focused component and simulator evidence, then give me one finding and one question.",
+] as const;
+
 /** Compact, progressive-enhancement status for the external agent surface. */
 export function WebMcpStatusPlate({ status }: { status: WebMcpStatus }) {
   return (
-    <section className={`webmcp-status-plate webmcp-status-plate--${status.state}`} aria-label="WebMCP status">
+    <section className={`webmcp-status-plate webmcp-status-plate--${status.state}`} aria-label="WebMCP status" aria-live="polite">
       <span className="webmcp-status-plate__state">WebMCP · {STATUS_LABEL[status.state]}</span>
       {status.state !== "unsupported" ? (
         <span className="webmcp-status-plate__tools">
           {status.readToolCount} read · {status.visualToolCount} visual
         </span>
       ) : null}
-      <span className="webmcp-status-plate__prompt">Connect your agent via WebMCP</span>
+      <span className="webmcp-status-plate__prompt">{STATUS_PROMPT[status.state]}</span>
       <a className="webmcp-status-plate__link" href="https://webmcp.dev" target="_blank" rel="noreferrer">
         Docs
       </a>
+      <details className="webmcp-status-plate__prompts">
+        <summary>Starter prompts</summary>
+        <div className="webmcp-status-plate__prompt-list">
+          {STARTER_PROMPTS.map((prompt) => (
+            <code key={prompt}>{prompt}</code>
+          ))}
+        </div>
+      </details>
     </section>
   );
 }

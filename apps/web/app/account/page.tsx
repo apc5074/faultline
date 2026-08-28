@@ -1,0 +1,26 @@
+import { Suspense } from "react";
+
+import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
+import { AccountHistoryPanel } from "@/features/account/AccountHistoryPanel";
+import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
+
+export default function AccountPage() {
+  return (
+    <main className="account-page">
+      <header className="account-page__header">
+        <a className="account-page__wordmark" href="/">
+          Faultline
+        </a>
+        <AccountAuthPlate nextPath="/account" />
+      </header>
+
+      <Suspense fallback={null}>
+        <AuthCallbackNotice />
+      </Suspense>
+
+      <Suspense fallback={<p className="account-history__status">Loading history…</p>}>
+        <AccountHistoryPanel />
+      </Suspense>
+    </main>
+  );
+}

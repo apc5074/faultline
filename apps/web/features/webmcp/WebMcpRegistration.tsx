@@ -50,6 +50,11 @@ export function WebMcpRegistration({
     const controller = new AbortController();
     const development = process.env.NODE_ENV === "development";
     let active = true;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      onStatusChange({ state: "partial", readToolCount: 0, visualToolCount: 0 });
+    }, 8_000);
     onStatusChange({ state: "registering", readToolCount: 0, visualToolCount: 0 });
 
     void registerAgentWebMcpSurface({
@@ -61,7 +66,8 @@ export function WebMcpRegistration({
       onVisualIntent,
       ...(onExperimentResult ? { onExperimentResult } : {}),
     }).then((result) => {
-      if (!active) return;
+      if (!active || timedOut) return;
+      window.clearTimeout(timeout);
       const state = result.readToolNames.length >= 9 && result.visualToolNames.length >= 4 ? "ready" : "partial";
       onStatusChange({
         state,
@@ -69,7 +75,8 @@ export function WebMcpRegistration({
         visualToolCount: result.visualToolNames.length,
       });
     }).catch((error) => {
-      if (active) onStatusChange({ state: "partial", readToolCount: 0, visualToolCount: 0 });
+      window.clearTimeout(timeout);
+      if (active && !timedOut) onStatusChange({ state: "partial", readToolCount: 0, visualToolCount: 0 });
       if (process.env.NODE_ENV === "development") {
         console.error("[WebMCP] surface registration failed.", error);
       }
@@ -77,6 +84,7 @@ export function WebMcpRegistration({
 
     return () => {
       active = false;
+      window.clearTimeout(timeout);
       controller.abort();
     };
   }, [reconciliationKey, getContext, registry, onStatusChange, onVisualIntent]);

@@ -68,6 +68,7 @@ function SimBarStatusPlate({
         className={`sim-bar__status-toggle${open ? " sim-bar__status-toggle--open" : ""}${unexpectedError || errors.length > 0 ? " sim-bar__status-toggle--alert" : ""}`}
         aria-expanded={open}
         aria-controls={panelId}
+        aria-live="polite"
         onClick={() => setOpen((current) => !current)}
       >
         {statusText ?? "Status"}

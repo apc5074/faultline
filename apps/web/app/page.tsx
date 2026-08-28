@@ -1,6 +1,10 @@
+import { Suspense } from "react";
+
 import { HomeHelp } from "@/features/home/HomeHelp";
 import { PlayLevelLink } from "@/features/home/PlayLevelLink";
 import { LeaderboardHud } from "@/features/leaderboards/LeaderboardHud";
+import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
+import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
 
 export default function Home() {
   return (
@@ -9,7 +13,12 @@ export default function Home() {
         <nav className="home-page__nav" aria-label="Primary navigation">
           <span className="home-page__wordmark">Faultline</span>
           <HomeHelp />
+          <AccountAuthPlate nextPath="/" />
         </nav>
+
+        <Suspense fallback={null}>
+          <AuthCallbackNotice />
+        </Suspense>
 
         <section className="home-page__hero">
           <p className="home-page__eyebrow">Daily distributed-systems design game</p>

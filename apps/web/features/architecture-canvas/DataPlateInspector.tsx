@@ -209,7 +209,10 @@ function AboutThisPieceSection({ card }: { card: LevelComponentCard }) {
         About this piece
       </summary>
       <div className="data-plate-inspector__teaching-body">
-        <p className="data-plate-inspector__teaching-why">{card.whyHere}</p>
+        <p className="data-plate-inspector__teaching-why">
+          <span className="data-plate-inspector__teaching-label">Role</span>
+          {card.whyHere}
+        </p>
         <p className="data-plate-inspector__teaching-intent">
           <span className="data-plate-inspector__teaching-label">
             Placement intent
@@ -272,7 +275,7 @@ function WorkloadFitSection({
   if (!panel) return null;
 
   return (
-    <DataPlateSection title="Workload fit">
+    <DataPlateSection title="Simulator evidence">
       <div className="inspector-plate__rows">
         {panel.rows.map((row) => (
           <InspectorDataRow
@@ -397,8 +400,13 @@ function LiveStrip({
     });
   }
 
+  const title =
+    runComplete && simulation && !simulationStale
+      ? "Last Run · simulator evidence"
+      : "Last Run";
+
   return (
-    <DataPlateSection title="Live">
+    <DataPlateSection title={title}>
       {emptyMessage ? (
         <p className="data-plate-inspector__live-empty">{emptyMessage}</p>
       ) : (

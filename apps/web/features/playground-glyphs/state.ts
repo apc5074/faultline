@@ -269,11 +269,13 @@ export function glyphPressureLabel(
 ): string | undefined {
   if (!simulationResult) return undefined;
   if (options.resultIsStale) return "STALE";
+  if (deriveGlyphState(componentId, simulationResult) === "failed") return "FAILED";
 
   const service = simulationResult.services[componentId];
   if (service) {
     const regionalLimit = service.regions?.find((region) => region.state !== "healthy");
     if (service.state === "healthy" && service.unmetRps <= 0 && !regionalLimit) return undefined;
+    if (service.state === "saturated") return service.unmetRps > 0 ? `SATURATED · ${compactRps(service.unmetRps)} unmet` : "SATURATED";
     return service.unmetRps > 0
       ? `${compactRps(service.unmetRps)} unmet`
       : percent(service.utilization);
@@ -284,7 +286,14 @@ export function glyphPressureLabel(
     const hasShortfall =
       postgres.readCapacityShortfallRps > 0 || postgres.writeCapacityShortfallRps > 0;
     if (postgres.state === "healthy" && !hasShortfall) return undefined;
+    if (postgres.state === "saturated") return "SATURATED";
     return joinGlanceLines(`R ${percent(postgres.readUtilization)}`, `W ${percent(postgres.writeUtilization)}`);
+  }
+
+  const cache = simulationResult.caches?.[componentId];
+  if (cache) {
+    if (cache.saturated) return "SATURATED";
+    if (cache.utilization > 0.9) return `${percent(cache.utilization)} utilized`;
   }
 
   return undefined;

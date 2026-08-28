@@ -42,6 +42,13 @@ export function BudgetHud({
   });
   const budget = activeChallenge.monthlyBudget;
   const overBudget = cost.monthlyTotal > budget;
+  const breakdown = [...cost.lineItems].sort((left, right) => right.amount - left.amount);
+
+  const lineItemLabel = (componentId: string, fallback?: string) => {
+    if (fallback) return fallback;
+    const component = architecture.components.find((candidate) => candidate.id === componentId);
+    return component ? componentRegistry.get(component.type).label : componentId;
+  };
 
   return (
     <aside className="hud-plate hud-plate--budget" aria-label="Infrastructure budget">
@@ -51,10 +58,27 @@ export function BudgetHud({
         <span>/ {formatCompactCost(budget)}</span>
       </p>
       {overBudget ? (
-        <p className="hud-plate__meta" role="status">
-          Over budget
+        <p className="hud-plate__meta hud-plate__meta--over" role="status">
+          OVER BUDGET — editing remains available
         </p>
       ) : null}
+      <details className="hud-plate__details">
+        <summary className="hud-plate__details-summary">Cost breakdown</summary>
+        {breakdown.length > 0 ? (
+          <ul className="hud-plate__list hud-plate__cost-list">
+            {breakdown.map((lineItem) => (
+              <li key={lineItem.componentId} className="hud-plate__row">
+                <div className="hud-plate__row-header">
+                  <span>{lineItemLabel(lineItem.componentId, lineItem.label)}</span>
+                  <span className="hud-plate__metric tabular">{formatCompactCost(lineItem.amount)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="hud-plate__empty">No priced components yet.</p>
+        )}
+      </details>
     </aside>
   );
 }
@@ -103,14 +127,26 @@ export function RequirementsHud({
 }) {
   const showResults = result !== null && runState === "complete";
   const overallPass = showResults && result.allRequirementsPass;
+  const failedCount = showResults
+    ? result.requirements.filter((requirement) => !requirement.passed).length +
+      (result.hotKey.active && !result.hotKey.passed ? 1 : 0)
+    : 0;
 
   return (
     <aside
       className={`hud-plate hud-plate--requirements${resultIsStale && showResults ? " hud-plate--stale" : ""}`}
-      aria-label="Challenge requirements"
+      aria-label="Baseline simulator requirements"
     >
       <p className="hud-plate__title">Requirements</p>
       <p className="hud-plate__meta">{activeChallenge.title}</p>
+      {showResults ? (
+        <p className="hud-plate__meta">Baseline simulator evidence</p>
+      ) : null}
+      {resultIsStale && showResults ? (
+        <p className="hud-plate__meta hud-plate__meta--over" role="status">
+          STALE — architecture changed; run again for current truth
+        </p>
+      ) : null}
 
       <details className="hud-plate__details">
         <summary className="hud-plate__details-summary">Challenge workload</summary>
@@ -127,7 +163,9 @@ export function RequirementsHud({
             <span className={overallPass ? "hud-plate__mark" : "hud-plate__mark hud-plate__mark--fail"} aria-hidden>
               {overallPass ? "✓" : "✕"}
             </span>{" "}
-            {overallPass ? "All requirements pass" : "Requirements not met"}
+            {overallPass
+              ? "All requirements pass"
+              : `${failedCount} requirement${failedCount === 1 ? "" : "s"} failed`}
           </>
         ) : (
           "Run the system to evaluate"

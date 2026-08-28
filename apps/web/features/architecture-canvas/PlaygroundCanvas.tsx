@@ -41,6 +41,7 @@ const edgeTypes = { ink: InkEdge };
 export type PlaygroundCanvasProps = {
   viewMode: "logical" | "world";
   showCanvasEmptyState: boolean;
+  interactionNotice: string | null;
   semanticZoomOut: boolean;
   nodes: PlaygroundFlowNode[];
   edges: Edge<InkEdgeData, "ink">[];
@@ -72,6 +73,7 @@ export type PlaygroundCanvasProps = {
 export function PlaygroundCanvas({
   viewMode,
   showCanvasEmptyState,
+  interactionNotice,
   semanticZoomOut,
   nodes,
   edges,
@@ -106,6 +108,11 @@ export function PlaygroundCanvas({
     >
       {showCanvasEmptyState ? (
         <p className="playground-canvas__empty-hint">Drag components from the rail · Connect ports · Press Run</p>
+      ) : null}
+      {interactionNotice ? (
+        <p className="playground-canvas__interaction-notice" role="status">
+          {interactionNotice}
+        </p>
       ) : null}
       {viewMode === "logical" ? (
         <ReactFlow

@@ -41,6 +41,7 @@ plan or package source code.
 | WebMCP registration and adapter behavior | `packages/webmcp/src` | A second capability registry |
 | Canvas, map, playback, annotations, panels | `apps/web/features` | New simulator semantics |
 | Persistence, official attempts, server re-simulation | `apps/web/lib`, `apps/web/app/api`, `supabase` | Client-only result authority |
+| Account identity, OAuth linking, history, streak | `docs/ACCOUNTS.md`, `apps/web/lib/auth` | Simulator or client-supplied user IDs |
 
 Use package barrel exports (`src/index.ts`) when a contract is public. Follow an
 existing import path before creating a new abstraction.
@@ -52,7 +53,7 @@ existing import path before creating a new abstraction.
    dependency gate.
 2. Read only the contract docs needed for that ticket:
    `ARCHITECTURE`, `SIMULATOR`, `COMPONENTS`, `CHALLENGES`, `COST_MODEL`,
-   `AI`, `WEBMCP`, or `PRODUCTION`.
+   `AI`, `WEBMCP`, `ACCOUNTS`, or `PRODUCTION`.
 3. **New level work starts at a Level Profile JSON** under
    `packages/challenges/src/levels/`. Compile into `ChallengeDefinition`; do not
    hand-maintain a second affinity/workload table in TS. Follow the Extending

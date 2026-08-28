@@ -2,10 +2,14 @@
 
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useState } from "react";
+import { useCallback, useState, Suspense } from "react";
 import type { ExperimentResult } from "@faultline/core";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
+import { OfficialScorecard } from "@/features/official-attempt/OfficialScorecard";
+import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
+import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
+import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
 import { DevExperimentControls } from "@/features/experiments/DevExperimentControls";
 import { ExperimentResultPanel } from "@/features/experiments/ExperimentResultPanel";
 import { publishExperimentResult, type PublishedExperimentResult } from "@/lib/experiments/experiment-result-publisher";
@@ -103,8 +107,12 @@ function ArchitectureWorkspace() {
               </button>
             ) : null}
           </div>
+          <AccountAuthPlate nextPath="/level/1" compact />
           {aiEnabled ? <WebMcpStatusPlate status={webMcpStatus} /> : null}
         </header>
+        <Suspense fallback={null}>
+          <AuthCallbackNotice />
+        </Suspense>
         <DevExperimentControls architecture={workspace.architecture} challenge={activeChallenge} onExperimentResult={publishResult} />
 
         <div className="playground-body">
@@ -114,6 +122,7 @@ function ArchitectureWorkspace() {
             <PlaygroundCanvas
               viewMode={workspace.viewMode}
               showCanvasEmptyState={workspace.showCanvasEmptyState}
+              interactionNotice={workspace.interactionNotice}
               semanticZoomOut={workspace.semanticZoomOut}
               nodes={workspace.nodes}
               edges={workspace.edges}
@@ -185,6 +194,9 @@ function ArchitectureWorkspace() {
                 }}
               />
             ) : null}
+            {workspace.officialVerification ? (
+              <OfficialScorecard result={workspace.officialVerification} stale={workspace.resultIsStale} />
+            ) : null}
             {aiEnabled ? (
               <p className="sr-only" aria-live="polite">
                 {workspace.attentionComponentId
@@ -211,6 +223,7 @@ function ArchitectureWorkspace() {
                   runState={workspace.runState}
                   resultIsStale={workspace.resultIsStale}
                 />
+                <PlayerRankHud />
                 {aiEnabled ? (
                   <AiEngineerPanel
                     architecture={workspace.architecture}

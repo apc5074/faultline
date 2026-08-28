@@ -292,8 +292,13 @@ export function WorldMap({
                 {region.label}
               </text>
               {traffic ? (
-                <text className="world-map__region-traffic tabular" y={32} textAnchor="middle">
-                  {Math.round(traffic.fraction * 100)}% · {Math.round(traffic.redirectRps).toLocaleString("en-US")} rps
+                <text
+                  className="world-map__region-traffic tabular"
+                  y={32}
+                  textAnchor="middle"
+                  aria-label={`Challenge origin share ${Math.round(traffic.fraction * 100)} percent`}
+                >
+                  {Math.round(traffic.fraction * 100)}% origin · {Math.round(traffic.redirectRps).toLocaleString("en-US")} rps
                 </text>
               ) : null}
               {simulatedFailed ? (
@@ -339,13 +344,13 @@ export function WorldMap({
       </svg>
 
       <div className="world-map__legend" aria-label="Map legend">
-        <span className="world-map__legend-item">traffic origin</span>
+        <span className="world-map__legend-item">challenge origin share</span>
         <span className="world-map__legend-item">deployment glyph</span>
         {regionFailure ? <span className="world-map__legend-item world-map__legend-item--simulated-failure">simulated unavailable</span> : null}
         {routesActive ? (
-          <span className="world-map__legend-item">simulated arc · weight = rps</span>
+          <span className="world-map__legend-item">simulator route · weight = rps</span>
         ) : (
-          <span className="world-map__legend-hint">Run simulation to show traffic arcs</span>
+          <span className="world-map__legend-hint">Run simulation to show simulator routes</span>
         )}
         {selection?.kind === "region" ? (
           <button type="button" className="world-map__focus-clear" onClick={onClearSelection}>

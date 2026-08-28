@@ -23,6 +23,10 @@ function formatCompactCount(value: number): string {
   return String(value);
 }
 
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
 function formatBudget(usd: number): string {
   if (usd >= 1_000) return `$${Math.round(usd / 1_000)}k`;
   return `$${usd}`;
@@ -236,6 +240,22 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
                 </div>
               </dl>
 
+              {activeChallenge.geographicDistribution?.length ? (
+                <>
+                  <p className="level-briefing__section-label">Where users are</p>
+                  <ul className="level-briefing__geo" aria-label="Traffic origin regions">
+                    {activeChallenge.geographicDistribution.map((origin) => (
+                      <li key={origin.regionId}>
+                        <strong>{origin.regionId}</strong>
+                        <span>{formatPercent(origin.fraction)}</span>
+                        <span>{formatCompactCount(challengeRedirectRps * origin.fraction)}/s redirects</span>
+                        <span>{formatCompactCount(challengeWriteRps * origin.fraction)}/s writes</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+
               <p className="level-briefing__section-label">Pass when</p>
               <ul className="level-briefing__targets">
                 {activeChallenge.requirements.map((requirement) => (
@@ -255,6 +275,10 @@ export function LevelBriefing({ open, step, onAdvance, onClose }: LevelBriefingP
                   />
                 ))}
               </ul>
+
+              <p className="level-briefing__hint">
+                There is no separate uptime target in this level: throughput means every sustained request must be handled.
+              </p>
 
               <p className="level-briefing__hint">
                 Scale the inherited MVP on the canvas, connect ports, then Run.

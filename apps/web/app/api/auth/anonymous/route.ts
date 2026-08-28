@@ -1,25 +1,13 @@
+import type { AnonymousAuthResponse } from "@/lib/auth/account-status";
+import { ensureProfileForUser, ProfileAliasError } from "@/lib/auth/profile";
 import {
   createSupabaseServerClient,
   getSupabasePublicConfig,
 } from "@/lib/supabase/server";
-import { ensureProfileForUser, ProfileAliasError } from "@/lib/auth/profile";
 
 export const dynamic = "force-dynamic";
 
-export type AnonymousAuthResponse =
-  | {
-      ok: true;
-      created: boolean;
-      userId: string;
-      isAnonymous: boolean;
-      alias: string;
-      profileCreated: boolean;
-    }
-  | {
-      ok: false;
-      error: string;
-      code: "misconfigured" | "auth_failed" | "profile_failed";
-    };
+export type { AnonymousAuthResponse };
 
 /**
  * Ensures an anonymous Supabase identity and a stable public alias.

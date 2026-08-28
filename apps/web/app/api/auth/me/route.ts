@@ -1,3 +1,6 @@
+import type { AuthMeResponse } from "@/lib/auth/account-status";
+import { getAccountProvider } from "@/lib/auth/provider";
+import { readAccountLinkIntent } from "@/lib/auth/link-session";
 import { ensureProfileForUser, getProfileAlias, ProfileAliasError } from "@/lib/auth/profile";
 import {
   createSupabaseServerClient,
@@ -7,18 +10,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export type AuthMeResponse =
-  | {
-      authenticated: false;
-      configured: boolean;
-    }
-  | {
-      authenticated: true;
-      configured: true;
-      userId: string;
-      isAnonymous: boolean;
-      alias: string | null;
-    };
+export type { AuthMeResponse };
 
 /** Identifies the current Supabase user from session cookies. Never requires auth to call. */
 export async function GET(): Promise<Response> {
@@ -45,11 +37,15 @@ export async function GET(): Promise<Response> {
     alias = null;
   }
 
+  const linkIntentUserId = await readAccountLinkIntent();
+
   return Response.json({
     authenticated: true,
     configured: true,
     userId: user.id,
     isAnonymous: user.is_anonymous === true,
     alias,
+    provider: getAccountProvider(user),
+    linkingState: linkIntentUserId ? "pending" : "idle",
   } satisfies AuthMeResponse);
 }

@@ -150,6 +150,11 @@ export function StartOfficialAttempt() {
           {state.message}
         </p>
       ) : null}
+      {state.status === "misconfigured" ? (
+        <p className="official-attempt__status" role="status">
+          Official attempts are unavailable here. You can keep building and running simulations.
+        </p>
+      ) : null}
     </aside>
   );
 }

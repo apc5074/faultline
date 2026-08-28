@@ -38,6 +38,37 @@ export function createComponentInstance(
   };
 }
 
+export type ConnectionCreateResult =
+  | { ok: true; connection: ArchitectureConnection }
+  | { ok: false; reason: string };
+
+export function connectionCreateResult(
+  connection: FlowConnectionLike,
+  architecture: Architecture,
+): ConnectionCreateResult {
+  const canonicalConnection = connectionFromFlow(connection, architecture.components);
+  if (!canonicalConnection) {
+    return {
+      ok: false,
+      reason: "That connection is not compatible. Connect an output to a matching input.",
+    };
+  }
+
+  const isDuplicate = architecture.connections.some(
+    (existing) =>
+      existing.sourceComponentId === canonicalConnection.sourceComponentId &&
+      existing.sourcePortId === canonicalConnection.sourcePortId &&
+      existing.targetComponentId === canonicalConnection.targetComponentId &&
+      existing.targetPortId === canonicalConnection.targetPortId &&
+      existing.type === canonicalConnection.type,
+  );
+  if (isDuplicate) {
+    return { ok: false, reason: "That connection already exists." };
+  }
+
+  return { ok: true, connection: canonicalConnection };
+}
+
 export function connectionFromFlow(
   connection: FlowConnectionLike,
   components: readonly ComponentInstance[],

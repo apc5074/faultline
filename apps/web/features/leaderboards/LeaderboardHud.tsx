@@ -131,7 +131,7 @@ export function LeaderboardHud({ maxEntries }: { maxEntries?: number } = {}) {
 
       {state.status === "empty" ? (
         <p className="hud-plate__empty">
-          No verified solves yet for {state.challengeSlug} v{state.challengeVersion}.
+          No verified, within-budget solves yet for {state.challengeSlug} v{state.challengeVersion}.
         </p>
       ) : null}
 
@@ -141,6 +141,7 @@ export function LeaderboardHud({ maxEntries }: { maxEntries?: number } = {}) {
             {state.challengeSlug} v{state.challengeVersion}
             {state.mode === "cheapest" ? " · by cost" : " · by time"}
           </p>
+          <p className="hud-plate__meta">Verified solves only · all requirements pass · within budget</p>
           <ol className="hud-plate__rank-list tabular">
             {state.rows.slice(0, maxEntries).map((entry) => (
               <li key={`${state.mode}-${entry.rank}-${entry.alias}`}>

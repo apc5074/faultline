@@ -41,6 +41,9 @@ console.log("Check — competition API surface");
 for (const route of [
   "apps/web/app/api/auth/anonymous/route.ts",
   "apps/web/app/api/auth/me/route.ts",
+  "apps/web/app/api/auth/github/route.ts",
+  "apps/web/app/api/auth/sign-out/route.ts",
+  "apps/web/app/auth/callback/route.ts",
   "apps/web/app/api/challenges/active/route.ts",
   "apps/web/app/api/attempts/start/route.ts",
   "apps/web/app/api/attempts/current/route.ts",
@@ -55,7 +58,7 @@ for (const route of [
 console.log("Check — no login wall / shared simulator");
 const page = assertFile("apps/web/app/page.tsx");
 assert.match(page, /ArchitectureCanvas/);
-assert.doesNotMatch(page, /Sign in to play|Sign in with|GitHub OAuth/i);
+assert.doesNotMatch(page, /Sign in to play|GitHub OAuth/i);
 
 const canvas = [
   assertFile("apps/web/features/architecture-canvas/ArchitectureCanvas.tsx"),
@@ -109,6 +112,12 @@ assert.match(rankHud, /Unranked/);
 assert.doesNotMatch(rankHud, /\buserId\b|\buser_id\b/);
 
 console.log("Check — Phase 5+ not pulled forward as product features");
+const phase12AccountAllowlist = [
+  join(web, "lib/auth"),
+  join(web, "features/account"),
+  join(web, "app/api/auth/github"),
+  join(web, "app/auth"),
+];
 const forbidden = [
   "GitHub OAuth",
   "account linking",
@@ -122,6 +131,9 @@ const scanRoots = [
   join(web, "features"),
   join(web, "lib"),
 ];
+function isPhase12AccountPath(filePath) {
+  return phase12AccountAllowlist.some((allowed) => filePath.startsWith(allowed));
+}
 for (const dir of scanRoots) {
   // light file walk
   const stack = [dir];
@@ -135,6 +147,7 @@ for (const dir of scanRoots) {
         continue;
       }
       if (!/\.(ts|tsx|js|mjs)$/.test(entry.name)) continue;
+      if (isPhase12AccountPath(full)) continue;
       const source = read(full);
       for (const phrase of forbidden) {
         assert.ok(
