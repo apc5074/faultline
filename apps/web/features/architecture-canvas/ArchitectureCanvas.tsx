@@ -3,6 +3,7 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import Link from "next/link";
 import type { ExperimentResult } from "@faultline/core";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
@@ -107,9 +108,9 @@ function ArchitectureWorkspace() {
       />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
-          <a className="playground-topbar__wordmark" href="/">
+          <Link className="playground-topbar__wordmark" href="/">
             Faultline
-          </a>
+          </Link>
           <div className="playground-topbar__hints">
             {loadAnswerEnabled ? (
               <button
@@ -216,6 +217,7 @@ function ArchitectureWorkspace() {
                 verdict={verdict}
                 stale={workspace.resultIsStale}
                 officialActive={workspace.officialSession !== null}
+                officialCompleted={workspace.officialVerification?.eligible === true}
                 onSubmitOfficial={workspace.onSubmitOfficial}
                 onReviewFirstFailure={workspace.reviewFirstFailure}
                 onRun={workspace.handleSimBarRun}
@@ -299,6 +301,7 @@ function ArchitectureWorkspace() {
           viewMode={workspace.viewMode}
           officialActive={workspace.officialSession !== null}
           officialSubmitting={workspace.officialSubmitting}
+          officialCompleted={workspace.officialVerification?.eligible === true}
           officialSummary={workspace.officialSummary}
           onRun={workspace.handleSimBarRun}
           onPause={workspace.playback.pause}

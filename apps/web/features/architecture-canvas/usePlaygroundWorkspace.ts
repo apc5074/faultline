@@ -59,7 +59,7 @@ import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptContext";
 
 export function usePlaygroundWorkspace() {
-  const { session: officialSession, bumpRankRefresh } = useOfficialAttempt();
+  const { session: officialSession, setCompletion, bumpRankRefresh } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(resolveInitialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -851,6 +851,17 @@ export function usePlaygroundWorkspace() {
           ? ` · best ${Math.round(body.dailyBest.fastestSolveMs / 1000)}s / ${formatCost(body.dailyBest.cheapestCost)}`
           : "";
         setOfficialSummary(`Server verified · ${rank}${best}`);
+        if (body.eligible) {
+          let streak: number | null = null;
+          try {
+            const streakResponse = await fetch("/api/account/streak", { method: "GET", cache: "no-store" });
+            const streakBody = (await streakResponse.json()) as { ok?: boolean; currentStreak?: number };
+            if (streakBody.ok && typeof streakBody.currentStreak === "number") streak = streakBody.currentStreak;
+          } catch {
+            // The verified completion still stops the timer if streak loading fails.
+          }
+          setCompletion({ streak });
+        }
         bumpRankRefresh();
       } catch {
         setUnexpectedError("Could not submit official architecture.");
@@ -859,7 +870,7 @@ export function usePlaygroundWorkspace() {
         setOfficialSubmitting(false);
       }
     })();
-  }, [architecture, officialSession, bumpRankRefresh, playback]);
+  }, [architecture, officialSession, bumpRankRefresh, playback, setCompletion]);
 
   const onSelectComponent = useCallback(
     (componentId: string, deploymentId?: string) => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 import { getShareCard, ShareCardError, type ShareCardV1 } from "@/lib/share/cards";
 
@@ -74,7 +75,7 @@ export default async function SharePage({ params }: SharePageProps) {
         </details>
         <footer className="share-card__footer">
           <span>Server-verified. Architecture stays private.</span>
-          <a href="/">Play today&apos;s Faultline <span aria-hidden="true">→</span></a>
+          <Link href="/">Play today&apos;s Faultline <span aria-hidden="true">→</span></Link>
         </footer>
       </article>
     </main>

@@ -92,7 +92,9 @@ export function PlayerStreakHud({ compact = false }: { compact?: boolean }) {
       ? state.todayCompleted
         ? "Streak started"
         : "No streak yet"
-      : `${state.currentStreak}-day streak`;
+      : compact
+        ? "day streak"
+        : `${state.currentStreak}-day streak`;
 
   return (
     <div

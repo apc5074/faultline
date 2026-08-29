@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { PlayerStreakResponse } from "@/lib/account/streak-types";
+import type { PlayerAccountSummaryResponse } from "@/lib/account/summary-types";
 
 type PanelState =
   | { status: "loading" }
@@ -37,16 +37,8 @@ export function AccountStreakPanel() {
   const refresh = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      const [streakResponse, overviewResponse] = await Promise.all([
-        fetch("/api/account/streak", { method: "GET", cache: "no-store" }),
-        fetch("/api/account/overview", { method: "GET", cache: "no-store" }),
-      ]);
-      const body = (await streakResponse.json()) as PlayerStreakResponse;
-      const overview = (await overviewResponse.json()) as
-        | { ok: true; authenticated: false }
-        | { ok: true; authenticated: true; isAnonymous: true }
-        | { ok: true; authenticated: true; isAnonymous: false; completionDays: string[]; bestRank: number | null }
-        | { ok: false; error: string };
+      const response = await fetch("/api/account/summary", { method: "GET", cache: "no-store" });
+      const body = (await response.json()) as PlayerAccountSummaryResponse;
       if (!body.ok) {
         setState({ status: "error", message: body.error });
         return;
@@ -59,18 +51,14 @@ export function AccountStreakPanel() {
         setState({ status: "link_account" });
         return;
       }
-      if (!overview.ok || !overview.authenticated || overview.isAnonymous) {
-        setState({ status: "error", message: "Account data is temporarily unavailable." });
-        return;
-      }
       setState({
         status: "ready",
         currentStreak: body.currentStreak,
         longestStreak: body.longestStreak,
         todayCompleted: body.todayCompleted,
         lastCompletedStartsAt: body.lastCompletedStartsAt,
-        completionDays: overview.completionDays,
-        bestRank: overview.bestRank,
+        completionDays: body.completionDays,
+        bestRank: body.bestRank,
       });
     } catch {
       setState({ status: "error", message: "Streak is temporarily unavailable." });

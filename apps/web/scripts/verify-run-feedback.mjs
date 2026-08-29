@@ -194,24 +194,15 @@ assert.match(controller, /timelineEventIndexRef\.current \+= 1/);
 
 const resultsPlate = readFileSync(new URL("../features/architecture-canvas/RunResultsPlate.tsx", import.meta.url), "utf8");
 assert.match(resultsPlate, /requirements passed/);
-assert.match(resultsPlate, /Requirement evidence/);
 assert.match(resultsPlate, /Start official attempt/);
 assert.match(resultsPlate, /Review first failure/);
 assert.match(resultsPlate, /Design changed — run again/);
-assert.match(resultsPlate, /run-results-plate__metrics--stale/);
 assert.match(resultsPlate, /onClick=\{onRun\}>Run/);
-assert.match(resultsPlate, /p95/);
-assert.match(resultsPlate, /Headroom/);
-assert.match(resultsPlate, /Cost/);
+assert.doesNotMatch(resultsPlate, /Requirement evidence|run-results-plate__metrics|<details/);
 assert.doesNotMatch(resultsPlate, /AiEngineerPanel/);
 
-const coachHint = readFileSync(new URL("../features/architecture-canvas/FirstRunCoachHint.tsx", import.meta.url), "utf8");
-assert.match(coachHint, /faultline\.level1\.firstrun\.seen/);
-assert.match(coachHint, /window\.localStorage/);
-assert.match(coachHint, /Watch the run → read the evidence → adjust your design → Run again → Submit official when everything passes\./);
-
-assert.match(css, /first-run-coach-hint-slot/);
-assert.match(css, /min-height: 2\.7rem/);
+assert.doesNotMatch(resultsPlate, /FirstRunCoachHint/);
+assert.doesNotMatch(css, /first-run-coach-hint/);
 
 const verdictChip = readFileSync(new URL("../features/architecture-canvas/RunVerdictChip.tsx", import.meta.url), "utf8");
 assert.match(verdictChip, /requirements passed/);

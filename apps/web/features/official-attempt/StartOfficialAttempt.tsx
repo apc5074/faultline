@@ -10,6 +10,7 @@ type PanelState =
   | { status: "loading" }
   | { status: "idle"; alias: string | null }
   | { status: "active"; alias: string; attemptId: string; startedAt: string; challengeVersion: number }
+  | { status: "complete"; streak: number | null }
   | { status: "misconfigured" }
   | { status: "error"; message: string };
 
@@ -38,7 +39,7 @@ export function StartOfficialAttempt({
   variant?: "plate" | "inline";
   label?: string;
 }) {
-  const { setSession } = useOfficialAttempt();
+  const { completion, setSession } = useOfficialAttempt();
   const [state, setState] = useState<PanelState>({ status: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
@@ -103,6 +104,10 @@ export function StartOfficialAttempt({
     return () => window.clearInterval(id);
   }, [state.status]);
 
+  useEffect(() => {
+    if (completion) setState({ status: "complete", streak: completion.streak });
+  }, [completion]);
+
   const startOfficialAttempt = () => {
     startTransition(async () => {
       try {
@@ -140,6 +145,10 @@ export function StartOfficialAttempt({
       {state.status === "active" ? (
         <p className="official-attempt__timer tabular" role="status" aria-label="Official run elapsed time">
           Attempt {formatElapsed(state.startedAt, nowMs)}
+        </p>
+      ) : state.status === "complete" ? (
+        <p className="official-attempt__timer official-attempt__timer--complete tabular" role="status">
+          {state.streak === null ? "Level complete" : `${state.streak} day streak · Level complete`}
         </p>
       ) : (
         <button

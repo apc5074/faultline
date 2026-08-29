@@ -8,20 +8,15 @@
     "developmentOnly": false
   },
   "narrative": {
-    "hook": "You're handed LinkVault's startup MVP (~12k RPS) the day #MegaDrop2026 goes viral. Traffic is now 124k RPS sustained on an $85k/mo board \u2014 fix and scale it.",
-    "stakes": "The inherited MVP fails on first Run. Scale what is already on the canvas until every scored target passes.",
+    "hook": "You're handed LinkVault's startup MVP (~12k req/sec) the day #MegaDrop2026 goes viral. Traffic is now 124k req/sec sustained on an $85k/mo board \u2014 fix and scale it.",
+    "stakes": "The MVP fails on first run. Scale what is on the canvas until every requirement passes.",
     "briefingBeats": [
       "Demand is global: six regions share 120k redirects/sec; latency is traffic-weighted p95, so one continent is not enough.",
       "A viral short code concentrates 30k redirect RPS on one key \u2014 hot-key pressure is separate from aggregate throughput.",
       "Budget is $85k/mo including CDN usage and cross-region transfer; spray-and-pray sizing fails, efficient layered designs pass.",
       "Placement changes how much work each piece absorbs for this workload \u2014 edge vs read-aside vs origin \u2014 without prescribing a single diagram."
     ],
-    "outOfScope": [
-      "Queue",
-      "Worker",
-      "Event Stream",
-      "Rate Limiter"
-    ]
+    "outOfScope": ["Queue", "Worker", "Event Stream", "Rate Limiter"]
   },
   "sandbox": {
     "components": [
@@ -439,11 +434,7 @@
   },
   "firstRunExpectation": {
     "summary": "Inherited MVP (medium\u00d73 Service in us-east + medium Postgres, no replicas) is undersized for 124k viral load \u2014 throughput, latency, and headroom fail, and the hot-key gate fails on primary pressure.",
-    "expectedFailingRequirementIds": [
-      "throughput",
-      "latency",
-      "headroom"
-    ],
+    "expectedFailingRequirementIds": ["throughput", "latency", "headroom"],
     "hotKeyExpectedFail": true
   },
   "playtestChecklist": [

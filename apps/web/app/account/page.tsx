@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 
 import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
 import { AccountHistoryPanel } from "@/features/account/AccountHistoryPanel";
@@ -9,9 +10,9 @@ export default function AccountPage() {
   return (
     <main className="account-page">
       <header className="account-page__header">
-        <a className="account-page__wordmark" href="/">
+        <Link className="account-page__wordmark" href="/">
           Faultline
-        </a>
+        </Link>
         <AccountAuthPlate nextPath="/account" />
       </header>
 

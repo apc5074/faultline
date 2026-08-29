@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 
 import type { AuthMeResponse } from "@/lib/auth/account-status";
 import { accountStatusFromAuthMe } from "@/lib/auth/account-status";
@@ -88,9 +89,9 @@ export function AccountAuthPlate({
       return (
         <div className={`account-auth-plate account-auth-plate--signed-in account-auth-plate--minimal-signed-in${compact ? " account-auth-plate--compact" : ""}`}>
           <span className="account-auth-plate__alias">{state.githubUsername ? `@${state.githubUsername}` : state.alias}</span>
-          <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
+          <Link className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
             Account
-          </a>
+          </Link>
           <button
             type="button"
             className="account-auth-plate__secondary"
@@ -108,9 +109,9 @@ export function AccountAuthPlate({
       <div className={`account-auth-plate account-auth-plate--signed-in${compact ? " account-auth-plate--compact" : ""}`}>
         <span className="account-auth-plate__label">{state.githubUsername ? "GitHub" : "Signed in"}</span>
         <span className="account-auth-plate__alias">{state.githubUsername ? `@${state.githubUsername}` : state.alias}</span>
-        <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
+        <Link className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
           History
-        </a>
+        </Link>
         <button
           type="button"
           className="account-auth-plate__secondary"

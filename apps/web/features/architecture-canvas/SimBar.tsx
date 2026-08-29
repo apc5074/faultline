@@ -140,6 +140,7 @@ export type SimBarProps = {
   viewMode: "logical" | "world";
   officialActive: boolean;
   officialSubmitting: boolean;
+  officialCompleted: boolean;
   officialSummary: string | null;
   onRun: () => void;
   onPause: () => void;
@@ -166,6 +167,7 @@ export function SimBar({
   viewMode,
   officialActive,
   officialSubmitting,
+  officialCompleted,
   officialSummary,
   onRun,
   onPause,
@@ -298,7 +300,7 @@ export function SimBar({
           <button
             type="button"
             className="sim-bar__button sim-bar__button--official"
-            disabled={simBusy}
+            disabled={simBusy || officialCompleted}
             onClick={onSubmitOfficial}
           >
             {officialSubmitting ? "submitting…" : "submit official"}

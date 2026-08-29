@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 import type { PlayerHistoryResponse } from "@/lib/account/history-types";
 import { formatLeaderboardCost, formatSolveTime } from "@/lib/leaderboards/format";
@@ -131,9 +132,9 @@ export function AccountHistoryPanel() {
             ? `${state.alias}, you have no verified official submissions yet.`
             : "You have no verified official submissions yet."}
         </p>
-        <a className="account-auth-plate__button" href="/level/1">
+        <Link className="account-auth-plate__button" href="/level/1">
           Play Level 1
-        </a>
+        </Link>
       </section>
     );
   }

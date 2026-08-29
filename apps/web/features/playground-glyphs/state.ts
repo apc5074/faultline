@@ -65,6 +65,12 @@ function hasExplicitFailure(componentId: string, events?: readonly SimulationEve
   );
 }
 
+function hasSaturationEvent(componentId: string, events?: readonly SimulationEvent[]): boolean {
+  return events?.some(
+    (event) => event.componentId === componentId && event.type === "component_saturated",
+  ) ?? false;
+}
+
 function cacheBandToGlyphState(cache: CacheResult): GlyphState {
   if (cache.saturated) {
     return "saturated";
@@ -97,6 +103,12 @@ export function deriveGlyphState(
 
   if (hasExplicitFailure(componentId, simulationResult.events)) {
     return "failed";
+  }
+
+  // Keep capacity saturation visible after the playback replay settles. This
+  // is simulator evidence from the completed run, not a transient animation.
+  if (hasSaturationEvent(componentId, simulationResult.events)) {
+    return "saturated";
   }
 
   if (processing) {

@@ -9,9 +9,13 @@ export type OfficialAttemptSession = {
   startedAt: string;
 };
 
+export type OfficialAttemptCompletion = { streak: number | null };
+
 type OfficialAttemptContextValue = {
   session: OfficialAttemptSession | null;
   setSession: (session: OfficialAttemptSession | null) => void;
+  completion: OfficialAttemptCompletion | null;
+  setCompletion: (completion: OfficialAttemptCompletion | null) => void;
   /** Bumped after verified submission so rank HUD refetches. */
   rankRefreshToken: number;
   bumpRankRefresh: () => void;
@@ -21,13 +25,14 @@ const OfficialAttemptContext = createContext<OfficialAttemptContextValue | null>
 
 export function OfficialAttemptProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<OfficialAttemptSession | null>(null);
+  const [completion, setCompletion] = useState<OfficialAttemptCompletion | null>(null);
   const [rankRefreshToken, setRankRefreshToken] = useState(0);
   const bumpRankRefresh = useCallback(() => {
     setRankRefreshToken((token) => token + 1);
   }, []);
   const value = useMemo(
-    () => ({ session, setSession, rankRefreshToken, bumpRankRefresh }),
-    [session, rankRefreshToken, bumpRankRefresh],
+    () => ({ session, setSession, completion, setCompletion, rankRefreshToken, bumpRankRefresh }),
+    [session, completion, rankRefreshToken, bumpRankRefresh],
   );
   return <OfficialAttemptContext.Provider value={value}>{children}</OfficialAttemptContext.Provider>;
 }

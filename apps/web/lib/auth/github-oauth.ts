@@ -1,4 +1,4 @@
-import type { AuthError } from "@supabase/supabase-js";
+import type { AuthError, User } from "@supabase/supabase-js";
 
 import {
   type AuthCallbackErrorCode,
@@ -66,18 +66,23 @@ export function mapAuthErrorToCallbackCode(error: AuthError | null): AuthCallbac
  */
 export async function startGitHubOAuth(
   adapter: AuthAdapter,
-  input: { callbackUrl: string; next: string | null },
+  input: { callbackUrl: string; next: string | null; currentUser?: User | null },
 ): Promise<StartGitHubOAuthResult> {
   const next = normalizeAuthCallbackRedirect(input.next);
-  const user = await adapter.getUser();
+  const user = input.currentUser === undefined ? await adapter.getUser() : input.currentUser;
 
   if (user && user.is_anonymous !== true) {
     return { ok: false, code: "already_signed_in", next };
   }
 
-  const start = user
-    ? await adapter.linkIdentity({ redirectTo: input.callbackUrl })
-    : await adapter.signInWithOAuth({ redirectTo: input.callbackUrl });
+  const start = await Promise.race([
+    user
+      ? adapter.linkIdentity({ redirectTo: input.callbackUrl })
+      : adapter.signInWithOAuth({ redirectTo: input.callbackUrl }),
+    new Promise<{ url: null; error: AuthError | null }>((resolve) => {
+      setTimeout(() => resolve({ url: null, error: null }), 8_000);
+    }),
+  ]);
 
   if (start.error || !start.url) {
     const code = mapAuthErrorToCallbackCode(start.error);

@@ -29,35 +29,119 @@ function formatBudget(usd: number): string {
   return `$${usd}`;
 }
 
-function formatRequirementTarget(type: string, target: number, unit: string): string {
+function formatRequirementTarget(
+  type: string,
+  target: number,
+  unit: string
+): string {
   if (type === "latency") return `< ${target}${unit}`;
   if (type === "headroom") return `≥ ${Math.round(target * 100)}%`;
   if (type === "budget") return `≤ ${formatBudget(target)}/mo`;
-  if (type === "throughput") return "Handle peak load";
+  if (type === "throughput") return "Handle peak load (see traffic est.)";
   return `${target} ${unit}`;
 }
 
 const REQUIREMENT_HELP: Record<string, string> = {
-  throughput: "Your design must handle the full sustained peak without dropping work.",
-  latency:
-    "How fast redirects feel for nearly all users. Under this limit means most people reach the destination quickly.",
-  headroom:
-    "How much unused capacity you still have at peak. Extra room means a traffic spike is less likely to overload you.",
-  budget:
-    "What your whole design costs per month. You pass if the total stays at or under this amount.",
+  throughput: "Peak traffic that system must reliably handle.",
+  latency: "How fast redirects feel for users.",
+  headroom: "Necessary extra capacity above peak traffic.",
+  budget: "Maximum budget for system upkeep.",
 };
 
 function RequirementHelp({ explanation }: { explanation: string }) {
+  const helpId = useId();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [tipPosition, setTipPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+
+  const positionTip = useCallback(() => {
+    const button = buttonRef.current;
+    const tip = tipRef.current;
+    if (!button || !tip) return;
+
+    const buttonRect = button.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const dialog = button
+      .closest(".level-briefing__dialog")
+      ?.getBoundingClientRect();
+    const padding = 8;
+    const leftBound = Math.max(padding, (dialog?.left ?? padding) + padding);
+    const rightBound = Math.min(
+      window.innerWidth - padding,
+      (dialog?.right ?? window.innerWidth - padding) - padding
+    );
+    const topBound = Math.max(padding, (dialog?.top ?? padding) + padding);
+    const bottomBound = Math.min(
+      window.innerHeight - padding,
+      (dialog?.bottom ?? window.innerHeight - padding) - padding
+    );
+    const centeredLeft =
+      buttonRect.left + buttonRect.width / 2 - tipRect.width / 2;
+    const left = Math.min(
+      Math.max(centeredLeft, leftBound),
+      Math.max(leftBound, rightBound - tipRect.width)
+    );
+    const aboveTop = buttonRect.top - tipRect.height - 8;
+    const belowTop = buttonRect.bottom + 8;
+    const top =
+      aboveTop >= topBound
+        ? aboveTop
+        : belowTop + tipRect.height <= bottomBound
+        ? belowTop
+        : Math.min(
+            Math.max(aboveTop, topBound),
+            Math.max(topBound, bottomBound - tipRect.height)
+          );
+
+    setTipPosition({ left, top });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(positionTip);
+    const reposition = () => positionTip();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open, positionTip]);
+
   return (
     <span className="level-briefing__help">
       <button
+        ref={buttonRef}
         type="button"
         className="level-briefing__help-btn"
         aria-label="What this requirement means"
+        aria-describedby={open ? helpId : undefined}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
       >
         ?
       </button>
-      <span role="tooltip" className="level-briefing__help-tip">
+      <span
+        ref={tipRef}
+        id={helpId}
+        role="tooltip"
+        aria-hidden={!open}
+        className={`level-briefing__help-tip${
+          open ? " level-briefing__help-tip--open" : ""
+        }`}
+        style={
+          tipPosition
+            ? { left: tipPosition.left, top: tipPosition.top }
+            : undefined
+        }
+      >
         {explanation}
       </span>
     </span>
@@ -131,8 +215,12 @@ export function LevelBriefing({ open, onClose }: LevelBriefingProps) {
         </header>
 
         <div className="level-briefing__body">
-          <p className="level-briefing__scenario">{activeLevelCurriculum.hook}</p>
-          <p className="level-briefing__stakes">{activeLevelCurriculum.stakes}</p>
+          <p className="level-briefing__scenario">
+            {activeLevelCurriculum.hook}
+          </p>
+          <p className="level-briefing__stakes">
+            {activeLevelCurriculum.stakes}
+          </p>
 
           <p className="level-briefing__section-label">Traffic estimate</p>
           <dl className="level-briefing__traffic">
@@ -155,10 +243,14 @@ export function LevelBriefing({ open, onClose }: LevelBriefingProps) {
           </dl>
 
           {activeChallenge.geographicDistribution?.length ? (
-            <ul className="level-briefing__geo" aria-label="Traffic origin regions">
+            <ul
+              className="level-briefing__geo"
+              aria-label="Traffic origin regions"
+            >
               {activeChallenge.geographicDistribution.map((origin) => (
                 <li key={origin.regionId}>
-                  <strong>{origin.regionId}</strong> {formatPercent(origin.fraction)}
+                  <strong>{origin.regionId}</strong>{" "}
+                  {formatPercent(origin.fraction)}
                 </li>
               ))}
             </ul>
@@ -169,11 +261,15 @@ export function LevelBriefing({ open, onClose }: LevelBriefingProps) {
             {activeChallenge.requirements.map((requirement) => (
               <RequirementRow
                 key={requirement.id}
-                label={requirement.type === "budget" ? "Monthly budget" : requirement.label}
+                label={
+                  requirement.type === "budget"
+                    ? "Monthly budget"
+                    : requirement.label
+                }
                 value={formatRequirementTarget(
                   requirement.type,
                   requirement.target,
-                  requirement.unit,
+                  requirement.unit
                 )}
                 help={
                   REQUIREMENT_HELP[requirement.type] ??
@@ -185,8 +281,7 @@ export function LevelBriefing({ open, onClose }: LevelBriefingProps) {
           </ul>
 
           <p className="level-briefing__hint">
-            Drag components onto the canvas, connect ports, press Run — iterate until every
-            target passes.
+            Drag components onto the canvas, connect ports, press Run.
           </p>
         </div>
 
@@ -217,7 +312,9 @@ export function useLevelBriefing() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("brief");
     const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   }, [forceBrief, pathname, router, searchParams]);
 
   const markSeen = useCallback(() => {

@@ -35,7 +35,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const callbackUrl = buildOAuthCallbackUrl(origin, next);
-  const result = await startGitHubOAuth(adapter, { callbackUrl, next });
+  const result = await startGitHubOAuth(adapter, { callbackUrl, next, currentUser: user });
 
   if (!result.ok) {
     if (result.code === "already_signed_in") {
