@@ -16,7 +16,6 @@ import { DevExperimentControls } from "@/features/experiments/DevExperimentContr
 import { ExperimentResultPanel } from "@/features/experiments/ExperimentResultPanel";
 import { publishExperimentResult, type PublishedExperimentResult } from "@/lib/experiments/experiment-result-publisher";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
-import { AiEngineerPanel } from "@/features/ai-engineer/AiEngineerPanel";
 import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
 import { AnnotationRunLifecycle } from "@/features/agent-session/AnnotationRunLifecycle";
 import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionSync";
@@ -44,15 +43,10 @@ import { RunVerdictChip } from "@/features/architecture-canvas/RunVerdictChip";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
-import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
-  // Development builds keep the coaching/WebMCP surface visible so local
-  // diagnostics cannot be hidden by a stale or differently-scoped env file.
-  // Preview/Production remain explicitly rollout-gated by the public flag.
-  const aiEnabled = process.env.NODE_ENV === "development" || isFaultlineAiEnabled();
   const [publishedExperiment, setPublishedExperiment] = useState<PublishedExperimentResult | null>(null);
   const [publishedExperimentArchitectureKey, setPublishedExperimentArchitectureKey] = useState<string | null>(null);
   const publishResult = useCallback((result: ExperimentResult) => {
@@ -87,24 +81,16 @@ function ArchitectureWorkspace() {
 
   const shell = (
     <>
-      {aiEnabled ? (
-        <SelectionSessionSync
-          selectedComponentId={workspace.selectedComponentId}
-        />
-      ) : null}
-      {aiEnabled ? (
-        <AnnotationRunLifecycle runState={workspace.runState} />
-      ) : null}
-      {aiEnabled ? (
+      <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} />
+      <AnnotationRunLifecycle runState={workspace.runState} />
       <WebMcpRegistration
-          reconciliationKey={workspace.webMcpReconciliationKey}
+        reconciliationKey={workspace.webMcpReconciliationKey}
         onStatusChange={handleWebMcpStatus}
         onFocusComponent={workspace.focusComponentInPresentation}
         onFocusRegion={workspace.focusRegionInPresentation}
         onPinObservation={workspace.pinObservation}
         onExperimentResult={publishResult}
       />
-      ) : null}
       <LevelBriefing
         open={briefing.open}
         onClose={briefing.closeBriefing}
@@ -127,7 +113,7 @@ function ArchitectureWorkspace() {
             ) : null}
           </div>
           <AccountAuthPlate nextPath="/level/1" minimal compact />
-          {aiEnabled ? <WebMcpStatusPlate status={webMcpStatus} /> : null}
+          <WebMcpStatusPlate status={webMcpStatus} />
         </header>
         <Suspense fallback={null}>
           <AuthCallbackNotice />
@@ -246,13 +232,6 @@ function ArchitectureWorkspace() {
             {workspace.officialVerification ? (
               <OfficialScorecard result={workspace.officialVerification} stale={workspace.resultIsStale} />
             ) : null}
-            {aiEnabled ? (
-              <p className="sr-only" aria-live="polite">
-                {workspace.attentionComponentId
-                  ? `AI Engineer is inspecting ${workspace.attentionComponentId}.`
-                  : ""}
-              </p>
-            ) : null}
             {workspace.selectedComponent ? (
               <div className="playground-inspector">
                 <DataPlateInspector
@@ -275,16 +254,6 @@ function ArchitectureWorkspace() {
                   reviewKey={workspace.requirementsReviewKey}
                 />
                 <PlayerRankHud />
-                {aiEnabled ? (
-                  <AiEngineerPanel
-                    architecture={workspace.architecture}
-                    onAttention={workspace.setAttentionComponentId}
-                    onShowOnCanvas={workspace.focusComponentInPresentation}
-                    onShowRegionOnMap={workspace.focusRegionInPresentation}
-                    onPinObservation={workspace.pinObservation}
-                    onExperimentResult={publishResult}
-                  />
-                ) : null}
               </div>
             )}
           </aside>
@@ -319,8 +288,6 @@ function ArchitectureWorkspace() {
       </section>
     </>
   );
-
-  if (!aiEnabled) return shell;
 
   return (
     <AgentSessionProvider

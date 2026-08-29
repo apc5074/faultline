@@ -10,7 +10,7 @@ Related: `docs/PRODUCTION.md` (deployment/env), `plans/phase 12/plan.md`
 
 ## Principles
 
-- Local play, embedded AI, WebMCP, public leaderboards, and official competition
+- Local play, WebMCP, public leaderboards, and official competition
   remain usable **without** a permanent account.
 - GitHub is an identity provider only. Supabase Auth owns identity; the
   simulator and server verification own official results.
@@ -191,8 +191,7 @@ Account status does **not** change:
 - Simulator inputs, versions, or pass/fail authority
 - Architecture validation or official submission verification
 
-Embedded AI and WebMCP remain available without permanent authentication (subject
-to existing AI limits and feature flags).
+WebMCP remains available without permanent authentication.
 
 ## Session and cookies
 
@@ -290,7 +289,7 @@ No schema change is required for native `linkIdentity` success path.
 ## Feature flags
 
 Phase 12 does not gate core play behind a feature flag. Account UI may respect
-`NEXT_PUBLIC_FAULTLINE_AI_ENABLED`-style patterns only if needed for staged
+feature-flag patterns only if needed for staged
 rollout; default is visible when auth is configured.
 
 ## Verification baseline (ACCT-001)

@@ -8,7 +8,6 @@ import type { PlaybackPhase, PlaybackSpeed } from "@/features/traffic-playback";
 
 import { AgentHelpChips } from "@/features/agent-session/AgentHelpChips";
 import { ClearAgentMarksButton } from "@/features/agent-session/ClearAgentMarksButton";
-import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
@@ -279,12 +278,8 @@ export function SimBar({
       </div>
 
       <div className="sim-bar__cluster sim-bar__cluster--end">
-        {isFaultlineAiEnabled() ? (
-          <>
-            <AgentHelpChips selectedComponentId={selectedComponentId} />
-            <ClearAgentMarksButton />
-          </>
-        ) : null}
+        <AgentHelpChips selectedComponentId={selectedComponentId} />
+        <ClearAgentMarksButton />
 
         <SimBarStatusPlate
           runState={runState}

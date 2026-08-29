@@ -243,7 +243,7 @@ Every new workload channel should follow this sequence:
    including deterministic failure reasons.
 4. Feed only resolved flow into capacity, latency, affinity, hot-key, transfer,
    and cost calculations; preserve base cost for configured disconnected parts.
-5. Expose the same path evidence to browser UI, embedded AI, WebMCP, and
+5. Expose the same path evidence to browser UI and WebMCP, and
    server-side official verification.
 6. Add fixtures for missing dependencies, disconnected capacity, ordering
    permutations, and browser/server replay parity.

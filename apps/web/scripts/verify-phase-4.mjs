@@ -121,7 +121,6 @@ const phase12AccountAllowlist = [
 const forbidden = [
   "GitHub OAuth",
   "account linking",
-  "embedded AI Engineer",
   "AI usage accounting",
   "attack mode",
   "complex anti-cheat",

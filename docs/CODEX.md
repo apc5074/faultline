@@ -81,8 +81,8 @@ existing import path before creating a new abstraction.
   simulator, agent context, and official submission validation.
 - The simulator—not an LLM or browser heuristic—owns pass/fail, metrics,
   routing, capacity, latency, cost, and experiment outcomes.
-- Embedded AI and WebMCP share semantic capabilities and schemas. Adapters
-  translate and register; they do not duplicate domain logic.
+- WebMCP uses shared semantic capabilities and schemas. The adapter translates
+  and registers them without duplicating domain logic.
 - Agents may inspect, annotate, and run explicitly supported temporary
   experiments, but may not mutate architecture, official attempts, or
   leaderboard state.

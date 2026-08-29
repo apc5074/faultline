@@ -11,7 +11,7 @@ Faultline keeps three responsibilities separate:
 ## Browser setup
 
 1. Use a browser/agent host with WebMCP enabled for the current browser build.
-2. Open Level 1 with `NEXT_PUBLIC_FAULTLINE_AI_ENABLED=true`.
+2. Open Level 1. WebMCP is registered independently of embedded model configuration.
 3. Confirm the top-bar WebMCP plate reaches **Agent ready**. It shows the registered read and visual tool counts.
 4. Connect an external agent through the browser's WebMCP discovery flow. Page code does not enumerate or connect to agents directly.
 
@@ -77,11 +77,11 @@ The coaching policy is discoverable through `get_coaching_policy`; agents should
 
 ## Registration and lifecycle
 
-`registerAgentWebMcpSurface()` registers both surfaces with a shared `AbortSignal`. Successful WebMCP visual tools and embedded AI visual tools both pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. The canvas reconciles registration when the challenge/architecture availability fingerprint changes. Unmount aborts registration cleanly. Optional WebMCP failures are contained so they never break gameplay.
+`registerAgentWebMcpSurface()` registers the external-agent surface with a shared `AbortSignal`. Successful WebMCP visual tools pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. The canvas reconciles registration when the challenge/architecture availability fingerprint changes. Unmount aborts registration cleanly. Optional WebMCP failures are contained so they never break gameplay.
 
 The publisher owns coaching marks only. It does not mutate Architecture or rerun the simulator. Observation and focus commands are routed to the presentation controller from this same publisher boundary; coaching notes remain in the annotation layer and are kept across baseline/experiment runs, while ephemeral focus ticks are cleared when a run starts.
 
-For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and is available in any local development build. The Level 1 embedded AI/WebMCP surface is also visible in development; Preview/Production remain controlled by `NEXT_PUBLIC_FAULTLINE_AI_ENABLED`.
+For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and is available in any local development build. The production surface is available whenever the browser supports WebMCP.
 
 ## Safety boundary
 

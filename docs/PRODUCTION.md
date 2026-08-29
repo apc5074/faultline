@@ -13,11 +13,8 @@ The Vercel project deploys `apps/web` (Root Directory). Its production branch is
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe | Optional legacy fallback | Local `.env`; Vercel Preview/Production environment settings |
-| `NEXT_PUBLIC_FAULTLINE_AI_ENABLED` | Browser-safe feature flag | No (defaults off) | Local `.env`; Vercel Preview/Production **Environment Variables** (plain config, not a secret) |
 | `NEXT_PUBLIC_FAULTLINE_DEV_EXPERIMENTS` | Browser-safe experiment harness flag | No | Dev/test default on when unset; production defaults off; `false` always hides; `true` opts in on Preview |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only | No | Local `.env`; Vercel Preview/Production environment settings |
-| `AI_GATEWAY_API_KEY` | Server-only secret | Only when AI enabled | Local `.env`; Vercel Preview/Production **Secrets** |
-| `FAULTLINE_AGENT_MODEL` | Server-only | Only when AI enabled | Local `.env`; Vercel Preview/Production environment settings |
 
 Only `NEXT_PUBLIC_*` variables may be exposed to browser code. Server-only values must be read by server-side code only and must never be copied into a `NEXT_PUBLIC_*` variable or returned in a response. Legacy or provider-specific variable names are not part of this contract.
 
@@ -58,23 +55,14 @@ Every app response carries a baseline Content Security Policy plus anti-framing,
 
 **Verification — 2026-08-25:** local `GET /api/health/supabase` returned `online` against the hosted project. Configure the same browser-safe values in Vercel Preview and Production before invoking the deployed probe.
 
-Supabase will provide Postgres and Vercel AI Gateway will provide model access through server-only configuration. Official submissions will be re-simulated server-side before they can be ranked.
-
-## AI Gateway probe
-
-`pnpm probe:ai-gateway` is an operator-only server-side verification script. It uses AI Gateway's OpenAI-compatible Chat Completions API to make one tiny request, returns only `online`, `unauthorized`, `unavailable`, or `misconfigured`, and never prints a credential or model response. This script is deliberately not an HTTP route, so it cannot become an unauthenticated billable endpoint.
-
-Set `AI_GATEWAY_API_KEY` and `FAULTLINE_AGENT_MODEL` locally and in Vercel Preview/Production settings when `NEXT_PUBLIC_FAULTLINE_AI_ENABLED=true`. For the Phase 0 connectivity test, use `openai/gpt-5-nano`: it is the current low-cost model ID available through AI Gateway. With the AI flag unset/false, the AI Engineer UI, help chips, annotations, WebMCP registration, and `/api/agent` stay off and the gateway key is unused.
-
-**Verification — 2026-08-25:** an operator confirmed the local probe succeeds with the authorized Gateway configuration. The script's operator-only execution is the access control for this billable request.
+Supabase provides Postgres for competition identity and persistence. Official submissions are re-simulated server-side before they can be ranked. External agents connect through the browser's WebMCP implementation; the app does not embed or call a model gateway.
 
 ## Phase 1 vertical-slice verification
 
-**Verification — 2026-08-25:** `pnpm verify:phase-1` and `pnpm build` succeeded for the Tiny API vertical slice (canonical architecture, simulation outcomes, package boundaries). `pnpm probe:ai-gateway` returned `online`. Vercel production gameplay (PHASE-1-VERIFY V14) still requires pushing the current `main` (ahead of `origin/main`) and an operator pass of the Build → Run → Fail → Modify → Run → Pass loop on the deployed site.
+**Verification — 2026-08-25:** `pnpm verify:phase-1` and `pnpm build` succeeded for the Tiny API vertical slice (canonical architecture, simulation outcomes, package boundaries). Vercel production gameplay (PHASE-1-VERIFY V14) still requires pushing the current `main` (ahead of `origin/main`) and an operator pass of the Build → Run → Fail → Modify → Run → Pass loop on the deployed site.
 
 
 - Production: Vercel deployment from `main`, operator verified (revision `0ef08d7`).
 - Preview: verified.
 - Supabase: verified.
-- AI Gateway: verified.
 - WebMCP spike: verified in Chrome 150 with WebMCP testing enabled.

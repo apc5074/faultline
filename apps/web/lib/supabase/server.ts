@@ -119,9 +119,7 @@ function readFlattenedLocalEnvironment(name: string): string | undefined {
 
   const marker = `${name}=`;
   const markers = [
-    "AI_GATEWAY_API_KEY=",
     "DB_PASS=",
-    "FAULTLINE_AGENT_MODEL=",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY=",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=",
     "NEXT_PUBLIC_SUPABASE_URL=",

@@ -3,7 +3,6 @@ import { Space_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { PageTransitionProvider } from "@/features/page-transition/PageTransitionProvider";
-import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 
 import "./globals.css";
 
@@ -23,9 +22,7 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const webMcpOriginTrialToken = isFaultlineAiEnabled()
-    ? process.env.NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN
-    : undefined;
+  const webMcpOriginTrialToken = process.env.NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN;
 
   return (
     <html lang="en" className={spaceMono.variable}>
