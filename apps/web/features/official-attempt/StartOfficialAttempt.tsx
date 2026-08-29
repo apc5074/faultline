@@ -118,6 +118,12 @@ export function StartOfficialAttempt({
   }, [refresh]);
 
   useEffect(() => {
+    const revalidate = () => void refresh();
+    window.addEventListener("focus", revalidate);
+    return () => window.removeEventListener("focus", revalidate);
+  }, [refresh]);
+
+  useEffect(() => {
     if (state.status !== "active") return;
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -196,11 +202,14 @@ export function StartOfficialAttempt({
           onClick={startOfficialAttempt}
           disabled={
             pending ||
-            state.status === "misconfigured" ||
             state.status === "loading"
           }
         >
-          {pending || state.status === "loading" ? "Starting…" : label}
+          {pending || state.status === "loading"
+            ? "Starting…"
+            : state.status === "misconfigured"
+              ? "Try again"
+              : label}
         </button>
       )}
       {state.status === "error" ? (
@@ -213,8 +222,7 @@ export function StartOfficialAttempt({
       ) : null}
       {state.status === "misconfigured" ? (
         <p className="official-attempt__status" role="status">
-          You've already submitted for today. You can keep building, simulating,
-          and using agents.
+          Official attempts are temporarily unavailable. Try again shortly.
         </p>
       ) : null}
     </>

@@ -82,6 +82,25 @@ function simulationEvidence(
       ...(result.level2 ? { processing: { deadlineCompletionRatio: result.level2.processing.deadlineCompletionRatio, deadlineMissRatio: result.level2.processing.deadlineMissRatio } } : {}),
       ...(result.level2 ? { playback: result.level2.playback } : {}),
     },
+    ...(result.workloadPaths
+      ? {
+          workloadPaths: Object.fromEntries(
+            Object.entries(result.workloadPaths).map(([channelId, resolution]) => [channelId, {
+              channelId: resolution.channelId,
+              paths: resolution.paths.map((path) => ({
+                pathId: path.pathId,
+                componentIds: path.componentIds,
+                connectionIds: path.connectionIds,
+                status: path.status,
+                ...(path.failureCode ? { failureCode: path.failureCode } : {}),
+                ...(path.failureReason ? { failureReason: path.failureReason } : {}),
+                ...(path.terminalRuleId ? { terminalRuleId: path.terminalRuleId } : {}),
+              })),
+              inactiveComponentIds: resolution.inactiveComponentIds,
+            }]),
+          ),
+        }
+      : {}),
     regional: buildAgentRegionalEvidence({
       regionalWorkload: result.regionalWorkload,
       geographicRoutes: result.geographicRoutes,

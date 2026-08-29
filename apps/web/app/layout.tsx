@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
@@ -16,6 +16,10 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "Faultline",
   description: "A daily distributed-systems design game.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f5f0e8",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

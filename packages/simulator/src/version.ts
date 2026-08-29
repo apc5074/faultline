@@ -4,4 +4,4 @@
  * invalidate prior official challenge_versions. Publishing a new challenge
  * version is required alongside a bump.
  */
-export const SIMULATOR_VERSION = "2";
+export const SIMULATOR_VERSION = "3";

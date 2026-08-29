@@ -25,7 +25,7 @@ console.log("row mapping");
 const mapped = mapPlayerHistoryRow({
   challenge_starts_at: "2026-08-27T00:00:00.000Z",
   challenge_slug: "url-shortener",
-  challenge_version: 2,
+  challenge_version: 3,
   challenge_title: "Global URL Shortener",
   verified: true,
   solve_ms: 123456,

@@ -79,6 +79,7 @@
     "verify:account-contract": "node --experimental-strip-types scripts/verify-account-contract.mjs",
     "verify:github-oauth": "node --experimental-strip-types scripts/verify-github-oauth.ts",
     "verify:account-linking": "node --experimental-strip-types scripts/verify-account-linking.ts",
+    "reset:daily-run": "node scripts/reset-daily-run.mjs",
     "verify:player-history": "node --experimental-strip-types scripts/verify-player-history.ts",
     "verify:player-streak": "node --experimental-strip-types scripts/verify-player-streak.ts",
     "seed:daily-challenge": "pnpm run build:deps && node scripts/seed-daily-challenge.mjs"

@@ -107,6 +107,7 @@ const misplacedPanel = buildWorkloadEvidencePanel({
   component: misplacedArchitecture().components[2],
   challenge: urlShortenerChallenge,
   caches: misplacedSim.caches,
+  workloadPaths: misplacedSim.workloadPaths,
 });
 
 assert.match(
@@ -118,6 +119,10 @@ assert.match(
   /Misplaced/,
 );
 assert.ok(misplacedPanel.hint?.includes("topology"), "misplaced cache should coach on topology");
+assert.ok(
+  misplacedPanel.rows.some((row) => row.label === "Path completion" && row.value.startsWith("Incomplete")),
+  "inspector should expose simulator-owned incomplete path evidence",
+);
 
 console.log("Check — idle off-path Redis stays quiet in inspector + settled glyph");
 const idleSim = evaluateRequirements({

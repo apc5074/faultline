@@ -3,7 +3,7 @@ import type { AgentContext, AgentComponentEvidence } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
 
-export type BottleneckRiskKind = "saturation" | "headroom" | "latency" | "unmet_demand" | "hot_key" | "budget";
+export type BottleneckRiskKind = "saturation" | "missing_path" | "headroom" | "latency" | "unmet_demand" | "hot_key" | "budget";
 export interface BottleneckRisk {
   readonly kind: BottleneckRiskKind;
   readonly componentId?: string;
@@ -14,7 +14,7 @@ export interface InspectBottlenecksOutput {
   readonly risks: readonly BottleneckRisk[];
 }
 
-const kindOrder: readonly BottleneckRiskKind[] = ["saturation", "headroom", "latency", "unmet_demand", "hot_key", "budget"];
+const kindOrder: readonly BottleneckRiskKind[] = ["saturation", "missing_path", "headroom", "latency", "unmet_demand", "hot_key", "budget"];
 
 function utilization(evidence: AgentComponentEvidence): number | undefined {
   return evidence.metrics.utilization ?? evidence.metrics.effectiveUtilization;
@@ -26,6 +26,15 @@ export function inspectBottlenecks(context: AgentContext): CapabilityResult<Insp
     return capabilityError("SIMULATION_UNAVAILABLE", simulation?.validationErrors?.join(" ") ?? "Simulation evidence is not available.");
   }
   const risks: BottleneckRisk[] = [];
+  for (const channel of Object.values(simulation.workloadPaths ?? {})) {
+    for (const path of channel.paths.filter((candidate) => candidate.status === "failed")) {
+      risks.push({
+        kind: "missing_path",
+        componentId: path.componentIds.at(-1),
+        evidence: path.failureReason ?? `Workload path ${path.pathId} did not reach a valid terminal.`,
+      });
+    }
+  }
   for (const componentId of Object.keys(simulation.components).sort((a, b) => a.localeCompare(b))) {
     const evidence = simulation.components[componentId]!;
     const value = utilization(evidence);

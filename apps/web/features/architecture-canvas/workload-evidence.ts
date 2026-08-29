@@ -10,6 +10,7 @@ import type {
   PostgresCapacityMetrics,
   ServiceCapacityMetrics,
   Level2SimulationResult,
+  WorkloadPathResolution,
 } from "@faultline/simulator";
 
 type CacheMetrics = CacheResult & {
@@ -229,6 +230,29 @@ function passthroughEvidence(label: string, incomingRps: number): WorkloadEviden
   };
 }
 
+function addPathEvidence(
+  panel: WorkloadEvidencePanel,
+  componentId: string,
+  workloadPaths: Readonly<Record<string, WorkloadPathResolution>> | undefined,
+): WorkloadEvidencePanel {
+  const failed = Object.values(workloadPaths ?? {})
+    .flatMap((channel) => channel.paths)
+    .filter((path) => path.status === "failed" && path.componentIds.includes(componentId))
+    .sort((left, right) => left.pathId.localeCompare(right.pathId))[0];
+  if (!failed) return panel;
+  return {
+    ...panel,
+    rows: [
+      ...panel.rows,
+      {
+        label: "Path completion",
+        value: `Incomplete · ${failed.failureReason ?? "missing downstream dependency"}`,
+        tone: "inform",
+      },
+    ],
+  };
+}
+
 export function workloadBriefingPlacementHint(challenge: ChallengeDefinition): string | undefined {
   const edgeNote = challenge.workloadAffinity?.mechanisms.edge_cache?.note;
   const dataNote = challenge.workloadAffinity?.mechanisms.data_cache?.note;
@@ -247,51 +271,52 @@ export function buildWorkloadEvidencePanel(input: {
   postgres?: Readonly<Record<string, PostgresCapacityMetrics>>;
   traffic?: Readonly<Record<string, { incomingRps: number; outgoingRps: number }>>;
   level2?: Level2SimulationResult;
+  workloadPaths?: Readonly<Record<string, WorkloadPathResolution>>;
 }): WorkloadEvidencePanel | null {
   const { component, challenge } = input;
   const cache = input.caches?.[component.id];
-  if (cache) return cacheEvidence(component, cache, challenge);
+  if (cache) return addPathEvidence(cacheEvidence(component, cache, challenge), component.id, input.workloadPaths);
 
   const service = input.services?.[component.id];
-  if (service) return serviceEvidence(service, challenge);
+  if (service) return addPathEvidence(serviceEvidence(service, challenge), component.id, input.workloadPaths);
 
   const store = input.postgres?.[component.id];
-  if (store) return postgresEvidence(store, challenge);
+  if (store) return addPathEvidence(postgresEvidence(store, challenge), component.id, input.workloadPaths);
 
   const queue = input.level2?.queues[component.id];
   if (queue) {
-    return { rows: [
+    return addPathEvidence({ rows: [
       { label: "Queue depth", value: `${Math.round(queue.queueDepth)} / ${Math.round(queue.queueCapacity)}`, tone: queue.queueDepth > 0 ? "emphasis" : "neutral" },
       { label: "Work flow", value: `${formatRps(queue.arrivalWorkPerSecond)} arriving · ${formatRps(queue.dequeueWorkPerSecond)} draining` },
       { label: "Oldest job", value: `${Math.round(queue.oldestJobAgeMs)} ms` },
       { label: "Backlog trend", value: `${formatRps(queue.backlogGrowthRate)} growth · ${formatRps(queue.overflowWorkPerSecond)} overflow` },
-    ], hint: "Queue depth is simulator evidence of buffered work; it does not create processing capacity." };
+    ], hint: "Queue depth is simulator evidence of buffered work; it does not create processing capacity." }, component.id, input.workloadPaths);
   }
   const worker = input.level2?.workers[component.id];
   if (worker) {
-    return { rows: [
+    return addPathEvidence({ rows: [
       { label: "Processing", value: `${formatRps(worker.completedWorkPerSecond)} completed · ${formatRps(worker.processingCapacity)} capacity`, tone: "emphasis" },
       { label: "Utilization", value: formatPercent(worker.processingUtilization) },
       { label: "Processing delay", value: `${Math.round(worker.processingDelayMs)} ms` },
       { label: "Unmet work", value: formatRps(worker.unmetWorkPerSecond) },
-    ], hint: "Workers drain queued processing work; adding API Services does not increase this capacity." };
+    ], hint: "Workers drain queued processing work; adding API Services does not increase this capacity." }, component.id, input.workloadPaths);
   }
   const storage = input.level2?.objectStorage[component.id];
   if (storage) {
-    return { rows: [
+    return addPathEvidence({ rows: [
       { label: "Upload writes", value: formatMegabytesPerSecond(storage.uploadThroughputBytesPerSecond / 1_000_000) },
       { label: "Origin reads", value: formatMegabytesPerSecond(storage.originReadThroughputBytesPerSecond / 1_000_000) },
       { label: "Stored data", value: `${Math.round(storage.storedBytes / 1_000_000_000)} GB` },
       { label: "I/O pressure", value: `${formatPercent(Math.max(storage.uploadUtilization, storage.originReadUtilization))}`, tone: "emphasis" },
-    ], hint: "Object Storage carries media bytes; Postgres remains the metadata and processing-state store." };
+    ], hint: "Object Storage carries media bytes; Postgres remains the metadata and processing-state store." }, component.id, input.workloadPaths);
   }
 
   const traffic = input.traffic?.[component.id];
   if (component.type === "load-balancer") {
-    return passthroughEvidence(MECHANISM_LABELS.request_fanout, traffic?.incomingRps ?? 0);
+    return addPathEvidence(passthroughEvidence(MECHANISM_LABELS.request_fanout, traffic?.incomingRps ?? 0), component.id, input.workloadPaths);
   }
   if (component.type === "global-router") {
-    return passthroughEvidence(MECHANISM_LABELS.geo_routing, traffic?.incomingRps ?? 0);
+    return addPathEvidence(passthroughEvidence(MECHANISM_LABELS.geo_routing, traffic?.incomingRps ?? 0), component.id, input.workloadPaths);
   }
 
   return null;

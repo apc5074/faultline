@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "identity": {
     "slug": "url-shortener",
-    "version": 2,
+    "version": 3,
     "title": "Global URL Shortener",
     "prompt": "Design infrastructure for a global URL shortening service. It must absorb heavy redirect traffic, accept new links, survive a viral short URL, and stay within latency, capacity headroom, and monthly budget \u2014 without a prescribed topology.",
     "developmentOnly": false
@@ -154,6 +154,41 @@
     "writeRatio": 0.03225806451612903,
     "hotKeyReadFraction": 0.25
   },
+  "workloadCompletionContracts": [
+    {
+      "channelId": "redirect",
+      "ingressRoles": ["traffic-source"],
+      "nodes": [
+        {"id": "ingress", "acceptedRoles": ["traffic-source"], "behavior": "forward"},
+        {"id": "edge", "acceptedRoles": ["cdn", "edge_cache"], "behavior": "forward"},
+        {"id": "router", "acceptedRoles": ["global-router", "global_router"], "behavior": "forward"},
+        {"id": "fanout", "acceptedRoles": ["load-balancer", "load_balancer"], "behavior": "forward"},
+        {"id": "service", "acceptedRoles": ["service"], "behavior": "dependency"},
+        {"id": "cache", "acceptedRoles": ["redis", "data_cache"], "behavior": "dependency"},
+        {"id": "store", "acceptedRoles": ["postgres"], "behavior": "terminal"}
+      ],
+      "transitions": [
+        {"from": "ingress", "to": "edge", "connectionTypes": ["request"]},
+        {"from": "ingress", "to": "router", "connectionTypes": ["request"]},
+        {"from": "ingress", "to": "fanout", "connectionTypes": ["request"]},
+        {"from": "ingress", "to": "service", "connectionTypes": ["request"]},
+        {"from": "edge", "to": "router", "connectionTypes": ["request"]},
+        {"from": "edge", "to": "fanout", "connectionTypes": ["request"]},
+        {"from": "edge", "to": "service", "connectionTypes": ["request"]},
+        {"from": "router", "to": "router", "connectionTypes": ["request"]},
+        {"from": "router", "to": "fanout", "connectionTypes": ["request"]},
+        {"from": "router", "to": "service", "connectionTypes": ["request"]},
+        {"from": "fanout", "to": "service", "connectionTypes": ["request"]},
+        {"from": "service", "to": "cache", "connectionTypes": ["read_write"]},
+        {"from": "service", "to": "store", "connectionTypes": ["read_write"]},
+        {"from": "cache", "to": "store", "connectionTypes": ["read_write"]}
+      ],
+      "terminalRules": [
+        {"id": "edge-response", "requiredNodeIds": ["edge"], "responseKind": "redirect-cache-hit"},
+        {"id": "origin-response", "requiredNodeIds": ["service", "store"], "responseKind": "redirect-origin"}
+      ]
+    }
+  ],
   "geographicDistribution": [
     {
       "regionId": "us-east",

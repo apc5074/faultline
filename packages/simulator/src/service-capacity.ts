@@ -192,6 +192,7 @@ export function evaluateServiceCapacity(input: TrafficPropagationInput): Service
     geographicRoutes: propagation.geographicRoutes,
     events,
     unroutableRps: propagation.unroutableRps,
+    workloadPaths: propagation.workloadPaths,
     level2: propagation.level2,
     services,
   };

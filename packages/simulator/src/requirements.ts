@@ -111,11 +111,13 @@ function throughputFromCapacity(
 function headroomFromCapacity(
   services: Readonly<Record<string, ServiceCapacityMetrics>>,
   postgres: Readonly<Record<string, PostgresCapacityMetrics>>,
+  usefulComponentIds?: ReadonlySet<string>,
 ): { headroom: number; focus: string } {
   let headroom = Number.POSITIVE_INFINITY;
   let focus = "No capacity-bearing components were present.";
 
   for (const [componentId, metrics] of Object.entries(services)) {
+    if (usefulComponentIds && !usefulComponentIds.has(componentId)) continue;
     if (metrics.headroom < headroom) {
       headroom = metrics.headroom;
       focus = `Service "${componentId}" has ${formatRatioPercent(metrics.headroom)} capacity headroom`;
@@ -123,6 +125,7 @@ function headroomFromCapacity(
   }
 
   for (const [componentId, metrics] of Object.entries(postgres)) {
+    if (usefulComponentIds && !usefulComponentIds.has(componentId)) continue;
     const postgresHeadroom = 1 - metrics.effectiveUtilization;
     if (postgresHeadroom < headroom) {
       headroom = postgresHeadroom;
@@ -132,6 +135,20 @@ function headroomFromCapacity(
 
   if (!Number.isFinite(headroom)) headroom = 0;
   return { headroom, focus };
+}
+
+function usefulComponentIdsFromPaths(
+  paths: Extract<TrafficPropagationResult, { valid: true }>["workloadPaths"],
+): ReadonlySet<string> | undefined {
+  if (!paths) return undefined;
+  const ids = new Set<string>();
+  for (const resolution of Object.values(paths)) {
+    for (const path of resolution.paths) {
+      if (path.status !== "complete") continue;
+      for (const componentId of path.componentIds) ids.add(componentId);
+    }
+  }
+  return ids;
 }
 
 function evaluateThroughput(requirement: RequirementDefinition, snapshot: OutcomeSnapshot): RequirementResult {
@@ -239,7 +256,11 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     latency.unroutableRps,
     (input.challenge as ChallengeDefinition).workload.requestsPerSecond,
   );
-  const headroom = headroomFromCapacity(latency.services, latency.postgres);
+  const headroom = headroomFromCapacity(
+    latency.services,
+    latency.postgres,
+    usefulComponentIdsFromPaths(latency.workloadPaths),
+  );
   const cost = estimateMonthlyCost({
     architecture: input.architecture as Architecture,
     registry: input.registry,
@@ -287,6 +308,7 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     regionalTraffic: latency.regionalTraffic,
     geographicRoutes: latency.geographicRoutes,
     unroutableRps: latency.unroutableRps,
+    workloadPaths: latency.workloadPaths,
     level2: latency.level2,
     events,
     services: latency.services,

@@ -40,6 +40,7 @@ export interface HotKeyScenarioResult {
   hops: readonly HotKeyHop[];
   viralReachingPostgresRps: number;
   saturatedComponentIds: readonly string[];
+  incompleteComponentIds: readonly string[];
   passed: boolean;
   explanation: string;
 }
@@ -75,6 +76,7 @@ function inactiveResult(): HotKeyScenarioResult {
     hops: [],
     viralReachingPostgresRps: 0,
     saturatedComponentIds: [],
+    incompleteComponentIds: [],
     passed: true,
     explanation: "No hot-key scenario is configured for this challenge.",
   };
@@ -136,6 +138,7 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
     number
   >;
   const hopById = new Map<string, HotKeyHop>();
+  const incompleteComponentIds = new Set<string>();
 
   const sources = stableById(architecture.components.filter((component) => component.type === "traffic-source"));
   const viralPerSource = viralRedirectRps / Math.max(sources.length, 1);
@@ -237,7 +240,12 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
       if (forward <= 0) continue;
 
       if (component.type === "service" || component.type === "redis") {
-        for (const { edge, rps } of allocateEqual(forward, databaseEdgesFrom(architecture, component.id))) {
+        const databaseEdges = databaseEdgesFrom(architecture, component.id);
+        if (databaseEdges.length === 0 && forward > 0) {
+          incompleteComponentIds.add(component.id);
+          continue;
+        }
+        for (const { edge, rps } of allocateEqual(forward, databaseEdges)) {
           incoming[edge.targetComponentId] += rps;
         }
         continue;
@@ -277,15 +285,18 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
     .filter((hop) => hop.componentType === "postgres")
     .reduce((sum, hop) => sum + hop.incomingViralRps, 0);
 
-  const passed = saturatedComponentIds.length === 0;
-  const explanation = !passed
+  const incompleteIds = [...incompleteComponentIds].sort();
+  const passed = saturatedComponentIds.length === 0 && incompleteIds.length === 0;
+  const explanation = saturatedComponentIds.length > 0
     ? `Hot-key scenario failed: viral traffic saturated ${saturatedComponentIds
         .map((id) => {
           const hop = hops.find((candidate) => candidate.componentId === id);
           return hop ? `${hop.componentType} "${id}"` : id;
         })
         .join(", ")}.`
-    : viralReachingPostgresRps > 0
+    : incompleteIds.length > 0
+      ? `Hot-key scenario failed: viral traffic reached incomplete paths at ${incompleteIds.map((id) => `"${id}"`).join(", ")}.`
+      : viralReachingPostgresRps > 0
       ? `Hot-key scenario passed: ${viralRedirectRps.toLocaleString("en-US")} viral redirects/sec were handled without hot-path saturation (${viralReachingPostgresRps.toLocaleString("en-US")} reached Postgres).`
       : `Hot-key scenario passed: ${viralRedirectRps.toLocaleString("en-US")} viral redirects/sec were absorbed before Postgres without hot-path saturation.`;
 
@@ -297,6 +308,7 @@ export function evaluateHotKeyScenario(input: TrafficPropagationInput): HotKeyEv
       hops,
       viralReachingPostgresRps,
       saturatedComponentIds,
+      incompleteComponentIds: incompleteIds,
       passed,
       explanation,
     },

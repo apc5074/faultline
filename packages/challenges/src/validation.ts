@@ -6,6 +6,8 @@ import {
   type RequirementType,
   type WorkloadMechanismId,
   type WorkloadChannelKind,
+  assertWorkloadCompletionContract,
+  type WorkloadCompletionContract,
 } from "@faultline/core";
 
 const slugPattern = /^[a-z][a-z0-9-]*$/;
@@ -151,6 +153,28 @@ export function assertChallengeDefinition(definition: unknown): asserts definiti
   }
   if (definition.workloadChannels !== undefined) {
     assertWorkloadChannels(definition.workloadChannels, definition.slug);
+  }
+  if (definition.workloadCompletionContracts !== undefined) {
+    if (!Array.isArray(definition.workloadCompletionContracts) || definition.workloadCompletionContracts.length === 0) {
+      throw new ChallengeDefinitionError(`Challenge "${definition.slug}" workloadCompletionContracts must be a non-empty array.`);
+    }
+    const declaredChannels = definition.workloadChannels as ChallengeDefinition["workloadChannels"];
+    const channelIds = new Set(declaredChannels?.map((channel) => channel.id) ?? []);
+    const contractIds = new Set<string>();
+    for (const contract of definition.workloadCompletionContracts) {
+      try {
+        assertWorkloadCompletionContract(contract);
+      } catch (error) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" has an invalid workload completion contract: ${error instanceof Error ? error.message : "invalid contract"}`);
+      }
+      if (contractIds.has(contract.channelId)) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" has duplicate workload completion channel "${contract.channelId}".`);
+      }
+      contractIds.add(contract.channelId);
+      if (declaredChannels !== undefined && !channelIds.has(contract.channelId)) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" completion contract references unknown channel "${contract.channelId}".`);
+      }
+    }
   }
   if (
     hotKeyReadFraction !== undefined &&

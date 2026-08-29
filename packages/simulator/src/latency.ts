@@ -403,6 +403,7 @@ export function evaluatePathLatency(input: TrafficPropagationInput): PathLatency
     geographicRoutes: services.geographicRoutes,
     events,
     unroutableRps: services.unroutableRps,
+    workloadPaths: services.workloadPaths,
     level2: services.level2,
     services: services.services,
     postgres: postgres.postgres,

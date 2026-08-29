@@ -46,6 +46,7 @@ import {
   type RoleResolutionContext,
 } from "./workload-affinity.js";
 import { evaluateLevel2Workloads, type Level2SimulationResult } from "./level2.js";
+import { resolveWorkloadPaths, type WorkloadPathResolution } from "./workload-paths.js";
 
 export interface ComponentTraffic {
   incomingRps: number;
@@ -96,6 +97,8 @@ export type TrafficPropagationResult =
       events: readonly SimulationEvent[];
       /** Deterministic multi-workload evidence, present for Level 2 challenges. */
       level2?: Level2SimulationResult;
+      /** Resolved end-to-end workload branches, keyed by challenge channel. */
+      workloadPaths?: Readonly<Record<string, WorkloadPathResolution>>;
       /** Request demand with no healthy reachable Service during an experiment. */
       unroutableRps: number;
     }
@@ -350,8 +353,18 @@ export function propagateTraffic({ architecture: input, challenge, registry, ove
     ? propagateGeographicTraffic(architecture, challenge, registry, regionalWorkload, overlay)
     : propagateLogicalTraffic(architecture, challenge, registry, regionalWorkload, overlay);
   if (!base.valid) return base;
+  const workloadPaths = Object.fromEntries(
+    (challenge.workloadCompletionContracts ?? []).map((contract) => [
+      contract.channelId,
+      resolveWorkloadPaths({ architecture: input, contract, registry }),
+    ]),
+  );
   const level2 = evaluateLevel2Workloads({ architecture, challenge, registry, overlay });
-  return level2 ? { ...base, level2, events: [...base.events, ...level2.events] } : base;
+  return {
+    ...base,
+    ...(Object.keys(workloadPaths).length > 0 ? { workloadPaths } : {}),
+    ...(level2 ? { level2, events: [...base.events, ...level2.events] } : {}),
+  };
 }
 
 function emptyRegionalTraffic(): Record<string, Record<string, RegionalComponentTraffic>> {
@@ -447,8 +460,14 @@ function propagateLogicalTraffic(
 
   for (const service of stableById(architecture.components.filter((component) => component.type === "service"))) {
     const edges = databaseEdgesFrom(architecture, service.id);
-    if (edges.length === 0) continue;
     const totalRps = traffic[service.id].incomingRps;
+    if (edges.length === 0) {
+      if (totalRps > 0) {
+        unroutableRps += totalRps;
+        events.push({ type: "traffic_routed", componentId: service.id, data: { requestsPerSecond: totalRps, kind: "incomplete" } });
+      }
+      continue;
+    }
     const readPerEdge = (totalRps * challenge.workload.readRatio) / edges.length;
     const writePerEdge = (totalRps * challenge.workload.writeRatio) / edges.length;
     traffic[service.id].outgoingRps += totalRps;
@@ -471,10 +490,24 @@ function propagateLogicalTraffic(
     architecture.components.filter((component) => isDataCache(registry.get(component.type).simulation)),
   )) {
     const edges = databaseEdgesFrom(architecture, cacheComponent.id);
-    if (edges.length === 0) continue;
-
     const pendingReads = traffic[cacheComponent.id].readRps;
     const pendingWrites = traffic[cacheComponent.id].writeRps;
+    if (edges.length === 0) {
+      if (pendingReads > 0 || pendingWrites > 0) {
+        const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
+        if (parsed.success) {
+          const cache = evaluateRedisCache(cacheComponent.id, pendingReads, parsed.data as RedisConfig, architecture, challenge, overlay);
+          caches[cacheComponent.id] = cache;
+          events.push(...cacheLoadEvents(cacheComponent.id, cache));
+          const failedRps = cache.missRps + pendingWrites;
+          unroutableRps += failedRps;
+          events.push({ type: "traffic_routed", componentId: cacheComponent.id, data: { requestsPerSecond: failedRps, kind: "incomplete" } });
+        } else {
+          unroutableRps += pendingReads + pendingWrites;
+        }
+      }
+      continue;
+    }
     const alreadyForwarded = traffic[cacheComponent.id].outgoingRps;
     if (alreadyForwarded > 0) continue;
 
@@ -824,7 +857,6 @@ function propagateGeographicTraffic(
     architecture.components.filter((component) => isDataCache(registry.get(component.type).simulation)),
   )) {
     const edges = databaseEdgesFrom(architecture, cacheComponent.id);
-    if (edges.length === 0) continue;
     if (traffic[cacheComponent.id].outgoingRps > 0) continue;
 
     const pendingReads = traffic[cacheComponent.id].readRps;
@@ -833,6 +865,34 @@ function propagateGeographicTraffic(
 
     const parsed = registry.get(cacheComponent.type).configSchema.safeParse(cacheComponent.config);
     if (!parsed.success) continue;
+
+    // Geographic Service placement can reach Redis even when Redis has no
+    // origin store. Preserve genuine cache hits, but make misses and writes
+    // incomplete instead of silently dropping them at the end of the pass.
+    if (edges.length === 0) {
+      const cache = evaluateRedisCache(
+        cacheComponent.id,
+        pendingReads,
+        parsed.data as RedisConfig,
+        architecture,
+        challenge,
+        overlay,
+        { geographicRoutingActive: true },
+      );
+      caches[cacheComponent.id] = cache;
+      events.push(...cacheLoadEvents(cacheComponent.id, cache));
+      const failedRps = cache.missRps + pendingWrites;
+      if (failedRps > 0) {
+        unroutableRps += failedRps;
+        events.push({
+          type: "traffic_routed",
+          componentId: cacheComponent.id,
+          data: { requestsPerSecond: failedRps, kind: "incomplete" },
+        });
+      }
+      continue;
+    }
+
     const postgresEdges = edges.filter((edge) => {
       const target = architecture.components.find((component) => component.id === edge.targetComponentId);
       return target?.type === "postgres";
@@ -1252,7 +1312,15 @@ function placeGeographicServiceOnDeployment(input: {
   traffic[service.id].outgoingRps += forwardRps;
 
   const dbEdges = databaseEdgesFrom(architecture, service.id);
-  if (dbEdges.length === 0) return;
+  if (dbEdges.length === 0) {
+    unroutable.add(forwardRps);
+    events.push({
+      type: "traffic_routed",
+      componentId: service.id,
+      data: { requestsPerSecond: forwardRps, kind: "incomplete", originRegion },
+    });
+    return;
+  }
   const readPerEdge = readRps / dbEdges.length;
   const writePerEdge = writeRps / dbEdges.length;
 

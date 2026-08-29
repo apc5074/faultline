@@ -317,6 +317,7 @@ function workloadPanelForComponent(
     postgres: simulation.postgres,
     traffic: simulation.traffic,
     level2: simulation.level2,
+    workloadPaths: simulation.workloadPaths,
   });
   return { panel, emptyMessage: null };
 }

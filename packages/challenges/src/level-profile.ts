@@ -24,6 +24,7 @@ import {
   type UnscoredChallengeTarget,
   type WorkloadAffinity,
   type WorkloadChannel,
+  type WorkloadCompletionContract,
   type WorkloadDefinition,
   type WorkloadMechanismId,
 } from "@faultline/core";
@@ -39,6 +40,7 @@ const LEVEL_PROFILE_TOP_LEVEL_KEYS = new Set([
   "sandbox",
   "workload",
   "workloadChannels",
+  "workloadCompletionContracts",
   "geographicDistribution",
   "transferPayload",
   "scoring",
@@ -183,6 +185,8 @@ export interface LevelProfileV1 {
   workload: WorkloadDefinition;
   /** Optional named demand streams for multi-workload levels. */
   workloadChannels?: readonly WorkloadChannel[];
+  /** Optional channel-specific graph semantics for end-to-end completion. */
+  workloadCompletionContracts?: readonly WorkloadCompletionContract[];
   geographicDistribution?: readonly GeographicTrafficShare[];
   transferPayload?: TransferPayloadAssumptions;
   scoring: LevelScoring;
@@ -304,6 +308,7 @@ export function challengeShapedFieldsFromLevelProfile(profile: LevelProfileV1): 
     developmentOnly: profile.identity.developmentOnly,
     workload: profile.workload,
     ...(profile.workloadChannels ? { workloadChannels: profile.workloadChannels } : {}),
+    ...(profile.workloadCompletionContracts ? { workloadCompletionContracts: profile.workloadCompletionContracts } : {}),
     ...(profile.geographicDistribution ? { geographicDistribution: profile.geographicDistribution } : {}),
     ...(profile.transferPayload ? { transferPayload: profile.transferPayload } : {}),
     ...(profile.coachingPolicy ? { coachingPolicy: profile.coachingPolicy } : {}),

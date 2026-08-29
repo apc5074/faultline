@@ -41,6 +41,23 @@ export interface AgentScenarioEvidence {
   };
 }
 
+/** Simulator-owned end-to-end path facts exposed without leaking simulator internals. */
+export interface AgentWorkloadPathEvidence {
+  readonly pathId: string;
+  readonly componentIds: readonly string[];
+  readonly connectionIds: readonly string[];
+  readonly status: "complete" | "partial" | "failed";
+  readonly failureCode?: string;
+  readonly failureReason?: string;
+  readonly terminalRuleId?: string;
+}
+
+export interface AgentWorkloadChannelEvidence {
+  readonly channelId: string;
+  readonly paths: readonly AgentWorkloadPathEvidence[];
+  readonly inactiveComponentIds: readonly string[];
+}
+
 /**
  * Compact per-component simulator facts for one AgentContext snapshot.
  * Populated server-side from the shared simulator — capabilities must not recompute formulas.
@@ -66,6 +83,7 @@ export type AgentSimulationEvidence =
       readonly system?: AgentSystemMetrics;
       readonly scenarios?: AgentScenarioEvidence;
       readonly regional?: AgentRegionalEvidence;
+      readonly workloadPaths?: Readonly<Record<string, AgentWorkloadChannelEvidence>>;
     }
   | {
       readonly available: false;

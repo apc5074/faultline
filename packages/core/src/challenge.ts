@@ -34,6 +34,7 @@ export interface WorkloadDefinition {
 }
 
 export type { WorkloadChannel, WorkloadChannelKind } from "./workload.js";
+export type { WorkloadCompletionContract } from "./workload-contract.js";
 
 /**
  * Challenge-owned user traffic share for one region.
@@ -148,6 +149,8 @@ export interface ChallengeDefinition {
   workload: WorkloadDefinition;
   /** Optional named demand streams for multi-workload levels. */
   workloadChannels?: readonly import("./workload.js").WorkloadChannel[];
+  /** Optional channel-specific graph semantics for end-to-end completion. */
+  workloadCompletionContracts?: readonly import("./workload-contract.js").WorkloadCompletionContract[];
   /**
    * User traffic origin fractions by region.
    * Omit when geography is inactive (e.g. Tiny API). Belongs to the challenge, not RegionRegistry.

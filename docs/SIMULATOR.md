@@ -1,5 +1,47 @@
 # Simulator
 
+## Workload path completion
+
+Workload simulation distinguishes local component handling from end-to-end
+completion. A component may receive and accept traffic while its branch still
+fails because a required downstream dependency is absent. Requirement scoring
+must use completed workload flow, not component existence or incoming traffic.
+
+For example:
+
+```text
+Traffic → Load Balancer → Service A → Postgres → response
+                       └→ Service B              ✕ incomplete branch
+```
+
+Service B is reachable and may show local utilization, but it contributes zero
+completed redirect traffic. Its branch is failed/incomplete and still costs
+money. A completely disconnected extra is inactive for the workload and cannot
+improve any outcome metric.
+
+Cache branches are evaluated independently:
+
+```text
+Service → Redis → hit  → response
+               └→ miss → Postgres → response
+```
+
+Hits may complete without Postgres; misses require a valid Postgres path. This
+same branching contract supports future channels such as “upload accepted into
+Queue,” “processing completed by Worker,” and “playback served from Storage.”
+
+The shared flow ledger reports `offered`, `accepted`, `completed`, `failed`,
+and `unresolved` work for each named channel. For mutually exclusive branches:
+
+```text
+completed + failed + unresolved = offered = channel demand
+```
+
+Topology resolution happens before capacity, latency, geography, affinity, and
+cost evaluation. New components declare their workload capabilities through the
+component catalog and workload contract; the simulator must not create a new
+challenge-specific graph branch for every component type.
+
 `packages/simulator` is the deterministic simulation source of truth, shared by browser and server. It must stay independent of React, the DOM, AI, and Supabase.
 
 Simulation decides outcomes, including pass/fail; an LLM never does. Geography, cost, and emitted events are real simulation constraints, and UI animations will consume events rather than recreate simulation logic.
@@ -188,12 +230,49 @@ Presentation layers must consume complete simulator batches:
 
 UI must never invent ambient traffic, random routing, or unmodeled resource meters.
 
+### Adding a future workload
+
+Every new workload channel should follow this sequence:
+
+1. Define its ingress roles, required stages, alternative branches, and terminal
+   responses in a challenge-owned `WorkloadCompletionContract`.
+2. Resolve the contract against the canonical Architecture graph with
+   `resolveWorkloadPaths`; do not infer completion from component existence or
+   aggregate component totals.
+3. Record completed, failed, and unresolved flow in the shared flow ledger,
+   including deterministic failure reasons.
+4. Feed only resolved flow into capacity, latency, affinity, hot-key, transfer,
+   and cost calculations; preserve base cost for configured disconnected parts.
+5. Expose the same path evidence to browser UI, embedded AI, WebMCP, and
+   server-side official verification.
+6. Add fixtures for missing dependencies, disconnected capacity, ordering
+   permutations, and browser/server replay parity.
+
+Level 2 handoff: upload, processing, and playback must each declare their own
+channel contract while sharing the same architecture and resolver. Before
+Level 2 becomes official, replace the current evaluator's aggregate
+“all Services / all Queues / all Workers / all Object Storage” capacity pools
+with channel-resolved flow pools. A Queue buffers only the work that reaches
+its valid path; Workers consume only eligible queued work; Object Storage
+throughput is charged only for actual upload, output, and origin-read flows.
+This migration is required for Level 2 scoring and must not be implemented as a
+Level 2-specific topology branch.
+
+### New component checklist
+
+When adding a component, register its catalog ports, config, simulation role,
+capacity, cost, and agent capabilities. Then add path fixtures showing its
+productive, missing-dependency, inactive, and overloaded states; verify its
+base and usage cost; add UI evidence that consumes simulator output; expose
+the same facts through the shared agent capability registry; and run browser,
+WebMCP, and official server replay parity checks.
+
 **Level Profile volume bands** (`volumeProfile` in `*.level.json`) are curriculum/playtest guards only. They do not change simulator formulas. Canvas share visuals (`volume-share-visuals.ts`) map measured absorb / path RPS from this section into glyph and edge busyness; if a well-placed CDN still looks quieter than Redis, calibrate affinity ceilings — do not fake hit rates from profile bands.
 
 ## Simulator version
 
 `SIMULATOR_VERSION` in `@faultline/simulator` is recorded on each published `challenge_versions` row. Competition-affecting simulator changes require bumping this value and publishing a new challenge version so official attempts are never silently re-scored under incompatible semantics.
 
-**v2** (with `url-shortener` challenge **v2**): workload affinity — placement-aware cache ceilings, non-cache capacity/latency/cost pressure, and hot-key `reuseConcentration`. Republish via `pnpm --filter @faultline/web seed:daily-challenge` after deploy when competition semantics change.
+**v3** (with `url-shortener` challenge **v3**): workload affinity — placement-aware cache ceilings, non-cache capacity/latency/cost pressure, hot-key `reuseConcentration`, and path-aware workload completion. Republish via `pnpm --filter @faultline/web seed:daily-challenge` after deploy when competition semantics change.
 
 Competition note: bumping `SIMULATOR_VERSION` (or challenge `version`) without republishing leaves official attempts on the previous immutable `challenge_versions` row. Local play and official verify must agree on the same simulator + challenge pair (`docs/PRODUCTION.md`).

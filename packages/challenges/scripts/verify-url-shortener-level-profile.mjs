@@ -21,7 +21,7 @@ assert.deepEqual(getLevelProfile("url-shortener"), profile);
 assert.deepEqual(compileChallengeFromLevelProfile(profile), urlShortenerChallenge);
 
 assert.equal(profile.identity.slug, "url-shortener");
-assert.equal(profile.identity.version, 2);
+assert.equal(profile.identity.version, 3);
 assert.equal(profile.schemaVersion, 1);
 
 const sandboxTypes = profile.sandbox.components.map((component) => component.type);

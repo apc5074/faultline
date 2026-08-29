@@ -24,7 +24,7 @@ function readWeb(rel) {
 console.log("Check — url-shortener publishes workloadAffinity");
 assert.ok(urlShortenerChallenge.workloadAffinity?.mechanisms.edge_cache);
 assert.ok(urlShortenerChallenge.workloadAffinity?.mechanisms.data_cache);
-assert.equal(urlShortenerChallenge.version, 2);
+assert.equal(urlShortenerChallenge.version, 3);
 
 console.log("Check — seed persists full challenge definition");
 const seed = readWeb("scripts/seed-daily-challenge.mjs");

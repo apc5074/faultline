@@ -16,6 +16,23 @@ The Logical canvas and World SVG map are two presentation views of that same `Ar
 
 Use `validateArchitecture` or `parseArchitecture` when architecture-shaped data crosses an untrusted boundary. This first validation layer checks the serializable shape, version, identity uniqueness, and initial semantic connection fields. Simulation validation additionally rejects unknown regions, unsupported placement, capacity mismatches, and multiple Postgres primaries.
 
+### Workload paths and completion
+
+The canonical graph describes what is connected; a challenge-owned
+`WorkloadCompletionContract` describes which connected stages are required for
+each workload channel to complete. The simulator resolves both together before
+applying capacity, latency, affinity, or cost projections. A component may have
+local load while its branch is still incomplete: for example, a Service behind
+a Load Balancer with no valid `read_write` path to Postgres or Redis can receive
+requests but cannot complete redirects. Its traffic is explicit failure
+evidence, not successful throughput.
+
+Contracts may declare alternative terminals such as a CDN edge hit and an
+origin response. Terminal branches are evaluated independently, so an edge-hit
+path can complete without masking an origin-miss path that is missing a
+dependency. This remains graph metadata, not a second architecture model or a
+technology prescription.
+
 ## Typed connections
 
 Phase 1 uses two semantic connection types: `request` for incoming traffic and `read_write` for a service's database traffic. `PortDefinition` describes a port's stable ID, direction, and supported semantic types. `checkConnectionCompatibility` is a pure core function: it permits only output-to-input pairs that both support the requested type. The component catalog will own the actual Traffic Source, Service, and Postgres port definitions; React Flow will later render handles from those definitions.
