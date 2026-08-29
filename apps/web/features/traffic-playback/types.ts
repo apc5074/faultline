@@ -30,6 +30,8 @@ export interface ComponentPlaybackVisual {
   queueDepth?: number;
   slotCount?: number;
   objectMarks?: number;
+  /** Cumulative rejections at this component this run — drives the tabular counter. */
+  rejectedCount?: number;
 }
 
 export interface EdgeLoad {
@@ -49,4 +51,6 @@ export interface PlaybackFrame {
   componentVisuals: readonly ComponentPlaybackVisual[];
   routeLingers: readonly RouteLinger[];
   tick: number;
+  /** 0→1 progress through a timed run; absent for ambient/open-ended playback. */
+  timelineProgress01?: number;
 }

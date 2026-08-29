@@ -1,5 +1,10 @@
 import { GLYPH_INK, outlineProps } from "./glyph-outline";
-import type { ComponentGlyphProps, GlyphMachineSize, GlyphState } from "./glyph-types";
+import {
+  isFailingGlyphState,
+  type ComponentGlyphProps,
+  type GlyphMachineSize,
+  type GlyphState,
+} from "./glyph-types";
 
 function DiagonalHatch({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
   const lines = [];
@@ -93,7 +98,7 @@ function ServerGlyph({
           </g>
         ))}
       <rect x={tx} y={4} width={tw} height={h} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={tx} y={4} w={tw} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={tx} y={4} w={tw} h={h} />}
       {!mini &&
         Array.from({ length: bays }).map((_, i) => {
           const on = i < filled;
@@ -147,7 +152,7 @@ function LoadBalancerGlyph({
   return (
     <g>
       <polygon points={points} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && (
         <g
           style={{
@@ -199,7 +204,7 @@ function CacheGlyph({
   return (
     <g>
       <rect x={4} y={4} width={w} height={h} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && (
         <>
           {Array.from({ length: cols - 1 }).map((_, i) => (
@@ -320,7 +325,7 @@ function SqlDbGlyph({
         </defs>
       ) : null}
       <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />}
       {!mini &&
         Array.from({ length: bands - 1 }).map((_, i) => {
           // Skip rims buried inside the bottom-up fill — paper chords looked like
@@ -375,7 +380,7 @@ function NosqlDbGlyph({
       <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
       <ellipse cx={cx} cy={topCy} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
       {!mini && <ellipse cx={cx} cy={topCy} rx={rx * 0.55} ry={ry * 0.55} fill="none" stroke={GLYPH_INK.ink} strokeWidth={0.75} />}
-      {state === "failed" && <DiagonalHatch x={cx - rx} y={topCy} w={rx * 2} h={bottomY - topCy} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={cx - rx} y={topCy} w={rx * 2} h={bottomY - topCy} />}
       {!mini &&
         Array.from({ length: ridges }).map((_, i) => {
           const x = cx - rx + 4 + (i * (rx * 2 - 8)) / (ridges - 1);
@@ -429,7 +434,7 @@ function QueueGlyph({
   return (
     <g>
       <rect x={4} y={4} width={w} height={h} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && (
         <>
           <rect x={8} y={8} width={w - 16} height={h - 16} fill="none" stroke={GLYPH_INK.inkHairline} strokeWidth={0.5} />
@@ -480,7 +485,7 @@ function PubSubGlyph({
   return (
     <g>
       <circle cx={cx} cy={cy} r={r} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && (
         <>
           <circle
@@ -592,7 +597,7 @@ function CdnGlyph({
             strokeWidth={linkWidth}
           />
         ))}
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       <g key={passCount}>
         {pts.map((p, i) => (
           <circle
@@ -647,7 +652,7 @@ function ObjectStorageGlyph({
       <path d={body} fill={GLYPH_INK.paper} {...op} />
       {!mini && <path d={handle} fill="none" stroke={op.stroke} strokeWidth={1.5} />}
       <rect x={rimX} y={rimY} width={rimW} height={rimH} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={topL} y={rimY + rimH} w={topR - topL} h={botY - rimY - rimH} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={topL} y={rimY + rimH} w={topR - topL} h={botY - rimY - rimH} />}
       {!mini &&
         Array.from({ length: items }).map((_, i) => (
           <line
@@ -699,7 +704,7 @@ function ApiGatewayGlyph({
     <g>
       <polygon points={leftTrap} fill={GLYPH_INK.paper} {...op} />
       <polygon points={rightTrap} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={left} y={cy - wide} w={w} h={wide * 2} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={left} y={cy - wide} w={w} h={wide * 2} />}
       {!mini &&
         dotRows.map((dy, ri) =>
           dotCols.map((dx, ci) => {
@@ -750,7 +755,7 @@ function DnsGlyph({
   return (
     <g>
       <polygon points={points} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={topOuterY} w={w} h={botOuterY - topOuterY} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={topOuterY} w={w} h={botOuterY - topOuterY} />}
       {!mini && (
         <>
           <line x1={cx} y1={peakY} x2={cx} y2={botSpineY} stroke={GLYPH_INK.ink} strokeWidth={1} />
@@ -818,7 +823,7 @@ function GlobalRouterGlyph({
   return (
     <g>
       <rect x={gateX} y={4} width={gateW} height={h} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={gateX} y={4} w={gateW} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={gateX} y={4} w={gateW} h={h} />}
       {!mini && (
         <>
           <circle cx={cx} cy={cy} r={compassR} fill="none" stroke={GLYPH_INK.inkHairline} strokeWidth={0.75} />
@@ -875,7 +880,7 @@ function FallbackGlyph({
   return (
     <g>
       <rect x={4} y={4} width={w} height={h} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && (
         <text
           x={4 + w / 2}
@@ -905,7 +910,7 @@ function UserGlyph({ state, w, h, mini = false }: { state: GlyphState; w: number
   return (
     <g>
       <circle cx={cx} cy={cy} r={r} fill={GLYPH_INK.paper} {...op} />
-      {state === "failed" && <DiagonalHatch x={4} y={4} w={w} h={h} />}
+      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && <circle cx={cx} cy={cy} r={4} fill={GLYPH_INK.ink} />}
       {state === "selected" && <CornerTicks x={4} y={4} w={w} h={h} />}
     </g>

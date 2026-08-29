@@ -42,7 +42,7 @@ const simulation = {
 };
 
 assert.equal(glyphEvidenceLabel("cdn", simulation), "75% HIT");
-assert.equal(glyphEvidenceLabel("redis", simulation), "33% HIT\nHOT 200%");
+assert.equal(glyphEvidenceLabel("redis", simulation), "SATURATED\n33% HIT\nHOT 200%");
 assert.equal(glyphEvidenceLabel("cdn", simulation, { resultIsStale: true }), "STALE");
 
 console.log("cache visuals verified");

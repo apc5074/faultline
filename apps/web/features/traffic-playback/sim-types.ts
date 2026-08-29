@@ -41,6 +41,8 @@ export interface SimComponent {
   writeBands?: number;
   mechanismCount?: number;
   processingSlotIndices?: readonly number[];
+  /** Cumulative rejections at this component this run — drives the tabular counter. */
+  rejectedCount?: number;
 }
 
 export interface SimConnection {

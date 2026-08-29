@@ -15,7 +15,13 @@ export type GlyphType =
 
 export type GlyphRenderType = GlyphType | "fallback";
 
-/** Shared visual states. `overloaded` remains as a compatibility alias for existing result mapping. */
+/**
+ * Shared visual states. The run story has three perceptible escalation states —
+ * working (`processing`), straining (`warning`), failing (`saturated`/`failed`) —
+ * plus `idle`/`selected`/`stale` chrome. `critical` and `overloaded` remain as
+ * compatibility aliases for simulator band names and legacy callers; new
+ * derivation code should not emit them.
+ */
 export type GlyphState =
   | "idle"
   | "selected"
@@ -26,6 +32,16 @@ export type GlyphState =
   | "overloaded"
   | "failed"
   | "stale";
+
+/** Straining — the telegraph before failure (`component_warning` band). */
+export function isStrainingGlyphState(state: GlyphState): boolean {
+  return state === "warning" || state === "critical";
+}
+
+/** Failing — capacity exceeded or component down (`component_saturated` / failure injection). */
+export function isFailingGlyphState(state: GlyphState): boolean {
+  return state === "saturated" || state === "overloaded" || state === "failed";
+}
 
 export const GLYPH_STATES: readonly GlyphState[] = [
   "idle",

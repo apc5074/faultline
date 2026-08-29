@@ -12,7 +12,7 @@ export { ComponentGlyph } from "./ComponentGlyph";
 export { GLYPH_INK, outlineProps } from "./glyph-outline";
 export type { GlyphOutlineProps } from "./glyph-outline";
 export { GLYPH_LABELS, GLYPH_SIZES, MINI_GLYPH_SIZE } from "./glyph-sizes";
-export { GLYPH_STATES, GLYPH_TYPES } from "./glyph-types";
+export { GLYPH_STATES, GLYPH_TYPES, isFailingGlyphState, isStrainingGlyphState } from "./glyph-types";
 export {
   deriveGlyphMechanismValues,
   deriveGlyphState,

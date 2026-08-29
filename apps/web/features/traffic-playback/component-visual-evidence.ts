@@ -8,6 +8,7 @@ import {
 } from "../playground-glyphs/state.ts";
 import { glyphPropsFromComponent } from "../playground-glyphs/catalog-map.ts";
 
+import { randomizedImpactSlots } from "./impact-slots.ts";
 import { mechanismCellsFromShare, buildComponentVolumeShares } from "./volume-share-visuals.ts";
 
 export type ComponentVisualEvidence = {
@@ -33,6 +34,7 @@ export type ComponentVisualEvidence = {
   queueDepth?: number;
   slotCount?: number;
   objectMarks?: number;
+  processingSlotIndices?: readonly number[];
   impactSeed?: string;
   evidenceLabel?: string;
 };
@@ -149,7 +151,13 @@ export function selectComponentVisualEvidence(input: ComponentVisualEvidenceInpu
     const cells = Math.min(6, Math.ceil(mechanismCellsFromShare(share?.share01 ?? 0, 6, cache.saturated) * progress));
     return {
       ...base,
-      state: cache.saturated ? "overloaded" : cells > 0 ? "processing" : "idle",
+      state: cache.saturated
+        ? "saturated"
+        : cache.utilization > 0.9
+          ? "warning"
+          : cells > 0
+            ? "processing"
+            : "idle",
       passCount: cells,
       hitRps: cache.hitRps,
       missRps: cache.missRps,
@@ -160,9 +168,18 @@ export function selectComponentVisualEvidence(input: ComponentVisualEvidenceInpu
     };
   }
   if (glyph.type === "cache") {
+    const slotCount = 16;
+    const cells = Math.min(
+      slotCount,
+      Math.ceil(mechanismCellsFromShare(share?.share01 ?? 0, slotCount, cache.saturated) * progress),
+    );
     return {
       ...base,
-      state: cache.saturated ? "overloaded" : "idle",
+      state: cache.saturated ? "saturated" : cache.utilization > 0.9 ? "warning" : "idle",
+      processingCount: cells,
+      processingSlotIndices: cells > 0 && impactSeed
+        ? randomizedImpactSlots(slotCount, impactSeed).slice(0, cells)
+        : undefined,
       hitRps: cache.hitRps,
       missRps: cache.missRps,
       hitRate: cache.hitRate,

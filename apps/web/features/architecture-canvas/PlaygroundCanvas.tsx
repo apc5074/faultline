@@ -52,6 +52,9 @@ export type PlaygroundCanvasProps = {
   showSimulationVisuals: boolean;
   resultIsStale: boolean;
   geographicRoutes: readonly GeographicRoute[];
+  /** Motion belongs only to live playback; completed runs are static evidence. */
+  worldRoutesAnimating: boolean;
+  worldRoutesStale: boolean;
   experimentPresentation: ExperimentResult | null;
   playbackVisualsActive: boolean;
   playbackFrame: PlaybackFrame;
@@ -84,6 +87,8 @@ export function PlaygroundCanvas({
   showSimulationVisuals,
   resultIsStale,
   geographicRoutes,
+  worldRoutesAnimating,
+  worldRoutesStale,
   experimentPresentation,
   playbackVisualsActive,
   playbackFrame,
@@ -188,8 +193,10 @@ export function PlaygroundCanvas({
           challenge={challenge}
           selectedComponentId={selectedComponentId}
           selection={worldSelection}
-          geographicRoutes={showSimulationVisuals && !resultIsStale ? geographicRoutes : []}
-          routesActive={showSimulationVisuals && !resultIsStale}
+          geographicRoutes={showSimulationVisuals ? geographicRoutes : []}
+          routesActive={showSimulationVisuals}
+          routesAnimating={worldRoutesAnimating && showSimulationVisuals && !resultIsStale}
+          routesStale={worldRoutesStale && showSimulationVisuals}
           regionFailure={regionFailurePresentationFromEvents(experimentPresentation?.events)}
           onSelectComponent={onSelectComponent}
           onSelectRegion={onSelectRegion}

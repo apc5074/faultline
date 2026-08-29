@@ -143,6 +143,8 @@ export const WorldMap = memo(function WorldMap({
   selection,
   geographicRoutes,
   routesActive,
+  routesAnimating,
+  routesStale,
   regionFailure,
   onSelectComponent,
   onSelectRegion,
@@ -154,6 +156,10 @@ export const WorldMap = memo(function WorldMap({
   selection: WorldMapSelection;
   geographicRoutes: readonly GeographicRoute[];
   routesActive: boolean;
+  /** Completed simulation evidence stays visible without an idle traffic loop. */
+  routesAnimating: boolean;
+  /** Architecture edits retain, but visibly dim, the last run's route evidence. */
+  routesStale: boolean;
   regionFailure?: RegionFailurePresentation | null;
   onSelectComponent: (componentId: string, deploymentId?: string) => void;
   onSelectRegion: (regionId: RegionId) => void;
@@ -239,7 +245,8 @@ export const WorldMap = memo(function WorldMap({
                 key={arc.key}
                 className={[
                   "world-map__arc",
-                  routesActive ? "world-map__arc--flow" : "",
+                  routesAnimating ? "world-map__arc--flow" : "",
+                  routesStale ? "world-map__arc--stale" : "",
                   arc.crossRegion ? "world-map__arc--cross" : "world-map__arc--local",
                   highlighted ? "world-map__arc--highlighted" : "",
                   dimmed ? "world-map__arc--dimmed" : "",

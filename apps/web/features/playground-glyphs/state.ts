@@ -45,8 +45,11 @@ export interface GlyphMechanismValues {
 
 type CapacityBandState = ServiceCapacityMetrics["state"] | PostgresCapacityMetrics["state"];
 
+/** Collapses simulator capacity bands into the three-state run grammar: warning+critical strain, saturated fails. */
 function capacityBandToGlyphState(state: CapacityBandState): GlyphState {
-  return state === "healthy" ? "idle" : state;
+  if (state === "healthy") return "idle";
+  if (state === "warning" || state === "critical") return "warning";
+  return "saturated";
 }
 
 function isTruthyEventFlag(value: number | string | undefined): boolean {
@@ -63,8 +66,11 @@ function hasExplicitFailure(componentId: string, events?: readonly SimulationEve
 }
 
 function cacheBandToGlyphState(cache: CacheResult): GlyphState {
-  if (cache.saturated || cache.utilization > 0.9) {
-    return "overloaded";
+  if (cache.saturated) {
+    return "saturated";
+  }
+  if (cache.utilization > 0.9) {
+    return "warning";
   }
   return "idle";
 }

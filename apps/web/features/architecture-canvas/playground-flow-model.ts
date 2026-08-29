@@ -50,6 +50,8 @@ export function componentToNode(
   attentionComponentId: string | null,
   playbackVisual: ComponentPlaybackVisual | undefined,
   playbackActive: boolean,
+  runPulseKey: string | undefined,
+  firstFailing: boolean,
   interaction: {
     connectingFrom: ConnectingFrom | null;
     settlingNodeIds: ReadonlySet<string>;
@@ -111,6 +113,8 @@ export function componentToNode(
       resultIsStale,
       playbackVisual,
       playbackActive,
+      runPulseKey,
+      firstFailing,
       attention: component.id === attentionComponentId,
       connectedPortIds: connectedPortIdsForComponent(component.id, connections),
       interactionPhase,

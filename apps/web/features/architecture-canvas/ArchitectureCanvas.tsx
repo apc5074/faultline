@@ -134,6 +134,8 @@ function ArchitectureWorkspace() {
               geographicRoutes={
                 workspace.simulationResult?.geographicRoutes ?? []
               }
+              worldRoutesAnimating={workspace.playback.phase === "playing"}
+              worldRoutesStale={workspace.resultIsStale}
               experimentPresentation={workspace.experimentPresentation}
               playbackVisualsActive={workspace.playbackVisualsActive}
               playbackFrame={workspace.playback.frame}
@@ -153,6 +155,13 @@ function ArchitectureWorkspace() {
             />
 
             <div className="playground-corner-hud">
+              {workspace.runState === "complete" ? (
+                <p
+                  className={`playground-corner-hud__last-run${workspace.resultIsStale ? " playground-corner-hud__last-run--stale" : ""}`}
+                >
+                  {workspace.resultIsStale ? "Last run · evidence · stale" : "Last run · evidence"}
+                </p>
+              ) : null}
               <BudgetHud
                 architecture={workspace.architecture}
                 traffic={
@@ -242,7 +251,10 @@ function ArchitectureWorkspace() {
         <SimBar
           playbackRunning={workspace.playback.playbackRunning}
           playbackPaused={workspace.playback.playbackPaused}
+          playbackPhase={workspace.playback.phase}
           playbackSpeed={workspace.playback.speed}
+          timelineProgress01={workspace.playback.frame.timelineProgress01}
+          timelineDurationMs={workspace.playback.timelineDurationMs}
           runState={workspace.runState}
           resultIsStale={workspace.resultIsStale}
           errors={workspace.simulationErrors}
@@ -254,6 +266,7 @@ function ArchitectureWorkspace() {
           officialSummary={workspace.officialSummary}
           onRun={workspace.handleSimBarRun}
           onPause={workspace.playback.pause}
+          onStep={workspace.handleSimBarStep}
           onReset={workspace.handleSimBarReset}
           onSpeedChange={workspace.playback.setSpeed}
           onViewModeChange={workspace.handleViewModeChange}

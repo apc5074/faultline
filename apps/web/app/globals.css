@@ -1811,6 +1811,23 @@ main {
   border-bottom: 0;
 }
 
+.playground-corner-hud__last-run {
+  margin: 0;
+  padding: 0.38rem 0.6rem;
+  border-bottom: 1px solid var(--color-ink-hairline);
+  color: var(--color-ink-faint);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+/* A completed run is a static, engraved evidence state—not a live transport cue. */
+.playground-corner-hud__last-run--stale {
+  border-bottom-color: var(--color-ink-hairline);
+  color: var(--color-ink-hairline);
+}
+
 .playground-corner-hud__briefing {
   margin: 0;
   padding: 0.4rem 0.6rem;
@@ -2829,6 +2846,23 @@ h1 {
   opacity: 0.7;
 }
 
+.hud-plate--stamp {
+  animation: hud-plate-stamp 200ms ease-out;
+  transform-origin: top center;
+}
+
+@keyframes hud-plate-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .hud-plate__title {
   margin: 0;
   font-size: 0.62rem;
@@ -3352,6 +3386,25 @@ h1 {
   background: var(--color-paper-dark);
 }
 
+.sim-bar__progress {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  overflow: hidden;
+  background: var(--color-ink-hairline);
+}
+
+.sim-bar__progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--color-ink);
+}
+
 .sim-bar__cluster {
   display: flex;
   min-width: 0;
@@ -3411,6 +3464,21 @@ h1 {
 .sim-bar__button--run-active {
   background: var(--color-ink);
   color: var(--color-paper);
+}
+
+.sim-bar__button--reset-subtle {
+  border-color: var(--color-ink-hairline);
+  color: var(--color-ink-faint);
+}
+
+.sim-bar__run-clock {
+  margin: 0 0 0 0.65rem;
+  color: var(--color-ink-faint);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .sim-bar__button--speed,
@@ -3801,6 +3869,11 @@ h1 {
   animation: world-map-arc-flow var(--arc-duration, 2s) linear infinite;
 }
 
+.world-map__arc--stale {
+  stroke: var(--color-ink-hairline);
+  opacity: 0.45;
+}
+
 .world-map__arc--highlighted {
   opacity: 0.95;
   stroke-width: calc(var(--stroke, 1px) + 0.5px);
@@ -3886,6 +3959,52 @@ h1 {
   animation: playground-node-settle 100ms ease-out forwards;
 }
 
+/* Starting gun: one radiating ink ring from the traffic source at run start. */
+.playground-node__start-pulse {
+  position: absolute;
+  inset: -4px;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: playground-node-start-pulse 360ms ease-out forwards;
+}
+
+@keyframes playground-node-start-pulse {
+  from {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playground-node__start-pulse {
+    animation: none;
+  }
+}
+
+/* Tabular rejection tally at the input port once individual × marks cap out. */
+.playground-node__rejection-counter {
+  position: absolute;
+  top: 50%;
+  left: -0.4rem;
+  transform: translate(-100%, -50%);
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--color-signal-red);
+  background: var(--color-paper);
+  color: var(--color-signal-red);
+  font-size: 0.55rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
 @keyframes playground-node-settle {
   from {
     transform: translate(2px, 2px);
@@ -3930,6 +4049,18 @@ h1 {
 .playground-node--attention {
   outline: 2px solid var(--color-ink);
   outline-offset: 4px;
+}
+
+/* Registration tick on the first component that failed last run. */
+.playground-node__culprit-tick {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-top: 2px solid var(--color-signal-red);
+  border-right: 2px solid var(--color-signal-red);
+  pointer-events: none;
 }
 
 @keyframes playground-attention-pulse {

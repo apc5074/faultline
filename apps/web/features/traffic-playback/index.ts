@@ -26,7 +26,7 @@ export {
 export type { PresentationPlaybackPhase, PresentationPlaybackState } from "./presentation-playback";
 export { catalogTypeToSimType } from "./sim-types";
 export type { SimComponent, SimConnection, SimPacket } from "./sim-types";
-export { resetTickSimulationState, tickSimulation } from "./tick-simulation";
+export { resetTickSimulationState, tickSimulation, MAX_VISIBLE_REJECTED_PER_COMPONENT } from "./tick-simulation";
 export type { TickSimulationOptions } from "./tick-simulation";
 export {
   advanceAuthoritativeSpawns,
@@ -65,4 +65,4 @@ export {
   VOLUME_SHARE_IDLE_EPSILON,
 } from "./volume-share-visuals";
 export type { ComponentVolumeShare, BuildVolumeSharesInput } from "./volume-share-visuals";
-export { usePlaybackController, type PlaybackPhase } from "./use-playback-controller";
+export { usePlaybackController, SETTLING_MS, type PlaybackPhase } from "./use-playback-controller";

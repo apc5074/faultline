@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 
 import type { RequirementsEvaluationResult, SimulationValidationError } from "@faultline/simulator";
 
-import type { PlaybackSpeed } from "@/features/traffic-playback";
+import type { PlaybackPhase, PlaybackSpeed } from "@/features/traffic-playback";
 
 import { AgentHelpChips } from "@/features/agent-session/AgentHelpChips";
 import { ClearAgentMarksButton } from "@/features/agent-session/ClearAgentMarksButton";
@@ -14,6 +14,15 @@ type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true 
 type SimulationRunState = "idle" | "running" | "complete" | "error";
 
 const SPEEDS: PlaybackSpeed[] = [0.5, 1, 2];
+
+function formatRunTime(milliseconds: number): string {
+  return `${(Math.max(0, milliseconds) / 1_000).toFixed(1)}s`;
+}
+
+function failedRequirementCount(result: SuccessfulSimulation): number {
+  return result.requirements.filter((requirement) => !requirement.passed).length +
+    (result.hotKey.active && !result.hotKey.passed ? 1 : 0);
+}
 
 function formatCost(amount: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -30,6 +39,7 @@ function SimBarStatusPlate({
   unexpectedError,
   result,
   officialSummary,
+  verdictAvailable,
 }: {
   runState: SimulationRunState;
   resultIsStale: boolean;
@@ -37,6 +47,7 @@ function SimBarStatusPlate({
   unexpectedError: string | null;
   result: SuccessfulSimulation | null;
   officialSummary: string | null;
+  verdictAvailable: boolean;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
@@ -46,16 +57,16 @@ function SimBarStatusPlate({
     errors.length > 0 ||
     resultIsStale ||
     Boolean(officialSummary) ||
-    (result !== null && runState === "complete");
+    (result !== null && verdictAvailable);
 
   const statusText =
     unexpectedError ??
     (errors.length > 0 ? `${errors.length} validation error${errors.length === 1 ? "" : "s"}` : null) ??
     (resultIsStale ? "Results stale — run again" : null) ??
-    (result && runState === "complete"
+    (result && verdictAvailable
       ? result.allRequirementsPass
-        ? "All requirements passed"
-        : "Requirements failed"
+        ? "✓ All requirements passed"
+        : `✕ ${failedRequirementCount(result)} failing`
       : null) ??
     officialSummary;
 
@@ -91,7 +102,7 @@ function SimBarStatusPlate({
             </ul>
           ) : null}
           {officialSummary ? <p className="sim-bar__status-note">{officialSummary}</p> : null}
-          {result && runState === "complete" ? (
+          {result && verdictAvailable ? (
             <dl className={`sim-bar__status-result tabular${resultIsStale ? " sim-bar__status-result--stale" : ""}`}>
               <div>
                 <dt>Outcome</dt>
@@ -120,7 +131,10 @@ function SimBarStatusPlate({
 export type SimBarProps = {
   playbackRunning: boolean;
   playbackPaused: boolean;
+  playbackPhase: PlaybackPhase;
   playbackSpeed: PlaybackSpeed;
+  timelineProgress01?: number;
+  timelineDurationMs: number;
   runState: SimulationRunState;
   resultIsStale: boolean;
   errors: readonly SimulationValidationError[];
@@ -132,6 +146,7 @@ export type SimBarProps = {
   officialSummary: string | null;
   onRun: () => void;
   onPause: () => void;
+  onStep: () => void;
   onReset: () => void;
   onSpeedChange: (speed: PlaybackSpeed) => void;
   onViewModeChange: (mode: "logical" | "world") => void;
@@ -142,7 +157,10 @@ export type SimBarProps = {
 export function SimBar({
   playbackRunning,
   playbackPaused,
+  playbackPhase,
   playbackSpeed,
+  timelineProgress01,
+  timelineDurationMs,
   runState,
   resultIsStale,
   errors,
@@ -154,33 +172,70 @@ export function SimBar({
   officialSummary,
   onRun,
   onPause,
+  onStep,
   onReset,
   onSpeedChange,
   onViewModeChange,
   onSubmitOfficial,
   selectedComponentId,
 }: SimBarProps) {
-  const simBusy = runState === "running" || officialSubmitting;
-  const playbackActive = playbackRunning && !playbackPaused;
+  const simBusy = (runState === "running" && !playbackRunning) || officialSubmitting;
+  const livePlayback = playbackPhase === "playing" && runState === "running";
+  const paused = playbackPhase === "paused" && runState === "running";
+  // The simulator timeline is complete when settling starts; only the visual
+  // packet drain remains. The bar can truthfully land the inline verdict here.
+  const verdictAvailable = result !== null && (
+    playbackPhase === "settling" ||
+    (runState === "complete" && playbackPhase === "settled")
+  );
+  const transportRetired = playbackPhase === "settling" || verdictAvailable;
+  const progress01 = Math.min(1, Math.max(0, timelineProgress01 ?? 0));
+  const elapsedMs = timelineDurationMs * progress01;
+  const progressVisible = (livePlayback || paused) && timelineDurationMs > 0;
 
   return (
     <footer className="sim-bar" aria-label="Simulation controls">
+      {progressVisible ? (
+        <div
+          className="sim-bar__progress"
+          aria-label={`Run progress: ${formatRunTime(elapsedMs)} of ${formatRunTime(timelineDurationMs)}`}
+          aria-valuemin={0}
+          aria-valuemax={timelineDurationMs}
+          aria-valuenow={Math.round(elapsedMs)}
+          role="progressbar"
+        >
+          <span style={{ transform: `scaleX(${progress01})` }} />
+        </div>
+      ) : null}
       <div className="sim-bar__cluster sim-bar__cluster--start" aria-hidden="true" />
 
       <div className="sim-bar__cluster sim-bar__cluster--center">
         <div className="sim-bar__transport" role="group" aria-label="Playback transport">
-          <button
-            type="button"
-            className={`sim-bar__button sim-bar__button--run${playbackActive ? " sim-bar__button--run-active" : ""}`}
-            disabled={simBusy}
-            onClick={playbackActive ? onPause : onRun}
-          >
-            {simBusy ? "running…" : playbackActive ? "pause" : "run"}
-          </button>
-          <button type="button" className="sim-bar__button sim-bar__button--joined" disabled={simBusy} onClick={onReset}>
-            reset
-          </button>
+          {paused ? (
+            <>
+              <button type="button" className="sim-bar__button" onClick={onStep}>step</button>
+              <button type="button" className="sim-bar__button sim-bar__button--joined sim-bar__button--run-active" onClick={onRun}>resume</button>
+            </>
+          ) : transportRetired ? (
+            <button type="button" className="sim-bar__button sim-bar__button--reset-subtle" onClick={onReset}>reset</button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={`sim-bar__button sim-bar__button--run${livePlayback ? " sim-bar__button--run-active" : ""}`}
+                disabled={officialSubmitting}
+                onClick={livePlayback ? onPause : onRun}
+              >
+                {simBusy ? "running…" : livePlayback ? "pause" : "run"}
+              </button>
+              <button type="button" className="sim-bar__button sim-bar__button--joined" disabled={simBusy} onClick={onReset}>
+                reset
+              </button>
+            </>
+          )}
         </div>
+
+        {progressVisible ? <p className="sim-bar__run-clock tabular">running · {formatRunTime(elapsedMs)} / {formatRunTime(timelineDurationMs)}</p> : null}
 
         <div className="sim-bar__divider" aria-hidden />
 
@@ -190,6 +245,7 @@ export function SimBar({
               key={speed}
               type="button"
               className={`sim-bar__button sim-bar__button--speed${playbackSpeed === speed ? " sim-bar__button--speed-active" : ""}${index === 0 ? " sim-bar__button--speed-first" : " sim-bar__button--joined"}`}
+              disabled={transportRetired}
               onClick={() => onSpeedChange(speed)}
             >
               {speed}×
@@ -234,6 +290,7 @@ export function SimBar({
           unexpectedError={unexpectedError}
           result={result}
           officialSummary={officialSummary}
+          verdictAvailable={verdictAvailable}
         />
 
         {officialActive ? (

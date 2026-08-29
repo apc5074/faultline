@@ -30,7 +30,7 @@ function sampleComponent(definition: ComponentDefinition): ComponentInstance {
   };
 }
 
-const GLYPH_STATES: readonly GlyphState[] = ["idle", "selected", "processing", "overloaded", "failed"];
+const GLYPH_STATES: readonly GlyphState[] = ["idle", "selected", "processing", "warning", "saturated", "failed"];
 
 export default function GlyphSheetPage() {
   return (
@@ -153,7 +153,7 @@ export default function GlyphSheetPage() {
             <figcaption>CDN node pass</figcaption>
           </figure>
           <figure className="glyph-sheet__cell">
-            <ComponentGlyph type="queue" state="overloaded" depth={8} processingCount={6} width={96} height={48} />
+            <ComponentGlyph type="queue" state="processing" depth={8} processingCount={6} width={96} height={48} />
             <figcaption>Queue depth</figcaption>
           </figure>
         </div>

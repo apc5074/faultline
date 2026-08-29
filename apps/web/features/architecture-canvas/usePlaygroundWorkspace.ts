@@ -10,6 +10,8 @@ import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type 
 import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
 
 import { clampToPlaygroundBoard } from "@/features/architecture-canvas/canvas-grid";
+import { runDurationMs } from "@/features/architecture-canvas/run-duration";
+import { buildRunTimeline, firstFailingComponentId } from "@/features/architecture-canvas/run-timeline";
 import {
   buildEdgePathsFromArchitecture,
   computeHopMarkers,
@@ -126,6 +128,14 @@ export function usePlaygroundWorkspace() {
 
   const playbackVisualsActive = playback.playbackRunning;
 
+  // Retriggers the traffic-source starting pulse each time a run begins.
+  const runPulseKey = playbackVisualsActive ? `run-${playback.runSeq}` : undefined;
+
+  const culpritComponentId = useMemo(() => {
+    if (runState !== "complete") return null;
+    return firstFailingComponentId(presentationEvents ?? []);
+  }, [presentationEvents, runState]);
+
   const shareBasedPlaybackVisuals = useMemo(() => {
     if (!playbackVisualsActive || !simulationResult) return null;
     const totalEvents = Math.max(1, simulationResult.events.length);
@@ -170,7 +180,7 @@ export function usePlaygroundWorkspace() {
           map.set(visual.componentId, visual);
           continue;
         }
-        if (visual.state === "processing" || visual.processingCount > 0 || visual.cacheHitFlash) {
+        if (visual.state === "processing" || visual.processingCount > 0 || visual.cacheHitFlash || (visual.rejectedCount ?? 0) > 0) {
           const settled = map.get(visual.componentId);
           // Live packet dwell owns the animated mechanism count. The settled
           // path-share fill returns when the component is no longer processing.
@@ -220,6 +230,8 @@ export function usePlaygroundWorkspace() {
           playbackVisualByComponent.get(component.id) ??
             (playbackVisualsActive ? idlePlaybackVisual(component.id) : undefined),
           playbackVisualsActive,
+          runPulseKey,
+          culpritComponentId === component.id,
           {
             connectingFrom,
             settlingNodeIds,
@@ -247,6 +259,8 @@ export function usePlaygroundWorkspace() {
       semanticZoomOut,
       playbackVisualByComponent,
       playbackVisualsActive,
+      runPulseKey,
+      culpritComponentId,
       idlePlaybackVisual,
     ],
   );
@@ -654,7 +668,16 @@ export function usePlaygroundWorkspace() {
 
         setSimulationErrors([]);
         setSimulationResult(outcome);
-        setRunState("complete");
+        const durationMs = runDurationMs(outcome);
+        playback.startTimed(
+          architecture,
+          durationMs,
+          buildRunTimeline(outcome.events, durationMs),
+          () => setRunState("complete"),
+          (event) => {
+            if (event.type === "component_saturated" && event.componentId) playback.markComponentFailed(event.componentId);
+          },
+        );
       } catch (error) {
         setSimulationResult(null);
         setSimulationErrors([]);
@@ -663,7 +686,7 @@ export function usePlaygroundWorkspace() {
         setRunState("error");
       }
     }, 0);
-  }, [architecture]);
+  }, [architecture, playback.startTimed]);
 
   useEffect(() => {
     registerPacketRerouteHandler(({ componentId }) => {
@@ -750,9 +773,6 @@ export function usePlaygroundWorkspace() {
       playback.resume();
       return;
     }
-    if (playback.phase === "idle") {
-      playback.start(architecture);
-    }
     if (runState !== "running") {
       onRunSimulation();
     }
@@ -768,6 +788,10 @@ export function usePlaygroundWorkspace() {
     setOfficialVerification(null);
     setRunState("idle");
   }, [clearExperimentPresentation, playback]);
+
+  const handleSimBarStep = useCallback(() => {
+    playback.step(architecture);
+  }, [architecture, playback]);
 
   const handleViewModeChange = useCallback(
     (mode: "logical" | "world") => {
@@ -969,6 +993,7 @@ export function usePlaygroundWorkspace() {
     onConfigChange,
     onDeploymentsChange,
     handleSimBarRun,
+    handleSimBarStep,
     handleSimBarReset,
     handleViewModeChange,
     loadHeroScene,

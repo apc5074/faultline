@@ -134,7 +134,7 @@ export function RequirementsHud({
 
   return (
     <aside
-      className={`hud-plate hud-plate--requirements${resultIsStale && showResults ? " hud-plate--stale" : ""}`}
+      className={`hud-plate hud-plate--requirements${resultIsStale && showResults ? " hud-plate--stale" : ""}${showResults ? " hud-plate--stamp" : ""}`}
       aria-label="Baseline simulator requirements"
     >
       <p className="hud-plate__title">Requirements</p>

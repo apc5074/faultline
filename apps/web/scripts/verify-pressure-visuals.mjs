@@ -1,6 +1,7 @@
 /** VIS-003 — capacity presentation consumes simulator metrics without local thresholds. */
 import assert from "node:assert/strict";
 
+import { outlineProps } from "../features/playground-glyphs/glyph-outline.ts";
 import {
   deriveGlyphMechanismValues,
   deriveGlyphState,
@@ -56,8 +57,8 @@ const simulation = {
 assert.equal(deriveGlyphState("svc", simulation), "saturated");
 assert.equal(deriveGlyphState("pg", simulation), "saturated");
 assert.equal(deriveGlyphState("svc", simulation, { resultIsStale: true }), "stale");
-assert.equal(glyphPressureLabel("svc", simulation), "20k unmet");
-assert.equal(glyphPressureLabel("pg", simulation), "R 107%\nW 200%");
+assert.equal(glyphPressureLabel("svc", simulation), "SATURATED · 20k unmet");
+assert.equal(glyphPressureLabel("pg", simulation), "SATURATED");
 assert.equal(glyphEvidenceLabel("redis", simulation), "HOT 200%");
 assert.equal(glyphPressureLabel("svc", simulation, { resultIsStale: true }), "STALE");
 assert.deepEqual(deriveGlyphMechanismValues("pg", simulation, { redirectRps: 100_000 }), {
@@ -65,5 +66,49 @@ assert.deepEqual(deriveGlyphMechanismValues("pg", simulation, { redirectRps: 100
   readProcessingCount: 4,
   writeProcessingCount: 4,
 });
+
+console.log("Check — three-state run grammar: working → straining → failing");
+const criticalService = {
+  ...simulation,
+  services: { svc: { ...simulation.services.svc, state: "critical" } },
+};
+assert.equal(
+  deriveGlyphState("svc", criticalService),
+  "warning",
+  "critical band folds into the straining telegraph",
+);
+const warningService = {
+  ...simulation,
+  services: { svc: { ...simulation.services.svc, state: "warning" } },
+};
+assert.equal(deriveGlyphState("svc", warningService), "warning");
+
+const nearCapacityCache = {
+  services: {},
+  postgres: {},
+  caches: { redis: { saturated: false, utilization: 0.95 } },
+};
+assert.equal(
+  deriveGlyphState("redis", nearCapacityCache),
+  "warning",
+  "cache near capacity telegraphs strain instead of jumping to failure",
+);
+const saturatedCache = {
+  services: {},
+  postgres: {},
+  caches: { redis: { saturated: true, utilization: 1.2 } },
+};
+assert.equal(deriveGlyphState("redis", saturatedCache), "saturated");
+
+console.log("Check — outline grammar: failing is red, straining is heavier ink, working is default");
+assert.equal(outlineProps("saturated").stroke, "var(--color-signal-red)");
+assert.equal(outlineProps("overloaded").stroke, "var(--color-signal-red)");
+assert.equal(outlineProps("failed").stroke, "var(--color-signal-red)");
+assert.equal(outlineProps("warning").stroke, "var(--color-ink)");
+assert.equal(outlineProps("critical").stroke, "var(--color-ink)"); // prettier-ignore
+assert.ok(
+  outlineProps("warning").strokeWidth > outlineProps("processing").strokeWidth,
+  "straining must read heavier than working",
+);
 
 console.log("pressure visuals verified");

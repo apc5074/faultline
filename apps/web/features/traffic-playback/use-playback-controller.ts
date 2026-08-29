@@ -1,7 +1,10 @@
 "use client";
 
 import type { Architecture } from "@faultline/core";
+import type { SimulationEvent } from "@faultline/simulator";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { runRamp01 } from "../architecture-canvas/run-timeline.ts";
 
 import type { AuthoritativeTrafficPlan } from "./authoritative-edge-traffic";
 import { buildSimGraph } from "./architecture-sim-graph";
@@ -10,7 +13,9 @@ import type { SimComponent, SimConnection, SimPacket } from "./sim-types";
 import { resetTickSimulationState, tickSimulation } from "./tick-simulation";
 import type { PlaybackFrame, PlaybackSpeed, RouteLinger } from "./types";
 
-export type PlaybackPhase = "idle" | "playing" | "paused";
+export type PlaybackPhase = "idle" | "playing" | "paused" | "settling" | "settled";
+/** Stillness after the rAF loop stops, before the verdict stamps in. */
+export const SETTLING_MS = 700;
 
 const EMPTY_FRAME: PlaybackFrame = {
   packets: [],
@@ -24,12 +29,22 @@ export function usePlaybackController() {
   const [phase, setPhase] = useState<PlaybackPhase>("idle");
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [frame, setFrame] = useState<PlaybackFrame>(EMPTY_FRAME);
+  const [timelineDurationMs, setTimelineDurationMs] = useState(0);
 
   const phaseRef = useRef<PlaybackPhase>("idle");
   const speedRef = useRef<PlaybackSpeed>(1);
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number>(0);
   const tickRef = useRef(0);
+  const remainingTimelineMsRef = useRef<number | null>(null);
+  const timelineCompleteRef = useRef<(() => void) | null>(null);
+  const timelineEventsRef = useRef<readonly { event: SimulationEvent; atMs: number }[]>([]);
+  const timelineEventIndexRef = useRef(0);
+  const timelineDurationRef = useRef(0);
+  const timelineEventHandlerRef = useRef<((event: SimulationEvent) => void) | null>(null);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timelineRampRef = useRef(1);
+  const [runSeq, setRunSeq] = useState(0);
 
   const architectureRef = useRef<Architecture | null>(null);
   const simComponentsRef = useRef<SimComponent[]>([]);
@@ -71,11 +86,13 @@ export function usePlaybackController() {
     routeLingersRef.current = pruneRouteLingers(
       mergeRouteLingers(routeLingersRef.current, createRouteLingers(result.newRouteLingers)),
     );
+    const ramp = timelineRampRef.current;
+    const timelineActive = remainingTimelineMsRef.current !== null;
     setFrame({
       packets: result.packets,
       edgeLoads: result.connections.map((connection) => ({
         connectionId: connection.id,
-        weight: connection.load,
+        weight: connection.load * ramp,
       })),
       componentVisuals: result.components.map((component) => ({
         componentId: component.id,
@@ -85,9 +102,13 @@ export function usePlaybackController() {
         state: component.state,
         cacheHitFlash: component.cacheHitFlash,
         processingSlotIndices: component.processingSlotIndices,
+        rejectedCount: component.rejectedCount,
       })),
       routeLingers: routeLingersRef.current,
       tick: tickRef.current,
+      timelineProgress01: timelineActive
+          ? Math.min(1, Math.max(0, 1 - (remainingTimelineMsRef.current ?? 0) / Math.max(1, timelineDurationRef.current)))
+          : undefined,
     });
   }, []);
 
@@ -99,12 +120,37 @@ export function usePlaybackController() {
       if (elapsed > 14) {
         lastFrameRef.current = now;
         tickRef.current += 1;
+        if (remainingTimelineMsRef.current !== null) {
+          remainingTimelineMsRef.current -= elapsed * speedRef.current;
+          const elapsedTimelineMs = timelineDurationRef.current - Math.max(0, remainingTimelineMsRef.current);
+          timelineRampRef.current = runRamp01(elapsedTimelineMs, timelineDurationRef.current);
+          while (timelineEventsRef.current[timelineEventIndexRef.current]?.atMs <= elapsedTimelineMs) {
+            const event = timelineEventsRef.current[timelineEventIndexRef.current++];
+            if (event) timelineEventHandlerRef.current?.(event.event);
+          }
+        }
         publishFromTick();
+        if (remainingTimelineMsRef.current !== null && remainingTimelineMsRef.current <= 0) {
+          remainingTimelineMsRef.current = null;
+          timelineRampRef.current = 1;
+          stopLoop();
+          phaseRef.current = "settling";
+          setPhase("settling");
+          settleTimerRef.current = setTimeout(() => {
+            phaseRef.current = "settled";
+            setPhase("settled");
+            settleTimerRef.current = null;
+            const complete = timelineCompleteRef.current;
+            timelineCompleteRef.current = null;
+            complete?.();
+          }, SETTLING_MS);
+          return;
+        }
       }
 
       rafRef.current = requestAnimationFrame(loop);
     },
-    [publishFromTick],
+    [publishFromTick, stopLoop],
   );
 
   const startLoop = useCallback(() => {
@@ -113,7 +159,10 @@ export function usePlaybackController() {
     rafRef.current = requestAnimationFrame(loop);
   }, [loop, stopLoop]);
 
-  useEffect(() => () => stopLoop(), [stopLoop]);
+  useEffect(() => () => {
+    stopLoop();
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+  }, [stopLoop]);
 
   useEffect(() => {
     if (routeLingersRef.current.length === 0) return;
@@ -159,9 +208,13 @@ export function usePlaybackController() {
 
   const start = useCallback(
     (architecture: Architecture) => {
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
       architectureRef.current = architecture;
       resetTickSimulationState();
       tickRef.current = 0;
+      timelineRampRef.current = remainingTimelineMsRef.current !== null ? 0 : 1;
+      setRunSeq((seq) => seq + 1);
       packetsRef.current = [];
       routeLingersRef.current = [];
       volumeShareRef.current = null;
@@ -177,11 +230,29 @@ export function usePlaybackController() {
     [publishFromTick, startLoop],
   );
 
+  /** Starts a finite presentation replay; `onComplete` fires after settling, when the verdict should land. */
+  const startTimed = useCallback(
+    (architecture: Architecture, durationMs: number, events: readonly { event: SimulationEvent; atMs: number }[], onComplete: () => void, onEvent?: (event: SimulationEvent) => void) => {
+      const normalizedDurationMs = Math.max(1, durationMs);
+      remainingTimelineMsRef.current = normalizedDurationMs;
+      timelineDurationRef.current = normalizedDurationMs;
+      setTimelineDurationMs(normalizedDurationMs);
+      timelineEventsRef.current = events;
+      timelineEventIndexRef.current = 0;
+      timelineEventHandlerRef.current = onEvent ?? null;
+      timelineCompleteRef.current = onComplete;
+      start(architecture);
+    },
+    [start],
+  );
+
   const pause = useCallback(() => {
     if (phaseRef.current !== "playing") return;
     phaseRef.current = "paused";
     setPhase("paused");
     stopLoop();
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = null;
   }, [stopLoop]);
 
   const resume = useCallback(() => {
@@ -209,6 +280,23 @@ export function usePlaybackController() {
         phaseRef.current = "paused";
         setPhase("paused");
       }
+
+      // A timed run advances by simulator evidence, never by an arbitrary
+      // animation frame. Events sharing a timestamp remain individually
+      // inspectable in their simulator-defined order.
+      if (remainingTimelineMsRef.current !== null) {
+        const next = timelineEventsRef.current[timelineEventIndexRef.current];
+        if (next) {
+          const elapsedTimelineMs = Math.max(
+            timelineDurationRef.current - remainingTimelineMsRef.current,
+            next.atMs,
+          );
+          remainingTimelineMsRef.current = Math.max(0, timelineDurationRef.current - elapsedTimelineMs);
+          timelineRampRef.current = runRamp01(elapsedTimelineMs, timelineDurationRef.current);
+          timelineEventIndexRef.current += 1;
+          timelineEventHandlerRef.current?.(next.event);
+        }
+      }
       tickRef.current += 1;
       publishFromTick();
     },
@@ -217,6 +305,8 @@ export function usePlaybackController() {
 
   const reset = useCallback(() => {
     stopLoop();
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = null;
     architectureRef.current = null;
     simComponentsRef.current = [];
     simConnectionsRef.current = [];
@@ -225,6 +315,13 @@ export function usePlaybackController() {
     volumeShareRef.current = null;
     authoritativeTrafficRef.current = null;
     tickRef.current = 0;
+    remainingTimelineMsRef.current = null;
+    timelineCompleteRef.current = null;
+    timelineEventsRef.current = [];
+    timelineEventIndexRef.current = 0;
+    timelineEventHandlerRef.current = null;
+    timelineRampRef.current = 1;
+    setTimelineDurationMs(0);
     resetTickSimulationState();
     phaseRef.current = "idle";
     setPhase("idle");
@@ -243,10 +340,13 @@ export function usePlaybackController() {
     phase,
     speed,
     frame,
-    playbackRunning: phase !== "idle",
+    timelineDurationMs,
+    runSeq,
+    playbackRunning: phase === "playing" || phase === "paused" || phase === "settling",
     playbackPaused: phase === "paused",
     playbackPlaying: phase === "playing",
     start,
+    startTimed,
     pause,
     resume,
     step,

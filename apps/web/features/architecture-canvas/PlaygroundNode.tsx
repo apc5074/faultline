@@ -12,11 +12,13 @@ import {
   glyphDimensionsForProps,
   glyphPropsFromComponent,
   glyphStateAriaLabel,
+  isFailingGlyphState,
   MINI_GLYPH_SIZE,
   type GlyphSimulationResult,
 } from "@/features/playground-glyphs";
 import {
   glyphStateFromPlayback,
+  MAX_VISIBLE_REJECTED_PER_COMPONENT,
   mechanismPropsFromPlayback,
   playbackGlyphState,
   selectComponentVisualEvidence,
@@ -33,6 +35,10 @@ export type PlaygroundNodeData = {
   resultIsStale: boolean;
   playbackVisual?: ComponentPlaybackVisual;
   playbackActive?: boolean;
+  /** Changes each run start — retriggers the traffic-source starting pulse. */
+  runPulseKey?: string;
+  /** Settled: this node was the first component to fail in the last run. */
+  firstFailing?: boolean;
   attention: boolean;
   connectedPortIds: ReadonlySet<string>;
   interactionPhase: NodeInteractionPhase;
@@ -86,7 +92,13 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
   const evidenceLabel = playbackActive
     ? data.playbackVisual?.evidenceLabel
     : settledEvidence.evidenceLabel;
-  const portFailed = glyphState === "failed";
+  const portFailed = isFailingGlyphState(glyphState);
+  const rejectedCount = playbackActive ? (data.playbackVisual?.rejectedCount ?? 0) : 0;
+  const showRejectionCounter = rejectedCount > MAX_VISIBLE_REJECTED_PER_COMPONENT;
+  const showStartPulse =
+    data.runPulseKey !== undefined &&
+    data.component.type === "traffic-source" &&
+    !data.semanticZoomOut;
 
   return (
     <article
@@ -100,11 +112,18 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
         data.connectDimmed ? "playground-node--connect-dimmed" : "",
         data.regionBelonging ? "playground-node--region-belong" : "",
         data.semanticZoomOut ? "playground-node--semantic-out" : "",
+        data.firstFailing ? "playground-node--culprit" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       style={{ width: dimensions.width }}
-      aria-label={ariaLabel ? `${data.definition.label}, ${ariaLabel}` : data.definition.label}
+      aria-label={[
+        data.definition.label,
+        ariaLabel,
+        data.firstFailing ? "first to fail last run" : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}
     >
       <div
         className="playground-node__glyph-shell"
@@ -120,6 +139,17 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
             mini={data.semanticZoomOut}
           />
         </div>
+        {showStartPulse ? (
+          <div key={data.runPulseKey} className="playground-node__start-pulse" aria-hidden="true" />
+        ) : null}
+        {data.firstFailing ? (
+          <span className="playground-node__culprit-tick" aria-hidden="true" />
+        ) : null}
+        {showRejectionCounter ? (
+          <span className="playground-node__rejection-counter" aria-label={`${rejectedCount} requests rejected`}>
+            ×{rejectedCount}
+          </span>
+        ) : null}
         {data.definition.ports.map((port) => {
           const py = portOffsetY(data.definition, port.id, dimensions.height);
           const isInput = port.direction === "input";

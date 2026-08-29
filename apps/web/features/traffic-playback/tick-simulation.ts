@@ -27,6 +27,14 @@ const componentVisualAccrual = new Map<string, number>();
 const authoritativeSpawnAccrual = new Map<string, number>();
 const authoritativeForwardAccrual = new Map<string, number>();
 const authoritativeSplitAccrual = new Map<string, number>();
+const rejectionCounts = new Map<string, number>();
+
+/**
+ * Volume honesty for rejections: the first few rejected packets render as
+ * individual red × at the port; beyond this cap only the tabular counter
+ * climbs, so a meltdown never becomes red confetti.
+ */
+export const MAX_VISIBLE_REJECTED_PER_COMPONENT = 3;
 
 function stableSlot(packetId: string, capacity: number): number {
   let hash = 0;
@@ -148,6 +156,7 @@ function respondBack(packet: SimPacket): SimPacket {
 }
 
 function rejectAt(packet: SimPacket, compId: string): SimPacket {
+  rejectionCounts.set(compId, (rejectionCounts.get(compId) ?? 0) + 1);
   return { ...packet, shape: "rejected", progress: 1, dwellComponentId: compId, dwellProgress: 0.4 };
 }
 
@@ -213,6 +222,7 @@ export function resetTickSimulationState(): void {
   authoritativeSpawnAccrual.clear();
   authoritativeForwardAccrual.clear();
   authoritativeSplitAccrual.clear();
+  rejectionCounts.clear();
 }
 
 export type TickSimulationOptions = {
@@ -462,6 +472,17 @@ export function tickSimulation(
     return [];
   });
 
+  // Cap visible rejected × per component; the cumulative count carries the rest.
+  const rejectedVisible = new Map<string, number>();
+  const visiblePackets = updatedPackets.filter((packet) => {
+    if (packet.shape !== "rejected") return true;
+    const key = packet.dwellComponentId ?? packet.connectionId;
+    const seen = rejectedVisible.get(key) ?? 0;
+    if (seen >= MAX_VISIBLE_REJECTED_PER_COMPONENT) return false;
+    rejectedVisible.set(key, seen + 1);
+    return true;
+  });
+
   const newPackets: SimPacket[] = [];
 
   if (authoritative) {
@@ -513,7 +534,7 @@ export function tickSimulation(
   };
 
   const updatedConnections = connections.map((connection) => {
-    const count = updatedPackets.filter((packet) => packet.connectionId === connection.id).length;
+    const count = visiblePackets.filter((packet) => packet.connectionId === connection.id).length;
     const fromScale = shareScale(connection.fromComponentId);
     const toScale = shareScale(connection.toComponentId);
     const scale = Math.max(fromScale, toScale);
@@ -521,7 +542,7 @@ export function tickSimulation(
   });
 
   const updatedComponents = components.map((comp) => {
-    const dwellers = updatedPackets.filter(
+    const dwellers = visiblePackets.filter(
       (packet) => packet.dwellComponentId === comp.id && packet.shape !== "rejected",
     );
     const visibleDwellers = dwellers.filter((packet) => packet.componentVisualActive !== false);
@@ -575,13 +596,14 @@ export function tickSimulation(
       processingSlotIndices: comp.type === "cache"
         ? stableSlots(visibleDwellers.map((packet) => packet.id), comp.capacity)
         : undefined,
+      rejectedCount: rejectionCounts.get(comp.id) || undefined,
     };
   });
 
   return {
     components: updatedComponents,
     connections: updatedConnections,
-    packets: [...updatedPackets, ...newPackets],
+    packets: [...visiblePackets, ...newPackets],
     newRouteLingers,
   };
 }
