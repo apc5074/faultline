@@ -302,8 +302,23 @@ main {
 .page-transition__panel {
   position: absolute;
   inset: 0;
+  display: grid;
+  place-items: center;
   background: var(--color-ink);
   transform: translateY(100%);
+}
+
+.page-transition__loader {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid rgb(255 255 255 / 35%);
+  border-top-color: var(--color-paper);
+  border-radius: 50%;
+  animation: page-transition-spin 0.8s linear infinite;
+}
+
+@keyframes page-transition-spin {
+  to { transform: rotate(360deg); }
 }
 
 .page-transition[data-phase="covering"] .page-transition__panel {
@@ -341,6 +356,10 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .page-transition {
     display: none;
+  }
+
+  .page-transition__loader {
+    animation: none;
   }
 }
 
@@ -793,6 +812,16 @@ main {
   gap: 0.1rem;
 }
 
+.account-page__header .account-auth-plate--signed-in {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.account-page__header .account-auth-plate__label {
+  display: none;
+}
+
 .account-auth-plate--link {
   align-items: flex-end;
   max-width: 16rem;
@@ -959,8 +988,6 @@ main {
 }
 
 .account-history__alias,
-.account-history__meta,
-.account-history__submitted,
 .account-history__status {
   color: var(--color-ink-faint);
   font-size: 0.58rem;
@@ -1017,13 +1044,6 @@ main {
   font-weight: 700;
 }
 
-.account-history__verified {
-  color: var(--color-ink);
-}
-
-.account-history__incomplete {
-  color: var(--color-signal-red);
-}
 
 .account-history--cta p,
 .account-history--empty p,

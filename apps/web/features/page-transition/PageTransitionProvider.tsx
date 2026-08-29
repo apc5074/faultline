@@ -115,7 +115,9 @@ export function PageTransitionProvider({ children }: { children: ReactNode }) {
           <div
             className="page-transition__panel"
             onAnimationEnd={handlePanelAnimationEnd}
-          />
+          >
+            <span className="page-transition__loader" />
+          </div>
         </div>
       ) : null}
     </PageTransitionContext.Provider>

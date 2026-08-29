@@ -152,17 +152,8 @@ export function AccountHistoryPanel() {
               <header>
                 <p className="account-history__day">{formatChallengeDay(entry.challengeStartsAt)}</p>
                 <h3>{entry.challengeTitle}</h3>
-                <p className="account-history__meta">
-                  {entry.challengeSlug} · v{entry.challengeVersion}
-                </p>
               </header>
               <dl className="account-history__metrics tabular">
-                <div>
-                  <dt>Status</dt>
-                  <dd className={entry.verified ? "account-history__verified" : "account-history__incomplete"}>
-                    {entry.verified ? "Verified" : "Incomplete"}
-                  </dd>
-                </div>
                 <div>
                   <dt>Solve time</dt>
                   <dd>{entry.solveMs === null ? "—" : formatSolveTime(entry.solveMs)}</dd>
@@ -180,9 +171,6 @@ export function AccountHistoryPanel() {
                   </dd>
                 </div>
               </dl>
-              <p className="account-history__submitted">
-                Submitted {new Date(entry.submittedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC
-              </p>
             </article>
           </li>
         ))}

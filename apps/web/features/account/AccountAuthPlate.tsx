@@ -109,9 +109,6 @@ export function AccountAuthPlate({
       <div className={`account-auth-plate account-auth-plate--signed-in${compact ? " account-auth-plate--compact" : ""}`}>
         <span className="account-auth-plate__label">{state.githubUsername ? "GitHub" : "Signed in"}</span>
         <span className="account-auth-plate__alias">{state.githubUsername ? `@${state.githubUsername}` : state.alias}</span>
-        <Link className="account-auth-plate__secondary account-auth-plate__secondary--link" href="/account">
-          History
-        </Link>
         <button
           type="button"
           className="account-auth-plate__secondary"
