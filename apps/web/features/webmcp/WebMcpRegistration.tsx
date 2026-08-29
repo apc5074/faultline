@@ -2,7 +2,7 @@
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { getWebMcpModelContext, registerAgentWebMcpSurface } from "@faultline/webmcp";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import {
   useAgentContextFactory,
@@ -39,6 +39,14 @@ export function WebMcpRegistration({
     () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onPinObservation }),
     [onFocusComponent, onFocusRegion, onPinObservation, sessionStore],
   );
+  // These callbacks are presentation/workspace concerns and may change as
+  // playback or selection state changes. Registration itself must not restart
+  // for every callback identity change, so retain the latest implementations
+  // behind stable refs.
+  const onVisualIntentRef = useRef(onVisualIntent);
+  const onExperimentResultRef = useRef(onExperimentResult);
+  onVisualIntentRef.current = onVisualIntent;
+  onExperimentResultRef.current = onExperimentResult;
 
   useEffect(() => {
     const modelContext = getWebMcpModelContext();
@@ -63,8 +71,8 @@ export function WebMcpRegistration({
       getContext,
       signal: controller.signal,
       development,
-      onVisualIntent,
-      ...(onExperimentResult ? { onExperimentResult } : {}),
+      onVisualIntent: onVisualIntentRef.current,
+      ...(onExperimentResultRef.current ? { onExperimentResult: onExperimentResultRef.current } : {}),
     }).then((result) => {
       if (!active || timedOut) return;
       window.clearTimeout(timeout);
@@ -87,7 +95,7 @@ export function WebMcpRegistration({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [reconciliationKey, getContext, registry, onStatusChange, onVisualIntent]);
+  }, [reconciliationKey, getContext, registry, onStatusChange]);
 
   return null;
 }

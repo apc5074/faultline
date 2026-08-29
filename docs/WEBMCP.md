@@ -81,7 +81,7 @@ The coaching policy is discoverable through `get_coaching_policy`; agents should
 
 The publisher owns coaching marks only. It does not mutate Architecture or rerun the simulator. Observation and focus commands are routed to the presentation controller from this same publisher boundary; coaching notes remain in the annotation layer and are kept across baseline/experiment runs, while ephemeral focus ticks are cleared when a run starts.
 
-For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and requires the AI feature flag.
+For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and is available in any local development build. The Level 1 embedded AI/WebMCP surface is also visible in development; Preview/Production remain controlled by `NEXT_PUBLIC_FAULTLINE_AI_ENABLED`.
 
 ## Safety boundary
 

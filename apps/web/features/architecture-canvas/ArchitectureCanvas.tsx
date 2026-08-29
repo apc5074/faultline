@@ -49,7 +49,10 @@ import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
-  const aiEnabled = isFaultlineAiEnabled();
+  // Development builds keep the coaching/WebMCP surface visible so local
+  // diagnostics cannot be hidden by a stale or differently-scoped env file.
+  // Preview/Production remain explicitly rollout-gated by the public flag.
+  const aiEnabled = process.env.NODE_ENV === "development" || isFaultlineAiEnabled();
   const [publishedExperiment, setPublishedExperiment] = useState<PublishedExperimentResult | null>(null);
   const [publishedExperimentArchitectureKey, setPublishedExperimentArchitectureKey] = useState<string | null>(null);
   const publishResult = useCallback((result: ExperimentResult) => {
