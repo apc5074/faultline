@@ -9,6 +9,7 @@ import type { PlaybackPhase, PlaybackSpeed } from "@/features/traffic-playback";
 import { AgentHelpChips } from "@/features/agent-session/AgentHelpChips";
 import { ClearAgentMarksButton } from "@/features/agent-session/ClearAgentMarksButton";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
+import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
 type SimulationRunState = "idle" | "running" | "complete" | "error";
@@ -17,11 +18,6 @@ const SPEEDS: PlaybackSpeed[] = [0.5, 1, 2];
 
 function formatRunTime(milliseconds: number): string {
   return `${(Math.max(0, milliseconds) / 1_000).toFixed(1)}s`;
-}
-
-function failedRequirementCount(result: SuccessfulSimulation): number {
-  return result.requirements.filter((requirement) => !requirement.passed).length +
-    (result.hotKey.active && !result.hotKey.passed ? 1 : 0);
 }
 
 function formatCost(amount: number): string {
@@ -51,6 +47,7 @@ function SimBarStatusPlate({
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
+  const verdict = result ? runVerdictSummary(result) : null;
 
   const hasIssues =
     Boolean(unexpectedError) ||
@@ -64,9 +61,9 @@ function SimBarStatusPlate({
     (errors.length > 0 ? `${errors.length} validation error${errors.length === 1 ? "" : "s"}` : null) ??
     (resultIsStale ? "Results stale — run again" : null) ??
     (result && verdictAvailable
-      ? result.allRequirementsPass
+      ? verdict?.allPassed
         ? "✓ All requirements passed"
-        : `✕ ${failedRequirementCount(result)} failing`
+        : `✕ ${verdict?.failed ?? 0} failing`
       : null) ??
     officialSummary;
 
@@ -106,7 +103,7 @@ function SimBarStatusPlate({
             <dl className={`sim-bar__status-result tabular${resultIsStale ? " sim-bar__status-result--stale" : ""}`}>
               <div>
                 <dt>Outcome</dt>
-                <dd>{result.allRequirementsPass ? "Pass" : "Fail"}</dd>
+                <dd>{verdict?.allPassed ? "Pass" : "Fail"}</dd>
               </div>
               <div>
                 <dt>p95</dt>
@@ -217,7 +214,11 @@ export function SimBar({
               <button type="button" className="sim-bar__button sim-bar__button--joined sim-bar__button--run-active" onClick={onRun}>resume</button>
             </>
           ) : transportRetired ? (
-            <button type="button" className="sim-bar__button sim-bar__button--reset-subtle" onClick={onReset}>reset</button>
+            resultIsStale ? (
+              <button type="button" className="sim-bar__button sim-bar__button--run-active" onClick={onRun}>run</button>
+            ) : (
+              <button type="button" className="sim-bar__button sim-bar__button--reset-subtle" onClick={onReset}>reset</button>
+            )
           ) : (
             <>
               <button

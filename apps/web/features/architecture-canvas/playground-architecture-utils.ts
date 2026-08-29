@@ -38,6 +38,39 @@ export function createComponentInstance(
   };
 }
 
+/** User-added components start as the smallest logical, non-regional option. */
+export function createDroppedComponentInstance(
+  definition: ComponentDefinition,
+  position: { x: number; y: number },
+): ComponentInstance {
+  const config = {
+    ...structuredClone(definition.defaultConfig),
+    ...(definition.type === "service"
+      ? { size: "small", instances: 1 }
+      : definition.type === "redis"
+        ? { mode: "standalone", tier: "small", ttlBand: "short" }
+        : definition.type === "cdn"
+          ? { coverage: 0, ttlBand: "short", tier: "small" }
+          : definition.type === "postgres"
+            ? { tier: "small", readReplicaCount: 0 }
+            : definition.type === "worker"
+              ? { size: "standard", instances: 1 }
+              : definition.type === "queue"
+                ? { capacityTier: "small" }
+                : {}),
+  };
+  const parsedConfig = definition.configSchema.safeParse(config);
+  if (!parsedConfig.success) throw new Error(`Default configuration for ${definition.type} is invalid.`);
+
+  return {
+    id: `${definition.type}-${crypto.randomUUID()}`,
+    type: definition.type,
+    config: parsedConfig.data,
+    deployments: [],
+    ui: position,
+  };
+}
+
 export type ConnectionCreateResult =
   | { ok: true; connection: ArchitectureConnection }
   | { ok: false; reason: string };

@@ -31,7 +31,13 @@ function formatElapsed(startedAt: string, nowMs: number): string {
  * Ensures identity + persists/restores the server-authoritative attempt.
  * Client elapsed time is display-only.
  */
-export function StartOfficialAttempt() {
+export function StartOfficialAttempt({
+  variant = "plate",
+  label = "Start Attempt",
+}: {
+  variant?: "plate" | "inline";
+  label?: string;
+}) {
   const { setSession } = useOfficialAttempt();
   const [state, setState] = useState<PanelState>({ status: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -129,8 +135,8 @@ export function StartOfficialAttempt() {
     });
   };
 
-  return (
-    <aside className="official-attempt official-attempt--compact" aria-label="Official attempt">
+  const content = (
+    <>
       {state.status === "active" ? (
         <p className="official-attempt__timer tabular" role="status" aria-label="Official run elapsed time">
           Attempt {formatElapsed(state.startedAt, nowMs)}
@@ -142,7 +148,7 @@ export function StartOfficialAttempt() {
           onClick={startOfficialAttempt}
           disabled={pending || state.status === "misconfigured" || state.status === "loading"}
         >
-          {pending || state.status === "loading" ? "Starting…" : "Start Attempt"}
+          {pending || state.status === "loading" ? "Starting…" : label}
         </button>
       )}
       {state.status === "error" ? (
@@ -155,6 +161,10 @@ export function StartOfficialAttempt() {
           Official attempts are unavailable here. You can keep building and running simulations.
         </p>
       ) : null}
-    </aside>
+    </>
   );
+
+  if (variant === "inline") return <div className="official-attempt--inline">{content}</div>;
+
+  return <aside className="official-attempt official-attempt--compact" aria-label="Official attempt">{content}</aside>;
 }

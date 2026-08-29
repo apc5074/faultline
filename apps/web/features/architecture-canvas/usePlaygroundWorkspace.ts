@@ -11,6 +11,7 @@ import { evaluateRequirements, type SimulationValidationError } from "@faultline
 
 import { clampToPlaygroundBoard } from "@/features/architecture-canvas/canvas-grid";
 import { runDurationMs } from "@/features/architecture-canvas/run-duration";
+import { firstFailureFocus } from "@/features/architecture-canvas/run-failure-focus";
 import { buildRunTimeline, firstFailingComponentId } from "@/features/architecture-canvas/run-timeline";
 import {
   buildEdgePathsFromArchitecture,
@@ -26,6 +27,7 @@ import {
   connectionCreateResult,
   connectionFromFlow,
   createComponentInstance,
+  createDroppedComponentInstance,
   formatCost,
   reconnectAroundComponent,
   resolveInitialArchitecture,
@@ -80,6 +82,7 @@ export function usePlaygroundWorkspace() {
   const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [semanticZoomOut, setSemanticZoomOut] = useState(false);
   const [experimentPresentation, setExperimentPresentation] = useState<ExperimentResult | null>(null);
+  const [requirementsReviewKey, setRequirementsReviewKey] = useState(0);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -93,7 +96,10 @@ export function usePlaygroundWorkspace() {
     [architecture],
   );
   const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
-  const resultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
+  const rawResultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
+  // The prior result stays available after an edit, but stale presentation is
+  // a settled-state concern: never interrupt a live or draining replay.
+  const resultIsStale = rawResultIsStale && runState === "complete" && playback.phase === "settled";
   const showSimulationVisuals = simulationResult !== null && runState === "complete";
   const presentationEvents = experimentPresentation?.events ?? simulationResult?.events;
   const activeConnectionIds = useMemo(() => {
@@ -451,72 +457,25 @@ export function usePlaygroundWorkspace() {
       const type = event.dataTransfer.getData("application/faultline-component-type");
       if (!activeChallenge.allowedComponentTypes.includes(type) || !componentRegistry.has(type)) return;
 
-      const component = createComponentInstance(
+      const component = createDroppedComponentInstance(
         componentRegistry.get(type),
         clampToPlaygroundBoard(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
       );
-      const placed = applyRegionalPlacement(component, component.ui);
       setArchitecture((current) => {
-        if (placed.type !== "service") {
-          return { ...current, components: [...current.components, placed] };
-        }
-
-        // Dropping another Service is a scale-out action. Mirror an existing
-        // routed service pool so the new capacity is immediately part of the
-        // next deterministic Run, while preserving ordinary connection rules.
-        const template = current.components.find(
-          (candidate) =>
-            candidate.type === "service" &&
-            current.connections.some((connection) =>
-              connection.targetComponentId === candidate.id && connection.type === "request",
-            ),
-        );
-        if (!template) return { ...current, components: [...current.components, placed] };
-
-        const scaledService: ComponentInstance = {
-          ...placed,
-          deployments: template.deployments.map((deployment) => ({
-            ...deployment,
-            id: `deployment-${crypto.randomUUID()}`,
-            config: structuredClone(deployment.config),
-          })),
-        };
-        const components = [...current.components, scaledService];
-        const copiedConnections = current.connections.flatMap((connection) => {
-          const copiesInbound =
-            connection.targetComponentId === template.id && connection.type === "request";
-          const copiesDataPath =
-            connection.sourceComponentId === template.id && connection.type === "read_write";
-          if (!copiesInbound && !copiesDataPath) return [];
-          const copy = connectionFromFlow(
-            {
-              source: copiesInbound ? connection.sourceComponentId : scaledService.id,
-              sourceHandle: connection.sourcePortId,
-              target: copiesInbound ? scaledService.id : connection.targetComponentId,
-              targetHandle: connection.targetPortId,
-            },
-            components,
-          );
-          return copy ? [copy] : [];
-        });
-        return {
-          ...current,
-          components,
-          connections: [...current.connections, ...copiedConnections],
-        };
+        return { ...current, components: [...current.components, component] };
       });
-      setSelectedComponentId(placed.id);
+      setSelectedComponentId(component.id);
       setWorldSelection(null);
-      setSettlingNodeIds((current) => new Set(current).add(placed.id));
+      setSettlingNodeIds((current) => new Set(current).add(component.id));
       window.setTimeout(() => {
         setSettlingNodeIds((current) => {
           const next = new Set(current);
-          next.delete(placed.id);
+          next.delete(component.id);
           return next;
         });
       }, PLAYGROUND_SETTLE_MS);
     },
-    [screenToFlowPosition, applyRegionalPlacement],
+    [screenToFlowPosition],
   );
 
   const onConfigChange = useCallback((componentId: string, config: unknown) => {
@@ -943,6 +902,19 @@ export function usePlaygroundWorkspace() {
     [architecture, fitView, viewMode],
   );
 
+  const reviewFirstFailure = useCallback(() => {
+    if (!simulationResult || runState !== "complete") return;
+    const focus = firstFailureFocus(simulationResult);
+    if (focus?.kind === "component") {
+      focusComponentInPresentation(focus.componentId);
+      return;
+    }
+    setSelectedComponentId(null);
+    setSelectedConnectionId(null);
+    setWorldSelection(null);
+    setRequirementsReviewKey((key) => key + 1);
+  }, [focusComponentInPresentation, runState, simulationResult]);
+
   const focusRegionInPresentation = useCallback((regionId: RegionId) => {
     setViewMode("world");
     setSelectedConnectionId(null);
@@ -966,6 +938,7 @@ export function usePlaygroundWorkspace() {
     simulationErrors,
     unexpectedError,
     resultIsStale,
+    requirementsReviewKey,
     showSimulationVisuals,
     officialSubmitting,
     officialSummary,
@@ -980,6 +953,7 @@ export function usePlaygroundWorkspace() {
     interactionNotice,
     playback,
     playbackVisualsActive,
+    culpritComponentId,
     presentExperiment,
     clearExperimentPresentation,
     onNodesChange,
@@ -1001,6 +975,7 @@ export function usePlaygroundWorkspace() {
     onSelectComponent,
     onSelectRegion,
     clearSelection,
+    reviewFirstFailure,
     pinObservation: (observation: PinnedObservation) => setPinnedObservations((current) => [...current.filter((entry) => `${entry.target}:${entry.id}:${entry.metricId}` !== `${observation.target}:${observation.id}:${observation.metricId}`), observation].slice(-6)),
     clearPinnedObservations: () => setPinnedObservations([]),
     focusComponentInPresentation,

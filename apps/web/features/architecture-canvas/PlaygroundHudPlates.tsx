@@ -120,10 +120,13 @@ export function RequirementsHud({
   result,
   runState,
   resultIsStale,
+  reviewKey = 0,
 }: {
   result: SuccessfulSimulation | null;
   runState: SimulationRunState;
   resultIsStale: boolean;
+  /** Increments when a global failure is sent here from the results plate. */
+  reviewKey?: number;
 }) {
   const showResults = result !== null && runState === "complete";
   const overallPass = showResults && result.allRequirementsPass;
@@ -134,7 +137,7 @@ export function RequirementsHud({
 
   return (
     <aside
-      className={`hud-plate hud-plate--requirements${resultIsStale && showResults ? " hud-plate--stale" : ""}${showResults ? " hud-plate--stamp" : ""}`}
+      className={`hud-plate hud-plate--requirements${resultIsStale && showResults ? " hud-plate--stale" : ""}${showResults ? " hud-plate--stamp" : ""}${reviewKey > 0 ? " hud-plate--review-focus" : ""}`}
       aria-label="Baseline simulator requirements"
     >
       <p className="hud-plate__title">Requirements</p>
@@ -148,7 +151,7 @@ export function RequirementsHud({
         </p>
       ) : null}
 
-      <details className="hud-plate__details">
+      <details key={reviewKey} className="hud-plate__details" open={reviewKey > 0}>
         <summary className="hud-plate__details-summary">Challenge workload</summary>
         <p className="hud-plate__meta hud-plate__meta--block tabular">
           {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}

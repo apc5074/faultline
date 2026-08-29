@@ -7,6 +7,8 @@ import {
   RUN_RAMP_FRACTION,
   runRamp01,
 } from "../features/architecture-canvas/run-timeline.ts";
+import { firstFailureFocus } from "../features/architecture-canvas/run-failure-focus.ts";
+import { runVerdictSummary } from "../features/architecture-canvas/run-verdict.ts";
 import {
   MAX_VISIBLE_REJECTED_PER_COMPONENT,
   resetTickSimulationState,
@@ -92,6 +94,44 @@ assert.equal(
   "pg",
   "first saturation is the culprit, not later ones or warnings",
 );
+
+assert.deepEqual(
+  firstFailureFocus({
+    requirements: [{ id: "throughput", type: "throughput", passed: false }],
+    hotKey: { active: false, passed: true, saturatedComponentIds: [] },
+    events: [{ type: "component_saturated", componentId: "pg-1", data: {} }],
+  }),
+  { kind: "component", componentId: "pg-1" },
+  "throughput review targets simulator saturation evidence",
+);
+
+assert.deepEqual(
+  runVerdictSummary({
+    allRequirementsPass: false,
+    requirements: [{ passed: true }, { passed: false }],
+    hotKey: { active: true, passed: false },
+  }),
+  { passed: 1, total: 3, failed: 2, allPassed: false },
+  "all verdict surfaces share the same requirement count",
+);
+assert.deepEqual(
+  firstFailureFocus({
+    requirements: [{ id: "budget", type: "budget", passed: false }],
+    hotKey: { active: false, passed: true, saturatedComponentIds: [] },
+    events: [],
+  }),
+  { kind: "requirements", requirementId: "budget" },
+  "budget review stays on aggregate requirements evidence",
+);
+assert.deepEqual(
+  firstFailureFocus({
+    requirements: [],
+    hotKey: { active: true, passed: false, saturatedComponentIds: ["redis-1"] },
+    events: [],
+  }),
+  { kind: "component", componentId: "redis-1" },
+  "hot-key review targets the simulator-reported saturated component",
+);
 assert.equal(
   firstFailingComponentId([{ type: "component_failed", componentId: "cdn" }]),
   "cdn",
@@ -145,7 +185,42 @@ assert.match(simBar, /disabled=\{transportRetired\}/);
 assert.match(simBar, /✓ All requirements passed/);
 assert.match(simBar, /playbackPhase === "settling"/);
 
+const requirementsHud = readFileSync(new URL("../features/architecture-canvas/PlaygroundHudPlates.tsx", import.meta.url), "utf8");
+assert.match(requirementsHud, /open=\{reviewKey > 0\}/);
+assert.match(requirementsHud, /hud-plate--review-focus/);
+
 assert.match(controller, /A timed run advances by simulator evidence/);
 assert.match(controller, /timelineEventIndexRef\.current \+= 1/);
+
+const resultsPlate = readFileSync(new URL("../features/architecture-canvas/RunResultsPlate.tsx", import.meta.url), "utf8");
+assert.match(resultsPlate, /requirements passed/);
+assert.match(resultsPlate, /Requirement evidence/);
+assert.match(resultsPlate, /Start official attempt/);
+assert.match(resultsPlate, /Review first failure/);
+assert.match(resultsPlate, /Design changed — run again/);
+assert.match(resultsPlate, /run-results-plate__metrics--stale/);
+assert.match(resultsPlate, /onClick=\{onRun\}>Run/);
+assert.match(resultsPlate, /p95/);
+assert.match(resultsPlate, /Headroom/);
+assert.match(resultsPlate, /Cost/);
+assert.doesNotMatch(resultsPlate, /AiEngineerPanel/);
+
+const coachHint = readFileSync(new URL("../features/architecture-canvas/FirstRunCoachHint.tsx", import.meta.url), "utf8");
+assert.match(coachHint, /faultline\.level1\.firstrun\.seen/);
+assert.match(coachHint, /window\.localStorage/);
+assert.match(coachHint, /Watch the run → read the evidence → adjust your design → Run again → Submit official when everything passes\./);
+
+assert.match(css, /first-run-coach-hint-slot/);
+assert.match(css, /min-height: 2\.7rem/);
+
+const verdictChip = readFileSync(new URL("../features/architecture-canvas/RunVerdictChip.tsx", import.meta.url), "utf8");
+assert.match(verdictChip, /requirements passed/);
+assert.match(verdictChip, /run-verdict-chip--stale/);
+assert.match(verdictChip, /run-verdict-chip__failure-dot/);
+assert.match(verdictChip, /onClick=\{onClick\}/);
+
+const workspaceSource = readFileSync(new URL("../features/architecture-canvas/usePlaygroundWorkspace.ts", import.meta.url), "utf8");
+assert.match(workspaceSource, /rawResultIsStale/);
+assert.match(workspaceSource, /runState === "complete" && playback\.phase === "settled"/);
 
 console.log("run feedback verified");

@@ -2,7 +2,7 @@
 
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useState, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import type { ExperimentResult } from "@faultline/core";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
@@ -38,6 +38,9 @@ import {
 } from "@/features/architecture-canvas/PlaygroundHudPlates";
 import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { SimBar } from "@/features/architecture-canvas/SimBar";
+import { RunResultsPlate } from "@/features/architecture-canvas/RunResultsPlate";
+import { RunVerdictChip } from "@/features/architecture-canvas/RunVerdictChip";
+import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
 import { isFaultlineAiEnabled } from "@/lib/ai/feature-flag";
@@ -56,6 +59,18 @@ function ArchitectureWorkspace() {
     });
   }, [workspace.architecture, workspace.playback]);
   const loadAnswerEnabled = isLevel1LoadAnswerEnabled();
+  const [resultsPlateDismissed, setResultsPlateDismissed] = useState(false);
+  const verdictRevealed = workspace.simulationResult !== null && (
+    workspace.playback.phase === "settling" ||
+    (workspace.runState === "complete" && workspace.playback.phase === "settled")
+  );
+  const verdict = useMemo(
+    () => workspace.simulationResult ? runVerdictSummary(workspace.simulationResult) : null,
+    [workspace.simulationResult],
+  );
+  useEffect(() => {
+    setResultsPlateDismissed(false);
+  }, [workspace.playback.runSeq]);
   const [webMcpStatus, setWebMcpStatus] = useState<WebMcpStatus>({
     state: "unsupported",
     readToolCount: 0,
@@ -162,6 +177,13 @@ function ArchitectureWorkspace() {
                   {workspace.resultIsStale ? "Last run · evidence · stale" : "Last run · evidence"}
                 </p>
               ) : null}
+              {verdictRevealed && verdict ? (
+                <RunVerdictChip
+                  verdict={verdict}
+                  stale={workspace.resultIsStale}
+                  onClick={() => setResultsPlateDismissed(false)}
+                />
+              ) : null}
               <BudgetHud
                 architecture={workspace.architecture}
                 traffic={
@@ -188,6 +210,18 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
+            {verdictRevealed && !resultsPlateDismissed && workspace.simulationResult && verdict ? (
+              <RunResultsPlate
+                result={workspace.simulationResult}
+                verdict={verdict}
+                stale={workspace.resultIsStale}
+                officialActive={workspace.officialSession !== null}
+                onSubmitOfficial={workspace.onSubmitOfficial}
+                onReviewFirstFailure={workspace.reviewFirstFailure}
+                onRun={workspace.handleSimBarRun}
+                onDismiss={() => setResultsPlateDismissed(true)}
+              />
+            ) : null}
             <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
             {publishedExperiment ? (
               <ExperimentResultPanel
@@ -228,9 +262,11 @@ function ArchitectureWorkspace() {
             ) : (
               <div className="playground-sidebar-challenge">
                 <RequirementsHud
+                  key={`requirements-review-${workspace.requirementsReviewKey}`}
                   result={workspace.simulationResult}
                   runState={workspace.runState}
                   resultIsStale={workspace.resultIsStale}
+                  reviewKey={workspace.requirementsReviewKey}
                 />
                 <PlayerRankHud />
                 {aiEnabled ? (
