@@ -9,7 +9,13 @@ import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptC
 type PanelState =
   | { status: "loading" }
   | { status: "idle"; alias: string | null }
-  | { status: "active"; alias: string; attemptId: string; startedAt: string; challengeVersion: number }
+  | {
+      status: "active";
+      alias: string;
+      attemptId: string;
+      startedAt: string;
+      challengeVersion: number;
+    }
   | { status: "complete"; streak: number | null }
   | { status: "misconfigured" }
   | { status: "error"; message: string };
@@ -22,9 +28,14 @@ function formatElapsed(startedAt: string, nowMs: number): string {
   const minutes = Math.floor((elapsedSec % 3600) / 60);
   const seconds = elapsedSec % 60;
   if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(
+      seconds
+    ).padStart(2, "0")}`;
   }
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}`;
 }
 
 /**
@@ -39,13 +50,18 @@ export function StartOfficialAttempt({
   variant?: "plate" | "inline";
   label?: string;
 }) {
-  const { completion, setSession } = useOfficialAttempt();
+  const { completion, session, setSession } = useOfficialAttempt();
   const [state, setState] = useState<PanelState>({ status: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
 
   const applyActive = useCallback(
-    (input: { alias: string; attemptId: string; startedAt: string; challengeVersion: number }) => {
+    (input: {
+      alias: string;
+      attemptId: string;
+      startedAt: string;
+      challengeVersion: number;
+    }) => {
       setState({ status: "active", ...input });
       setSession({
         attemptId: input.attemptId,
@@ -54,19 +70,22 @@ export function StartOfficialAttempt({
         startedAt: input.startedAt,
       });
     },
-    [setSession],
+    [setSession]
   );
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch("/api/attempts/current", { method: "GET", cache: "no-store" });
+      const response = await fetch("/api/attempts/current", {
+        method: "GET",
+        cache: "no-store",
+      });
       const body = (await response.json()) as CurrentAttemptResponse;
       if (!body.ok) {
         setSession(null);
         setState(
           body.code === "misconfigured"
             ? { status: "misconfigured" }
-            : { status: "error", message: body.error },
+            : { status: "error", message: body.error }
         );
         return;
       }
@@ -105,6 +124,11 @@ export function StartOfficialAttempt({
   }, [state.status]);
 
   useEffect(() => {
+    if (!session) return;
+    setState({ status: "active", ...session });
+  }, [session]);
+
+  useEffect(() => {
     if (completion) setState({ status: "complete", streak: completion.streak });
   }, [completion]);
 
@@ -121,7 +145,10 @@ export function StartOfficialAttempt({
           if (body.code === "misconfigured") {
             setState({ status: "misconfigured" });
           } else if (body.code === "no_active_challenge") {
-            setState({ status: "error", message: "No active daily challenge." });
+            setState({
+              status: "error",
+              message: "No active daily challenge.",
+            });
           } else {
             setState({ status: "error", message: body.error });
           }
@@ -135,7 +162,10 @@ export function StartOfficialAttempt({
         });
       } catch {
         setSession(null);
-        setState({ status: "error", message: "Could not start official attempt." });
+        setState({
+          status: "error",
+          message: "Could not start official attempt.",
+        });
       }
     });
   };
@@ -143,37 +173,62 @@ export function StartOfficialAttempt({
   const content = (
     <>
       {state.status === "active" ? (
-        <p className="official-attempt__timer tabular" role="status" aria-label="Official run elapsed time">
+        <p
+          className="official-attempt__timer tabular"
+          role="status"
+          aria-label="Official run elapsed time"
+        >
           Attempt {formatElapsed(state.startedAt, nowMs)}
         </p>
       ) : state.status === "complete" ? (
-        <p className="official-attempt__timer official-attempt__timer--complete tabular" role="status">
-          {state.streak === null ? "Level complete" : `${state.streak} day streak · Level complete`}
+        <p
+          className="official-attempt__timer official-attempt__timer--complete tabular"
+          role="status"
+        >
+          {state.streak === null
+            ? "Level complete"
+            : `${state.streak} day streak · Level complete`}
         </p>
       ) : (
         <button
           type="button"
           className="official-attempt__button"
           onClick={startOfficialAttempt}
-          disabled={pending || state.status === "misconfigured" || state.status === "loading"}
+          disabled={
+            pending ||
+            state.status === "misconfigured" ||
+            state.status === "loading"
+          }
         >
           {pending || state.status === "loading" ? "Starting…" : label}
         </button>
       )}
       {state.status === "error" ? (
-        <p className="official-attempt__status official-attempt__status--error" role="status">
+        <p
+          className="official-attempt__status official-attempt__status--error"
+          role="status"
+        >
           {state.message}
         </p>
       ) : null}
       {state.status === "misconfigured" ? (
         <p className="official-attempt__status" role="status">
-          Official attempts are unavailable here. You can keep building and running simulations.
+          You've already submitted for today. You can keep building, simulating,
+          and using agents.
         </p>
       ) : null}
     </>
   );
 
-  if (variant === "inline") return <div className="official-attempt--inline">{content}</div>;
+  if (variant === "inline")
+    return <div className="official-attempt--inline">{content}</div>;
 
-  return <aside className="official-attempt official-attempt--compact" aria-label="Official attempt">{content}</aside>;
+  return (
+    <aside
+      className="official-attempt official-attempt--compact"
+      aria-label="Official attempt"
+    >
+      {content}
+    </aside>
+  );
 }

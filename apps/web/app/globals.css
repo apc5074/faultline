@@ -3035,6 +3035,10 @@ h1 {
 }
 
 .hud-plate__details-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.45rem 0;
   color: var(--color-ink-faint);
   font-size: 0.55rem;
@@ -3043,6 +3047,17 @@ h1 {
   text-transform: uppercase;
   cursor: pointer;
   list-style: none;
+}
+
+.hud-plate__details-chevron {
+  color: var(--color-ink-faint);
+  font-size: 0.8rem;
+  line-height: 0.7;
+  transition: transform 140ms ease;
+}
+
+.hud-plate__details[open] .hud-plate__details-chevron {
+  transform: rotate(180deg);
 }
 
 .hud-plate__details-summary::-webkit-details-marker {

@@ -171,9 +171,14 @@ function RequirementRow({
 type LevelBriefingProps = {
   open: boolean;
   onClose: () => void;
+  onStartDesigning?: () => void;
 };
 
-export function LevelBriefing({ open, onClose }: LevelBriefingProps) {
+export function LevelBriefing({
+  open,
+  onClose,
+  onStartDesigning,
+}: LevelBriefingProps) {
   const titleId = useId();
   const primaryButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -290,7 +295,10 @@ export function LevelBriefing({ open, onClose }: LevelBriefingProps) {
             ref={primaryButtonRef}
             className="level-briefing__start"
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              onStartDesigning?.();
+              onClose();
+            }}
           >
             Start designing <span aria-hidden="true">→</span>
           </button>

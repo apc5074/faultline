@@ -35,9 +35,8 @@ function DiagonalHatch({ x, y, w, h }: { x: number; y: number; w: number; h: num
   );
 }
 
-function CornerTicks({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+function CornerTicks({ x, y, w, h, gap = 2 }: { x: number; y: number; w: number; h: number; gap?: number }) {
   const len = 6;
-  const gap = 2;
   return (
     <g stroke={GLYPH_INK.ink} strokeWidth={1}>
       <line x1={x - gap} y1={y} x2={x - gap - len} y2={y} />
@@ -124,7 +123,7 @@ function ServerGlyph({
             </g>
           );
         })}
-      {state === "selected" && <CornerTicks x={tx} y={4} w={tw} h={h} />}
+      {state === "selected" && <CornerTicks x={tx} y={4} w={tw} h={h} gap={5} />}
     </g>
   );
 }

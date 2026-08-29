@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 
 import { architectureAvailabilityFingerprint, type PinnedObservation } from "@faultline/agent-capabilities";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
+import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
 import { componentRegistry } from "@faultline/component-catalog";
 import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type ExperimentResult, type RegionDeployment, type RegionId } from "@faultline/core";
 import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
@@ -59,7 +60,12 @@ import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptContext";
 
 export function usePlaygroundWorkspace() {
-  const { session: officialSession, setCompletion, bumpRankRefresh } = useOfficialAttempt();
+  const {
+    session: officialSession,
+    setSession,
+    setCompletion,
+    bumpRankRefresh,
+  } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(resolveInitialArchitecture);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -778,6 +784,29 @@ export function usePlaygroundWorkspace() {
     setArchitecture(buildLevel1HeroScene());
   }, [playback]);
 
+  const startOfficialAttemptFromBriefing = useCallback(() => {
+    if (officialSession) return;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/attempts/start", {
+          method: "POST",
+          cache: "no-store",
+        });
+        const body = (await response.json()) as StartAttemptResponse;
+        if (!body.ok) return;
+        setSession({
+          attemptId: body.attemptId,
+          challengeVersion: body.challengeVersion,
+          alias: body.alias,
+          startedAt: body.startedAt,
+        });
+      } catch {
+        // The visible Start Attempt control remains available as a retry.
+      }
+    })();
+  }, [officialSession, setSession]);
+
   const onSubmitOfficial = useCallback(() => {
     if (!officialSession) return;
     const runKey = architectureSimulationKey(architecture);
@@ -852,6 +881,9 @@ export function usePlaygroundWorkspace() {
           : "";
         setOfficialSummary(`Server verified · ${rank}${best}`);
         if (body.eligible) {
+          // Stop the solve timer at server verification, before the optional
+          // account streak lookup completes.
+          setCompletion({ streak: null });
           let streak: number | null = null;
           try {
             const streakResponse = await fetch("/api/account/streak", { method: "GET", cache: "no-store" });
@@ -982,6 +1014,7 @@ export function usePlaygroundWorkspace() {
     handleSimBarReset,
     handleViewModeChange,
     loadHeroScene,
+    startOfficialAttemptFromBriefing,
     onSubmitOfficial,
     onSelectComponent,
     onSelectRegion,

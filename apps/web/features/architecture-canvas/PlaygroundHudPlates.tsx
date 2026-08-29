@@ -63,7 +63,12 @@ export function BudgetHud({
         </p>
       ) : null}
       <details className="hud-plate__details">
-        <summary className="hud-plate__details-summary">Cost breakdown</summary>
+        <summary className="hud-plate__details-summary">
+          <span>Cost breakdown</span>
+          <span className="hud-plate__details-chevron" aria-hidden="true">
+           ⌄
+          </span>
+        </summary>
         {breakdown.length > 0 ? (
           <ul className="hud-plate__list hud-plate__cost-list">
             {breakdown.map((lineItem) => (

@@ -105,6 +105,7 @@ function ArchitectureWorkspace() {
       <LevelBriefing
         open={briefing.open}
         onClose={briefing.closeBriefing}
+        onStartDesigning={workspace.startOfficialAttemptFromBriefing}
       />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
