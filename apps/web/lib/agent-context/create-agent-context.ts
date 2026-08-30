@@ -13,7 +13,8 @@ import {
 import { compactLevelTeachingForAgent } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
-import { evaluateRequirements, type RequirementsEvaluationResult } from "@faultline/simulator";
+import { evaluateRequirements, SIMULATOR_VERSION, type RequirementsEvaluationResult } from "@faultline/simulator";
+import { architectureAvailabilityFingerprint } from "@faultline/agent-capabilities";
 
 function numericMetrics(value: object): Record<string, number> {
   const metrics: Record<string, number> = {};
@@ -112,12 +113,21 @@ function simulationEvidence(
 export function createAgentContext(architecture: Architecture, challenge: ChallengeDefinition): AgentContext {
   const result = evaluateRequirements({ architecture, challenge, registry: componentRegistry });
   const levelTeaching = compactLevelTeachingForAgent(challenge.slug);
+  const architectureRevision = architectureAvailabilityFingerprint(architecture);
+  const generatedAt = new Date().toISOString();
   return {
     challenge,
     architecture,
     simulation: simulationEvidence(result, challenge),
     ...(result.valid ? { cost: result.cost } : {}),
     user: { authenticated: false },
+    evidenceMeta: {
+      architectureRevision,
+      simulationRunId: `live-${SIMULATOR_VERSION}-${architectureRevision}`,
+      simulatorVersion: SIMULATOR_VERSION,
+      isStale: false,
+      generatedAt,
+    },
     ...(levelTeaching ? { levelTeaching } : {}),
   };
 }

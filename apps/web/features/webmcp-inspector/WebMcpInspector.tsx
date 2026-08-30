@@ -177,6 +177,7 @@ function WebMcpInspectorWorkspace({
   const selectedEntry = snapshot?.entries.find((entry) => entry.name === selectedToolName);
   const readEntries = snapshot?.entries.filter((entry) => entry.mode === "read") ?? [];
   const visualEntries = snapshot?.entries.filter((entry) => entry.mode === "visual") ?? [];
+  const experimentEntries = snapshot?.entries.filter((entry) => entry.mode === "experiment") ?? [];
   const renderToolList = (entries: readonly Phase6InspectorSnapshot["entries"][number][]) => (
     <div className="webmcp-inspector__tool-list">
       {entries.map((entry) => (
@@ -282,8 +283,7 @@ function WebMcpInspectorWorkspace({
               type="button"
               disabled={chip.requiresSelection && session.focus.kind !== "component"}
               onClick={() => {
-                const componentId = session.focus.kind === "component" ? session.focus.componentId : null;
-                sessionStore.setPendingHelp(buildPendingHelpRequest(chip, componentId));
+                sessionStore.setPendingHelp(buildPendingHelpRequest(chip, session.focus, session.revision));
               }}
             >
               {chip.label}
@@ -307,6 +307,11 @@ function WebMcpInspectorWorkspace({
           <section className="webmcp-inspector__panel" aria-label="Visual tools">
             <h2>Visual tools ({visualEntries.length})</h2>
             {renderToolList(visualEntries)}
+          </section>
+
+          <section className="webmcp-inspector__panel" aria-label="Simulated experiment tools">
+            <h2>Simulated experiment tools ({experimentEntries.length})</h2>
+            {renderToolList(experimentEntries)}
           </section>
 
           {selectedEntry ? (

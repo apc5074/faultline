@@ -1,7 +1,7 @@
 import type { ComponentInstance, CostResult, JsonObject } from "@faultline/core";
 
 import type { AgentCapability } from "../capability.js";
-import type { AgentContext, AgentSimulationEvidence } from "../context.js";
+import type { AgentContext, AgentSimulationEvidence, EvidenceMeta } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { inspectComponentInputSchema, type InspectComponentInput } from "../schemas.js";
 import type { AgentWorkloadFitEvidence } from "../workload-fit-evidence.js";
@@ -15,6 +15,7 @@ export interface InspectComponentOutput {
   readonly monthlyCost?: number;
   /** Role / mechanism / ceiling / effective / pressures when simulator evidence includes them. */
   readonly workloadFit?: AgentWorkloadFitEvidence;
+  readonly evidence?: EvidenceMeta;
 }
 
 function monthlyCostForComponent(cost: CostResult | undefined, componentId: string): number | undefined {
@@ -40,6 +41,7 @@ function buildOutput(component: ComponentInstance, context: AgentContext): Inspe
     ...(evidence?.metrics ? { metrics: evidence.metrics } : {}),
     ...(monthlyCost !== undefined ? { monthlyCost } : {}),
     ...(evidence?.workloadFit ? { workloadFit: evidence.workloadFit } : {}),
+    ...(context.evidenceMeta ? { evidence: context.evidenceMeta } : {}),
   };
 }
 

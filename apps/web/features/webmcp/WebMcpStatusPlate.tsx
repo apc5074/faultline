@@ -1,9 +1,12 @@
-export type WebMcpSurfaceStatus = "unsupported" | "registering" | "ready" | "partial";
+export type WebMcpSurfaceStatus = "unsupported" | "registering" | "ready" | "partial" | "failed";
 
 export interface WebMcpStatus {
   readonly state: WebMcpSurfaceStatus;
   readonly readToolCount: number;
   readonly visualToolCount: number;
+  readonly experimentToolCount: number;
+  readonly failedToolCount: number;
+  readonly generation?: number;
 }
 
 const STATUS_LABEL: Record<WebMcpSurfaceStatus, string> = {
@@ -11,6 +14,7 @@ const STATUS_LABEL: Record<WebMcpSurfaceStatus, string> = {
   registering: "Registering tools",
   ready: "Agent ready",
   partial: "Partial registration",
+  failed: "Registration failed",
 };
 
 const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
@@ -18,6 +22,7 @@ const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
   registering: "Setting up optional agent tools…",
   ready: "Connect your agent via WebMCP",
   partial: "Some agent tools unavailable — gameplay unaffected",
+  failed: "Agent tools unavailable — gameplay unaffected",
 };
 
 const STARTER_PROMPTS = [
@@ -32,10 +37,13 @@ export function WebMcpStatusPlate({ status }: { status: WebMcpStatus }) {
       <span className="webmcp-status-plate__state">WebMCP · {STATUS_LABEL[status.state]}</span>
       {status.state !== "unsupported" ? (
         <span className="webmcp-status-plate__tools">
-          {status.readToolCount} read · {status.visualToolCount} visual
+          {status.readToolCount} read · {status.visualToolCount} visual · {status.experimentToolCount} simulated
         </span>
       ) : null}
       <span className="webmcp-status-plate__prompt">{STATUS_PROMPT[status.state]}</span>
+      {status.failedToolCount > 0 ? (
+        <span className="webmcp-status-plate__prompt">{status.failedToolCount} tool{status.failedToolCount === 1 ? "" : "s"} failed to register</span>
+      ) : null}
       <a className="webmcp-status-plate__link" href="https://webmcp.dev" target="_blank" rel="noreferrer">
         Docs
       </a>

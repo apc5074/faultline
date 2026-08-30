@@ -20,7 +20,11 @@ export interface RegisterAgentWebMcpSurfaceOptions {
 }
 
 export interface RegisterAgentWebMcpSurfaceResult {
+  /** Names selected by the shared registry before browser registration. */
+  readonly resolvedToolNames: readonly string[];
   readonly registeredToolNames: readonly string[];
+  /** Browser rejected these names; never expose exception text to the player. */
+  readonly failedToolNames: readonly string[];
   readonly readToolNames: readonly string[];
   readonly visualToolNames: readonly string[];
   readonly experimentToolNames: readonly string[];
@@ -36,7 +40,10 @@ export async function registerAgentWebMcpSurface(
 ): Promise<RegisterAgentWebMcpSurfaceResult> {
   const { modelContext, registry, getContext, signal, development = false, onVisualIntent, onExperimentResult } = options;
   if (signal.aborted) {
-    return { registeredToolNames: [], readToolNames: [], visualToolNames: [], experimentToolNames: [] };
+    return {
+      resolvedToolNames: [], registeredToolNames: [], failedToolNames: [],
+      readToolNames: [], visualToolNames: [], experimentToolNames: [],
+    };
   }
 
   const [read, visual, experiment] = await Promise.all([
@@ -53,7 +60,9 @@ export async function registerAgentWebMcpSurface(
   ]);
 
   return {
+    resolvedToolNames: [...read.resolvedToolNames, ...visual.resolvedToolNames, ...experiment.resolvedToolNames],
     registeredToolNames: [...read.registeredToolNames, ...visual.registeredToolNames, ...experiment.registeredToolNames],
+    failedToolNames: [...read.failedToolNames, ...visual.failedToolNames, ...experiment.failedToolNames],
     readToolNames: read.registeredToolNames,
     visualToolNames: visual.registeredToolNames,
     experimentToolNames: experiment.registeredToolNames,

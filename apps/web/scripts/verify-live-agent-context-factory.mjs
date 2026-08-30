@@ -32,6 +32,10 @@ const first = factory();
 assert.equal(first.context.challenge.slug, urlShortenerChallenge.slug);
 assert.equal(first.context.architecture.components[0]?.config.instances, 4);
 assert.deepEqual(first.session, createEmptyAgentSessionState());
+assert.ok(first.context.evidenceMeta?.architectureRevision);
+assert.ok(first.context.evidenceMeta?.simulationRunId.startsWith("live-"));
+assert.equal(first.context.evidenceMeta?.isStale, false);
+assert.ok(first.context.evidenceMeta?.generatedAt);
 
 currentArchitecture = {
   ...currentArchitecture,
@@ -63,6 +67,11 @@ assert.equal(invalidContext.simulation?.available, false);
 assert.equal(invalidContext.cost, undefined);
 
 const serverContext = createAgentContext(currentArchitecture, urlShortenerChallenge);
-assert.deepEqual(factory().context, serverContext);
+const liveContext = factory().context;
+assert.deepEqual(liveContext.architecture, serverContext.architecture);
+assert.deepEqual(liveContext.simulation, serverContext.simulation);
+assert.equal(liveContext.evidenceMeta?.architectureRevision, serverContext.evidenceMeta?.architectureRevision);
+assert.equal(liveContext.evidenceMeta?.simulationRunId, serverContext.evidenceMeta?.simulationRunId);
+assert.equal(liveContext.evidenceMeta?.simulatorVersion, serverContext.evidenceMeta?.simulatorVersion);
 
 console.log("verify-live-agent-context-factory: ok");

@@ -15,7 +15,9 @@ export interface RegisterVisualWebMcpSurfaceOptions {
 }
 
 export interface RegisterVisualWebMcpSurfaceResult {
+  readonly resolvedToolNames: readonly string[];
   readonly registeredToolNames: readonly string[];
+  readonly failedToolNames: readonly string[];
 }
 
 /** Build and register the visual coaching surface. */
@@ -23,7 +25,7 @@ export async function registerVisualWebMcpSurface(
   options: RegisterVisualWebMcpSurfaceOptions,
 ): Promise<RegisterVisualWebMcpSurfaceResult> {
   const { modelContext, registry, getContext, signal, development = false, onVisualIntent } = options;
-  if (signal.aborted) return { registeredToolNames: [] };
+  if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
   const surface = await buildVisualWebMcpSurface({
     registry,
@@ -31,9 +33,10 @@ export async function registerVisualWebMcpSurface(
     development,
     ...(onVisualIntent ? { onVisualIntent } : {}),
   });
-  if (signal.aborted) return { registeredToolNames: [] };
+  if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
   const registeredToolNames: string[] = [];
+  const failedToolNames: string[] = [];
   await Promise.all(
     surface.tools.map(async (tool) => {
       if (signal.aborted) return;
@@ -43,9 +46,10 @@ export async function registerVisualWebMcpSurface(
         if (!signal.aborted) registeredToolNames.push(tool.name);
       } catch {
         // Optional WebMCP registration failures must not affect gameplay.
+        if (!signal.aborted) failedToolNames.push(tool.name);
       }
     }),
   );
 
-  return { registeredToolNames };
+  return { resolvedToolNames: surface.resolvedNames, registeredToolNames, failedToolNames };
 }

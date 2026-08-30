@@ -3,6 +3,15 @@ import type { Architecture, ChallengeDefinition, CostResult } from "@faultline/c
 import type { AgentRegionalEvidence } from "./regional-evidence.js";
 import type { AgentWorkloadFitEvidence } from "./workload-fit-evidence.js";
 
+/** Provenance attached to simulator-grounded reads across every adapter. */
+export interface EvidenceMeta {
+  readonly architectureRevision: string;
+  readonly simulationRunId: string;
+  readonly simulatorVersion: string;
+  readonly isStale: boolean;
+  readonly generatedAt: string;
+}
+
 /**
  * One capacity resource projected from shared simulator output.
  * Capabilities must not recompute instance×tier formulas — only present these facts.
@@ -115,9 +124,22 @@ export interface AgentContext {
   readonly user?: {
     readonly authenticated: boolean;
   };
+  /** Present when the context was built from trusted simulator evidence. */
+  readonly evidenceMeta?: EvidenceMeta;
   /**
    * Optional Level Profile teaching slice (LP-06).
    * Compact narrative + placement intents only — never playtest checklists or pros/cons walls.
    */
   readonly levelTeaching?: AgentLevelTeaching;
+}
+
+/** Safe fallback for synthetic/dev contexts that predate evidence metadata. */
+export function evidenceMetaFor(context: AgentContext): EvidenceMeta {
+  return context.evidenceMeta ?? {
+    architectureRevision: "unversioned",
+    simulationRunId: "unversioned",
+    simulatorVersion: "unknown",
+    isStale: context.simulation?.available !== true,
+    generatedAt: "unknown",
+  };
 }

@@ -18,6 +18,9 @@ export interface GetSessionFocusOutput {
   readonly pendingHelpRequest: AgentPendingHelpRequest | null;
   readonly selectedComponentId?: string;
   readonly revision: number;
+  readonly focusRevision: number;
+  /** Whether the original focus target still belongs to the current architecture. */
+  readonly focusValidForCurrentArchitecture: boolean;
 }
 
 export function buildGetSessionFocusOutput(
@@ -29,12 +32,15 @@ export function buildGetSessionFocusOutput(
     session.pendingHelpRequest,
     context.architecture,
   );
+  const focusValidForCurrentArchitecture = JSON.stringify(focus) === JSON.stringify(session.focus);
 
   return {
     focus,
     pendingHelpRequest,
     ...(focus.kind === "component" ? { selectedComponentId: focus.componentId } : {}),
     revision: session.revision,
+    focusRevision: session.revision,
+    focusValidForCurrentArchitecture,
   };
 }
 

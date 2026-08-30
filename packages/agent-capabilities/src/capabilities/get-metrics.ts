@@ -4,6 +4,7 @@ import type {
   AgentContext,
   AgentScenarioEvidence,
   AgentSystemMetrics,
+  EvidenceMeta,
 } from "../context.js";
 import { capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
@@ -33,11 +34,13 @@ export type GetMetricsOutput =
   | {
       readonly simulationAvailable: false;
       readonly validationErrors: readonly string[];
+      readonly evidence?: EvidenceMeta;
     }
   | {
       readonly system: GetMetricsSystem;
       readonly components: readonly GetMetricsComponent[];
       readonly scenarios: GetMetricsScenarios;
+      readonly evidence?: EvidenceMeta;
     };
 
 function compactSystem(system: AgentSystemMetrics | undefined): GetMetricsSystem {
@@ -77,10 +80,11 @@ function compactScenarios(scenarios: AgentScenarioEvidence | undefined): GetMetr
   };
 }
 
-function unavailable(validationErrors: readonly string[]): GetMetricsOutput {
+function unavailable(validationErrors: readonly string[], evidence: EvidenceMeta | undefined): GetMetricsOutput {
   return {
     simulationAvailable: false,
     validationErrors,
+    ...(evidence ? { evidence } : {}),
   };
 }
 
@@ -89,12 +93,13 @@ function unavailable(validationErrors: readonly string[]): GetMetricsOutput {
  * Reads AgentContext evidence only — does not re-run or re-derive simulator formulas.
  */
 export function buildGetMetricsOutput(context: AgentContext): GetMetricsOutput {
+  const evidence = context.evidenceMeta;
   const simulation = context.simulation;
   if (!simulation) {
-    return unavailable(["Simulation evidence is not available."]);
+    return unavailable(["Simulation evidence is not available."], evidence);
   }
   if (simulation.available !== true) {
-    return unavailable(simulation.validationErrors ?? ["Architecture could not be simulated."]);
+    return unavailable(simulation.validationErrors ?? ["Architecture could not be simulated."], evidence);
   }
 
   const components = Object.keys(simulation.components)
@@ -105,6 +110,7 @@ export function buildGetMetricsOutput(context: AgentContext): GetMetricsOutput {
     system: compactSystem(simulation.system),
     components,
     scenarios: compactScenarios(simulation.scenarios),
+    ...(evidence ? { evidence } : {}),
   };
 }
 

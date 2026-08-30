@@ -33,6 +33,8 @@ export {
   buildGetCoachingPolicyOutput,
 } from "./get-coaching-policy.js";
 export type { GetCoachingPolicyOutput } from "./get-coaching-policy.js";
+export type { CoachingReviewerContract, EvidenceCategory, ToolRecipe, VisualBudget } from "../coaching-policy.js";
+export { REVIEWER_CONTRACT } from "../coaching-policy.js";
 
 export { getChallengeCapability, buildGetChallengeOutput } from "./get-challenge.js";
 export type { ChallengeSpecialScenario, GetChallengeOutput } from "./get-challenge.js";

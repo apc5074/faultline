@@ -46,6 +46,16 @@ function createVisualAnnotationId(
   return `${kind}-${anchorId}-${session.revision}-${session.annotations.length}`;
 }
 
+function visualMetadata(context: AgentContext, session: AgentSessionState, intentId: string) {
+  return {
+    source: "external-agent" as const,
+    architectureRevision: context.evidenceMeta?.architectureRevision ?? "unversioned",
+    focusRevision: session.revision,
+    createdAt: new Date().toISOString(),
+    intentId,
+  };
+}
+
 function validationFailure(result: AnnotationValidationResult): CapabilityResult<never> {
   if (result.ok) {
     throw new Error("Expected annotation validation to fail.");
@@ -71,6 +81,7 @@ export function focusComponent(
     id: createVisualAnnotationId("focus", input.componentId, session),
     type: "focus",
     componentId: input.componentId,
+    ...visualMetadata(context, session, createVisualAnnotationId("focus", input.componentId, session)),
   };
   const validated = validateAnnotationAgainstArchitecture(annotation, context.architecture);
   if (!validated.ok) return validationFailure(validated);
@@ -106,6 +117,7 @@ export function annotateComponent(
     componentId: input.componentId,
     text: input.text.trim(),
     ...(input.tone ? { tone: input.tone } : {}),
+    ...visualMetadata(context, session, createVisualAnnotationId("note", input.componentId, session)),
   };
   const validated = validateAnnotationAgainstArchitecture(annotation, context.architecture);
   if (!validated.ok) return validationFailure(validated);
@@ -123,6 +135,7 @@ export function highlightConnection(
     type: "path",
     connectionId: input.connectionId,
     ...(input.label !== undefined ? { label: input.label.trim() } : {}),
+    ...visualMetadata(context, session, createVisualAnnotationId("path", input.connectionId, session)),
   };
   const validated = validateAnnotationAgainstArchitecture(annotation, context.architecture);
   if (!validated.ok) return validationFailure(validated);
@@ -173,8 +186,26 @@ export function appendValidatedAnnotations(
     (annotation) => validateAnnotationAgainstArchitecture(annotation, architecture).ok,
   );
   if (accepted.length === 0) return state;
-
-  const merged = [...state.annotations, ...accepted].slice(-AGENT_ANNOTATION_MAX_COUNT);
+  const annotationKey = (annotation: AgentFocusAnnotation | AgentNoteAnnotation | AgentPathAnnotation) => {
+    switch (annotation.type) {
+      case "focus": return `focus:${annotation.componentId}`;
+      case "note": return `note:${annotation.componentId}:${annotation.text}:${annotation.tone ?? "neutral"}`;
+      case "path": return `path:${annotation.connectionId}:${annotation.label ?? ""}`;
+    }
+  };
+  const existingKeys = new Set(
+    state.annotations
+      .filter((annotation): annotation is AgentFocusAnnotation | AgentNoteAnnotation | AgentPathAnnotation => annotation.type !== "stamp")
+      .map(annotationKey),
+  );
+  const distinct = accepted.filter((annotation) => {
+    const key = annotationKey(annotation);
+    if (existingKeys.has(key)) return false;
+    existingKeys.add(key);
+    return true;
+  });
+  if (distinct.length === 0) return state;
+  const merged = [...state.annotations, ...distinct].slice(-AGENT_ANNOTATION_MAX_COUNT);
   return {
     ...state,
     annotations: merged,

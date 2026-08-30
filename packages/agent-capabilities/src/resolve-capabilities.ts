@@ -88,3 +88,22 @@ export function resolveCapabilities(
 
   return resolveOrderedNames(registry, context, orderedNames, options);
 }
+
+/**
+ * Stable registration input derived from every registry predicate, schema, and
+ * mode. UI adapters may recompute this after a canonical architecture edit;
+ * ordinary focus and simulator-result renders leave it unchanged.
+ */
+export function capabilitySurfaceFingerprint(
+  registry: AgentCapabilityRegistry,
+  context: AgentContext,
+): string {
+  return JSON.stringify(
+    registry.list().map((capability) => ({
+      name: capability.name,
+      mode: capability.mode,
+      inputSchema: capability.inputSchema.jsonSchema,
+      available: capability.availableWhen(context),
+    })),
+  );
+}

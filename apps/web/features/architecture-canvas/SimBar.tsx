@@ -148,7 +148,7 @@ export type SimBarProps = {
   onSpeedChange: (speed: PlaybackSpeed) => void;
   onViewModeChange: (mode: "logical" | "world") => void;
   onSubmitOfficial: () => void;
-  selectedComponentId: string | null;
+  webMcpReady: boolean;
 };
 
 export function SimBar({
@@ -175,7 +175,7 @@ export function SimBar({
   onSpeedChange,
   onViewModeChange,
   onSubmitOfficial,
-  selectedComponentId,
+  webMcpReady,
 }: SimBarProps) {
   const simBusy = (runState === "running" && !playbackRunning) || officialSubmitting;
   const livePlayback = playbackPhase === "playing" && runState === "running";
@@ -278,7 +278,7 @@ export function SimBar({
       </div>
 
       <div className="sim-bar__cluster sim-bar__cluster--end">
-        <AgentHelpChips selectedComponentId={selectedComponentId} />
+        <AgentHelpChips webMcpReady={webMcpReady} />
         <ClearAgentMarksButton />
 
         <SimBarStatusPlate

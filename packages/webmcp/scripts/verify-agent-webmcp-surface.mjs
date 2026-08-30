@@ -48,6 +48,8 @@ const result = await registerAgentWebMcpSurface({
 assert.deepEqual(result.readToolNames, [...BASELINE_READ_CAPABILITY_NAMES]);
 assert.deepEqual(result.visualToolNames, [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => name !== "focus_region"));
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
+assert.deepEqual(result.resolvedToolNames, result.registeredToolNames);
+assert.deepEqual(result.failedToolNames, []);
 assert.equal(registered.length, 14);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
@@ -63,6 +65,9 @@ const aborted = await registerAgentWebMcpSurface({
   getContext: () => context,
   signal: controller.signal,
 });
-assert.deepEqual(aborted, { registeredToolNames: [], readToolNames: [], visualToolNames: [], experimentToolNames: [] });
+assert.deepEqual(aborted, {
+  resolvedToolNames: [], registeredToolNames: [], failedToolNames: [],
+  readToolNames: [], visualToolNames: [], experimentToolNames: [],
+});
 
 console.log("verify-agent-webmcp-surface: ok");

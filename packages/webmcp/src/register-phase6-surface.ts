@@ -13,7 +13,9 @@ export interface RegisterPhase6ReadSurfaceOptions {
 }
 
 export interface RegisterPhase6ReadSurfaceResult {
+  readonly resolvedToolNames: readonly string[];
   readonly registeredToolNames: readonly string[];
+  readonly failedToolNames: readonly string[];
 }
 
 /**
@@ -24,12 +26,13 @@ export async function registerReadWebMcpSurface(
   options: RegisterPhase6ReadSurfaceOptions,
 ): Promise<RegisterPhase6ReadSurfaceResult> {
   const { modelContext, registry, getContext, signal, development = false } = options;
-  if (signal.aborted) return { registeredToolNames: [] };
+  if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
   const surface = await buildAgentReadSurface({ registry, getContext, development });
-  if (signal.aborted) return { registeredToolNames: [] };
+  if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
   const registeredToolNames: string[] = [];
+  const failedToolNames: string[] = [];
   await Promise.all(
     surface.tools.map(async (tool) => {
       if (signal.aborted) return;
@@ -39,11 +42,12 @@ export async function registerReadWebMcpSurface(
         if (!signal.aborted) registeredToolNames.push(tool.name);
       } catch {
         // Optional WebMCP registration failures must not affect gameplay.
+        if (!signal.aborted) failedToolNames.push(tool.name);
       }
     }),
   );
 
-  return { registeredToolNames };
+  return { resolvedToolNames: surface.resolvedNames, registeredToolNames, failedToolNames };
 }
 
 /** @deprecated Use registerReadWebMcpSurface. */

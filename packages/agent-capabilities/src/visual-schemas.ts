@@ -1,4 +1,4 @@
-import type { AgentAnnotationTone } from "./session.js";
+import { AGENT_PATH_LABEL_MAX_TEXT_LENGTH, type AgentAnnotationTone } from "./session.js";
 import type { CapabilityInputSchema } from "./capability.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -155,8 +155,8 @@ export const highlightConnectionInputSchema: CapabilityInputSchema<HighlightConn
     if (typeof input.connectionId !== "string" || input.connectionId.trim().length === 0) {
       return { success: false as const, errors: ["connectionId must be a non-empty string."] };
     }
-    if (input.label !== undefined && typeof input.label !== "string") {
-      return { success: false as const, errors: ["label must be a string when provided."] };
+    if (input.label !== undefined && (typeof input.label !== "string" || input.label.trim().length > AGENT_PATH_LABEL_MAX_TEXT_LENGTH)) {
+      return { success: false as const, errors: [`label must be a string of at most ${AGENT_PATH_LABEL_MAX_TEXT_LENGTH} characters when provided.`] };
     }
     return {
       success: true as const,

@@ -1,5 +1,5 @@
 import type { AgentCapability } from "../capability.js";
-import { buildCoachingPolicy } from "../coaching-policy.js";
+import { buildCoachingPolicy, REVIEWER_CONTRACT, type CoachingReviewerContract } from "../coaching-policy.js";
 import type { AgentContext } from "../context.js";
 import { capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
@@ -9,6 +9,12 @@ export interface GetCoachingPolicyOutput {
   readonly policyText: string;
   readonly focusThemes: readonly string[];
   readonly prohibitedRevealCategories: readonly string[];
+  /** Structured, adapter-neutral reviewer protocol for external and embedded agents. */
+  readonly agentRole: CoachingReviewerContract["agentRole"];
+  readonly turnProtocol: CoachingReviewerContract["turnProtocol"];
+  readonly toolRecipes: CoachingReviewerContract["toolRecipes"];
+  readonly visualBudget: CoachingReviewerContract["visualBudget"];
+  readonly prohibitedActions: CoachingReviewerContract["prohibitedActions"];
 }
 
 export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoachingPolicyOutput {
@@ -17,6 +23,11 @@ export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoaching
     policyText: buildCoachingPolicy(context),
     focusThemes: policy?.focusThemes ?? [],
     prohibitedRevealCategories: policy?.prohibitedRevealCategories ?? [],
+    agentRole: REVIEWER_CONTRACT.agentRole,
+    turnProtocol: REVIEWER_CONTRACT.turnProtocol,
+    toolRecipes: REVIEWER_CONTRACT.toolRecipes,
+    visualBudget: REVIEWER_CONTRACT.visualBudget,
+    prohibitedActions: REVIEWER_CONTRACT.prohibitedActions,
   };
 }
 
@@ -31,7 +42,7 @@ export const getCoachingPolicyCapability: AgentCapability<
 > = {
   name: "get_coaching_policy",
   description:
-    "Read Faultline's coaching personality contract: behavioral rules, learning themes, and prohibited reveal categories. Call before coaching the player.",
+    "Read Faultline's adapter-neutral reviewer contract: read-first turn protocol, targeted evidence recipes, spatial budget, prohibited actions, and challenge learning themes. Call before coaching the player.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,

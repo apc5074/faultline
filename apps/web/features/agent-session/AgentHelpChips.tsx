@@ -20,30 +20,22 @@ async function copyPromptToClipboard(prompt: string): Promise<boolean> {
   }
 }
 
-export function AgentHelpChips({ selectedComponentId }: { selectedComponentId: string | null }) {
+export function AgentHelpChips({ webMcpReady }: { webMcpReady: boolean }) {
   const sessionStore = useAgentSessionStore();
   const session = useAgentSessionState();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const onChipClick = useCallback(
     async (chip: AgentHelpChipDefinition) => {
-      if (!isAgentHelpChipEnabled(chip, selectedComponentId)) return;
+      if (!isAgentHelpChipEnabled(chip, session.focus)) return;
 
-      if (chip.requiresSelection && selectedComponentId) {
-        sessionStore.setFocus({
-          kind: "component",
-          componentId: selectedComponentId,
-          source: "help",
-        });
-      }
-
-      sessionStore.setPendingHelp(buildPendingHelpRequest(chip, selectedComponentId));
+      sessionStore.setPendingHelp(buildPendingHelpRequest(chip, session.focus, session.revision));
 
       const copied = await copyPromptToClipboard(chip.clipboardPrompt);
       setCopyState(copied ? "copied" : "failed");
       window.setTimeout(() => setCopyState("idle"), 2400);
     },
-    [selectedComponentId, sessionStore],
+    [session.focus, session.revision, sessionStore],
   );
 
   const pendingLabel =
@@ -54,9 +46,9 @@ export function AgentHelpChips({ selectedComponentId }: { selectedComponentId: s
 
   return (
     <div className="sim-bar__agent-help" role="group" aria-label="Agent help">
-      <span className="sim-bar__agent-help-label">Agent</span>
+      <span className="sim-bar__agent-help-label">{webMcpReady ? "Ask ChatGPT" : "Prompt starters"}</span>
       {AGENT_HELP_CHIPS.map((chip) => {
-        const enabled = isAgentHelpChipEnabled(chip, selectedComponentId);
+        const enabled = isAgentHelpChipEnabled(chip, session.focus);
         return (
           <button
             key={chip.id}
@@ -71,13 +63,22 @@ export function AgentHelpChips({ selectedComponentId }: { selectedComponentId: s
           </button>
         );
       })}
-      {pendingLabel ? (
+      {!webMcpReady ? <span className="sim-bar__help-indicator">Live tool access unavailable; you can still copy a prompt.</span> : null}
+      {copyState === "failed" ? (
+        <textarea
+          className="sim-bar__help-fallback"
+          aria-label="Suggested ChatGPT prompt"
+          readOnly
+          value={AGENT_HELP_CHIPS.find((chip) => chip.id === session.pendingHelpRequest?.id)?.clipboardPrompt ?? "Select a prompt starter to copy its text."}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      ) : pendingLabel ? (
         <span className="sim-bar__help-indicator" aria-live="polite">
-          {copyState === "copied" ? "Prompt copied" : copyState === "failed" ? "Help requested" : pendingLabel}
+          {copyState === "copied" ? "Prompt copied — not sent" : pendingLabel}
         </span>
       ) : copyState === "copied" ? (
         <span className="sim-bar__help-indicator" aria-live="polite">
-          Prompt copied
+          Prompt copied — not sent
         </span>
       ) : null}
     </div>

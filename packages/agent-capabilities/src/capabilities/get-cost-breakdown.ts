@@ -1,7 +1,7 @@
 import type { CostLineItem } from "@faultline/core";
 
 import type { AgentCapability } from "../capability.js";
-import type { AgentContext } from "../context.js";
+import type { AgentContext, EvidenceMeta } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
 
@@ -19,6 +19,7 @@ export interface GetCostBreakdownOutput {
   readonly remainingBudget: number;
   readonly overBudget: boolean;
   readonly lineItems: readonly CostBreakdownLineItem[];
+  readonly evidence?: EvidenceMeta;
 }
 
 function lineItemLabel(context: AgentContext, lineItem: CostLineItem): string {
@@ -56,6 +57,7 @@ export function getCostBreakdown(context: AgentContext): CapabilityResult<GetCos
     remainingBudget: budget - monthlyTotal,
     overBudget: monthlyTotal > budget,
     lineItems: compactLineItems(context),
+    ...(context.evidenceMeta ? { evidence: context.evidenceMeta } : {}),
   });
 }
 

@@ -1,10 +1,10 @@
-import type { AgentPendingHelpRequest } from "@faultline/agent-capabilities";
+import type { AgentPendingHelpRequest, AgentSessionFocus, PromptIntent } from "@faultline/agent-capabilities";
 
 export type AgentHelpChipId =
   | "ask-about-selection"
-  | "find-bottleneck"
-  | "check-hot-path-risk"
-  | "explain-cost";
+  | "trace-workload"
+  | "review-requirement"
+  | "review-cost";
 
 export interface AgentHelpChipDefinition {
   readonly id: AgentHelpChipId;
@@ -12,57 +12,75 @@ export interface AgentHelpChipDefinition {
   readonly template: string;
   readonly clipboardPrompt: string;
   readonly requiresSelection: boolean;
+  readonly promptIntent: PromptIntent;
+  readonly suggestedCapabilityNames: readonly string[];
 }
 
 export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
   {
     id: "ask-about-selection",
-    label: "Ask about selection",
+    label: "Review selection",
     template: "Coach the player about their selected component.",
     clipboardPrompt:
-      "The player clicked Ask about selection on the Faultline canvas. Call get_session_focus first, then inspect_component on the selected component. Respond with one grounded finding and one focused question. Do not change the architecture.",
+      "In Faultline, review my current focus. Call get_coaching_policy and get_session_focus first, then inspect the selected component and relevant simulator evidence. Give one grounded finding, optionally highlight a verified reference, and end with one question. Do not modify architecture or prescribe a final topology.",
     requiresSelection: true,
+    promptIntent: "component_review",
+    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"],
   },
   {
-    id: "find-bottleneck",
-    label: "Find bottleneck",
-    template: "Find the current capacity or throughput bottleneck.",
+    id: "trace-workload",
+    label: "Trace workload",
+    template: "Trace the focused workload channel or path.",
     clipboardPrompt:
-      "The player asked to find the bottleneck. Call get_session_focus, get_architecture, get_metrics, and estimate_capacity. Identify the tightest constraint with evidence, then ask one next investigative question.",
+      "In Faultline, trace the relevant workload channel or path. Call get_coaching_policy and get_session_focus first. Prefer targeted component and simulator evidence before get_architecture. Explain one verified path finding, optionally highlight a real reference, and ask one question. Do not modify architecture or prescribe a final topology.",
     requiresSelection: false,
+    promptIntent: "workload_trace",
+    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"],
   },
   {
-    id: "check-hot-path-risk",
-    label: "Check hot-path risk",
-    template: "Assess hot-path and hot-key risk for this design.",
+    id: "review-requirement",
+    label: "Review requirement",
+    template: "Investigate the focused or failing requirement.",
     clipboardPrompt:
-      "The player asked about hot-path risk. Call get_session_focus, get_challenge, get_metrics, and inspect relevant components. Assess hot-key and latency risk from simulator evidence only, then ask one focused question.",
+      "In Faultline, investigate a focused or failing requirement. Call get_coaching_policy and get_session_focus, then get_requirements and current simulator evidence. Give one grounded finding and the smallest next investigation. Do not modify architecture or prescribe a final topology.",
     requiresSelection: false,
+    promptIntent: "requirement_failure",
+    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "get_requirements", "get_metrics"],
   },
   {
-    id: "explain-cost",
-    label: "Explain cost",
+    id: "review-cost",
+    label: "Review cost",
     template: "Explain the current monthly cost breakdown.",
     clipboardPrompt:
-      "The player asked for a cost explanation. Call get_session_focus, get_cost_breakdown, and inspect components with the largest line items. Summarize the biggest drivers with evidence, then ask one tradeoff question.",
+      "In Faultline, review deterministic cost evidence. Call get_coaching_policy and get_session_focus, then get_cost_breakdown and targeted component evidence if needed. Give one grounded finding and one question. Do not modify architecture or prescribe a final topology.",
     requiresSelection: false,
+    promptIntent: "cost_review",
+    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "get_cost_breakdown", "inspect_component"],
   },
 ] as const;
 
 export function buildPendingHelpRequest(
   chip: AgentHelpChipDefinition,
-  selectedComponentId: string | null,
+  focus: AgentSessionFocus,
+  focusRevision: number,
 ): AgentPendingHelpRequest {
   return {
     id: chip.id,
     template: chip.template,
-    ...(chip.requiresSelection && selectedComponentId ? { componentId: selectedComponentId } : {}),
+    promptIntent: chip.promptIntent,
+    focusRevision,
+    suggestedCapabilityNames: chip.suggestedCapabilityNames,
+    ...(focus.kind === "component" ? { componentId: focus.componentId } : {}),
+    ...(focus.kind === "connection" ? { connectionId: focus.connectionId } : {}),
+    ...(focus.kind === "region" ? { regionId: focus.regionId } : {}),
+    ...(focus.kind === "requirement" ? { requirementId: focus.requirementId } : {}),
+    ...(focus.kind === "workload_channel" ? { workloadChannelId: focus.workloadChannelId } : {}),
   };
 }
 
 export function isAgentHelpChipEnabled(
   chip: AgentHelpChipDefinition,
-  selectedComponentId: string | null,
+  focus: AgentSessionFocus,
 ): boolean {
-  return !chip.requiresSelection || selectedComponentId !== null;
+  return !chip.requiresSelection || focus.kind === "component";
 }

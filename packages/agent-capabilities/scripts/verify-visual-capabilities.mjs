@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   AGENT_NOTE_MAX_TEXT_LENGTH,
+  AGENT_PATH_LABEL_MAX_TEXT_LENGTH,
   appendValidatedAnnotations,
   createDefaultCapabilityRegistry,
   createEmptyAgentSessionState,
@@ -65,6 +66,8 @@ assert.equal(focus.ok, true);
 if (focus.ok) {
   assert.equal(focus.data.annotation.type, "focus");
   assert.equal(focus.data.annotation.componentId, "service-1");
+  assert.equal(focus.data.annotation.source, "external-agent");
+  assert.ok(focus.data.annotation.intentId);
 }
 
 const geographicContext = {
@@ -148,6 +151,21 @@ if (path.ok) {
   session = appendValidatedAnnotations(session, architecture, [path.data.annotation]);
   assert.equal(session.annotations.length, 3);
 }
+
+const duplicate = await registry.invoke(
+  "annotate_component",
+  context,
+  { componentId: "service-1", text: "Is this the hot path?", tone: "question" },
+  { session },
+);
+assert.equal(duplicate.ok, true);
+if (duplicate.ok) session = appendValidatedAnnotations(session, architecture, [duplicate.data.annotation]);
+assert.equal(session.annotations.length, 3, "replayed equivalent annotations do not create noise");
+
+const longPathLabel = await registry.invoke(
+  "highlight_connection", context, { connectionId: "conn-1", label: "x".repeat(AGENT_PATH_LABEL_MAX_TEXT_LENGTH + 1) }, { session },
+);
+assert.equal(longPathLabel.ok, false);
 
 const clearAll = await registry.invoke("clear_annotations", context, { scope: "all" }, { session });
 assert.equal(clearAll.ok, true);

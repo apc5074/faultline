@@ -88,7 +88,7 @@ export const getArchitectureCapability: AgentCapability<
 > = {
   name: "get_architecture",
   description:
-    "Inspect the player's current architecture: components, config, regional deployments, and connections. Omits UI layout noise.",
+    "Inspect the player's current architecture only when targeted evidence cannot establish a required path: components, config, regional deployments, and connections. Omits UI layout noise.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,

@@ -9,6 +9,7 @@ import {
   BASELINE_READ_CAPABILITY_NAMES,
   createAgentCapabilityRegistry,
   createDefaultCapabilityRegistry,
+  capabilitySurfaceFingerprint,
   phase7DynamicCapabilityPredicate,
   resolveCapabilities,
 } from "../dist/index.js";
@@ -36,6 +37,7 @@ const baselineArchitecture = {
 const context = { challenge, architecture: baselineArchitecture };
 
 const defaultRegistry = createDefaultCapabilityRegistry();
+const baselineFingerprint = capabilitySurfaceFingerprint(defaultRegistry, context);
 
 const registry = defaultRegistry;
 const first = resolveCapabilities(registry, context, { development: true });
@@ -86,6 +88,11 @@ assert.equal(phase7DynamicCapabilityPredicate("inspect_cache", redisArchitecture
 const withRedis = resolveCapabilities(defaultRegistry, { challenge, architecture: redisArchitecture });
 assert.deepEqual(withRedis.names, [...BASELINE_READ_CAPABILITY_NAMES, "inspect_cache"]);
 assert.equal(withRedis.names.filter((name) => name === "inspect_cache").length, 1);
+assert.notEqual(
+  capabilitySurfaceFingerprint(defaultRegistry, { challenge, architecture: redisArchitecture }),
+  baselineFingerprint,
+  "all availability predicates participate in the adapter registration fingerprint",
+);
 
 const replicaArchitecture = {
   ...baselineArchitecture,
@@ -135,6 +142,11 @@ const movedUiSurface = resolveCapabilities(defaultRegistry, {
   architecture: movedUiArchitecture,
 });
 assert.deepEqual(movedUiSurface.names, withRegions.names);
+assert.equal(
+  capabilitySurfaceFingerprint(defaultRegistry, { challenge, architecture: movedUiArchitecture }),
+  capabilitySurfaceFingerprint(defaultRegistry, { challenge, architecture: multiRegionArchitecture }),
+  "presentation-only edits do not reconcile browser registrations",
+);
 
 const beforeJson = JSON.stringify(baselineArchitecture);
 resolveCapabilities(registry, context);

@@ -1,6 +1,6 @@
 "use client";
 
-import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import { capabilitySurfaceFingerprint, createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { getWebMcpModelContext, registerAgentWebMcpSurface } from "@faultline/webmcp";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -35,6 +35,13 @@ export function WebMcpRegistration({
   const getContext = useAgentContextFactory();
   const sessionStore = useAgentSessionStore();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
+  // `reconciliationKey` changes for canonical availability inputs only. The
+  // final key is still registry-derived, so a non-affecting edit does not cause
+  // browser tools to be registered again.
+  const availabilityFingerprint = useMemo(
+    () => capabilitySurfaceFingerprint(registry, getContext().context),
+    [getContext, reconciliationKey, registry],
+  );
   const onVisualIntent = useMemo(
     () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onPinObservation }),
     [onFocusComponent, onFocusRegion, onPinObservation, sessionStore],
@@ -45,25 +52,38 @@ export function WebMcpRegistration({
   // behind stable refs.
   const onVisualIntentRef = useRef(onVisualIntent);
   const onExperimentResultRef = useRef(onExperimentResult);
+  const onStatusChangeRef = useRef(onStatusChange);
   onVisualIntentRef.current = onVisualIntent;
   onExperimentResultRef.current = onExperimentResult;
+  onStatusChangeRef.current = onStatusChange;
+  const generationRef = useRef(0);
 
   useEffect(() => {
     const modelContext = getWebMcpModelContext();
     if (!modelContext) {
-      onStatusChange({ state: "unsupported", readToolCount: 0, visualToolCount: 0 });
+      onStatusChangeRef.current({
+        state: "unsupported", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0,
+      });
       return;
     }
 
     const controller = new AbortController();
     const development = process.env.NODE_ENV === "development";
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
     let active = true;
     let timedOut = false;
     const timeout = window.setTimeout(() => {
       timedOut = true;
-      onStatusChange({ state: "partial", readToolCount: 0, visualToolCount: 0 });
+      if (active && generationRef.current === generation) {
+        onStatusChangeRef.current({
+          state: "partial", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
+        });
+      }
     }, 8_000);
-    onStatusChange({ state: "registering", readToolCount: 0, visualToolCount: 0 });
+    onStatusChangeRef.current({
+      state: "registering", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
+    });
 
     void registerAgentWebMcpSurface({
       modelContext,
@@ -71,20 +91,33 @@ export function WebMcpRegistration({
       getContext,
       signal: controller.signal,
       development,
-      onVisualIntent: onVisualIntentRef.current,
-      ...(onExperimentResultRef.current ? { onExperimentResult: onExperimentResultRef.current } : {}),
+      onVisualIntent: (intent) => onVisualIntentRef.current(intent),
+      ...(onExperimentResultRef.current
+        ? { onExperimentResult: (result) => onExperimentResultRef.current?.(result) }
+        : {}),
     }).then((result) => {
-      if (!active || timedOut) return;
+      if (!active || timedOut || generationRef.current !== generation) return;
       window.clearTimeout(timeout);
-      const state = result.readToolNames.length >= 9 && result.visualToolNames.length >= 4 ? "ready" : "partial";
-      onStatusChange({
+      const state = result.registeredToolNames.length === 0
+        ? "failed"
+        : result.failedToolNames.length === 0 && result.registeredToolNames.length === result.resolvedToolNames.length
+          ? "ready"
+          : "partial";
+      onStatusChangeRef.current({
         state,
         readToolCount: result.readToolNames.length,
         visualToolCount: result.visualToolNames.length,
+        experimentToolCount: result.experimentToolNames.length,
+        failedToolCount: result.failedToolNames.length,
+        generation,
       });
     }).catch((error) => {
       window.clearTimeout(timeout);
-      if (active && !timedOut) onStatusChange({ state: "partial", readToolCount: 0, visualToolCount: 0 });
+      if (active && !timedOut && generationRef.current === generation) {
+        onStatusChangeRef.current({
+          state: "failed", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
+        });
+      }
       if (process.env.NODE_ENV === "development") {
         console.error("[WebMCP] surface registration failed.", error);
       }
@@ -95,7 +128,7 @@ export function WebMcpRegistration({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [reconciliationKey, getContext, registry, onStatusChange]);
+  }, [availabilityFingerprint, getContext, registry]);
 
   return null;
 }

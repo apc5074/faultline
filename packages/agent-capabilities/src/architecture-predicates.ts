@@ -63,9 +63,18 @@ export function phase7DynamicCapabilityPredicate(
 
 /** Minimal canonical facts that drive dynamic capability availability. */
 export function architectureAvailabilityFingerprint(architecture: Architecture): string {
+  // This is an input fingerprint, not the final resolver output. It includes
+  // every non-presentation architecture fact an availability predicate may
+  // inspect, so callers can safely recompute a resolver fingerprint without
+  // reacting to node movement.
   return JSON.stringify({
-    redis: architectureHasRedis(architecture),
-    postgresReplica: architectureHasPostgresReplica(architecture),
-    multiRegion: architectureHasMultiRegionDeployments(architecture),
+    version: architecture.version,
+    components: architecture.components.map(({ id, type, config, deployments }) => ({
+      id,
+      type,
+      config,
+      deployments,
+    })),
+    connections: architecture.connections,
   });
 }

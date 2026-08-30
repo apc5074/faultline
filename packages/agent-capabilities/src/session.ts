@@ -8,6 +8,19 @@ export const AGENT_ANNOTATION_MAX_COUNT = 12;
 
 /** Maximum characters for note annotation marginal text. */
 export const AGENT_NOTE_MAX_TEXT_LENGTH = 280;
+export const AGENT_PATH_LABEL_MAX_TEXT_LENGTH = 120;
+export const AGENT_VISUAL_EVIDENCE_REF_MAX_COUNT = 4;
+
+export type AgentVisualSource = "external-agent" | "embedded-ai";
+
+export interface AgentVisualMetadata {
+  readonly source?: AgentVisualSource;
+  readonly architectureRevision?: string;
+  readonly focusRevision?: number;
+  readonly createdAt?: string;
+  readonly evidenceRefs?: readonly string[];
+  readonly intentId?: string;
+}
 
 export type AgentSessionFocusSource = "selection" | "help" | "agent";
 
@@ -22,24 +35,37 @@ export type AgentSessionFocus =
       readonly kind: "connection";
       readonly connectionId: string;
       readonly source: AgentSessionFocusSource;
-    };
+    }
+  | { readonly kind: "region"; readonly regionId: string; readonly source: AgentSessionFocusSource }
+  | { readonly kind: "requirement"; readonly requirementId: string; readonly source: AgentSessionFocusSource }
+  | { readonly kind: "workload_channel"; readonly workloadChannelId: string; readonly source: AgentSessionFocusSource };
+
+/** The user-selected investigation shape; never an instruction to edit architecture. */
+export type PromptIntent = "component_review" | "workload_trace" | "requirement_failure" | "cost_review";
 
 export interface AgentPendingHelpRequest {
   readonly id: string;
   readonly template: string;
+  readonly promptIntent?: PromptIntent;
+  /** Session revision of the human focus used to create this invitation. */
+  readonly focusRevision?: number;
+  readonly suggestedCapabilityNames?: readonly string[];
   readonly componentId?: string;
   readonly connectionId?: string;
+  readonly regionId?: string;
+  readonly requirementId?: string;
+  readonly workloadChannelId?: string;
 }
 
 export type AgentAnnotationTone = "neutral" | "question" | "risk";
 
-export interface AgentFocusAnnotation {
+export interface AgentFocusAnnotation extends AgentVisualMetadata {
   readonly id: string;
   readonly type: "focus";
   readonly componentId: string;
 }
 
-export interface AgentNoteAnnotation {
+export interface AgentNoteAnnotation extends AgentVisualMetadata {
   readonly id: string;
   readonly type: "note";
   readonly componentId: string;
@@ -47,7 +73,7 @@ export interface AgentNoteAnnotation {
   readonly tone?: AgentAnnotationTone;
 }
 
-export interface AgentPathAnnotation {
+export interface AgentPathAnnotation extends AgentVisualMetadata {
   readonly id: string;
   readonly type: "path";
   readonly connectionId: string;
@@ -148,6 +174,9 @@ export function validateAnnotationAgainstArchitecture(
       if (!hasConnectionId(architecture, annotation.connectionId)) {
         return validationError("NOT_FOUND", `Unknown connection "${annotation.connectionId}".`);
       }
+      if (annotation.label !== undefined && annotation.label.trim().length > AGENT_PATH_LABEL_MAX_TEXT_LENGTH) {
+        return validationError("INVALID_INPUT", `Path label must be at most ${AGENT_PATH_LABEL_MAX_TEXT_LENGTH} characters.`);
+      }
       return { ok: true };
     case "stamp": {
       const text = annotation.text.trim();
@@ -193,6 +222,12 @@ export function prunePendingHelpRequestAgainstArchitecture(
   if (
     pendingHelpRequest.componentId !== undefined &&
     !hasComponentId(architecture, pendingHelpRequest.componentId)
+  ) {
+    return null;
+  }
+  if (
+    pendingHelpRequest.connectionId !== undefined &&
+    !hasConnectionId(architecture, pendingHelpRequest.connectionId)
   ) {
     return null;
   }

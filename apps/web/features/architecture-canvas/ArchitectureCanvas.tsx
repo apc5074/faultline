@@ -73,6 +73,8 @@ function ArchitectureWorkspace() {
     state: "unsupported",
     readToolCount: 0,
     visualToolCount: 0,
+    experimentToolCount: 0,
+    failedToolCount: 0,
   });
   const handleWebMcpStatus = useCallback(
     (status: WebMcpStatus) => setWebMcpStatus(status),
@@ -283,7 +285,7 @@ function ArchitectureWorkspace() {
           onSpeedChange={workspace.playback.setSpeed}
           onViewModeChange={workspace.handleViewModeChange}
           onSubmitOfficial={workspace.onSubmitOfficial}
-          selectedComponentId={workspace.selectedComponentId}
+          webMcpReady={webMcpStatus.state === "ready"}
         />
       </section>
     </>

@@ -40,7 +40,7 @@ export {
 } from "../visual-executors.js";
 
 const COACHING_VISUAL_RULES =
-  "Inspect read tools first. One finding and one question; do not prescribe canonical topology.";
+  "Inspect read tools first. Use at most two non-disruptive gestures per answer; do not select, move the viewport, or prescribe canonical topology.";
 
 export const focusComponentCapability: AgentCapability<
   AgentContext,

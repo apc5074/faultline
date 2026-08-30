@@ -13,5 +13,8 @@ assert.deepEqual(surface.resolvedNames, ["run_load_test", "change_traffic_patter
 assert.deepEqual(surface.tools.map((tool) => tool.name), surface.resolvedNames);
 const controller = new AbortController();
 controller.abort();
-assert.deepEqual(await registerExperimentWebMcpSurface({ modelContext: { async registerTool() { throw new Error("should not register"); } }, registry, getContext: () => context, signal: controller.signal }), { registeredToolNames: [] });
+assert.deepEqual(
+  await registerExperimentWebMcpSurface({ modelContext: { async registerTool() { throw new Error("should not register"); } }, registry, getContext: () => context, signal: controller.signal }),
+  { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] },
+);
 console.log("verify-experiment-webmcp-surface: ok");

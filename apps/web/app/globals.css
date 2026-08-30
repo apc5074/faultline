@@ -3759,6 +3759,19 @@ h1 {
   color: var(--color-ink-faint);
 }
 
+.sim-bar__help-fallback {
+  min-width: 14rem;
+  max-width: 24rem;
+  min-height: 2.5rem;
+  padding: 0.35rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.55rem;
+  line-height: 1.35;
+}
+
 .sim-bar__status-plate {
   position: relative;
 }
