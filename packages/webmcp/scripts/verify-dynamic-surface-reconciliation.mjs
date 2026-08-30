@@ -6,7 +6,7 @@ import {
   createDefaultCapabilityRegistry,
   resolveCapabilities,
 } from "@faultline/agent-capabilities";
-import { buildPhase6ReadSurface, toWebMcpTool } from "../dist/index.js";
+import { buildPhase6ReadSurface, registerAgentWebMcpSurface, toWebMcpTool } from "../dist/index.js";
 
 const challenge = {
   slug: "url-shortener",
@@ -122,5 +122,30 @@ const webSurface = await buildPhase6ReadSurface({
   development: true,
 });
 assert.deepEqual(webSurface.resolvedNames, resolved.names);
+
+// Group ownership keeps stable registrations out of specialist churn.
+const registrations = [];
+const modelContext = {
+  registerTool: async (tool) => registrations.push(tool.name),
+};
+async function registerGroup(group, architecture) {
+  const controller = new AbortController();
+  return registerAgentWebMcpSurface({
+    group,
+    modelContext,
+    registry,
+    getContext: () => ({ challenge, architecture }),
+    signal: controller.signal,
+    development: true,
+  });
+}
+const stableBefore = await registerGroup("stable-review", baselineArchitecture);
+const stableAfterRedis = await registerGroup("stable-review", withRedisArchitecture);
+assert.deepEqual(stableAfterRedis.registeredToolNames, stableBefore.registeredToolNames);
+const specialistsBefore = await registerGroup("specialists", baselineArchitecture);
+const specialistsAfterRedis = await registerGroup("specialists", withRedisArchitecture);
+assert.deepEqual(specialistsBefore.registeredToolNames, []);
+assert.deepEqual(specialistsAfterRedis.registeredToolNames, ["inspect_cache"]);
+assert.equal(registrations.includes("review_current_design"), true);
 
 console.log("verify-dynamic-surface-reconciliation: ok");

@@ -12,6 +12,7 @@ import { getCostBreakdownCapability } from "./get-cost-breakdown.js";
 import { getMetricsCapability } from "./get-metrics.js";
 import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
+import { inspectDesignEntityCapability } from "./inspect-design-entity.js";
 import { BASELINE_VISUAL_CAPABILITIES } from "./visual-capabilities.js";
 import { runLoadTestCapability } from "./run-load-test.js";
 import { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
@@ -22,7 +23,9 @@ import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 import { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
 import { slowConsumersCapability } from "./slow-consumers.js";
 import { reviewCurrentDesignCapability } from "./review-current-design.js";
+import { compareDesignEvidenceCapability } from "./compare-design-evidence.js";
 import { expandDesignEvidenceCapability } from "./expand-design-evidence.js";
+import { inspectComponentOptionCapability } from "./inspect-component-option.js";
 
 export {
   getSessionFocusCapability,
@@ -63,6 +66,21 @@ export type {
 
 export { inspectComponentCapability, inspectComponent } from "./inspect-component.js";
 export type { InspectComponentOutput } from "./inspect-component.js";
+export { inspectComponentOptionCapability, inspectComponentOption } from "./inspect-component-option.js";
+export type { ComponentOptionFacts, InspectComponentOptionOutput } from "./inspect-component-option.js";
+export {
+  inspectDesignEntityCapability,
+  inspectDesignEntity,
+  resolveInspectDesignEntityTarget,
+} from "./inspect-design-entity.js";
+export type {
+  InspectDesignEntityOutput,
+  InspectDesignEntityComponentOutput,
+  InspectDesignEntityConnectionOutput,
+  InspectDesignEntityRequirementOutput,
+  InspectDesignEntityWorkloadOutput,
+  InspectDesignEntityRegionOutput,
+} from "./inspect-design-entity.js";
 
 export { inspectCacheCapability, inspectCache } from "./inspect-cache.js";
 export type { InspectCacheOutput } from "./inspect-cache.js";
@@ -90,6 +108,17 @@ export { getMetricsCapability, buildGetMetricsOutput } from "./get-metrics.js";
 export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput, buildReviewUseCasePackets, buildReviewRevisionDelta } from "./review-current-design.js";
 export { expandDesignEvidenceCapability, expandDesignEvidence, reviewReference } from "./expand-design-evidence.js";
 export type { ExpandDesignEvidenceOutput } from "./expand-design-evidence.js";
+export {
+  compareDesignEvidenceCapability,
+  compareDesignEvidence,
+} from "./compare-design-evidence.js";
+export type {
+  CompareDesignEvidenceOutput,
+  CompareBaselineKind,
+  ComparisonProvenanceSide,
+  ScopedComparisonChanges,
+  ScenarioComparisonChanges,
+} from "./compare-design-evidence.js";
 export type { ReviewCurrentDesignOutput } from "./review-current-design.js";
 export type {
   GetMetricsComponent,
@@ -124,11 +153,14 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     getCoachingPolicyCapability,
     reviewCurrentDesignCapability,
     expandDesignEvidenceCapability,
+    compareDesignEvidenceCapability,
     getSessionFocusCapability,
     getChallengeCapability,
     getRequirementsCapability,
     getArchitectureCapability,
+    inspectDesignEntityCapability,
     inspectComponentCapability,
+    inspectComponentOptionCapability,
     estimateCapacityCapability,
     getMetricsCapability,
     getCostBreakdownCapability,

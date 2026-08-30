@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
-import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { toWebMcpTool } from "../dist/to-webmcp-tool.js";
+import { createDefaultCapabilityRegistry, WMP_EVIDENCE_CONTRACT_VERSION } from "@faultline/agent-capabilities";
+import { toWebMcpTool, validateAgentEvidenceResult } from "../dist/index.js";
 
 const challenge = {
   slug: "tiny-api",
@@ -48,7 +48,19 @@ const cost = {
   lineItems: [{ componentId: "service-1", amount: 4_000 }],
 };
 
-const baseContext = { challenge, architecture, simulation, cost };
+const baseContext = {
+  challenge,
+  architecture,
+  simulation,
+  cost,
+  evidenceMeta: {
+    architectureRevision: "rev-1",
+    simulationRunId: "live-1",
+    simulatorVersion: "sim-1",
+    isStale: false,
+    generatedAt: "now",
+  },
+};
 const registry = createDefaultCapabilityRegistry();
 
 let contextCalls = 0;
@@ -75,11 +87,16 @@ for (const capability of registry.list()) {
 
 const inspectTool = toWebMcpTool(registry.get("inspect_component"), { registry, getContext });
 const inspected = await inspectTool.execute({ componentId: "service-1" }, {});
-assert.equal(contextCalls, 2);
-assert.deepEqual(inspected, await registry.invoke("inspect_component", baseContext, { componentId: "service-1" }));
+assert.equal(contextCalls, 1);
+assert.equal(inspected.ok, true);
+if (inspected.ok) {
+  assert.equal(inspected.data.contractVersion, WMP_EVIDENCE_CONTRACT_VERSION);
+  assert.equal(inspected.data.data.facts.id, "service-1");
+  validateAgentEvidenceResult(inspected.data);
+}
 
 const inspectedAgain = await inspectTool.execute({ componentId: "service-1" }, {});
-assert.equal(contextCalls, 4);
+assert.equal(contextCalls, 2);
 
 const invalid = await inspectTool.execute({}, {});
 assert.equal(invalid.ok, false);
@@ -98,7 +115,8 @@ const getChallengeTool = toWebMcpTool(registry.get("get_challenge"), { registry,
 const challengeResult = await getChallengeTool.execute(undefined, {});
 assert.equal(challengeResult.ok, true);
 if (challengeResult.ok) {
-  assert.equal(challengeResult.data.slug, "tiny-api");
+  assert.equal(challengeResult.data.contractVersion, WMP_EVIDENCE_CONTRACT_VERSION);
+  assert.equal(challengeResult.data.data.slug, "tiny-api");
 }
 
 console.log("verify-to-webmcp-tool: ok");

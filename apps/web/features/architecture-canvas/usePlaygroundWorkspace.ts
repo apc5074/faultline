@@ -1005,6 +1005,7 @@ export function usePlaygroundWorkspace() {
     worldSelection,
     pinnedObservations,
     runState,
+    lastRunKey,
     simulationResult,
     experimentPresentation,
     simulationErrors,

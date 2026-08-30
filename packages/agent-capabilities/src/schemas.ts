@@ -1,4 +1,7 @@
 import type { CapabilityInputSchema } from "./capability.js";
+import type { KnownStateInput } from "./evidence-result.js";
+
+export type { KnownStateInput };
 
 export interface RunLoadTestInput {
   readonly multiplier: 1.25 | 1.5 | 2 | 3 | 5;
@@ -134,10 +137,29 @@ export const noInputSchema: CapabilityInputSchema<undefined> = {
   },
 };
 
+export interface InspectComponentOptionInput { readonly type?: string }
+
+export const inspectComponentOptionInputSchema: CapabilityInputSchema<InspectComponentOptionInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: { type: { type: "string", minLength: 1 } },
+    additionalProperties: false,
+  },
+  safeParse(input) {
+    if (input === undefined || input === null) return { success: true as const, data: {} };
+    if (!isRecord(input) || !hasOnlyKeys(input, ["type"])) return { success: false as const, errors: ["inspect_component_option input contains unknown properties."] };
+    if (input.type !== undefined && (typeof input.type !== "string" || input.type.trim().length === 0)) return { success: false as const, errors: ["type must be a non-empty component type."] };
+    return { success: true as const, data: input.type === undefined ? {} : { type: input.type } };
+  },
+};
+
+
 export interface ReviewCurrentDesignInput {
   readonly intent?: "auto" | "component_review" | "requirement_failure" | "workload_trace" | "cost_review";
   readonly targetId?: string;
+  /** @deprecated Prefer knownState.evidenceRevision */
   readonly knownEvidenceRevision?: string;
+  readonly knownState?: KnownStateInput;
 }
 
 export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrentDesignInput> = {
@@ -147,16 +169,34 @@ export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrent
       intent: { type: "string", enum: ["auto", "component_review", "requirement_failure", "workload_trace", "cost_review"] },
       targetId: { type: "string", minLength: 1 },
       knownEvidenceRevision: { type: "string", minLength: 1 },
+      knownState: {
+        type: "object",
+        properties: {
+          evidenceRevision: { type: "string", minLength: 1 },
+          sessionRevision: { type: "number" },
+          surfaceRevision: { type: "string", minLength: 1 },
+          resultDigest: { type: "string", minLength: 1 },
+        },
+        required: ["evidenceRevision", "sessionRevision", "surfaceRevision", "resultDigest"],
+        additionalProperties: false,
+      } as never,
     },
     additionalProperties: false,
   },
   safeParse(input) {
     if (input === undefined || input === null) return { success: true as const, data: {} };
-    if (!isRecord(input) || !hasOnlyKeys(input, ["intent", "targetId", "knownEvidenceRevision"])) return { success: false as const, errors: ["review_current_design input contains unknown properties."] };
+    if (!isRecord(input) || !hasOnlyKeys(input, ["intent", "targetId", "knownEvidenceRevision", "knownState"])) return { success: false as const, errors: ["review_current_design input contains unknown properties."] };
     if (input.intent !== undefined && (typeof input.intent !== "string" || !["auto", "component_review", "requirement_failure", "workload_trace", "cost_review"].includes(input.intent))) return { success: false as const, errors: ["intent must be a supported review intent."] };
     if (input.targetId !== undefined && (typeof input.targetId !== "string" || input.targetId.trim().length === 0)) return { success: false as const, errors: ["targetId must be a non-empty string."] };
     if (input.knownEvidenceRevision !== undefined && (typeof input.knownEvidenceRevision !== "string" || input.knownEvidenceRevision.length === 0 || input.knownEvidenceRevision.length > 128)) return { success: false as const, errors: ["knownEvidenceRevision must be a bounded non-empty string."] };
-    return { success: true as const, data: { ...(input.intent ? { intent: input.intent as ReviewCurrentDesignInput["intent"] } : {}), ...(input.targetId ? { targetId: input.targetId } : {}), ...(input.knownEvidenceRevision ? { knownEvidenceRevision: input.knownEvidenceRevision } : {}) } };
+    if (input.knownState !== undefined) {
+      if (!isRecord(input.knownState) || !hasOnlyKeys(input.knownState, ["evidenceRevision", "sessionRevision", "surfaceRevision", "resultDigest"])) return { success: false as const, errors: ["knownState contains unknown properties."] };
+      if (typeof input.knownState.evidenceRevision !== "string" || input.knownState.evidenceRevision.length === 0) return { success: false as const, errors: ["knownState.evidenceRevision must be a non-empty string."] };
+      if (typeof input.knownState.sessionRevision !== "number" || !Number.isFinite(input.knownState.sessionRevision)) return { success: false as const, errors: ["knownState.sessionRevision must be a finite number."] };
+      if (typeof input.knownState.surfaceRevision !== "string" || input.knownState.surfaceRevision.length === 0) return { success: false as const, errors: ["knownState.surfaceRevision must be a non-empty string."] };
+      if (typeof input.knownState.resultDigest !== "string" || input.knownState.resultDigest.length === 0) return { success: false as const, errors: ["knownState.resultDigest must be a non-empty string."] };
+    }
+    return { success: true as const, data: { ...(input.intent ? { intent: input.intent as ReviewCurrentDesignInput["intent"] } : {}), ...(input.targetId ? { targetId: input.targetId } : {}), ...(input.knownEvidenceRevision ? { knownEvidenceRevision: input.knownEvidenceRevision } : {}), ...(input.knownState ? { knownState: { evidenceRevision: String(input.knownState.evidenceRevision), sessionRevision: Number(input.knownState.sessionRevision), surfaceRevision: String(input.knownState.surfaceRevision), resultDigest: String(input.knownState.resultDigest) } } : {}) } };
   },
 };
 
@@ -171,11 +211,110 @@ export const expandDesignEvidenceInputSchema: CapabilityInputSchema<ExpandDesign
   },
 };
 
+export type InspectDesignEntityKind = "component" | "connection" | "requirement" | "workload" | "region";
+
+export interface InspectDesignEntityInput {
+  readonly kind: InspectDesignEntityKind;
+  readonly ref: string;
+}
+
+const inspectDesignEntityKinds = ["component", "connection", "requirement", "workload", "region"] as const;
+
+export const inspectDesignEntityInputSchema: CapabilityInputSchema<InspectDesignEntityInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      kind: { type: "string", enum: [...inspectDesignEntityKinds] },
+      ref: { type: "string", minLength: 1 },
+    },
+    required: ["kind", "ref"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["inspect_design_entity input must be an object."] };
+    if (!hasOnlyKeys(input, ["kind", "ref"])) return { success: false as const, errors: ["inspect_design_entity input contains unknown properties."] };
+    if (typeof input.kind !== "string" || !inspectDesignEntityKinds.includes(input.kind as InspectDesignEntityKind)) {
+      return { success: false as const, errors: ["kind must be component, connection, requirement, workload, or region."] };
+    }
+    if (typeof input.ref !== "string" || input.ref.trim().length === 0) {
+      return { success: false as const, errors: ["ref must be a non-empty entity id or scoped reference."] };
+    }
+    return { success: true as const, data: { kind: input.kind as InspectDesignEntityKind, ref: input.ref } };
+  },
+};
+
+export type CompareDesignEvidenceScope = "system" | "entity" | "requirement" | "workload" | "cost";
+
+export interface CompareDesignEvidenceInput {
+  readonly baseline: "previous_review" | "last_player_run" | "authored_scenario";
+  readonly scenarioId?: "hot_key" | "processing" | "playback";
+  readonly scope?: CompareDesignEvidenceScope;
+  readonly targetRef?: string;
+}
+
+const compareScenarioIds = ["hot_key", "processing", "playback"] as const;
+const compareScopes = ["system", "entity", "requirement", "workload", "cost"] as const;
+
+export const compareDesignEvidenceInputSchema: CapabilityInputSchema<CompareDesignEvidenceInput> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      baseline: { type: "string", enum: ["previous_review", "last_player_run", "authored_scenario"] },
+      scenarioId: { type: "string", enum: [...compareScenarioIds] },
+      scope: { type: "string", enum: [...compareScopes] },
+      targetRef: { type: "string", minLength: 1 },
+    },
+    required: ["baseline"],
+    additionalProperties: false,
+  },
+  safeParse(input: unknown) {
+    if (!isRecord(input)) return { success: false as const, errors: ["compare_design_evidence input must be an object."] };
+    if (!hasOnlyKeys(input, ["baseline", "scenarioId", "scope", "targetRef"])) return { success: false as const, errors: ["compare_design_evidence input contains unknown properties."] };
+    if (typeof input.baseline !== "string" || !["previous_review", "last_player_run", "authored_scenario"].includes(input.baseline)) {
+      return { success: false as const, errors: ["baseline must be previous_review, last_player_run, or authored_scenario."] };
+    }
+    if (input.scenarioId !== undefined && (typeof input.scenarioId !== "string" || !compareScenarioIds.includes(input.scenarioId as typeof compareScenarioIds[number]))) {
+      return { success: false as const, errors: ["scenarioId must be hot_key, processing, or playback."] };
+    }
+    if (input.baseline === "authored_scenario" && input.scenarioId === undefined) {
+      return { success: false as const, errors: ["authored_scenario requires scenarioId."] };
+    }
+    if (input.scope !== undefined && (typeof input.scope !== "string" || !compareScopes.includes(input.scope as typeof compareScopes[number]))) {
+      return { success: false as const, errors: ["scope must be system, entity, requirement, workload, or cost."] };
+    }
+    if (input.targetRef !== undefined && (typeof input.targetRef !== "string" || input.targetRef.trim().length === 0)) {
+      return { success: false as const, errors: ["targetRef must be a non-empty string."] };
+    }
+    if (input.scope === "entity" && !input.targetRef) {
+      return { success: false as const, errors: ["entity scope requires targetRef."] };
+    }
+    return {
+      success: true as const,
+      data: {
+        baseline: input.baseline as CompareDesignEvidenceInput["baseline"],
+        ...(input.scenarioId ? { scenarioId: input.scenarioId as CompareDesignEvidenceInput["scenarioId"] } : {}),
+        ...(input.scope ? { scope: input.scope as CompareDesignEvidenceScope } : {}),
+        ...(input.targetRef ? { targetRef: input.targetRef } : {}),
+      },
+    };
+  },
+};
+
 export interface InspectComponentInput {
   readonly componentId: string;
 }
 
-/** Runtime-validated input for inspect_component. */
+function parseInspectComponentTarget(input: Record<string, unknown>): { success: true; data: InspectComponentInput } | { success: false; errors: string[] } {
+  if (!hasOnlyKeys(input, ["componentId"])) {
+    return { success: false, errors: ["inspect_component input contains unknown properties."] };
+  }
+  if (typeof input.componentId !== "string" || input.componentId.trim().length === 0) {
+    return { success: false, errors: ["componentId must be a non-empty string or scoped entity reference."] };
+  }
+  return { success: true, data: { componentId: input.componentId } };
+}
+
+/** Runtime-validated input for inspect_component. Accepts canonical IDs or WMP-2 scoped references. */
 export const inspectComponentInputSchema: CapabilityInputSchema<InspectComponentInput> = {
   jsonSchema: {
     type: "object",
@@ -189,13 +328,7 @@ export const inspectComponentInputSchema: CapabilityInputSchema<InspectComponent
     if (!isRecord(input)) {
       return { success: false as const, errors: ["inspect_component input must be an object."] };
     }
-    if (!hasOnlyKeys(input, ["componentId"])) {
-      return { success: false as const, errors: ["inspect_component input contains unknown properties."] };
-    }
-    if (typeof input.componentId !== "string" || input.componentId.trim().length === 0) {
-      return { success: false as const, errors: ["componentId must be a non-empty string."] };
-    }
-    return { success: true as const, data: { componentId: input.componentId } };
+    return parseInspectComponentTarget(input);
   },
 };
 

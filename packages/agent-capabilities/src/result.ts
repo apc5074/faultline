@@ -6,9 +6,17 @@ export type CapabilityErrorCode =
   | "CONSENT_REQUIRED"
   | "CANCELLED";
 
+export type CapabilityRecovery = {
+  readonly code: CapabilityErrorCode;
+  readonly retryable: boolean;
+  readonly currentEvidenceRevision?: string;
+  readonly requiresUserAction?: "approve_exact_experiment";
+  readonly recoveryTool?: string;
+};
+
 export type CapabilityResult<T> =
   | { ok: true; data: T }
-  | { ok: false; code: CapabilityErrorCode; message: string };
+  | { ok: false; code: CapabilityErrorCode; message: string; recovery?: CapabilityRecovery };
 
 export function capabilityOk<T>(data: T): CapabilityResult<T> {
   return { ok: true, data };
@@ -17,8 +25,9 @@ export function capabilityOk<T>(data: T): CapabilityResult<T> {
 export function capabilityError(
   code: CapabilityErrorCode,
   message: string,
+  recovery?: Omit<CapabilityRecovery, "code">,
 ): CapabilityResult<never> {
-  return { ok: false, code, message };
+  return { ok: false, code, message, ...(recovery ? { recovery: { code, ...recovery } } : {}) };
 }
 
 export function capabilityCancelled(

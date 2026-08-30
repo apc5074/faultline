@@ -188,5 +188,14 @@ export const postgresDefinition: ComponentDefinition<PostgresConfig> = {
   replicationSupport: true,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [
+      { key: "tier", label: "Tier", valueType: "string", options: [...postgresTiers], defaultValue: "small" },
+      { key: "readReplicaCount", label: "Read replicas", valueType: "number", unit: "replicas", minimum: 0, maximum: 8, defaultValue: 0 },
+    ],
+    costInputs: ["tier", "readReplicaCount"], modeledBehaviors: ["primary reads and writes", "read replica capacity", "write-primary routing"],
+    unmodeledBehaviors: ["transactions", "schema/index design", "replication lag"], compatibleConnectionRoles: ["read_write"],
+    placementConstraints: ["Writes remain on the primary; replicas add read capacity."], learningThemes: ["read/write separation", "replica capacity", "durable storage"],
+  },
   schemaVersion: 1,
 };

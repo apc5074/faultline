@@ -144,6 +144,23 @@ export function createAgentContext(
   };
 }
 
+/** Player-visible Run snapshot: same simulator truth, distinct run provenance id. */
+export function createPlayerRunAgentContext(
+  architecture: Architecture,
+  challenge: ChallengeDefinition,
+  runKey: string,
+  options: CreateAgentContextOptions = {},
+): AgentContext {
+  const context = createAgentContext(architecture, challenge, options);
+  return {
+    ...context,
+    evidenceMeta: {
+      ...context.evidenceMeta!,
+      simulationRunId: `run-${runKey}`,
+    },
+  };
+}
+
 export type { LiveAgentSnapshot };
 
 export type LiveAgentContextFactory = () => LiveAgentSnapshot;

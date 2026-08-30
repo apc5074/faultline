@@ -3,6 +3,7 @@ import {
   componentPresentationSizes,
   componentPresentationStates,
   type ComponentDefinition,
+  type ComponentAgentFacts,
   type ComponentPresentationBinding,
   type JsonObject,
   type MetricDefinition,
@@ -106,6 +107,21 @@ function isMetricDefinition(value: unknown): value is MetricDefinition {
   return isRecord(value) && isNonEmptyString(value.id) && isNonEmptyString(value.label) && isNonEmptyString(value.unit);
 }
 
+function isAgentFacts(value: unknown): value is ComponentAgentFacts {
+  if (!isRecord(value)) return false;
+  const fields = value.configFields;
+  return Array.isArray(fields) && fields.every((field) => {
+    if (!isRecord(field) || !isNonEmptyString(field.key) || !isNonEmptyString(field.label)) return false;
+    if (field.valueType !== "number" && field.valueType !== "string") return false;
+    if (typeof field.defaultValue !== "number" && typeof field.defaultValue !== "string") return false;
+    if (field.unit !== undefined && !isNonEmptyString(field.unit)) return false;
+    if (field.minimum !== undefined && (typeof field.minimum !== "number" || !Number.isFinite(field.minimum))) return false;
+    if (field.maximum !== undefined && (typeof field.maximum !== "number" || !Number.isFinite(field.maximum))) return false;
+    return field.options === undefined || (Array.isArray(field.options) && field.options.every(isNonEmptyString));
+  }) && ["costInputs", "modeledBehaviors", "unmodeledBehaviors", "compatibleConnectionRoles", "placementConstraints", "learningThemes"]
+    .every((key) => Array.isArray(value[key]) && value[key].every(isNonEmptyString));
+}
+
 /** Throws a useful error instead of allowing an incomplete definition into the catalog. */
 export function assertComponentDefinition(definition: unknown): asserts definition is ComponentDefinition {
   if (!isRecord(definition)) throw new ComponentDefinitionError("Component definition must be an object.");
@@ -150,6 +166,9 @@ export function assertComponentDefinition(definition: unknown): asserts definiti
   }
   if (!Array.isArray(definition.agentCapabilities) || !definition.agentCapabilities.every(isNonEmptyString)) {
     throw new ComponentDefinitionError(`Component "${definition.type}" has invalid agent capability metadata.`);
+  }
+  if (definition.agentFacts !== undefined && !isAgentFacts(definition.agentFacts)) {
+    throw new ComponentDefinitionError(`Component "${definition.type}" has invalid agent facts metadata.`);
   }
   for (const optionalCharacteristic of ["simulation", "cost"] as const) {
     if (definition[optionalCharacteristic] !== undefined && !isJsonObject(definition[optionalCharacteristic])) {

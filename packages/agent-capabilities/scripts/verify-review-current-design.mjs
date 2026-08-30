@@ -40,6 +40,8 @@ assert.ok(expanded.data.sections.causal_chain);
 assert.equal(expandDesignEvidence(packetContext, { reviewRef: "forged", sections: ["causal_chain"] }).ok, false);
 const changedContext = { ...context, evidenceMeta: { ...context.evidenceMeta, architectureRevision: "next" }, architecture: { ...context.architecture, components: [{ ...context.architecture.components[0], config: { instances: 3 } }] } };
 const delta = buildReviewRevisionDelta(context, changedContext);
+const movedOnly = { ...context, architecture: { ...context.architecture, components: [{ ...context.architecture.components[0], ui: { x: 900, y: 900 } }] } };
+assert.deepEqual(buildReviewRevisionDelta(context, movedOnly).changedComponentIds, [], "UI-only movement is not semantic evidence");
 const deltaResult = buildReviewCurrentDesignOutput({ ...changedContext, reviewDelta: delta, reviewPackets: buildReviewUseCasePackets(changedContext) }, { intent: "auto", knownEvidenceRevision: "fixture" }, session);
 assert.equal(deltaResult.ok, true);
 assert.deepEqual(deltaResult.data.changeSummary.changedComponentIds, ["service-1"]);

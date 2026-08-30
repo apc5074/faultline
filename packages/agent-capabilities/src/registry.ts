@@ -2,6 +2,7 @@ import type { AgentCapability, CapabilityExecutionOptions } from "./capability.j
 import type { AgentContext } from "./context.js";
 import { capabilityCancelled, capabilityError, isCapabilityCancelled, type CapabilityResult } from "./result.js";
 import { hasCurrentExperimentConsent } from "./experiment-consent.js";
+import { architectureEvidenceFingerprint } from "./architecture-predicates.js";
 
 export class DuplicateCapabilityError extends Error {
   override name = "DuplicateCapabilityError";
@@ -64,7 +65,10 @@ export class AgentCapabilityRegistry {
     const capability = this.get(name);
     const parsed = capability.inputSchema.safeParse(input);
     if (!parsed.success) {
-      return capabilityError("INVALID_INPUT", parsed.errors.join(" ") || "Invalid capability input.");
+      return capabilityError("INVALID_INPUT", parsed.errors.join(" ") || "Invalid capability input.", {
+        retryable: false,
+        recoveryTool: name,
+      });
     }
 
     if (isCapabilityCancelled(options?.signal)) {
@@ -79,7 +83,12 @@ export class AgentCapabilityRegistry {
       options?.session !== undefined &&
       !hasCurrentExperimentConsent(options.session.experimentConsent, context, capability.name)
     ) {
-      return capabilityError("CONSENT_REQUIRED", "Human approval is required for this named simulated experiment.");
+      return capabilityError("CONSENT_REQUIRED", "Human approval is required for this named simulated experiment.", {
+        retryable: false,
+        currentEvidenceRevision: architectureEvidenceFingerprint(context.architecture),
+        requiresUserAction: "approve_exact_experiment",
+        recoveryTool: capability.name,
+      });
     }
 
     try {

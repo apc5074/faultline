@@ -3,6 +3,7 @@ export * from "./register-visual-surface.js";
 export * from "./visual-intent.js";
 export * from "./annotations.js";
 export * from "./error-safety.js";
+export * from "./envelope.js";
 export * from "./model-context.js";
 export * from "./phase6-inspector.js";
 export * from "./register-phase6-surface.js";

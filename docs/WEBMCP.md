@@ -21,13 +21,20 @@ For a staged rollout, enable `NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED` in a Vercel 
 
 ## Surfaces
 
-Every tool invocation reads a fresh live snapshot:
+Every tool invocation acquires one live evidence lease:
 
 ```text
-{ context: AgentContext, session: AgentSessionState }
+{ snapshot: { context: AgentContext, session: AgentSessionState },
+  evidenceRevision, surfaceRevision, sessionRevision, isCurrent() }
 ```
 
 `AgentContext` contains the challenge, canonical architecture, simulator evidence, and cost evidence. `AgentSessionState` contains human focus, a pending help request, annotations, and a revision. Selection and help changes do not require WebMCP re-registration.
+
+The lease is acquired with the tool invocation's `AbortSignal`, so cancellation
+can stop cold evidence construction without cancelling another waiter sharing the
+same immutable build. Read-only calls retry once when a canonical edit supersedes
+their lease before publication; visual and experiment calls return a controlled
+superseded result instead of retrying or publishing stale evidence.
 
 Simulator-grounded reads include evidence provenance when live simulator context is available: architecture revision, simulation run ID, simulator version, generation time, and explicit stale state. Agents must treat unavailable or stale evidence as such rather than presenting it as current truth.
 
@@ -43,6 +50,7 @@ Read tools are idempotent and read-only. They return facts; they do not decide c
 | `get_requirements` | Returns the configured success criteria. |
 | `get_architecture` | Returns canonical architecture state, without UI-only data. |
 | `inspect_component` | Inspects a named component and related simulator/cost evidence. |
+| `inspect_component_option` | Explains one challenge-unlocked catalog option, including configuration, modeled behavior, constraints, and learning themes. Omit `type` only for the bounded current-option list. |
 | `estimate_capacity` | Reports capacity, load, headroom, and bottleneck evidence. |
 | `get_metrics` | Returns compact simulator outcomes and scenario evidence. |
 | `get_cost_breakdown` | Returns deterministic cost evidence. |
@@ -83,7 +91,7 @@ ChatGPT (or another compatible agent host) owns the written response. Faultline�
 
 ## Registration and lifecycle
 
-`registerAgentWebMcpSurface()` registers the external-agent surface with a shared `AbortSignal`. Successful WebMCP visual tools pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. The canvas reconciles registration when the challenge/architecture availability fingerprint changes. Unmount aborts registration cleanly. Optional WebMCP failures are contained so they never break gameplay.
+`registerAgentWebMcpSurface()` supports independently owned registration groups: stable review reads, stable visuals, architecture-dependent specialists, and consent-gated experiments. The browser registration mounts each group with its own abort signal, generation, and reconciliation key, so adding or removing a Redis, replica, or region only reconciles the affected specialist/experiment group. Stable tools retain their identities and read the newest evidence through the evidence source. Successful WebMCP visual tools pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. Unmount aborts all groups cleanly. Optional WebMCP failures are contained so they never break gameplay.
 
 The publisher owns coaching marks only. It does not mutate Architecture or rerun the simulator. Observation and focus commands are routed to the presentation controller from this same publisher boundary; coaching notes remain in the annotation layer and are kept across baseline/experiment runs, while ephemeral focus ticks are cleared when a run starts.
 
@@ -94,3 +102,8 @@ For local diagnostics, `/dev/webmcp` uses the same capability builders and visua
 WebMCP is not an architecture editing API. Agents may inspect, test, and add ephemeral marks, but must not own a player's architecture decisions or official submission. Official results are always re-simulated server-side.
 
 Experiment capabilities require a recent, human-controlled page-session consent for the exact capability and current canonical architecture. Consent expires after five minutes and tool calls cannot create or renew it. A denied or expired invocation returns `CONSENT_REQUIRED` without running simulator work; experiment outputs remain simulated and never affect official verification, accounts, or leaderboards.
+
+Controlled failures preserve an actionable recovery object with a stable code,
+retryability, current evidence revision when known, and— for experiments— the
+explicit `approve_exact_experiment` action. Adapter errors never expose stacks,
+raw exceptions, prompts, or inaccessible tool names.

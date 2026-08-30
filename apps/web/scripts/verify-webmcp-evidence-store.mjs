@@ -44,6 +44,11 @@ assert.notEqual(edited.key, concurrent[0].key);
 assert.equal(edited.context.reviewDelta.fromRevision, "1");
 assert.equal(edited.context.reviewDelta.toRevision, "2");
 assert.deepEqual(edited.context.reviewDelta.changedComponentIds, ["service-1"]);
+assert.ok(edited.context.comparisonBaselines?.previousReview);
+
+await source.recordPlayerRun("player-run-key");
+const withRun = await source.getEvidence();
+assert.equal(withRun.context.comparisonBaselines?.lastPlayerRun?.evidenceMeta?.simulationRunId, "run-player-run-key");
 
 buildDelays.push(20, 0);
 architecture = { ...architecture, components: [{ ...architecture.components[0], config: { instances: 3 } }] };

@@ -173,5 +173,15 @@ export const redisDefinition: ComponentDefinition<RedisConfig> = {
   replicationSupport: true,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [
+      { key: "mode", label: "Mode", valueType: "string", options: [...redisModes], defaultValue: "standalone" },
+      { key: "tier", label: "Tier", valueType: "string", options: [...redisTiers], defaultValue: "medium" },
+      { key: "ttlBand", label: "TTL band", valueType: "string", options: [...redisTtlBands], defaultValue: "medium" },
+    ],
+    costInputs: ["mode", "tier"], modeledBehaviors: ["read-aside data caching", "hit rate", "miss throughput", "hot-key capacity"],
+    unmodeledBehaviors: ["cache invalidation protocols", "durability", "cross-key sharding"], compatibleConnectionRoles: ["read_write"],
+    placementConstraints: ["Place on the Service read path; writes continue to Postgres."], learningThemes: ["cache hit rate", "hot-key concentration", "origin offload"],
+  },
   schemaVersion: 1,
 };

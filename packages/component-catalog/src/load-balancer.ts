@@ -86,5 +86,10 @@ export const loadBalancerDefinition: ComponentDefinition<LoadBalancerConfig> = {
   replicationSupport: false,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [{ key: "policy", label: "Policy", valueType: "string", options: [...loadBalancerPolicies], defaultValue: "equal" }],
+    costInputs: [], modeledBehaviors: ["request fanout", "capacity-weighted request distribution"], unmodeledBehaviors: ["connection draining", "session affinity"], compatibleConnectionRoles: ["request"],
+    placementConstraints: ["Distributes requests to connected service paths."], learningThemes: ["request distribution", "capacity-aware routing"],
+  },
   schemaVersion: 1,
 };

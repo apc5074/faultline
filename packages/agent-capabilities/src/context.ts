@@ -163,6 +163,13 @@ export interface AgentContext {
   /** Optional WebMCP-local packets; absent for other adapters and legacy contexts. */
   readonly reviewPackets?: ReviewUseCasePackets;
   readonly reviewDelta?: ReviewRevisionDelta;
+  /** Retained comparison baselines for WMP-018; WebMCP-owned, never cross-player. */
+  readonly comparisonBaselines?: ComparisonBaselines;
+}
+
+export interface ComparisonBaselines {
+  readonly previousReview?: AgentContext;
+  readonly lastPlayerRun?: AgentContext;
 }
 
 /** Safe fallback for synthetic/dev contexts that predate evidence metadata. */

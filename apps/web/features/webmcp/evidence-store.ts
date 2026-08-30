@@ -8,8 +8,9 @@ import type {
 import { buildReviewRevisionDelta, buildReviewUseCasePackets } from "@faultline/agent-capabilities";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { SIMULATOR_VERSION } from "@faultline/simulator";
+import { architectureEvidenceFingerprint } from "@faultline/agent-capabilities";
 
-import { createAgentContext } from "../../lib/agent-context/create-agent-context.ts";
+import { createAgentContext, createPlayerRunAgentContext } from "../../lib/agent-context/create-agent-context.ts";
 
 export interface WebMcpEvidenceIndexes {
   readonly components: ReadonlyMap<string, AgentComponentEvidence>;
@@ -30,7 +31,10 @@ export interface WebMcpEvidenceSource {
   activate(): void;
   getEvidence(signal?: AbortSignal): Promise<PreparedWebMcpEvidence>;
   getSnapshot(signal?: AbortSignal): Promise<LiveAgentSnapshot>;
+  getEvidenceRevision(): string;
   getSession(): AgentSessionState;
+  /** Retain the last player-visible Run as a comparison baseline (WMP-018). */
+  recordPlayerRun(runKey: string): Promise<PreparedWebMcpEvidence>;
   prewarm(): void;
   dispose(): void;
 }
@@ -45,15 +49,6 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
-function hash(value: string): string {
-  let result = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    result ^= value.charCodeAt(index);
-    result = Math.imul(result, 16777619);
-  }
-  return (result >>> 0).toString(16).padStart(8, "0");
-}
-
 function semanticArchitecture(architecture: Architecture): unknown {
   return {
     version: architecture.version,
@@ -63,7 +58,9 @@ function semanticArchitecture(architecture: Architecture): unknown {
 }
 
 export function webMcpEvidenceKey(architecture: Architecture, challenge: ChallengeDefinition): string {
-  return `wmp2-${hash(stable({ architecture: semanticArchitecture(architecture), challenge, simulatorVersion: SIMULATOR_VERSION, contract: "wmp2" }))}`;
+  // Keep the canonical serialized identity exact. A short 32-bit digest can
+  // collide and silently return another architecture's prepared evidence.
+  return `wmp2-${stable({ architecture: semanticArchitecture(architecture), challenge, simulatorVersion: SIMULATOR_VERSION, contract: "wmp2" })}`;
 }
 
 function buildIndexes(context: AgentContext): WebMcpEvidenceIndexes {
@@ -82,6 +79,18 @@ function buildIndexes(context: AgentContext): WebMcpEvidenceIndexes {
   };
 }
 
+function attachComparisonBaselines(
+  context: AgentContext,
+  previousReview?: AgentContext,
+  playerRun?: AgentContext,
+): AgentContext {
+  const comparisonBaselines = {
+    ...(previousReview ? { previousReview } : {}),
+    ...(playerRun ? { lastPlayerRun: playerRun } : {}),
+  };
+  return Object.keys(comparisonBaselines).length > 0 ? { ...context, comparisonBaselines } : context;
+}
+
 export function createWebMcpEvidenceSource(options: {
   readonly getArchitecture: () => Architecture;
   readonly getChallenge: () => ChallengeDefinition;
@@ -91,8 +100,42 @@ export function createWebMcpEvidenceSource(options: {
   const buildContext = options.buildContext ?? createAgentContext;
   let completed: PreparedWebMcpEvidence | undefined;
   let history: PreparedWebMcpEvidence[] = [];
+  let lastPlayerRun: PreparedWebMcpEvidence | undefined;
   let inFlight: { key: string; promise: Promise<PreparedWebMcpEvidence> } | undefined;
   let disposed = false;
+
+  function buildPlayerRunContext(architecture: Architecture, challenge: ChallengeDefinition, runKey: string): Promise<AgentContext> {
+    if (buildContext === createAgentContext) {
+      return Promise.resolve(createPlayerRunAgentContext(architecture, challenge, runKey));
+    }
+    return Promise.resolve(buildContext(architecture, challenge)).then((context) => ({
+      ...context,
+      evidenceMeta: context.evidenceMeta
+        ? { ...context.evidenceMeta, simulationRunId: `run-${runKey}` }
+        : {
+            architectureRevision: architectureEvidenceFingerprint(architecture),
+            simulationRunId: `run-${runKey}`,
+            simulatorVersion: SIMULATOR_VERSION,
+            isStale: context.simulation?.available !== true,
+            generatedAt: new Date().toISOString(),
+          },
+    }));
+  }
+
+  function prepareEvidence(key: string, context: AgentContext, previous?: PreparedWebMcpEvidence): PreparedWebMcpEvidence {
+    const indexes = buildIndexes(context);
+    const reviewPackets = buildReviewUseCasePackets({ ...context, reviewPackets: undefined });
+    const preparedContext = attachComparisonBaselines(
+      {
+        ...context,
+        reviewPackets,
+        ...(previous ? { reviewDelta: buildReviewRevisionDelta(previous.context, { ...context, reviewPackets }) } : {}),
+      },
+      previous?.context,
+      lastPlayerRun?.context,
+    );
+    return { key, context: preparedContext, indexes };
+  }
 
   function currentInputs() {
     const architecture = options.getArchitecture();
@@ -102,11 +145,8 @@ export function createWebMcpEvidenceSource(options: {
 
   function start(key: string, architecture: Architecture, challenge: ChallengeDefinition): Promise<PreparedWebMcpEvidence> {
     const promise = Promise.resolve(buildContext(architecture, challenge)).then((context) => {
-      const indexes = buildIndexes(context);
-      const reviewPackets = buildReviewUseCasePackets({ ...context, reviewPackets: undefined });
       const previous = history.at(-1);
-      const preparedContext = { ...context, reviewPackets, ...(previous ? { reviewDelta: buildReviewRevisionDelta(previous.context, { ...context, reviewPackets }) } : {}) };
-      const prepared = { key, context: preparedContext, indexes };
+      const prepared = prepareEvidence(key, context, previous);
       const isCurrent = currentInputs().key === key;
       if (isCurrent) history = [...history.filter((entry) => entry.key !== key), prepared].slice(-2);
       if (!disposed && isCurrent && inFlight?.key === key) completed = prepared;
@@ -118,6 +158,19 @@ export function createWebMcpEvidenceSource(options: {
     });
     inFlight = { key, promise };
     return promise;
+  }
+
+  function recordPlayerRun(runKey: string): Promise<PreparedWebMcpEvidence> {
+    if (disposed) return Promise.reject(new Error("WebMCP evidence source is disposed."));
+    const { architecture, challenge, key } = currentInputs();
+    return buildPlayerRunContext(architecture, challenge, runKey).then((context) => {
+      lastPlayerRun = prepareEvidence(key, context);
+      if (completed?.key === key) {
+        const { comparisonBaselines: _comparisonBaselines, reviewPackets: _reviewPackets, reviewDelta: _reviewDelta, ...baseContext } = completed.context;
+        completed = prepareEvidence(key, baseContext, history.at(-1));
+      }
+      return lastPlayerRun;
+    });
   }
 
   function getEvidence(signal?: AbortSignal): Promise<PreparedWebMcpEvidence> {
@@ -140,9 +193,11 @@ export function createWebMcpEvidenceSource(options: {
   return {
     activate: () => { disposed = false; },
     getEvidence,
+    getEvidenceRevision: () => architectureEvidenceFingerprint(currentInputs().architecture),
     getSnapshot: async (signal) => ({ context: (await getEvidence(signal)).context, session: options.getSession() }),
     getSession: options.getSession,
+    recordPlayerRun,
     prewarm: () => { void getEvidence().catch(() => undefined); },
-    dispose: () => { disposed = true; completed = undefined; inFlight = undefined; history = []; },
+    dispose: () => { disposed = true; completed = undefined; inFlight = undefined; history = []; lastPlayerRun = undefined; },
   };
 }

@@ -45,6 +45,28 @@ export interface ComponentPresentationDescriptor {
   supportedStates: readonly ComponentPresentationState[];
 }
 
+export interface ComponentAgentConfigField {
+  key: string;
+  label: string;
+  valueType: "number" | "string";
+  unit?: string;
+  minimum?: number;
+  maximum?: number;
+  options?: readonly string[];
+  defaultValue: number | string;
+}
+
+/** Factual, challenge-neutral teaching metadata owned by the component catalog. */
+export interface ComponentAgentFacts {
+  configFields: readonly ComponentAgentConfigField[];
+  costInputs: readonly string[];
+  modeledBehaviors: readonly string[];
+  unmodeledBehaviors: readonly string[];
+  compatibleConnectionRoles: readonly string[];
+  placementConstraints: readonly string[];
+  learningThemes: readonly string[];
+}
+
 /**
  * Framework-independent metadata describing one infrastructure primitive.
  * Its behavior/configuration is intentionally separate from challenge workload.
@@ -64,5 +86,6 @@ export interface ComponentDefinition<TConfig extends JsonObject = JsonObject> {
   replicationSupport: boolean;
   clusteringSupport: boolean;
   agentCapabilities: readonly string[];
+  agentFacts?: ComponentAgentFacts;
   schemaVersion: number;
 }

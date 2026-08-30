@@ -60,5 +60,10 @@ export const trafficSourceDefinition: ComponentDefinition<TrafficSourceConfig> =
   replicationSupport: false,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [{ key: "label", label: "Label", valueType: "string", defaultValue: "Incoming traffic" }],
+    costInputs: [], modeledBehaviors: ["challenge workload ingress", "regional traffic shares"], unmodeledBehaviors: ["client retries", "bot filtering"], compatibleConnectionRoles: ["request"],
+    placementConstraints: ["Begins a request path; it does not process or store data."], learningThemes: ["traffic origin", "geographic demand"],
+  },
   schemaVersion: 1,
 };

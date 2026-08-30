@@ -156,5 +156,14 @@ export const serviceDefinition: ComponentDefinition<ServiceConfig> = {
   replicationSupport: false,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [
+      { key: "size", label: "Size", valueType: "string", options: [...serviceSizes], defaultValue: "medium" },
+      { key: "instances", label: "Instances", valueType: "number", unit: "instances", minimum: 1, maximum: 10, defaultValue: 1 },
+    ],
+    costInputs: ["size", "instances"], modeledBehaviors: ["stateless compute capacity", "utilization and p95 latency"],
+    unmodeledBehaviors: ["application code", "in-process state", "autoscaling"], compatibleConnectionRoles: ["request", "read_write", "object_io", "async_work"],
+    placementConstraints: ["Can be deployed in supported regions."], learningThemes: ["horizontal scaling", "stateless request handling"],
+  },
   schemaVersion: 1,
 };

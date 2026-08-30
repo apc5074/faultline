@@ -77,7 +77,7 @@ function ArchitectureWorkspace() {
   const shell = (
     <>
       <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} />
-      <AnnotationRunLifecycle runState={workspace.runState} />
+      <AnnotationRunLifecycle runState={workspace.runState} runKey={workspace.lastRunKey} />
       <WebMcpRegistration
         reconciliationKey={workspace.webMcpReconciliationKey}
         onStatusChange={handleWebMcpStatus}

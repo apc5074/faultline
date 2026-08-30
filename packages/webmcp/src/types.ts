@@ -1,4 +1,14 @@
 import type { CapabilityJsonSchema } from "@faultline/agent-capabilities";
+import type { LiveAgentSnapshot } from "@faultline/agent-capabilities";
+
+/** One coherent, revision-bound read of the live page state. */
+export interface WebMcpEvidenceLease {
+  readonly snapshot: LiveAgentSnapshot;
+  readonly evidenceRevision: string;
+  readonly surfaceRevision: string;
+  readonly sessionRevision: number;
+  isCurrent(): boolean;
+}
 
 /** Browser WebMCP execution context supplied to a registered tool callback. */
 export interface WebMcpToolExecutionContext {

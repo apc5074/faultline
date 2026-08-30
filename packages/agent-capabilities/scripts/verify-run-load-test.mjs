@@ -30,11 +30,10 @@ const registry = createDefaultCapabilityRegistry();
 assert.deepEqual(resolveExperimentCapabilities(registry, context).names, ["run_load_test", "change_traffic_pattern", "inject_component_failure"]);
 const before = JSON.stringify({ architecture, challenge });
 const denied = await registry.invoke("run_load_test", context, {}, { session: createEmptyAgentSessionState() });
-assert.deepEqual(denied, {
-  ok: false,
-  code: "CONSENT_REQUIRED",
-  message: "Human approval is required for this named simulated experiment.",
-});
+assert.equal(denied.ok, false);
+assert.equal(denied.code, "CONSENT_REQUIRED");
+assert.match(denied.message, /Human approval is required/);
+assert.equal(denied.recovery?.requiresUserAction, "approve_exact_experiment");
 const consentedSession = {
   ...createEmptyAgentSessionState(),
   experimentConsent: grantExperimentConsent(context, "run_load_test"),
@@ -47,7 +46,9 @@ assert.equal(defaultResult.data.simulated, true);
 assert.equal(defaultResult.data.parameters.multiplier, 2);
 assert.equal(JSON.stringify({ architecture, challenge }), before);
 const invalid = await registry.invoke("run_load_test", context, { multiplier: 4 });
-assert.deepEqual(invalid, { ok: false, code: "INVALID_INPUT", message: "multiplier must be one of 1.25, 1.5, 2, 3, or 5." });
+assert.equal(invalid.ok, false);
+assert.equal(invalid.code, "INVALID_INPUT");
+assert.match(invalid.message, /multiplier must be one of/);
 const unavailable = resolveExperimentCapabilities(registry, { challenge, architecture, simulation: { available: false } });
 assert.deepEqual(unavailable.skipped, [
   { name: "run_load_test", reason: "unavailable" },

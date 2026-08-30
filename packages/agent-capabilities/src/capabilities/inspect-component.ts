@@ -1,49 +1,12 @@
-import type { ComponentInstance, CostResult, JsonObject } from "@faultline/core";
-
 import type { AgentCapability } from "../capability.js";
-import type { AgentContext, AgentSimulationEvidence, EvidenceMeta } from "../context.js";
+import type { AgentContext } from "../context.js";
+import { createScopedEntityReference, resolveEntityTarget } from "../evidence-result.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { inspectComponentInputSchema, type InspectComponentInput } from "../schemas.js";
-import type { AgentWorkloadFitEvidence } from "../workload-fit-evidence.js";
+import { buildOutput } from "./inspect-component-selectors.js";
 
-/** Compact component inspection for agent grounding. */
-export interface InspectComponentOutput {
-  readonly id: string;
-  readonly type: string;
-  readonly config: JsonObject;
-  readonly metrics?: Readonly<Record<string, number>>;
-  readonly monthlyCost?: number;
-  /** Role / mechanism / ceiling / effective / pressures when simulator evidence includes them. */
-  readonly workloadFit?: AgentWorkloadFitEvidence;
-  readonly evidence?: EvidenceMeta;
-}
-
-function monthlyCostForComponent(cost: CostResult | undefined, componentId: string): number | undefined {
-  if (!cost) return undefined;
-  const amount = cost.lineItems
-    .filter((item) => item.componentId === componentId)
-    .reduce((sum, item) => sum + item.amount, 0);
-  return cost.lineItems.some((item) => item.componentId === componentId) ? amount : undefined;
-}
-
-function evidenceForComponent(simulation: AgentSimulationEvidence | undefined, componentId: string) {
-  if (!simulation || simulation.available !== true) return undefined;
-  return simulation.components[componentId];
-}
-
-function buildOutput(component: ComponentInstance, context: AgentContext): InspectComponentOutput {
-  const evidence = evidenceForComponent(context.simulation, component.id);
-  const monthlyCost = monthlyCostForComponent(context.cost, component.id);
-  return {
-    id: component.id,
-    type: component.type,
-    config: component.config,
-    ...(evidence?.metrics ? { metrics: evidence.metrics } : {}),
-    ...(monthlyCost !== undefined ? { monthlyCost } : {}),
-    ...(evidence?.workloadFit ? { workloadFit: evidence.workloadFit } : {}),
-    ...(context.evidenceMeta ? { evidence: context.evidenceMeta } : {}),
-  };
-}
+export type { InspectComponentOutput } from "./inspect-component-selectors.js";
+export { buildOutput } from "./inspect-component-selectors.js";
 
 /**
  * Inspect one architecture component using trusted AgentContext evidence.
@@ -52,18 +15,41 @@ function buildOutput(component: ComponentInstance, context: AgentContext): Inspe
 export function inspectComponent(
   context: AgentContext,
   input: InspectComponentInput,
-): CapabilityResult<InspectComponentOutput> {
-  const component = context.architecture.components.find((candidate) => candidate.id === input.componentId);
+): CapabilityResult<import("./inspect-component-selectors.js").InspectComponentOutput> {
+  const revision = context.evidenceMeta?.architectureRevision ?? "unversioned";
+  const resolved = resolveEntityTarget(input.componentId, revision, {
+    component: context.architecture.components.map((component) => component.id),
+    connection: context.architecture.connections.map((connection) => connection.id),
+    requirement: (context.requirementResults ?? []).map((result) => result.id),
+    region: [],
+    workload: Object.keys(context.simulation?.available === true ? context.simulation.workloadPaths ?? {} : {}),
+    scenario: [],
+    experiment: [],
+  });
+  const componentId = resolved?.kind === "component" ? resolved.entityId : input.componentId.startsWith("wmp-ent-") ? undefined : input.componentId;
+  const component = componentId ? context.architecture.components.find((candidate) => candidate.id === componentId) : undefined;
   if (!component) {
+    if (input.componentId.startsWith("wmp-ent-")) {
+      return capabilityError("NOT_FOUND", "Scoped entity reference is stale or does not match the current evidence revision.", {
+        retryable: true,
+        currentEvidenceRevision: revision,
+        recoveryTool: "review_current_design",
+      });
+    }
     return capabilityError("NOT_FOUND", `Unknown component "${input.componentId}".`);
   }
   return capabilityOk(buildOutput(component, context));
 }
 
+/** Create a revision-scoped reference for a component entity. */
+export function componentEntityReference(context: AgentContext, componentId: string) {
+  return createScopedEntityReference("component", componentId, context.evidenceMeta?.architectureRevision ?? "unversioned");
+}
+
 export const inspectComponentCapability: AgentCapability<
   AgentContext,
   InspectComponentInput,
-  CapabilityResult<InspectComponentOutput>
+  CapabilityResult<import("./inspect-component-selectors.js").InspectComponentOutput>
 > = {
   name: "inspect_component",
   description:

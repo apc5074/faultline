@@ -77,5 +77,10 @@ export const globalRouterDefinition: ComponentDefinition<GlobalRouterConfig> = {
   replicationSupport: false,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [],
+    costInputs: [], modeledBehaviors: ["geographic request routing"], unmodeledBehaviors: ["DNS propagation", "health-check timing"], compatibleConnectionRoles: ["request"],
+    placementConstraints: ["Routes requests toward regional request paths."], learningThemes: ["geographic routing", "regional latency"],
+  },
   schemaVersion: 1,
 };

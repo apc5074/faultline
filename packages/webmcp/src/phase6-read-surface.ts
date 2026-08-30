@@ -41,6 +41,7 @@ export interface Phase6ReadSurface {
 export interface BuildPhase6ReadSurfaceOptions {
   readonly registry: AgentCapabilityRegistry;
   readonly getContext: WebMcpContextFactory;
+  readonly getCurrentEvidenceRevision?: () => string;
   /**
    * When true, missing or ineligible baseline capabilities throw instead of
    * being omitted. Use in development and verification; production mounts omit safely.
@@ -86,7 +87,7 @@ function configurationFailure(message: string, development: boolean): never | vo
 export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
-  const { registry, getContext, development = false, timing, profile = "complete" } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, development = false, timing, profile = "complete" } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -114,6 +115,8 @@ export async function buildAgentReadSurface(
   const orderedCapabilities = profile === "production"
     ? WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES.flatMap((name) => resolved.capabilities.filter((candidate) => candidate.name === name))
     : resolved.capabilities;
+  const eligibleCapabilities = orderedCapabilities.filter((candidate) => allowedNames.has(candidate.name as typeof WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES[number]) && !ineligibleReason(candidate, context));
+  const availableToolNames = new Set(eligibleCapabilities.map((candidate) => candidate.name));
   for (const capability of orderedCapabilities.filter((candidate) => allowedNames.has(candidate.name as typeof WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES[number]))) {
     const reason = ineligibleReason(capability, context);
     if (reason) {
@@ -122,7 +125,7 @@ export async function buildAgentReadSurface(
       continue;
     }
 
-    tools.push(toWebMcpTool(capability, { registry, getContext, development, timing }));
+    tools.push(toWebMcpTool(capability, { registry, getContext, getCurrentEvidenceRevision, availableToolNames, development, timing }));
   }
 
   return {

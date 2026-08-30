@@ -174,5 +174,15 @@ export const cdnDefinition: ComponentDefinition<CdnConfig> = {
   replicationSupport: false,
   clusteringSupport: false,
   agentCapabilities: [],
+  agentFacts: {
+    configFields: [
+      { key: "coverage", label: "Coverage", valueType: "number", unit: "ratio", minimum: 0, maximum: 1, defaultValue: 0.8 },
+      { key: "ttlBand", label: "TTL band", valueType: "string", options: [...cdnTtlBands], defaultValue: "medium" },
+      { key: "tier", label: "Tier", valueType: "string", options: [...cdnTiers], defaultValue: "medium" },
+    ],
+    costInputs: ["tier", "incoming redirect traffic"], modeledBehaviors: ["edge redirect caching", "cache hit/miss offload", "edge throughput"],
+    unmodeledBehaviors: ["origin content invalidation", "provider POP placement", "write caching"], compatibleConnectionRoles: ["request"],
+    placementConstraints: ["Accepts request traffic and forwards misses to an origin."], learningThemes: ["edge offload", "cache coverage", "read/write asymmetry"],
+  },
   schemaVersion: 1,
 };

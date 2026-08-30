@@ -34,6 +34,7 @@ export interface AgentVisualSurface {
 export interface BuildVisualWebMcpSurfaceOptions {
   readonly registry: AgentCapabilityRegistry;
   readonly getContext: WebMcpContextFactory;
+  readonly getCurrentEvidenceRevision?: () => string;
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
   readonly timing?: WebMcpTimingSink;
@@ -70,7 +71,7 @@ function visualIneligibleReason(
 export async function buildVisualWebMcpSurface(
   options: BuildVisualWebMcpSurfaceOptions,
 ): Promise<AgentVisualSurface> {
-  const { registry, getContext, development = false, onVisualIntent, timing, profile = "complete" } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, development = false, onVisualIntent, timing, profile = "complete" } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -86,6 +87,7 @@ export async function buildVisualWebMcpSurface(
   const toolOptions: ToWebMcpToolOptions = {
     registry,
     getContext,
+    getCurrentEvidenceRevision,
     development,
     ...(onVisualIntent ? { onVisualIntent } : {}),
     timing,

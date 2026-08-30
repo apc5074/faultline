@@ -2,17 +2,39 @@ import type { AgentCapability } from "../capability.js";
 import type { AgentContext, EvidenceMeta } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { expandDesignEvidenceInputSchema, type ExpandDesignEvidenceInput, type ReviewEvidenceSection } from "../schemas.js";
+import { evidenceDigest, reviewReference, reviewReferencePayload, WMP_EVIDENCE_CONTRACT_VERSION } from "../evidence-result.js";
 
-export interface ExpandDesignEvidenceOutput { readonly reviewRef: string; readonly sections: Readonly<Record<string, unknown>>; readonly evidence: EvidenceMeta; readonly caveats: readonly string[]; }
-function digest(value: string): string { let hash = 2166136261; for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return (hash >>> 0).toString(16); }
-export function reviewReference(context: AgentContext, intent = "auto", targetId?: string): string { return `wmp-ref-${digest(JSON.stringify({ revision: context.evidenceMeta?.architectureRevision ?? "unversioned", packet: "wmp-1", intent, target: targetId ?? "auto" }))}`; }
+export interface ExpandDesignEvidenceOutput {
+  readonly reviewRef: string;
+  readonly sections: Readonly<Record<string, unknown>>;
+  readonly evidence: EvidenceMeta;
+  readonly caveats: readonly string[];
+}
+
+function legacyReviewReference(context: AgentContext, intent = "auto", targetId?: string): string {
+  return `wmp-ref-${evidenceDigest(JSON.stringify({ revision: context.evidenceMeta?.architectureRevision ?? "unversioned", packet: "wmp-1", intent, target: targetId ?? "auto" }))}`;
+}
+
+export { reviewReference };
+
 function referenceMatches(context: AgentContext, value: string): boolean {
   const targets = [undefined, ...context.architecture.components.map((component) => component.id), ...(context.requirementResults ?? []).map((result) => result.id), ...Object.keys(context.simulation?.available === true ? context.simulation.workloadPaths ?? {} : {})];
-  return ["auto", "component_review", "requirement_failure", "workload_trace", "cost_review"].some((intent) => targets.some((target) => reviewReference(context, intent, target) === value));
+  return ["auto", "component_review", "requirement_failure", "workload_trace", "cost_review"].some((intent) =>
+    targets.some((target) =>
+      reviewReference(context, intent, target) === value ||
+      legacyReviewReference(context, intent, target) === value,
+    ),
+  );
 }
 
 export function expandDesignEvidence(context: AgentContext, input: ExpandDesignEvidenceInput): CapabilityResult<ExpandDesignEvidenceOutput> {
-  if (!referenceMatches(context, input.reviewRef)) return capabilityError("NOT_FOUND", "This review reference is expired, mismatched, or not retained. Call review_current_design again.");
+  if (!referenceMatches(context, input.reviewRef)) {
+    return capabilityError("NOT_FOUND", "This review reference is expired, mismatched, or not retained. Call review_current_design again.", {
+      retryable: true,
+      currentEvidenceRevision: context.evidenceMeta?.architectureRevision,
+      recoveryTool: "review_current_design",
+    });
+  }
   const packets = context.reviewPackets;
   if (!packets) return capabilityError("SIMULATION_UNAVAILABLE", "Expanded WebMCP evidence is not available for this context.");
   const sections: Record<string, unknown> = {};
@@ -23,9 +45,14 @@ export function expandDesignEvidence(context: AgentContext, input: ExpandDesignE
     if (section === "workload_hops") sections[section] = { workloads: packets.workload };
     if (section === "cost_contributors") sections[section] = { cost: packets.cost };
     if (section === "comparison_baseline") sections[section] = context.reviewDelta ? { delta: context.reviewDelta } : { note: "No prior revision was retained for this reference; use a delta-aware review for comparison." };
-    if (section === "experiment_readiness") sections[section] = { revision: context.evidenceMeta?.architectureRevision, consentRequired: true, ran: false };
+    if (section === "experiment_readiness") sections[section] = { revision: context.evidenceMeta?.architectureRevision, consentRequired: true, ran: false, contract: WMP_EVIDENCE_CONTRACT_VERSION };
   }
-  return capabilityOk({ reviewRef: input.reviewRef, sections, evidence: context.evidenceMeta ?? { architectureRevision: "unversioned", simulationRunId: "unversioned", simulatorVersion: "unknown", isStale: true, generatedAt: "unknown" }, caveats: ["Expanded sections are simulator-grounded evidence, not architecture instructions.", "Expansion does not run experiments or mutate the design."] });
+  return capabilityOk({
+    reviewRef: input.reviewRef,
+    sections,
+    evidence: context.evidenceMeta ?? { architectureRevision: "unversioned", simulationRunId: "unversioned", simulatorVersion: "unknown", isStale: true, generatedAt: "unknown" },
+    caveats: ["Expanded sections are simulator-grounded evidence, not architecture instructions.", "Expansion does not run experiments or mutate the design."],
+  });
 }
 
 export const expandDesignEvidenceCapability: AgentCapability<AgentContext, ExpandDesignEvidenceInput, CapabilityResult<ExpandDesignEvidenceOutput>> = {
@@ -37,3 +64,11 @@ export const expandDesignEvidenceCapability: AgentCapability<AgentContext, Expan
   annotations: { readOnlyHint: true, idempotentHint: true },
   execute(context, input) { return expandDesignEvidence(context, input); },
 };
+
+export function reviewReferenceContractVersion(): string {
+  return WMP_EVIDENCE_CONTRACT_VERSION;
+}
+
+export function reviewReferencePayloadForTest(context: AgentContext, intent = "auto", targetId?: string): string {
+  return reviewReferencePayload(context, intent, targetId);
+}

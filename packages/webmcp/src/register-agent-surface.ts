@@ -1,5 +1,5 @@
 import type { AgentCapabilityMode, AgentCapabilityRegistry } from "@faultline/agent-capabilities";
-import { resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
+import { isPhase7DynamicCapabilityName, resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
 import type { ExperimentResult } from "@faultline/core";
 import { buildVisualWebMcpSurface } from "./agent-visual-surface.js";
 import { buildExperimentWebMcpSurface } from "./experiment-webmcp-surface.js";
@@ -11,6 +11,9 @@ import type { VisualIntentHandler } from "./visual-intent.js";
 
 /** Browser registration deadline derived from the WMP-001 lifecycle baseline. */
 export const WEBMCP_REGISTRATION_DEADLINE_MS = 2_000;
+
+/** Independently owned registration groups. "all" preserves the legacy adapter API. */
+export type WebMcpRegistrationGroup = "all" | "stable-review" | "stable-visual" | "specialists" | "experiments";
 
 export interface WebMcpRegistrationManifest {
   readonly revision: string;
@@ -24,14 +27,18 @@ export interface RegisterAgentWebMcpSurfaceOptions {
   readonly modelContext: WebMcpModelContext;
   readonly registry: AgentCapabilityRegistry;
   readonly getContext: WebMcpContextFactory;
+  readonly getCurrentEvidenceRevision?: () => string;
   readonly signal: AbortSignal;
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
   readonly onExperimentResult?: (result: ExperimentResult) => void;
   readonly timing?: WebMcpTimingSink;
+  /** Limit this registration generation to one independently reconciled group. */
+  readonly group?: WebMcpRegistrationGroup;
 }
 
 export interface RegisterAgentWebMcpSurfaceResult {
+  readonly group?: WebMcpRegistrationGroup;
   readonly resolvedToolNames: readonly string[];
   readonly registeredToolNames: readonly string[];
   readonly failedToolNames: readonly string[];
@@ -41,8 +48,8 @@ export interface RegisterAgentWebMcpSurfaceResult {
   readonly manifest?: WebMcpRegistrationManifest;
 }
 
-function abortedResult(): RegisterAgentWebMcpSurfaceResult {
-  return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [], readToolNames: [], visualToolNames: [], experimentToolNames: [] };
+function abortedResult(group: WebMcpRegistrationGroup): RegisterAgentWebMcpSurfaceResult {
+  return { ...(group !== "all" ? { group } : {}), resolvedToolNames: [], registeredToolNames: [], failedToolNames: [], readToolNames: [], visualToolNames: [], experimentToolNames: [] };
 }
 
 function fingerprintManifest(tools: readonly WebMcpTool[]): string {
@@ -51,19 +58,33 @@ function fingerprintManifest(tools: readonly WebMcpTool[]): string {
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
 export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, signal, development = false, onVisualIntent, onExperimentResult, timing } = options;
+  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, timing, group = "all" } = options;
   const startedAt = performance.now();
-  if (signal.aborted) return abortedResult();
+  if (signal.aborted) return abortedResult(group);
   const context = resolveLiveAgentSnapshot(await getContext()).context;
-  if (signal.aborted) return abortedResult();
+  if (signal.aborted) return abortedResult(group);
+  const includeRead = group === "all" || group === "stable-review" || group === "specialists";
+  const includeVisual = group === "all" || group === "stable-visual";
+  const includeExperiments = group === "all" || group === "experiments";
   const [read, visual, experiment] = await Promise.all([
-    measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, context, development, timing, profile: "production" }), { mode: "read" }),
-    measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, context, development, timing, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}) }), { mode: "visual" }),
-    measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}) }), { mode: "experiment" }),
+    includeRead
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production" }), { mode: "read" })
+      : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
+    includeVisual
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}) }), { mode: "visual" })
+      : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
+    includeExperiments
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}) }), { mode: "experiment" })
+      : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
   ]);
-  if (signal.aborted) return abortedResult();
-  const tools = [...read.tools, ...visual.tools, ...experiment.tools];
-  const namesByMode = { read: read.tools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name) } as const;
+  if (signal.aborted) return abortedResult(group);
+  const readTools = group === "stable-review"
+    ? read.tools.filter((tool) => !isPhase7DynamicCapabilityName(tool.name))
+    : group === "specialists"
+      ? read.tools.filter((tool) => isPhase7DynamicCapabilityName(tool.name))
+      : read.tools;
+  const tools = [...readTools, ...visual.tools, ...experiment.tools];
+  const namesByMode = { read: readTools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name) } as const;
   const manifest: WebMcpRegistrationManifest = {
     revision: context.evidenceMeta?.architectureRevision ?? "unversioned",
     tools,
@@ -89,7 +110,8 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   }
   timing?.({ kind: "timing", name: "registration_total_ms", durationMs: performance.now() - startedAt });
   return {
-    resolvedToolNames: [...read.resolvedNames, ...visual.resolvedNames, ...experiment.resolvedNames],
+    ...(group !== "all" ? { group } : {}),
+    resolvedToolNames: [...readTools.map(({ name }) => name), ...visual.tools.map(({ name }) => name), ...experiment.tools.map(({ name }) => name)],
     registeredToolNames,
     failedToolNames,
     readToolNames: registeredToolNames.filter((name) => namesByMode.read.includes(name)),

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { BASELINE_READ_CAPABILITY_NAMES, createDefaultCapabilityRegistry, workloadFitFromCacheMetrics, workloadFitFromPlacement } from "@faultline/agent-capabilities";
+import { BASELINE_READ_CAPABILITY_NAMES, createDefaultCapabilityRegistry, WMP_EVIDENCE_CONTRACT_VERSION, workloadFitFromCacheMetrics, workloadFitFromPlacement } from "@faultline/agent-capabilities";
 import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
@@ -155,7 +155,38 @@ const registry = createDefaultCapabilityRegistry();
 async function assertParity({ tool, context, input, label }) {
   const direct = await registry.invoke(tool.name, context, input);
   const adapted = await tool.execute(input, {});
-  assert.deepEqual(adapted, direct, `${label}: ${tool.name} adapter result must match registry.invoke`);
+  if (!direct.ok) {
+    assert.deepEqual(adapted, direct, `${label}: ${tool.name} adapter error must match registry.invoke`);
+    return;
+  }
+  assert.equal(adapted.ok, true, `${label}: ${tool.name}`);
+  assert.equal(adapted.data.contractVersion, WMP_EVIDENCE_CONTRACT_VERSION, `${label}: ${tool.name} must use the WMP-2 envelope`);
+  assert.equal(typeof adapted.data.state.resultDigest, "string");
+  assert.equal(typeof adapted.data.provenance.source, "string");
+  assert.equal("evidence" in adapted.data.data, false, `${label}: ${tool.name} must not repeat provenance in payload`);
+  const inner = adapted.data.data;
+  if (tool.name === "inspect_component") {
+    assert.equal(inner.facts.id, direct.data.id);
+    assert.equal(inner.facts.type, direct.data.type);
+  } else if (tool.name === "get_architecture") {
+    assert.deepEqual(inner.facts.components, direct.data.components);
+    assert.deepEqual(inner.facts.connections, direct.data.connections);
+  } else if (tool.name === "get_coaching_policy") {
+    assert.equal(inner.policyVersion, direct.data.policyVersion);
+    assert.equal(inner.policyDigest, direct.data.policyDigest);
+  } else if (tool.name === "get_challenge") {
+    assert.equal(inner.slug, direct.data.slug);
+  } else if (tool.name === "get_cost_breakdown") {
+    assert.equal(inner.monthlyTotal.unit, "usd_per_month");
+    assert.equal(inner.budget.unit, "usd_per_month");
+    assert.ok(Math.abs(inner.monthlyTotal.value - direct.data.monthlyTotal) < 0.01);
+  } else if (tool.name === "get_metrics" && direct.data.simulationAvailable !== false) {
+    if (direct.data.system?.redirectP95Ms !== undefined) {
+      assert.equal(inner.system.redirectP95Ms.unit, "ms");
+    }
+  } else if (direct.data.simulationAvailable === false) {
+    assert.equal(inner.simulationAvailable, false);
+  }
 }
 
 function assertToolMetadataParity(tool) {
@@ -261,9 +292,10 @@ const beforeChange = await architectureTool.execute(undefined, {});
 currentArchitecture = structuredClone(validArchitecture);
 const afterChange = await architectureTool.execute(undefined, {});
 assert.notDeepEqual(beforeChange, afterChange, "fresh context factory must observe architecture edits");
+assert.equal(afterChange.ok, true);
 assert.deepEqual(
-  afterChange,
-  await registry.invoke("get_architecture", createAgentContext(validArchitecture, urlShortenerChallenge), undefined),
+  afterChange.data.data.facts.components,
+  (await registry.invoke("get_architecture", createAgentContext(validArchitecture, urlShortenerChallenge), undefined)).data.components,
 );
 
 console.log("verify-adapter-parity: ok");

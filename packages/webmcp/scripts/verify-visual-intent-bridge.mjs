@@ -88,7 +88,7 @@ const clearTool = toWebMcpTool(registry.get("clear_annotations"), {
 
 const clearResult = await clearTool.execute({ scope: "all" }, {});
 assert.equal(clearResult.ok, true);
-if (clearResult.ok) assert.equal(clearResult.data.clearedCount, 2);
+if (clearResult.ok) assert.equal(clearResult.data.data.clearedCount, 2);
 assert.equal(session.annotations.length, 0);
 
 const readTool = toWebMcpTool(registry.get("get_challenge"), { registry, getContext, onVisualIntent: () => {

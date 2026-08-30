@@ -13,6 +13,7 @@ const phase5Names = [
   "get_challenge",
   "get_requirements",
   "get_architecture",
+  "inspect_design_entity",
   "inspect_component",
   "estimate_capacity",
   "get_metrics",

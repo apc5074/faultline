@@ -34,6 +34,8 @@ import type { AgentSessionState } from "./session.js";
 export interface CapabilityExecutionOptions {
   readonly signal?: AbortSignal;
   readonly session?: AgentSessionState;
+  /** Current WebMCP surface revision for knownState comparisons. */
+  readonly surfaceRevision?: string;
 }
 
 /** Optional metadata for an adapter to communicate safe invocation semantics. */

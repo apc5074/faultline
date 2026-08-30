@@ -2,6 +2,9 @@
 export const BASELINE_READ_CAPABILITY_NAMES = [
   "review_current_design",
   "expand_design_evidence",
+  "compare_design_evidence",
+  "inspect_design_entity",
+  "inspect_component_option",
   "get_coaching_policy",
   "get_session_focus",
   "get_challenge",
@@ -39,7 +42,9 @@ export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 export const WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES = [
   "review_current_design",
   "expand_design_evidence",
-  "inspect_component",
+  "inspect_design_entity",
+  "inspect_component_option",
+  "compare_design_evidence",
   "get_architecture",
   "get_metrics",
   "get_cost_breakdown",

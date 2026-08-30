@@ -6,6 +6,7 @@ const CONTROLLED_ERROR_CODES = new Set<CapabilityErrorCode>([
   "SIMULATION_UNAVAILABLE",
   "INVALID_INPUT",
   "CANCELLED",
+  "CONSENT_REQUIRED",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -16,7 +17,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function isControlledCapabilityResult(value: unknown): value is CapabilityResult<unknown> {
   if (!isRecord(value) || typeof value.ok !== "boolean") return false;
   if (value.ok === true) return "data" in value;
-  return typeof value.code === "string" && typeof value.message === "string" && !("stack" in value);
+  return typeof value.code === "string" && typeof value.message === "string" && !("stack" in value) &&
+    (!isRecord(value.recovery) || !("stack" in value.recovery));
 }
 
 /** Strip unknown fields and coerce unsafe error codes before returning to an external agent. */
@@ -31,7 +33,18 @@ export function sanitizeWebMcpCapabilityResult(
     return { ok: true, data: result.data };
   }
   const code = CONTROLLED_ERROR_CODES.has(result.code) ? result.code : "INVALID_INPUT";
-  return { ok: false, code, message: result.message };
+  const recovery = isRecord(result.recovery) &&
+    result.recovery.code === code &&
+    typeof result.recovery.retryable === "boolean"
+    ? {
+        code,
+        retryable: result.recovery.retryable,
+        ...(typeof result.recovery.currentEvidenceRevision === "string" ? { currentEvidenceRevision: result.recovery.currentEvidenceRevision } : {}),
+        ...(result.recovery.requiresUserAction === "approve_exact_experiment" ? { requiresUserAction: result.recovery.requiresUserAction } : {}),
+        ...(typeof result.recovery.recoveryTool === "string" ? { recoveryTool: result.recovery.recoveryTool } : {}),
+      }
+    : undefined;
+  return { ok: false, code, message: result.message, ...(recovery ? { recovery } : {}) };
 }
 
 /** Generic adapter failure with optional development-only diagnostics. */
