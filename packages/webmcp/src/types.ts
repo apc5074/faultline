@@ -18,13 +18,13 @@ export interface WebMcpToolExecutionContext {
 /** Supported WebMCP tool safety annotations mapped from semantic capabilities. */
 export interface WebMcpToolAnnotations {
   readonly readOnlyHint?: boolean;
-  readonly destructiveHint?: boolean;
-  readonly idempotentHint?: boolean;
+  readonly untrustedContentHint?: boolean;
 }
 
 /** Browser WebMCP tool definition registered through document.modelContext. */
 export interface WebMcpTool {
   readonly name: string;
+  readonly title: string;
   readonly description: string;
   readonly inputSchema: CapabilityJsonSchema;
   readonly annotations?: WebMcpToolAnnotations;

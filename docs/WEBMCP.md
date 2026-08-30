@@ -40,7 +40,7 @@ Simulator-grounded reads include evidence provenance when live simulator context
 
 ### Read surface
 
-Read tools are idempotent and read-only. They return facts; they do not decide correctness or mutate a design.
+Read tools are idempotent and read-only. They return facts; they do not decide correctness or mutate a design. Browser-facing metadata uses the standard WebMCP `title`, JSON-serializable `inputSchema`, `readOnlyHint`, and `untrustedContentHint` fields; richer Faultline semantics remain adapter-internal.
 
 | Tool | Purpose |
 | --- | --- |

@@ -5,6 +5,7 @@ import { componentsOfType } from "../component-selection.js";
 import type { AgentContext } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { injectComponentFailureInputSchema, type FlushCacheInput } from "../schemas.js";
+import { decorateExperimentResult } from "../experiment-result.js";
 
 export const injectComponentFailureCapability: AgentCapability<AgentContext, FlushCacheInput, CapabilityResult<unknown>> = {
   name: "inject_component_failure",
@@ -21,11 +22,6 @@ export const injectComponentFailureCapability: AgentCapability<AgentContext, Flu
       registry: componentRegistry,
       experiment: { type: "component_failure", parameters: { componentId: input.componentId } },
     });
-    if (evaluation.ok) return capabilityOk(evaluation.data);
-    return capabilityError(
-      evaluation.code === "INVALID_INPUT" ? "INVALID_INPUT" :
-        evaluation.code === "UNSUPPORTED_TARGET" ? "NOT_FOUND" : "SIMULATION_UNAVAILABLE",
-      evaluation.message,
-    );
+    return decorateExperimentResult(context, evaluation);
   },
 };

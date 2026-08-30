@@ -112,6 +112,12 @@ export interface ExperimentEvent {
   data: Readonly<Record<string, number | string>>;
 }
 
+export interface ExperimentEntityReference {
+  readonly kind: "component" | "connection" | "region";
+  readonly entityId: string;
+  readonly ref: string;
+}
+
 /** Full deterministic experiment envelope returned by evaluateExperiment. */
 export interface ExperimentResult {
   type: ExperimentType;
@@ -123,6 +129,10 @@ export interface ExperimentResult {
   delta: ExperimentDelta;
   events: readonly ExperimentEvent[];
   simulatorVersion: string;
+  /** Evidence references affected by this temporary overlay; never canonical mutations. */
+  affectedEntityRefs?: readonly ExperimentEntityReference[];
+  reviewRef?: string;
+  nonPersistent?: true;
 }
 
 export type ExperimentErrorCode =

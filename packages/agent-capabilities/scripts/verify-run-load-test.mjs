@@ -34,12 +34,29 @@ assert.equal(denied.ok, false);
 assert.equal(denied.code, "CONSENT_REQUIRED");
 assert.match(denied.message, /Human approval is required/);
 assert.equal(denied.recovery?.requiresUserAction, "approve_exact_experiment");
+const wrongNameSession = { ...createEmptyAgentSessionState(), experimentConsent: grantExperimentConsent(context, "change_traffic_pattern") };
+const wrongName = await registry.invoke("run_load_test", context, {}, { session: wrongNameSession });
+assert.equal(wrongName.code, "CONSENT_REQUIRED");
 const consentedSession = {
   ...createEmptyAgentSessionState(),
   experimentConsent: grantExperimentConsent(context, "run_load_test"),
 };
+const expiredSession = { ...consentedSession, experimentConsent: { ...consentedSession.experimentConsent, expiresAt: new Date(0).toISOString() } };
+const expired = await registry.invoke("run_load_test", context, {}, { session: expiredSession });
+assert.equal(expired.code, "CONSENT_REQUIRED");
 const consented = await registry.invoke("run_load_test", context, {}, { session: consentedSession });
 assert.equal(consented.ok, true);
+assert.equal(consented.data.nonPersistent, true);
+assert.match(consented.data.reviewRef, /^wmp-ref-/);
+assert.ok(Array.isArray(consented.data.affectedEntityRefs));
+const retried = await registry.invoke("run_load_test", context, {}, { session: consentedSession });
+assert.equal(retried.ok, true);
+assert.strictEqual(retried.data, consented.data, "the same consent/revision/input must execute once");
+const editedContext = { ...context, architecture: { ...architecture, version: 2 } };
+const edited = await registry.invoke("run_load_test", editedContext, {}, { session: consentedSession });
+assert.equal(edited.ok, false);
+assert.equal(edited.code, "CONSENT_REQUIRED");
+assert.match(edited.message, /run_load_test/);
 const defaultResult = await registry.invoke("run_load_test", context, {});
 assert.equal(defaultResult.ok, true);
 assert.equal(defaultResult.data.simulated, true);

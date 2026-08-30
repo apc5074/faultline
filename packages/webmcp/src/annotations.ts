@@ -13,8 +13,7 @@ export function toWebMcpAnnotations(
 
   const mapped = {
     ...(annotations.readOnlyHint !== undefined ? { readOnlyHint: annotations.readOnlyHint } : {}),
-    ...(annotations.destructiveHint === false ? { destructiveHint: false } : {}),
-    ...(annotations.idempotentHint !== undefined ? { idempotentHint: annotations.idempotentHint } : {}),
+    ...(typeof annotations.untrustedContentHint === "boolean" ? { untrustedContentHint: annotations.untrustedContentHint } : {}),
   } satisfies WebMcpToolAnnotations;
 
   return Object.keys(mapped).length > 0 ? mapped : undefined;

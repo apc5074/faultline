@@ -4,6 +4,7 @@ import type { AgentContext } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { evaluateExperiment } from "@faultline/simulator";
 import { runLoadTestInputSchema, type RunLoadTestInput } from "../schemas.js";
+import { decorateExperimentResult } from "../experiment-result.js";
 
 export const runLoadTestCapability: AgentCapability<AgentContext, RunLoadTestInput, CapabilityResult<unknown>> = {
   name: "run_load_test",
@@ -20,10 +21,6 @@ export const runLoadTestCapability: AgentCapability<AgentContext, RunLoadTestInp
       registry: componentRegistry,
       experiment: { type: "traffic_multiplier", parameters: { multiplier: input.multiplier } },
     });
-    if (evaluation.ok) return capabilityOk(evaluation.data);
-    return capabilityError(
-      evaluation.code === "INVALID_INPUT" ? "INVALID_INPUT" : "SIMULATION_UNAVAILABLE",
-      evaluation.message,
-    );
+    return decorateExperimentResult(context, evaluation);
   },
 };

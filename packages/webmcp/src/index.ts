@@ -9,6 +9,7 @@ export * from "./phase6-inspector.js";
 export * from "./register-phase6-surface.js";
 export * from "./register-agent-surface.js";
 export * from "./experiment-webmcp-surface.js";
+export * from "./compatibility.js";
 export * from "./register-experiment-surface.js";
 export * from "./phase6-read-surface.js";
 export * from "./to-webmcp-tool.js";

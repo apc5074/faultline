@@ -23,6 +23,8 @@ import {
   type InspectDesignEntityKind,
 } from "../schemas.js";
 import { buildOutput as buildComponentOutput } from "./inspect-component-selectors.js";
+import { experimentReadiness } from "../experiment-readiness.js";
+import { createEmptyAgentSessionState, type AgentSessionState } from "../session.js";
 
 const NEIGHBOR_CAP = 3;
 const PATH_CAP = 3;
@@ -47,6 +49,7 @@ export interface InspectDesignEntityComponentOutput {
   readonly workloadFit?: unknown;
   readonly neighbors: readonly string[];
   readonly relatedRequirements: readonly RequirementResult[];
+  readonly experimentReadiness: ReturnType<typeof experimentReadiness>;
 }
 
 export interface InspectDesignEntityConnectionOutput {
@@ -109,6 +112,7 @@ export interface InspectDesignEntityRegionOutput {
   readonly redirectP95Ms?: number;
   readonly crossRegionCosts: readonly unknown[];
   readonly regionFailureExperimentAvailable: boolean;
+  readonly experimentReadiness: ReturnType<typeof experimentReadiness>;
 }
 
 function normalizeLabel(value: string): string {
@@ -227,7 +231,7 @@ function componentNeighbors(context: AgentContext, componentId: string): readonl
     .slice(0, NEIGHBOR_CAP);
 }
 
-function inspectComponentEntity(context: AgentContext, entityId: string): InspectDesignEntityComponentOutput {
+function inspectComponentEntity(context: AgentContext, entityId: string, session: AgentSessionState): InspectDesignEntityComponentOutput {
   const component = context.architecture.components.find((candidate) => candidate.id === entityId)!;
   const base = buildComponentOutput(component, context);
   const packet = context.reviewPackets?.component[entityId];
@@ -243,6 +247,7 @@ function inspectComponentEntity(context: AgentContext, entityId: string): Inspec
     ...(base.workloadFit ? { workloadFit: base.workloadFit } : {}),
     neighbors: packet?.neighbors ?? componentNeighbors(context, entityId),
     relatedRequirements: packet?.relatedRequirements ?? (context.requirementResults ?? []).filter((requirement) => requirement.explanation.includes(entityId)).slice(0, NEIGHBOR_CAP),
+    experimentReadiness: experimentReadiness(context, session),
   };
 }
 
@@ -351,7 +356,7 @@ function inspectWorkloadEntity(context: AgentContext, entityId: string): Inspect
   };
 }
 
-function inspectRegionEntity(context: AgentContext, entityId: string): InspectDesignEntityRegionOutput {
+function inspectRegionEntity(context: AgentContext, entityId: string, session: AgentSessionState): InspectDesignEntityRegionOutput {
   const inventory = deploymentInventoryFromArchitecture(context.architecture);
   const simulation = context.simulation?.available === true ? context.simulation : undefined;
   const origin = simulation?.regional?.origins?.find((entry) => entry.regionId === entityId);
@@ -372,6 +377,7 @@ function inspectRegionEntity(context: AgentContext, entityId: string): InspectDe
     ...(simulation?.system?.redirectP95Ms !== undefined ? { redirectP95Ms: simulation.system.redirectP95Ms } : {}),
     crossRegionCosts,
     regionFailureExperimentAvailable: inventory.regions.includes(entityId),
+    experimentReadiness: experimentReadiness(context, session),
   };
 }
 
@@ -382,6 +388,7 @@ function withinByteBudget(output: InspectDesignEntityOutput): boolean {
 export function inspectDesignEntity(
   context: AgentContext,
   input: InspectDesignEntityInput,
+  session: AgentSessionState = createEmptyAgentSessionState(),
 ): CapabilityResult<InspectDesignEntityOutput> {
   const resolved = resolveInspectDesignEntityTarget(input.kind, input.ref, context);
   if (!resolved.ok) {
@@ -392,11 +399,11 @@ export function inspectDesignEntity(
     });
   }
   let output: InspectDesignEntityOutput | undefined;
-  if (input.kind === "component") output = inspectComponentEntity(context, resolved.entityId);
+  if (input.kind === "component") output = inspectComponentEntity(context, resolved.entityId, session);
   if (input.kind === "connection") output = inspectConnectionEntity(context, resolved.entityId);
   if (input.kind === "requirement") output = inspectRequirementEntity(context, resolved.entityId);
   if (input.kind === "workload") output = inspectWorkloadEntity(context, resolved.entityId);
-  if (input.kind === "region") output = inspectRegionEntity(context, resolved.entityId);
+  if (input.kind === "region") output = inspectRegionEntity(context, resolved.entityId, session);
   if (!output) return capabilityError("NOT_FOUND", `Unknown ${input.kind} "${input.ref}" for the current design.`);
   if (!withinByteBudget(output)) {
     return capabilityError("INVALID_INPUT", `Inspection for ${input.kind} "${resolved.entityId}" exceeds the bounded payload budget. Use expand_design_evidence for deeper context.`);
@@ -419,7 +426,7 @@ export const inspectDesignEntityCapability: AgentCapability<
     readOnlyHint: true,
     idempotentHint: true,
   },
-  execute(context, input) {
-    return inspectDesignEntity(context, input);
+  execute(context, input, options) {
+    return inspectDesignEntity(context, input, options?.session);
   },
 };

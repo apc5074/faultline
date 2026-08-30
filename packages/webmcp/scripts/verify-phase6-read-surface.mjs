@@ -64,8 +64,7 @@ assert.ok(surface.tools.some((tool) => tool.name === "get_session_focus"));
 
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, true);
-  assert.equal(tool.annotations?.idempotentHint, true);
-  assert.equal(tool.annotations?.destructiveHint, undefined);
+  assert.equal(tool.annotations?.untrustedContentHint, ["get_session_focus", "review_current_design", "inspect_design_entity", "inspect_component", "get_architecture", "get_cost_breakdown"].includes(tool.name) || undefined);
 }
 
 const redisArchitecture = {

@@ -5,6 +5,7 @@ import type { AgentCapability } from "../capability.js";
 import type { AgentContext } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { injectRegionFailureInputSchema, type InjectRegionFailureInput } from "../schemas.js";
+import { decorateExperimentResult } from "../experiment-result.js";
 
 function hasRegionFailurePrerequisites(context: AgentContext): boolean {
   if (context.simulation?.available !== true || context.simulation.regional?.active !== true) return false;
@@ -22,7 +23,6 @@ export const injectRegionFailureCapability: AgentCapability<AgentContext, Inject
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, simulated: true, persistent: false },
   execute(context, input) {
     const evaluation = evaluateExperiment({ architecture: context.architecture, challenge: context.challenge, registry: componentRegistry, experiment: { type: "region_failure", parameters: { regionId: input.regionId } } });
-    if (evaluation.ok) return capabilityOk(evaluation.data);
-    return capabilityError(evaluation.code === "INVALID_INPUT" ? "INVALID_INPUT" : evaluation.code === "UNSUPPORTED_TARGET" ? "NOT_FOUND" : "SIMULATION_UNAVAILABLE", evaluation.message);
+    return decorateExperimentResult(context, evaluation);
   },
 };

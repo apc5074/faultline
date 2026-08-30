@@ -59,8 +59,7 @@ assert.deepEqual(
 
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, true);
-  assert.equal(tool.annotations?.idempotentHint, true);
-  assert.equal(tool.annotations?.destructiveHint, undefined);
+  assert.equal(tool.annotations?.untrustedContentHint, ["get_session_focus", "review_current_design", "inspect_design_entity", "inspect_component", "get_architecture", "get_cost_breakdown"].includes(tool.name) || undefined);
 }
 
 function assertSafeError(result, expectedCode) {
@@ -141,6 +140,6 @@ if (!malformed.ok) {
   assert.equal("stack" in malformed, false);
 }
 
-assert.equal(malformedTool.annotations?.destructiveHint, undefined);
+assert.equal(malformedTool.annotations?.untrustedContentHint, undefined);
 
 console.log("verify-error-safety: ok");

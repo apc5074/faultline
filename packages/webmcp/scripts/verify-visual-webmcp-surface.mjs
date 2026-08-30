@@ -54,8 +54,7 @@ const geographicSurface = await buildVisualWebMcpSurface({
 assert.equal(geographicSurface.resolvedNames.includes("focus_region"), true);
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, false);
-  assert.equal(tool.annotations?.destructiveHint, false);
-  assert.equal(tool.annotations?.idempotentHint, undefined);
+  assert.equal(tool.annotations?.untrustedContentHint, undefined);
 }
 
 // Abort before surface construction: no context read and no registration.

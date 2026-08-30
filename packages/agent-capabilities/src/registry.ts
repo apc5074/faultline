@@ -20,6 +20,7 @@ type AnyCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unk
  */
 export class AgentCapabilityRegistry {
   readonly #capabilities = new Map<string, AnyCapability>();
+  readonly #experimentResults = new Map<string, CapabilityResult<unknown>>();
 
   register<TInput, TData>(
     capability: AgentCapability<AgentContext, TInput, CapabilityResult<TData>>,
@@ -83,7 +84,7 @@ export class AgentCapabilityRegistry {
       options?.session !== undefined &&
       !hasCurrentExperimentConsent(options.session.experimentConsent, context, capability.name)
     ) {
-      return capabilityError("CONSENT_REQUIRED", "Human approval is required for this named simulated experiment.", {
+      return capabilityError("CONSENT_REQUIRED", `Human approval is required for the named simulated experiment "${capability.name}".`, {
         retryable: false,
         currentEvidenceRevision: architectureEvidenceFingerprint(context.architecture),
         requiresUserAction: "approve_exact_experiment",
@@ -91,8 +92,21 @@ export class AgentCapabilityRegistry {
       });
     }
 
+    const experimentKey = capability.mode === "experiment" && options?.session?.experimentConsent
+      ? `${capability.name}|${architectureEvidenceFingerprint(context.architecture)}|${JSON.stringify(input)}|${options.session.experimentConsent.grantedAt}|${options.session.experimentConsent.expiresAt}`
+      : undefined;
+    if (experimentKey) {
+      const cached = this.#experimentResults.get(experimentKey);
+      if (cached) return cached;
+    }
+
     try {
       const result = await capability.execute(context, parsed.data, options);
+      if (experimentKey && result.ok) {
+        this.#experimentResults.delete(experimentKey);
+        this.#experimentResults.set(experimentKey, result);
+        while (this.#experimentResults.size > 64) this.#experimentResults.delete(this.#experimentResults.keys().next().value!);
+      }
       if (isCapabilityCancelled(options?.signal)) {
         return capabilityCancelled();
       }

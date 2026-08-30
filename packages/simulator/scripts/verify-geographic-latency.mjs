@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { componentRegistry } from "@faultline/component-catalog";
 import { tinyApiChallenge, urlShortenerChallenge } from "@faultline/challenges";
+import { createSevenComponentArchitecture, level1CompositionChallenge } from "./fixtures/level1-composition.mjs";
 import {
   discreteTrafficWeightedP95,
   evaluatePathLatency,
@@ -328,5 +329,51 @@ assert.equal(
   tiny.p95LatencyMs,
   tiny.components["service-01"].p95LatencyMs + tiny.components["postgres-01"].p95LatencyMs,
 );
+
+console.log("Check — Level 1 CDN keeps geo p95 below target");
+const level1WithCdn = evaluatePathLatency({
+  architecture: createSevenComponentArchitecture({ regional: true }),
+  challenge: level1CompositionChallenge,
+  registry: componentRegistry,
+});
+assert.equal(level1WithCdn.valid, true);
+if (!level1WithCdn.valid) throw new Error("expected valid Level 1 architecture");
+assert.ok(level1WithCdn.geographicOriginLatencies?.length);
+assert.ok(level1WithCdn.p95LatencyMs < 150, `geo CDN p95 ${level1WithCdn.p95LatencyMs} must stay below 150ms`);
+assert.ok(level1WithCdn.traffic.service.incomingRps < level1WithCdn.traffic.cdn.incomingRps);
+
+console.log("Check — removing Level 1 CDN worsens geo p95");
+const level1WithoutCdnArchitecture = createSevenComponentArchitecture({ regional: true });
+level1WithoutCdnArchitecture.components = level1WithoutCdnArchitecture.components.filter(
+  (component) => component.id !== "cdn",
+);
+level1WithoutCdnArchitecture.connections = level1WithoutCdnArchitecture.connections
+  .filter((connection) => !["traffic-cdn", "cdn-router"].includes(connection.id));
+level1WithoutCdnArchitecture.connections.push({
+  id: "traffic-router",
+  sourceComponentId: "traffic",
+  sourcePortId: "request_out",
+  targetComponentId: "router",
+  targetPortId: "request_in",
+  type: "request",
+});
+level1WithoutCdnArchitecture.connections = level1WithoutCdnArchitecture.connections.filter(
+  (connection, index, connections) => connections.findIndex((candidate) => candidate.id === connection.id) === index,
+);
+const level1WithoutCdn = evaluatePathLatency({
+  architecture: level1WithoutCdnArchitecture,
+  challenge: level1CompositionChallenge,
+  registry: componentRegistry,
+});
+assert.equal(level1WithoutCdn.valid, true);
+if (!level1WithoutCdn.valid) throw new Error("expected valid Level 1 architecture without CDN");
+assert.ok(level1WithoutCdn.p95LatencyMs > level1WithCdn.p95LatencyMs, "CDN removal must worsen geo p95");
+
+const level1CachedOrigin = level1WithCdn.geographicOriginLatencies?.find(
+  (origin) => origin.originRegion === "europe",
+);
+assert.ok(level1CachedOrigin);
+assert.ok(level1CachedOrigin.cacheHitRate > 0);
+assert.ok(level1CachedOrigin.postgresLatencyMs < level1WithCdn.components.postgres.p95LatencyMs);
 
 console.log("geographic latency verified");

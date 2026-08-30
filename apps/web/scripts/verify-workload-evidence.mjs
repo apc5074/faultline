@@ -15,6 +15,7 @@ import {
 } from "../features/architecture-canvas/workload-evidence.ts";
 import { deriveGlyphMechanismValues } from "../features/playground-glyphs/state.ts";
 import { buildComponentPlaybackVisuals } from "../features/traffic-playback/playback-component-visuals.ts";
+import { impactSlotSeed, randomizedImpactSlots } from "../features/traffic-playback/impact-slots.ts";
 
 const trafficSourceConfig = { label: "Incoming traffic" };
 const redisConfig = { mode: "standalone", tier: "medium", ttlBand: "medium" };
@@ -190,5 +191,25 @@ if (cacheVisual.processingSlotIndices.length > 1) {
     "advancing playback should vary cosmetic cache placement",
   );
 }
+
+console.log("Check — impact slots are deterministic and bounded");
+const impactSeed = impactSlotSeed({
+  runId: "baseline-001",
+  componentId: "redis-primary",
+  sequence: 4,
+});
+const impactSlots = randomizedImpactSlots(8, impactSeed);
+assert.deepEqual(randomizedImpactSlots(8, impactSeed), impactSlots, "the same event must replay identically");
+assert.deepEqual([...impactSlots].sort((left, right) => left - right), [0, 1, 2, 3, 4, 5, 6, 7]);
+assert.notDeepEqual(
+  randomizedImpactSlots(
+    8,
+    impactSlotSeed({ runId: "baseline-001", componentId: "redis-primary", sequence: 5 }),
+  ),
+  impactSlots,
+  "separate events should vary cosmetic impact placement",
+);
+assert.deepEqual(randomizedImpactSlots(0, impactSeed), []);
+assert.throws(() => randomizedImpactSlots(-1, impactSeed), /non-negative safe integer/);
 
 console.log("workload evidence verified");

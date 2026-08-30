@@ -4,6 +4,7 @@ import type { AgentCapability } from "../capability.js";
 import type { AgentContext } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { changeTrafficPatternInputSchema, type ChangeTrafficPatternInput } from "../schemas.js";
+import { decorateExperimentResult } from "../experiment-result.js";
 
 export const changeTrafficPatternCapability: AgentCapability<AgentContext, ChangeTrafficPatternInput, CapabilityResult<unknown>> = {
   name: "change_traffic_pattern",
@@ -20,10 +21,6 @@ export const changeTrafficPatternCapability: AgentCapability<AgentContext, Chang
       registry: componentRegistry,
       experiment: { type: "hot_key", parameters: { hotKeyReadFraction: input.hotKeyReadFraction } },
     });
-    if (evaluation.ok) return capabilityOk(evaluation.data);
-    return capabilityError(
-      evaluation.code === "INVALID_INPUT" ? "INVALID_INPUT" : "SIMULATION_UNAVAILABLE",
-      evaluation.message,
-    );
+    return decorateExperimentResult(context, evaluation);
   },
 };
