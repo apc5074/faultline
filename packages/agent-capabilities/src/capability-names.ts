@@ -1,5 +1,6 @@
 /** Stable Phase 5/6 read capabilities available to every Level 1 player. */
 export const BASELINE_READ_CAPABILITY_NAMES = [
+  "review_current_design",
   "get_coaching_policy",
   "get_session_focus",
   "get_challenge",

@@ -21,6 +21,7 @@ import { injectRegionFailureCapability } from "./inject-region-failure.js";
 import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 import { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
 import { slowConsumersCapability } from "./slow-consumers.js";
+import { reviewCurrentDesignCapability } from "./review-current-design.js";
 
 export {
   getSessionFocusCapability,
@@ -85,6 +86,8 @@ export type {
 } from "./estimate-capacity.js";
 
 export { getMetricsCapability, buildGetMetricsOutput } from "./get-metrics.js";
+export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput } from "./review-current-design.js";
+export type { ReviewCurrentDesignOutput } from "./review-current-design.js";
 export type {
   GetMetricsComponent,
   GetMetricsOutput,
@@ -116,6 +119,7 @@ export { slowConsumersCapability } from "./slow-consumers.js";
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
   return createAgentCapabilityRegistry([
     getCoachingPolicyCapability,
+    reviewCurrentDesignCapability,
     getSessionFocusCapability,
     getChallengeCapability,
     getRequirementsCapability,

@@ -3,6 +3,7 @@ import type { AgentCapabilityRegistry } from "@faultline/agent-capabilities";
 import { buildAgentReadSurface } from "./phase6-read-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpModelContext, WebMcpRegisterToolOptions } from "./types.js";
+import type { WebMcpTimingSink } from "./timing.js";
 
 export interface RegisterPhase6ReadSurfaceOptions {
   readonly modelContext: WebMcpModelContext;
@@ -10,6 +11,7 @@ export interface RegisterPhase6ReadSurfaceOptions {
   readonly getContext: WebMcpContextFactory;
   readonly signal: AbortSignal;
   readonly development?: boolean;
+  readonly timing?: WebMcpTimingSink;
 }
 
 export interface RegisterPhase6ReadSurfaceResult {
@@ -25,10 +27,10 @@ export interface RegisterPhase6ReadSurfaceResult {
 export async function registerReadWebMcpSurface(
   options: RegisterPhase6ReadSurfaceOptions,
 ): Promise<RegisterPhase6ReadSurfaceResult> {
-  const { modelContext, registry, getContext, signal, development = false } = options;
+  const { modelContext, registry, getContext, signal, development = false, timing } = options;
   if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
-  const surface = await buildAgentReadSurface({ registry, getContext, development });
+  const surface = await buildAgentReadSurface({ registry, getContext, development, timing });
   if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
   const registeredToolNames: string[] = [];

@@ -28,6 +28,8 @@
     "verify:requirements-hud": "node --experimental-strip-types scripts/verify-requirements-hud.mjs",
     "verify:animation-feel": "node --experimental-strip-types scripts/verify-animation-feel.mjs",
     "verify:webmcp-polish": "node --experimental-strip-types scripts/verify-webmcp-polish.mjs",
+    "verify:webmcp-performance": "pnpm run build:deps && pnpm --filter @faultline/webmcp build && node --experimental-strip-types scripts/verify-webmcp-performance.mjs",
+    "verify:webmcp-evidence-store": "pnpm run build:deps && node --experimental-strip-types scripts/verify-webmcp-evidence-store.mjs",
     "verify:attack-quality": "node --experimental-strip-types scripts/verify-attack-quality.mjs",
     "verify:leaderboard-polish": "node --experimental-strip-types scripts/verify-leaderboard-polish.mjs",
     "verify:scorecard": "node --experimental-strip-types scripts/verify-scorecard.mjs",

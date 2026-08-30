@@ -50,7 +50,7 @@ assert.deepEqual(result.visualToolNames, [...BASELINE_VISUAL_CAPABILITY_NAMES].f
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
 assert.deepEqual(result.resolvedToolNames, result.registeredToolNames);
 assert.deepEqual(result.failedToolNames, []);
-assert.equal(registered.length, 14);
+assert.equal(registered.length, 15);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
 assert.ok(focusTool);

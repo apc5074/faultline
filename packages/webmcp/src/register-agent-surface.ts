@@ -1,70 +1,97 @@
-import type { AgentCapabilityRegistry } from "@faultline/agent-capabilities";
-
-import { registerReadWebMcpSurface } from "./register-phase6-surface.js";
-import { registerVisualWebMcpSurface } from "./register-visual-surface.js";
-import { registerExperimentWebMcpSurface } from "./register-experiment-surface.js";
+import type { AgentCapabilityMode, AgentCapabilityRegistry } from "@faultline/agent-capabilities";
+import { resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
 import type { ExperimentResult } from "@faultline/core";
+import { buildVisualWebMcpSurface } from "./agent-visual-surface.js";
+import { buildExperimentWebMcpSurface } from "./experiment-webmcp-surface.js";
+import { buildAgentReadSurface } from "./phase6-read-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
-import type { WebMcpModelContext } from "./types.js";
+import type { WebMcpModelContext, WebMcpRegisterToolOptions, WebMcpTool } from "./types.js";
+import { measureWebMcpTiming, type WebMcpTimingSink } from "./timing.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
+
+export interface WebMcpRegistrationManifest {
+  readonly revision: string;
+  readonly tools: readonly WebMcpTool[];
+  readonly namesByMode: Readonly<Record<AgentCapabilityMode, readonly string[]>>;
+  readonly skipped: readonly string[];
+  readonly fingerprint: string;
+}
 
 export interface RegisterAgentWebMcpSurfaceOptions {
   readonly modelContext: WebMcpModelContext;
   readonly registry: AgentCapabilityRegistry;
-  /** Read live domain and session state for every tool invocation. */
   readonly getContext: WebMcpContextFactory;
   readonly signal: AbortSignal;
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
   readonly onExperimentResult?: (result: ExperimentResult) => void;
+  readonly timing?: WebMcpTimingSink;
 }
 
 export interface RegisterAgentWebMcpSurfaceResult {
-  /** Names selected by the shared registry before browser registration. */
   readonly resolvedToolNames: readonly string[];
   readonly registeredToolNames: readonly string[];
-  /** Browser rejected these names; never expose exception text to the player. */
   readonly failedToolNames: readonly string[];
   readonly readToolNames: readonly string[];
   readonly visualToolNames: readonly string[];
   readonly experimentToolNames: readonly string[];
+  readonly manifest?: WebMcpRegistrationManifest;
 }
 
-/**
- * Register Faultline's complete agent surface with one cancellation lifecycle.
- * The shared live context factory deliberately keeps selection/session updates
- * out of the registration key: tools read them only when invoked.
- */
-export async function registerAgentWebMcpSurface(
-  options: RegisterAgentWebMcpSurfaceOptions,
-): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, signal, development = false, onVisualIntent, onExperimentResult } = options;
-  if (signal.aborted) {
-    return {
-      resolvedToolNames: [], registeredToolNames: [], failedToolNames: [],
-      readToolNames: [], visualToolNames: [], experimentToolNames: [],
-    };
-  }
+function abortedResult(): RegisterAgentWebMcpSurfaceResult {
+  return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [], readToolNames: [], visualToolNames: [], experimentToolNames: [] };
+}
 
+function fingerprintManifest(tools: readonly WebMcpTool[]): string {
+  return JSON.stringify(tools.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations ?? null })));
+}
+
+/** Build one coherent manifest from one prepared context, then register in manifest order. */
+export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
+  const { modelContext, registry, getContext, signal, development = false, onVisualIntent, onExperimentResult, timing } = options;
+  const startedAt = performance.now();
+  if (signal.aborted) return abortedResult();
+  const context = resolveLiveAgentSnapshot(await getContext()).context;
+  if (signal.aborted) return abortedResult();
   const [read, visual, experiment] = await Promise.all([
-    registerReadWebMcpSurface({ modelContext, registry, getContext, signal, development }),
-    registerVisualWebMcpSurface({
-      modelContext,
-      registry,
-      getContext,
-      signal,
-      development,
-      ...(onVisualIntent ? { onVisualIntent } : {}),
-    }),
-    registerExperimentWebMcpSurface({ modelContext, registry, getContext, signal, development, ...(onExperimentResult ? { onExperimentResult } : {}) }),
+    measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, context, development, timing }), { mode: "read" }),
+    measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, context, development, timing, ...(onVisualIntent ? { onVisualIntent } : {}) }), { mode: "visual" }),
+    measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}) }), { mode: "experiment" }),
   ]);
-
+  if (signal.aborted) return abortedResult();
+  const tools = [...read.tools, ...visual.tools, ...experiment.tools];
+  const namesByMode = { read: read.tools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name) } as const;
+  const manifest: WebMcpRegistrationManifest = {
+    revision: context.evidenceMeta?.architectureRevision ?? "unversioned",
+    tools,
+    namesByMode,
+    skipped: [...read.skipped.map(({ name }) => name), ...visual.skipped.map(({ name }) => name), ...experiment.skipped.map(({ name }) => name)],
+    fingerprint: fingerprintManifest(tools),
+  };
+  const registrationResults = await Promise.all(tools.map(async (tool, index) => {
+    if (signal.aborted) return { index, status: "aborted" as const };
+    try {
+      await modelContext.registerTool(tool, { signal } satisfies WebMcpRegisterToolOptions);
+      return { index, status: signal.aborted ? "aborted" as const : "registered" as const };
+    } catch {
+      return { index, status: signal.aborted ? "aborted" as const : "failed" as const };
+    }
+  }));
+  const registeredToolNames: string[] = [];
+  const failedToolNames: string[] = [];
+  for (const result of registrationResults.sort((a, b) => a.index - b.index)) {
+    const name = tools[result.index]!.name;
+    if (result.status === "registered") registeredToolNames.push(name);
+    if (result.status === "failed") failedToolNames.push(name);
+  }
+  timing?.({ kind: "timing", name: "registration_total_ms", durationMs: performance.now() - startedAt });
   return {
-    resolvedToolNames: [...read.resolvedToolNames, ...visual.resolvedToolNames, ...experiment.resolvedToolNames],
-    registeredToolNames: [...read.registeredToolNames, ...visual.registeredToolNames, ...experiment.registeredToolNames],
-    failedToolNames: [...read.failedToolNames, ...visual.failedToolNames, ...experiment.failedToolNames],
-    readToolNames: read.registeredToolNames,
-    visualToolNames: visual.registeredToolNames,
-    experimentToolNames: experiment.registeredToolNames,
+    resolvedToolNames: [...read.resolvedNames, ...visual.resolvedNames, ...experiment.resolvedNames],
+    registeredToolNames,
+    failedToolNames,
+    readToolNames: registeredToolNames.filter((name) => namesByMode.read.includes(name)),
+    visualToolNames: registeredToolNames.filter((name) => namesByMode.visual.includes(name)),
+    experimentToolNames: registeredToolNames.filter((name) => namesByMode.experiment.includes(name)),
+    manifest,
   };
 }

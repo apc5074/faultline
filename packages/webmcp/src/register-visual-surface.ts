@@ -4,6 +4,7 @@ import { buildVisualWebMcpSurface } from "./agent-visual-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpModelContext, WebMcpRegisterToolOptions } from "./types.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
+import type { WebMcpTimingSink } from "./timing.js";
 
 export interface RegisterVisualWebMcpSurfaceOptions {
   readonly modelContext: WebMcpModelContext;
@@ -12,6 +13,7 @@ export interface RegisterVisualWebMcpSurfaceOptions {
   readonly signal: AbortSignal;
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
+  readonly timing?: WebMcpTimingSink;
 }
 
 export interface RegisterVisualWebMcpSurfaceResult {
@@ -24,7 +26,7 @@ export interface RegisterVisualWebMcpSurfaceResult {
 export async function registerVisualWebMcpSurface(
   options: RegisterVisualWebMcpSurfaceOptions,
 ): Promise<RegisterVisualWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, signal, development = false, onVisualIntent } = options;
+  const { modelContext, registry, getContext, signal, development = false, onVisualIntent, timing } = options;
   if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 
   const surface = await buildVisualWebMcpSurface({
@@ -32,6 +34,7 @@ export async function registerVisualWebMcpSurface(
     getContext,
     development,
     ...(onVisualIntent ? { onVisualIntent } : {}),
+    timing,
   });
   if (signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
 

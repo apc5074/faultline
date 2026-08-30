@@ -1,4 +1,4 @@
-import type { Architecture, ChallengeDefinition, CostResult } from "@faultline/core";
+import type { Architecture, ChallengeDefinition, CostResult, RequirementResult } from "@faultline/core";
 
 import type { AgentRegionalEvidence } from "./regional-evidence.js";
 import type { AgentWorkloadFitEvidence } from "./workload-fit-evidence.js";
@@ -121,6 +121,8 @@ export interface AgentContext {
   readonly architecture: Architecture;
   readonly simulation?: AgentSimulationEvidence;
   readonly cost?: CostResult;
+  /** Simulator-owned requirement outcomes for compact grounded reviews. */
+  readonly requirementResults?: readonly RequirementResult[];
   readonly user?: {
     readonly authenticated: boolean;
   };

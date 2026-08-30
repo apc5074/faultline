@@ -15,6 +15,7 @@ import {
 
 import { toWebMcpTool, type WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool } from "./types.js";
+import type { WebMcpTimingSink } from "./timing.js";
 
 /** @deprecated Use BASELINE_READ_CAPABILITY_NAMES from @faultline/agent-capabilities. */
 export { BASELINE_READ_CAPABILITY_NAMES as PHASE_6_READ_CAPABILITY_NAMES } from "@faultline/agent-capabilities";
@@ -44,6 +45,8 @@ export interface BuildPhase6ReadSurfaceOptions {
    * being omitted. Use in development and verification; production mounts omit safely.
    */
   readonly development?: boolean;
+  readonly timing?: WebMcpTimingSink;
+  readonly context?: AgentContext;
 }
 
 export class Phase6SurfaceConfigurationError extends Error {
@@ -81,8 +84,8 @@ function configurationFailure(message: string, development: boolean): never | vo
 export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
-  const { registry, getContext, development = false } = options;
-  const context = resolveLiveAgentSnapshot(await getContext()).context;
+  const { registry, getContext, development = false, timing } = options;
+  const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
   try {
@@ -113,7 +116,7 @@ export async function buildAgentReadSurface(
       continue;
     }
 
-    tools.push(toWebMcpTool(capability, { registry, getContext, development }));
+    tools.push(toWebMcpTool(capability, { registry, getContext, development, timing }));
   }
 
   return {

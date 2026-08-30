@@ -1,12 +1,12 @@
 "use client";
 
-import { capabilitySurfaceFingerprint, createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { getWebMcpModelContext, registerAgentWebMcpSurface } from "@faultline/webmcp";
 import { useEffect, useMemo, useRef } from "react";
 
 import {
-  useAgentContextFactory,
   useAgentSessionStore,
+  useWebMcpEvidenceSource,
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
 import type { ExperimentResult, RegionId } from "@faultline/core";
@@ -33,16 +33,13 @@ export function WebMcpRegistration({
   onPinObservation?: (observation: PinnedObservation) => void;
   onExperimentResult?: (result: ExperimentResult) => void;
 }) {
-  const getContext = useAgentContextFactory();
+  const evidenceSource = useWebMcpEvidenceSource();
   const sessionStore = useAgentSessionStore();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   // `reconciliationKey` changes for canonical availability inputs only. The
   // final key is still registry-derived, so a non-affecting edit does not cause
   // browser tools to be registered again.
-  const availabilityFingerprint = useMemo(
-    () => capabilitySurfaceFingerprint(registry, getContext().context),
-    [getContext, reconciliationKey, registry],
-  );
+  const availabilityFingerprint = reconciliationKey;
   const onVisualIntent = useMemo(
     () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onPinObservation }),
     [onFocusComponent, onFocusRegion, onPinObservation, sessionStore],
@@ -77,6 +74,7 @@ export function WebMcpRegistration({
     }
 
     const controller = new AbortController();
+    evidenceSource.prewarm();
     const development = process.env.NODE_ENV === "development";
     const generation = generationRef.current + 1;
     generationRef.current = generation;
@@ -95,12 +93,15 @@ export function WebMcpRegistration({
     });
     emitWebMcpTelemetry({ kind: "registration_state", state: "registering" });
 
+    const timing = (event: Parameters<typeof emitWebMcpTelemetry>[0]) => emitWebMcpTelemetry(event);
+
     void registerAgentWebMcpSurface({
       modelContext,
       registry,
-      getContext,
+      getContext: () => evidenceSource.getSnapshot(controller.signal),
       signal: controller.signal,
       development,
+      timing: (event) => timing(event),
       onVisualIntent: (intent) => onVisualIntentRef.current(intent),
       ...(onExperimentResultRef.current
         ? { onExperimentResult: (result) => onExperimentResultRef.current?.(result) }
@@ -146,7 +147,7 @@ export function WebMcpRegistration({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [availabilityFingerprint, getContext, registry]);
+  }, [availabilityFingerprint, evidenceSource, registry]);
 
   return null;
 }

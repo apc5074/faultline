@@ -3,6 +3,7 @@ import { buildExperimentWebMcpSurface } from "./experiment-webmcp-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpModelContext, WebMcpRegisterToolOptions } from "./types.js";
 import type { ExperimentResult } from "@faultline/core";
+import type { WebMcpTimingSink } from "./timing.js";
 
 export interface RegisterExperimentWebMcpSurfaceResult {
   readonly resolvedToolNames: readonly string[];
@@ -10,7 +11,7 @@ export interface RegisterExperimentWebMcpSurfaceResult {
   readonly failedToolNames: readonly string[];
 }
 
-export async function registerExperimentWebMcpSurface(options: { modelContext: WebMcpModelContext; registry: AgentCapabilityRegistry; getContext: WebMcpContextFactory; signal: AbortSignal; development?: boolean; onExperimentResult?: (result: ExperimentResult) => void }): Promise<RegisterExperimentWebMcpSurfaceResult> {
+export async function registerExperimentWebMcpSurface(options: { modelContext: WebMcpModelContext; registry: AgentCapabilityRegistry; getContext: WebMcpContextFactory; signal: AbortSignal; development?: boolean; onExperimentResult?: (result: ExperimentResult) => void; timing?: WebMcpTimingSink }): Promise<RegisterExperimentWebMcpSurfaceResult> {
   if (options.signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };
   const surface = await buildExperimentWebMcpSurface(options);
   if (options.signal.aborted) return { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] };

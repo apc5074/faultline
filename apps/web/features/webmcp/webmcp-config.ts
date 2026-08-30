@@ -7,13 +7,17 @@ export function webMcpFeatureState(): WebMcpFeatureState {
 }
 
 export type WebMcpTelemetryEvent = {
-  readonly kind: "registration_state" | "registration_error";
+  readonly kind: "registration_state" | "registration_error" | "timing";
   readonly state?: "unsupported" | "registering" | "ready" | "partial" | "failed" | "disabled";
   readonly readToolCount?: number;
   readonly visualToolCount?: number;
   readonly experimentToolCount?: number;
   readonly failedToolCount?: number;
-  readonly latencyMs?: number;
+  readonly name?: string;
+  readonly durationMs?: number;
+  readonly bytes?: number;
+  readonly mode?: "read" | "visual" | "experiment";
+  readonly capability?: string;
   readonly errorClass?: "registration" | "timeout";
 };
 

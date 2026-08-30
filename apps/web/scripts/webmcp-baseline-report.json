@@ -1,0 +1,32 @@
+{
+  "fixture": "Level 1 deterministic two-component draft",
+  "fixtureCommit": "24f4303dd797163c9af811b33eeadeb04dbd8989",
+  "generatedAt": "2026-08-30T18:59:56.000Z",
+  "note": "Baseline captures the current uncached WebMCP surface; generatedAt is report metadata only and is never part of simulator evidence.",
+  "registration": {
+    "coldEvaluations": 3,
+    "warmEvaluations": 3,
+    "reviewRecipeEvaluations": 3,
+    "registeredToolCount": 15,
+    "toolMetadataBytes": 5717,
+    "registrationMs": { "cold": { "p50": 1.988333, "p95": 1.988333, "max": 1.988333 }, "warm": { "p50": 0.45575, "p95": 0.45575, "max": 0.45575 }, "all": { "p50": 0.45575, "p95": 0.45575, "max": 1.988333 } },
+    "surfaceBuildMs": { "p50": 0.347084, "p95": 0.656042, "max": 1.96575 }
+  },
+  "reviewRecipe": {
+    "calls": 4,
+    "names": ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"]
+  },
+  "repeatedReads": {
+    "calls": 10,
+    "additionalEvaluations": 3,
+    "resultBytes": { "p50": 762, "p95": 845, "max": 7030 }
+  },
+  "callbackMs": { "p50": 0.037583, "p95": 0.093125, "max": 0.1875 },
+  "contextSnapshotMs": { "p50": 0.026751, "p95": 0.034041, "max": 0.041667 },
+  "simulatorEvaluationMs": { "p50": 0.003542, "p95": 0.011333, "max": 0.052583 },
+  "totalEvaluations": 9,
+  "manualDesktop": {
+    "status": "not run in automated verification",
+    "script": "See docs/WEBMCP.md and record model label, desktop version, browser/WebMCP build, timestamp, tool calls, time to first tool call, time to first useful prose, and correctness notes separately."
+  }
+}

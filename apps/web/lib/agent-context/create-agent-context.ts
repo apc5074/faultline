@@ -109,9 +109,20 @@ function simulationEvidence(
   };
 }
 
+export interface CreateAgentContextOptions {
+  /** Development/benchmark seam; never changes simulator behavior. */
+  readonly onSimulatorEvaluation?: (durationMs: number) => void;
+}
+
 /** Build one immutable, simulator-grounded capability snapshot from canonical gameplay inputs. */
-export function createAgentContext(architecture: Architecture, challenge: ChallengeDefinition): AgentContext {
+export function createAgentContext(
+  architecture: Architecture,
+  challenge: ChallengeDefinition,
+  options: CreateAgentContextOptions = {},
+): AgentContext {
+  const evaluationStartedAt = performance.now();
   const result = evaluateRequirements({ architecture, challenge, registry: componentRegistry });
+  options.onSimulatorEvaluation?.(performance.now() - evaluationStartedAt);
   const levelTeaching = compactLevelTeachingForAgent(challenge.slug);
   const architectureRevision = architectureAvailabilityFingerprint(architecture);
   const generatedAt = new Date().toISOString();
@@ -120,6 +131,7 @@ export function createAgentContext(architecture: Architecture, challenge: Challe
     architecture,
     simulation: simulationEvidence(result, challenge),
     ...(result.valid ? { cost: result.cost } : {}),
+    ...(result.valid ? { requirementResults: result.requirements } : {}),
     user: { authenticated: false },
     evidenceMeta: {
       architectureRevision,

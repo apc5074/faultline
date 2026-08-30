@@ -15,6 +15,7 @@ import {
 import { toWebMcpTool, type ToWebMcpToolOptions, type WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool } from "./types.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
+import type { WebMcpTimingSink } from "./timing.js";
 
 export type AgentVisualSurfaceSkipReason = "missing" | "ineligible_mode" | "ineligible_annotations" | "unavailable";
 
@@ -34,6 +35,8 @@ export interface BuildVisualWebMcpSurfaceOptions {
   readonly getContext: WebMcpContextFactory;
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
+  readonly timing?: WebMcpTimingSink;
+  readonly context?: AgentContext;
 }
 
 /** @deprecated Use BuildVisualWebMcpSurfaceOptions. */
@@ -65,8 +68,8 @@ function visualIneligibleReason(
 export async function buildVisualWebMcpSurface(
   options: BuildVisualWebMcpSurfaceOptions,
 ): Promise<AgentVisualSurface> {
-  const { registry, getContext, development = false, onVisualIntent } = options;
-  const context = resolveLiveAgentSnapshot(await getContext()).context;
+  const { registry, getContext, development = false, onVisualIntent, timing } = options;
+  const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
   try {
@@ -83,6 +86,7 @@ export async function buildVisualWebMcpSurface(
     getContext,
     development,
     ...(onVisualIntent ? { onVisualIntent } : {}),
+    timing,
   };
 
   const tools: WebMcpTool[] = [];

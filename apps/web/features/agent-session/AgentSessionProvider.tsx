@@ -35,6 +35,7 @@ import {
   withPendingHelpRequest,
   withSessionFocus,
 } from "./session-mutations";
+import { createWebMcpEvidenceSource, type WebMcpEvidenceSource } from "../webmcp/evidence-store";
 
 export interface AgentSessionStore {
   getSession(): AgentSessionState;
@@ -50,6 +51,7 @@ export interface AgentSessionStore {
 interface AgentSessionContextValue {
   store: AgentSessionStore;
   getAgentContext: LiveAgentContextFactory;
+  webMcpEvidenceSource: WebMcpEvidenceSource;
   sessionVersion: number;
 }
 
@@ -122,6 +124,17 @@ export function AgentSessionProvider({
     [commitSession],
   );
 
+  const webMcpEvidenceSource = useMemo(
+    () => createWebMcpEvidenceSource({
+      getArchitecture: () => architectureRef.current,
+      getChallenge: () => challengeRef.current,
+      getSession: () => sessionRef.current,
+    }),
+    [],
+  );
+
+  useEffect(() => () => webMcpEvidenceSource.dispose(), [webMcpEvidenceSource]);
+
   const getAgentContext = useCallback(() => {
     return {
       context: createAgentContext(architectureRef.current, challengeRef.current),
@@ -133,9 +146,10 @@ export function AgentSessionProvider({
     () => ({
       store,
       getAgentContext,
+      webMcpEvidenceSource,
       sessionVersion,
     }),
-    [store, getAgentContext, sessionVersion],
+    [store, getAgentContext, webMcpEvidenceSource, sessionVersion],
   );
 
   return <AgentSessionContext.Provider value={value}>{children}</AgentSessionContext.Provider>;
@@ -165,6 +179,12 @@ export function useAgentContextFactory(): LiveAgentContextFactory {
     throw new Error("useAgentContextFactory must be used within AgentSessionProvider.");
   }
   return value.getAgentContext;
+}
+
+export function useWebMcpEvidenceSource(): WebMcpEvidenceSource {
+  const value = useContext(AgentSessionContext);
+  if (!value) throw new Error("useWebMcpEvidenceSource must be used within AgentSessionProvider.");
+  return value.webMcpEvidenceSource;
 }
 
 export function useOptionalAgentContextFactory(): LiveAgentContextFactory | null {
