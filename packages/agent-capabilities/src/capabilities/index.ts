@@ -22,6 +22,7 @@ import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 import { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
 import { slowConsumersCapability } from "./slow-consumers.js";
 import { reviewCurrentDesignCapability } from "./review-current-design.js";
+import { expandDesignEvidenceCapability } from "./expand-design-evidence.js";
 
 export {
   getSessionFocusCapability,
@@ -87,6 +88,8 @@ export type {
 
 export { getMetricsCapability, buildGetMetricsOutput } from "./get-metrics.js";
 export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput, buildReviewUseCasePackets, buildReviewRevisionDelta } from "./review-current-design.js";
+export { expandDesignEvidenceCapability, expandDesignEvidence, reviewReference } from "./expand-design-evidence.js";
+export type { ExpandDesignEvidenceOutput } from "./expand-design-evidence.js";
 export type { ReviewCurrentDesignOutput } from "./review-current-design.js";
 export type {
   GetMetricsComponent,
@@ -120,6 +123,7 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
   return createAgentCapabilityRegistry([
     getCoachingPolicyCapability,
     reviewCurrentDesignCapability,
+    expandDesignEvidenceCapability,
     getSessionFocusCapability,
     getChallengeCapability,
     getRequirementsCapability,

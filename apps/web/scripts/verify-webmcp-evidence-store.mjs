@@ -57,4 +57,6 @@ assert.equal(newest.context.architecture.components[0].config.instances, 4);
 
 source.dispose();
 assert.rejects(source.getEvidence(), /disposed/);
+source.activate();
+assert.equal((await source.getEvidence()).context.architecture.components[0].config.instances, 4);
 console.log("verify-webmcp-evidence-store: ok");

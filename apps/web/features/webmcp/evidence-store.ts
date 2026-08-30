@@ -26,6 +26,8 @@ export interface PreparedWebMcpEvidence {
 }
 
 export interface WebMcpEvidenceSource {
+  /** Re-enable a provider-owned source after a development Strict Mode probe. */
+  activate(): void;
   getEvidence(signal?: AbortSignal): Promise<PreparedWebMcpEvidence>;
   getSnapshot(signal?: AbortSignal): Promise<LiveAgentSnapshot>;
   getSession(): AgentSessionState;
@@ -105,8 +107,9 @@ export function createWebMcpEvidenceSource(options: {
       const previous = history.at(-1);
       const preparedContext = { ...context, reviewPackets, ...(previous ? { reviewDelta: buildReviewRevisionDelta(previous.context, { ...context, reviewPackets }) } : {}) };
       const prepared = { key, context: preparedContext, indexes };
-      history = [...history.filter((entry) => entry.key !== key), prepared].slice(-2);
-      if (!disposed && inFlight?.key === key) completed = prepared;
+      const isCurrent = currentInputs().key === key;
+      if (isCurrent) history = [...history.filter((entry) => entry.key !== key), prepared].slice(-2);
+      if (!disposed && isCurrent && inFlight?.key === key) completed = prepared;
       if (inFlight?.key === key) inFlight = undefined;
       return prepared;
     }, (error: unknown) => {
@@ -135,6 +138,7 @@ export function createWebMcpEvidenceSource(options: {
   }
 
   return {
+    activate: () => { disposed = false; },
     getEvidence,
     getSnapshot: async (signal) => ({ context: (await getEvidence(signal)).context, session: options.getSession() }),
     getSession: options.getSession,

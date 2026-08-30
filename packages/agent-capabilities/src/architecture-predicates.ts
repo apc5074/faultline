@@ -63,18 +63,22 @@ export function phase7DynamicCapabilityPredicate(
 
 /** Minimal canonical facts that drive dynamic capability availability. */
 export function architectureAvailabilityFingerprint(architecture: Architecture): string {
-  // This is an input fingerprint, not the final resolver output. It includes
-  // every non-presentation architecture fact an availability predicate may
-  // inspect, so callers can safely recompute a resolver fingerprint without
-  // reacting to node movement.
+  // This is deliberately narrower than an evidence revision. Configuration,
+  // placement, and connection edits change evidence but not the set of tools;
+  // only facts read by dynamic availability predicates belong here.
   return JSON.stringify({
     version: architecture.version,
-    components: architecture.components.map(({ id, type, config, deployments }) => ({
-      id,
-      type,
-      config,
-      deployments,
-    })),
+    componentKinds: architecture.components.map(({ id, type }) => ({ id, type })),
+    hasPostgresReplica: architecture.components.some((component) => component.type === "postgres" && Number(component.config.readReplicaCount ?? 0) > 0),
+    hasMultiRegionDeployment: architecture.components.some((component) => new Set(component.deployments.map((deployment) => deployment.regionId)).size > 1),
+  });
+}
+
+/** Full UI-free semantic revision used for evidence freshness and consent. */
+export function architectureEvidenceFingerprint(architecture: Architecture): string {
+  return JSON.stringify({
+    version: architecture.version,
+    components: architecture.components.map(({ ui: _ui, ...component }) => component),
     connections: architecture.connections,
   });
 }

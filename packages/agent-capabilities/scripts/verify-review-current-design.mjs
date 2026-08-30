@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { urlShortenerChallenge } from "../../challenges/dist/index.js";
-import { buildReviewCurrentDesignOutput, buildReviewRevisionDelta, buildReviewUseCasePackets, reviewCurrentDesignCapability } from "../dist/index.js";
+import { buildReviewCurrentDesignOutput, buildReviewRevisionDelta, buildReviewUseCasePackets, expandDesignEvidence, reviewCurrentDesignCapability } from "../dist/index.js";
 
 const architecture = { version: 1, components: [{ id: "service-1", type: "service", config: { instances: 2 }, deployments: [], ui: { x: 1, y: 1 } }], connections: [] };
 const context = {
@@ -32,6 +32,12 @@ for (const [intent, targetId] of [["component_review", "service-1"], ["requireme
   const result = buildReviewCurrentDesignOutput(packetContext, { intent, ...(targetId ? { targetId } : {}) }, session);
   assert.equal(result.ok, true);
 }
+const packetReview = buildReviewCurrentDesignOutput(packetContext, { intent: "auto" }, { ...session, focus: { kind: "none" } });
+assert.equal(packetReview.ok, true);
+const expanded = expandDesignEvidence(packetContext, { reviewRef: packetReview.data.reviewRef, sections: ["causal_chain", "requirement_evidence"] });
+assert.equal(expanded.ok, true);
+assert.ok(expanded.data.sections.causal_chain);
+assert.equal(expandDesignEvidence(packetContext, { reviewRef: "forged", sections: ["causal_chain"] }).ok, false);
 const changedContext = { ...context, evidenceMeta: { ...context.evidenceMeta, architectureRevision: "next" }, architecture: { ...context.architecture, components: [{ ...context.architecture.components[0], config: { instances: 3 } }] } };
 const delta = buildReviewRevisionDelta(context, changedContext);
 const deltaResult = buildReviewCurrentDesignOutput({ ...changedContext, reviewDelta: delta, reviewPackets: buildReviewUseCasePackets(changedContext) }, { intent: "auto", knownEvidenceRevision: "fixture" }, session);

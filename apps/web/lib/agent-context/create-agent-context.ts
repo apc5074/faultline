@@ -14,7 +14,7 @@ import { compactLevelTeachingForAgent } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { evaluateRequirements, SIMULATOR_VERSION, type RequirementsEvaluationResult } from "@faultline/simulator";
-import { architectureAvailabilityFingerprint } from "@faultline/agent-capabilities";
+import { architectureEvidenceFingerprint } from "@faultline/agent-capabilities";
 
 function numericMetrics(value: object): Record<string, number> {
   const metrics: Record<string, number> = {};
@@ -124,7 +124,7 @@ export function createAgentContext(
   const result = evaluateRequirements({ architecture, challenge, registry: componentRegistry });
   options.onSimulatorEvaluation?.(performance.now() - evaluationStartedAt);
   const levelTeaching = compactLevelTeachingForAgent(challenge.slug);
-  const architectureRevision = architectureAvailabilityFingerprint(architecture);
+  const architectureRevision = architectureEvidenceFingerprint(architecture);
   const generatedAt = new Date().toISOString();
   return {
     challenge,

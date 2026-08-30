@@ -45,12 +45,12 @@ const result = await registerAgentWebMcpSurface({
   onVisualIntent: (intent) => intents.push(intent),
 });
 
-assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].slice(0, 5));
+assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].filter((name) => ["review_current_design", "expand_design_evidence", "inspect_component", "get_architecture", "get_metrics", "get_cost_breakdown"].includes(name)));
 assert.deepEqual(result.visualToolNames, [...WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES]);
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
 assert.deepEqual(result.resolvedToolNames, result.registeredToolNames);
 assert.deepEqual(result.failedToolNames, []);
-assert.equal(registered.length, 9);
+assert.equal(registered.length, 10);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
 assert.ok(focusTool);

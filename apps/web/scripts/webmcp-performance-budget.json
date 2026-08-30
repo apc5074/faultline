@@ -1,5 +1,5 @@
 {
-  "productionMetadataBytesMax": 4700,
+  "productionMetadataBytesMax": 5400,
   "bootstrapResultBytesMax": 8192,
   "warmCallbackP95Ms": 25,
   "maxReviewRecipeEvaluations": 3,

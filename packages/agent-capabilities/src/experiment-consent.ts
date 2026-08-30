@@ -1,4 +1,4 @@
-import { architectureAvailabilityFingerprint } from "./architecture-predicates.js";
+import { architectureEvidenceFingerprint } from "./architecture-predicates.js";
 import type { AgentContext } from "./context.js";
 import type { Phase8ExperimentCapabilityName } from "./capability-names.js";
 import type { ExperimentConsent } from "./session.js";
@@ -12,7 +12,7 @@ export function grantExperimentConsent(
 ): ExperimentConsent {
   return {
     capabilityName,
-    architectureRevision: architectureAvailabilityFingerprint(context.architecture),
+    architectureRevision: architectureEvidenceFingerprint(context.architecture),
     grantedAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + EXPERIMENT_CONSENT_TTL_MS).toISOString(),
   };
@@ -27,5 +27,5 @@ export function hasCurrentExperimentConsent(
 ): boolean {
   if (!consent || consent.capabilityName !== capabilityName) return false;
   if (Date.parse(consent.expiresAt) <= now.getTime()) return false;
-  return consent.architectureRevision === architectureAvailabilityFingerprint(context.architecture);
+  return consent.architectureRevision === architectureEvidenceFingerprint(context.architecture);
 }

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useAgentSessionStore,
+  useAgentSessionState,
   useWebMcpEvidenceSource,
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
@@ -35,6 +36,7 @@ export function WebMcpRegistration({
 }) {
   const evidenceSource = useWebMcpEvidenceSource();
   const sessionStore = useAgentSessionStore();
+  const session = useAgentSessionState();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   // `reconciliationKey` changes for canonical availability inputs only. The
   // final key is still registry-derived, so a non-affecting edit does not cause
@@ -81,6 +83,7 @@ export function WebMcpRegistration({
     }
 
     const controller = new AbortController();
+    evidenceSource.activate();
     evidenceSource.prewarm();
     const development = process.env.NODE_ENV === "development";
     const generation = generationRef.current + 1;
@@ -155,6 +158,12 @@ export function WebMcpRegistration({
       controller.abort();
     };
   }, [availabilityFingerprint, evidenceSource, registry, retryToken]);
+
+  // Focus/help changes are explicit player signals. Prewarm their current
+  // revision without changing the registered surface or invoking a tool.
+  useEffect(() => {
+    if (session.focus.kind !== "none" || session.pendingHelpRequest) evidenceSource.prewarm();
+  }, [evidenceSource, session.focus.kind, session.pendingHelpRequest, session.revision]);
 
   return null;
 }

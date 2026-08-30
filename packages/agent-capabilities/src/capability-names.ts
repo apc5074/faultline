@@ -1,6 +1,7 @@
 /** Stable Phase 5/6 read capabilities available to every Level 1 player. */
 export const BASELINE_READ_CAPABILITY_NAMES = [
   "review_current_design",
+  "expand_design_evidence",
   "get_coaching_policy",
   "get_session_focus",
   "get_challenge",
@@ -37,6 +38,7 @@ export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 /** WebMCP production profile; the complete registry remains available to other adapters and the dev inspector. */
 export const WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES = [
   "review_current_design",
+  "expand_design_evidence",
   "inspect_component",
   "get_architecture",
   "get_metrics",
