@@ -3689,53 +3689,6 @@ h1 {
   background: var(--color-ink-hairline);
 }
 
-.sim-bar__agent-help {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-  max-width: min(52vw, 640px);
-  overflow: hidden;
-}
-
-.sim-bar__agent-help-label {
-  flex-shrink: 0;
-  font-size: 0.55rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-ink-faint);
-}
-
-.sim-bar__help-chip {
-  height: 26px;
-  margin: 0;
-  padding: 0 0.65rem;
-  border: 1px solid var(--color-ink-hairline);
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.sim-bar__help-chip:hover:not(:disabled) {
-  border-color: var(--color-ink);
-  background: var(--color-paper-dark);
-}
-
-.sim-bar__help-chip:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .sim-bar__button--clear-marks {
   margin-left: 0.35rem;
   border-color: var(--color-ink-hairline);
@@ -3744,32 +3697,6 @@ h1 {
 
 .sim-bar__button--clear-marks:disabled {
   opacity: 0.4;
-}
-
-.sim-bar__help-indicator {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-ink-faint);
-}
-
-.sim-bar__help-fallback {
-  min-width: 14rem;
-  max-width: 24rem;
-  min-height: 2.5rem;
-  padding: 0.35rem;
-  border: 1px solid var(--color-ink-hairline);
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 0.55rem;
-  line-height: 1.35;
 }
 
 .sim-bar__status-plate {

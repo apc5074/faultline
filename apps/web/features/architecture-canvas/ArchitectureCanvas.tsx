@@ -285,7 +285,6 @@ function ArchitectureWorkspace() {
           onSpeedChange={workspace.playback.setSpeed}
           onViewModeChange={workspace.handleViewModeChange}
           onSubmitOfficial={workspace.onSubmitOfficial}
-          webMcpReady={webMcpStatus.state === "ready"}
         />
       </section>
     </>

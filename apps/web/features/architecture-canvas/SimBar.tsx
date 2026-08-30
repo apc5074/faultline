@@ -6,7 +6,6 @@ import type { RequirementsEvaluationResult, SimulationValidationError } from "@f
 
 import type { PlaybackPhase, PlaybackSpeed } from "@/features/traffic-playback";
 
-import { AgentHelpChips } from "@/features/agent-session/AgentHelpChips";
 import { ClearAgentMarksButton } from "@/features/agent-session/ClearAgentMarksButton";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 
@@ -148,7 +147,6 @@ export type SimBarProps = {
   onSpeedChange: (speed: PlaybackSpeed) => void;
   onViewModeChange: (mode: "logical" | "world") => void;
   onSubmitOfficial: () => void;
-  webMcpReady: boolean;
 };
 
 export function SimBar({
@@ -175,7 +173,6 @@ export function SimBar({
   onSpeedChange,
   onViewModeChange,
   onSubmitOfficial,
-  webMcpReady,
 }: SimBarProps) {
   const simBusy = (runState === "running" && !playbackRunning) || officialSubmitting;
   const livePlayback = playbackPhase === "playing" && runState === "running";
@@ -278,7 +275,6 @@ export function SimBar({
       </div>
 
       <div className="sim-bar__cluster sim-bar__cluster--end">
-        <AgentHelpChips webMcpReady={webMcpReady} />
         <ClearAgentMarksButton />
 
         <SimBarStatusPlate
