@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { useTransitionLinkClick } from "@/features/page-transition/PageTransitionProvider";
 
-const LEVEL_ONE_HREF = "/level/1?brief=1";
+const LEVEL_ONE_HREF = "/level/1";
 
 export function PlayLevelLink({
   className,

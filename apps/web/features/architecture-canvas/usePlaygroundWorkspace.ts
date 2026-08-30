@@ -405,6 +405,12 @@ export function usePlaygroundWorkspace() {
         if (change.type !== "remove") continue;
         if (pendingDeleteIdsRef.current.has(change.id)) continue;
 
+        const removedComponent = architecture.components.find((component) => component.id === change.id);
+        if (removedComponent?.type === "traffic-source") {
+          setInteractionNotice("The traffic source can't be deleted.");
+          continue;
+        }
+
         pendingDeleteIdsRef.current.add(change.id);
         setDeletingNodeIds((current) => new Set(current).add(change.id));
 
@@ -456,10 +462,11 @@ export function usePlaygroundWorkspace() {
         setWorldSelection(worldSelectionForComponent(architecture, nextId));
       }
       for (const change of changes) {
-        if (change.type === "remove" && change.id === selectedComponentId) {
-          setSelectedComponentId(null);
-          setWorldSelection(null);
-        }
+        if (change.type !== "remove" || change.id !== selectedComponentId) continue;
+        const component = architecture.components.find((candidate) => candidate.id === change.id);
+        if (component?.type === "traffic-source") continue;
+        setSelectedComponentId(null);
+        setWorldSelection(null);
       }
     },
     [architecture, selectedComponentId, applyRegionalPlacement],

@@ -727,10 +727,12 @@ main {
   color: var(--color-paper);
   font-size: 0.68rem;
   font-weight: 700;
+  font: inherit;
   letter-spacing: 0.1em;
   text-align: center;
   text-decoration: none;
   text-transform: uppercase;
+  cursor: pointer;
 }
 
 .home-help__play:hover {
@@ -1541,6 +1543,42 @@ main {
   white-space: normal;
 }
 
+.webmcp-guide__prompt-showcase {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 54rem;
+}
+
+.webmcp-guide__prompt-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper-dark);
+}
+
+.webmcp-guide__prompt-card h3 {
+  margin: 0.55rem 0 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.webmcp-guide__prompt-card code {
+  display: block;
+  padding: 0.75rem;
+  font-size: 0.68rem;
+  line-height: 1.55;
+  white-space: normal;
+}
+
+.webmcp-guide__prompt-card p {
+  margin: 0;
+  color: var(--color-ink-faint);
+  font-size: 0.65rem;
+  line-height: 1.55;
+}
+
 .webmcp-guide__footer {
   padding-top: 2rem;
   border-top: 1px solid var(--color-ink-hairline);
@@ -1562,6 +1600,10 @@ main {
   }
 
   .webmcp-guide__ability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .webmcp-guide__prompt-showcase {
     grid-template-columns: 1fr;
   }
 }

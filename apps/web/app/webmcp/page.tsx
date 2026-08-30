@@ -6,13 +6,37 @@ export const metadata: Metadata = {
   description: "Connect ChatGPT to Faultline and review a distributed-system design together.",
 };
 
-const PROMPTS = [
-  "Review my current Faultline design with review_current_design. What is the first simulator-grounded bottleneck?",
-  "Review my selected component using the current Faultline evidence. Give me one finding and one question.",
-  "Why is this requirement failing? Use the current Faultline evidence and give me one finding and one question.",
-  "Trace my focused workload path and show me the first weak link.",
-  "Review my deterministic cost pressure without changing the design.",
-  "Propose one bounded failure experiment, explain what it will test, and wait for my approval before running it.",
+const PROMPT_GROUPS = [
+  {
+    label: "Walk the canvas",
+    title: "Make the system legible",
+    prompt: "Walk me through this design like a systems teacher. Start with the traffic source, point to each important component, explain its role in the request path, and highlight the connection where the workload is most constrained.",
+    result: "The agent reads the live architecture, focuses components, and highlights an existing connection as it explains.",
+  },
+  {
+    label: "Find the break",
+    title: "Where is the biggest problem?",
+    prompt: "What is the single biggest problem in my current design? Use simulator evidence, mark the responsible component as a risk, explain the numbers in plain language, and ask me one question about how I want to improve it.",
+    result: "One grounded bottleneck, one risk mark, and one design question—not a wall of metrics.",
+  },
+  {
+    label: "Teach the mechanism",
+    title: "Why does this fail?",
+    prompt: "I selected a component. Explain what it is doing, what is saturating or under pressure, and why that affects the user-facing requirement. Point to the component and show me the relevant path. Do not prescribe a topology yet.",
+    result: "The explanation stays tied to the selected component, its neighbors, and deterministic outcomes.",
+  },
+  {
+    label: "Compare a change",
+    title: "Did my edit help?",
+    prompt: "I just changed the design without pressing Run. What changed in the live draft, did the edit improve the failing outcome, and what new tradeoff did it introduce? Use the previous evidence revision if available and highlight the changed path.",
+    result: "The agent compares revisions, distinguishes live-draft evidence from a Run, and avoids pretending the change is officially verified.",
+  },
+  {
+    label: "Challenge it",
+    title: "Try to break my idea",
+    prompt: "Find the most credible way this design could fail under the active workload. Explain the hypothesis and the evidence first, then propose one bounded simulated test. Wait for my explicit approval before running anything.",
+    result: "The agent reasons from evidence, asks permission, and keeps experiments simulated and reversible.",
+  },
 ];
 
 const ABILITIES = [
@@ -93,8 +117,17 @@ export default function WebMcpPage() {
             evidence only when the first finding needs more detail; independent
             reads can run in parallel when the host supports it.
           </p>
-          <div className="webmcp-guide__prompt-list">
-            {PROMPTS.map((prompt) => <code key={prompt}>{prompt}</code>)}
+          <div className="webmcp-guide__prompt-showcase">
+            {PROMPT_GROUPS.map((group) => (
+              <article className="webmcp-guide__prompt-card" key={group.label}>
+                <div>
+                  <span className="webmcp-guide__ability-label">{group.label}</span>
+                  <h3>{group.title}</h3>
+                </div>
+                <code>{group.prompt}</code>
+                <p>{group.result}</p>
+              </article>
+            ))}
           </div>
         </section>
 

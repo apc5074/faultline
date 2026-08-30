@@ -12,8 +12,6 @@ import {
   challengeWriteRps,
 } from "@/features/architecture-canvas/playground-challenge";
 
-const ONBOARDING_SESSION_KEY = "faultline.level1.onboarding.seen";
-
 function formatCompactCount(value: number): string {
   if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`;
   if (value >= 1_000) return `${Math.round(value / 100) / 10}k`;
@@ -310,6 +308,7 @@ export function LevelBriefing({
 
 export function useLevelBriefing() {
   const [open, setOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -325,32 +324,25 @@ export function useLevelBriefing() {
     });
   }, [forceBrief, pathname, router, searchParams]);
 
-  const markSeen = useCallback(() => {
-    try {
-      sessionStorage.setItem(ONBOARDING_SESSION_KEY, "1");
-    } catch {
-      // Ignore unavailable storage.
-    }
-  }, []);
-
   useEffect(() => {
     if (forceBrief) {
+      setHelpOpen(false);
       setOpen(true);
       return;
     }
-    try {
-      if (sessionStorage.getItem(ONBOARDING_SESSION_KEY) === "1") return;
-    } catch {
-      // Ignore unavailable storage and show briefing.
-    }
-    setOpen(true);
+    setHelpOpen(true);
+    setOpen(false);
   }, [forceBrief]);
 
   const closeBriefing = useCallback(() => {
-    markSeen();
     setOpen(false);
     stripBriefParam();
-  }, [markSeen, stripBriefParam]);
+  }, [stripBriefParam]);
+
+  const closeHelp = useCallback(() => {
+    setHelpOpen(false);
+    setOpen(true);
+  }, []);
 
   const openBriefing = useCallback(() => {
     setOpen(true);
@@ -358,8 +350,10 @@ export function useLevelBriefing() {
 
   return {
     open,
+    helpOpen,
     openBriefing,
     restartBriefing: openBriefing,
+    closeHelp,
     closeBriefing,
   };
 }

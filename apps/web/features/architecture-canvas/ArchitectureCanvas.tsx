@@ -43,6 +43,7 @@ import { RunVerdictChip } from "@/features/architecture-canvas/RunVerdictChip";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
+import { HomeHelp } from "@/features/home/HomeHelp";
 
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
@@ -98,6 +99,7 @@ function ArchitectureWorkspace() {
         onClose={briefing.closeBriefing}
         onStartDesigning={workspace.startOfficialAttemptFromBriefing}
       />
+      <HomeHelp initialOpen={briefing.helpOpen} onContinue={briefing.closeHelp} showTrigger={false} />
       <section className="playground-shell" aria-label="Architecture workspace">
         <header className="playground-topbar">
           <Link className="playground-topbar__wordmark" href="/">

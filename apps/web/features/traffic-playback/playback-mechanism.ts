@@ -1,4 +1,8 @@
-import type { CatalogGlyphProps, GlyphState } from "@/features/playground-glyphs";
+import {
+  isFailingGlyphState,
+  type CatalogGlyphProps,
+  type GlyphState,
+} from "@/features/playground-glyphs";
 
 import type { ComponentPlaybackVisual } from "./types";
 
@@ -59,5 +63,9 @@ export function playbackGlyphState(
   selected: boolean,
 ): GlyphState {
   if (selected) return "selected";
-  return visual?.state ?? "idle";
+  const state = visual?.state ?? "idle";
+  // Failure evidence is revealed by the settled simulator result. During the
+  // trial, keep the component in the non-red strain state so the result is
+  // discovered when the run finishes rather than spoiled mid-replay.
+  return isFailingGlyphState(state) ? "warning" : state;
 }
