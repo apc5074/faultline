@@ -38,7 +38,6 @@ import {
 } from "@/features/architecture-canvas/PlaygroundHudPlates";
 import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { SimBar } from "@/features/architecture-canvas/SimBar";
-import { RunResultsPlate } from "@/features/architecture-canvas/RunResultsPlate";
 import { RunVerdictChip } from "@/features/architecture-canvas/RunVerdictChip";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1-hero-scene";
@@ -58,18 +57,11 @@ function ArchitectureWorkspace() {
     });
   }, [workspace.architecture, workspace.playback]);
   const loadAnswerEnabled = isLevel1LoadAnswerEnabled();
-  const [resultsPlateDismissed, setResultsPlateDismissed] = useState(false);
-  const verdictRevealed = workspace.simulationResult !== null && (
-    workspace.playback.phase === "settling" ||
-    (workspace.runState === "complete" && workspace.playback.phase === "settled")
-  );
+  const verdictRevealed = workspace.simulationResult !== null && workspace.runState === "complete";
   const verdict = useMemo(
     () => workspace.simulationResult ? runVerdictSummary(workspace.simulationResult) : null,
     [workspace.simulationResult],
   );
-  useEffect(() => {
-    setResultsPlateDismissed(false);
-  }, [workspace.playback.runSeq]);
   const [webMcpStatus, setWebMcpStatus] = useState<WebMcpStatus>({
     state: "unsupported",
     readToolCount: 0,
@@ -178,7 +170,7 @@ function ArchitectureWorkspace() {
                 <RunVerdictChip
                   verdict={verdict}
                   stale={workspace.resultIsStale}
-                  onClick={() => setResultsPlateDismissed(false)}
+                  onClick={() => undefined}
                 />
               ) : null}
               <BudgetHud
@@ -207,19 +199,6 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
-            {verdictRevealed && !resultsPlateDismissed && workspace.simulationResult && verdict ? (
-              <RunResultsPlate
-                result={workspace.simulationResult}
-                verdict={verdict}
-                stale={workspace.resultIsStale}
-                officialActive={workspace.officialSession !== null}
-                officialCompleted={workspace.officialVerification?.eligible === true}
-                onSubmitOfficial={workspace.onSubmitOfficial}
-                onReviewFirstFailure={workspace.reviewFirstFailure}
-                onRun={workspace.handleSimBarRun}
-                onDismiss={() => setResultsPlateDismissed(true)}
-              />
-            ) : null}
             <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
             {publishedExperiment ? (
               <ExperimentResultPanel

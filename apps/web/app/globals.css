@@ -308,19 +308,6 @@ main {
   transform: translateY(100%);
 }
 
-.page-transition__loader {
-  width: 2rem;
-  height: 2rem;
-  border: 2px solid rgb(255 255 255 / 35%);
-  border-top-color: var(--color-paper);
-  border-radius: 50%;
-  animation: page-transition-spin 0.8s linear infinite;
-}
-
-@keyframes page-transition-spin {
-  to { transform: rotate(360deg); }
-}
-
 .page-transition[data-phase="covering"] .page-transition__panel {
   animation: page-transition-cover 0.28s cubic-bezier(0.7, 0, 0.2, 1) forwards;
 }
@@ -358,9 +345,6 @@ main {
     display: none;
   }
 
-  .page-transition__loader {
-    animation: none;
-  }
 }
 
 /* ── Home ── */
@@ -600,7 +584,7 @@ main {
 
 .home-help {
   position: fixed;
-  z-index: 20;
+  z-index: 50;
   inset: 0;
   display: grid;
   place-items: center;

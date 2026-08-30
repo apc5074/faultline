@@ -116,10 +116,15 @@ export function usePlaygroundWorkspace() {
   );
   const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
   const rawResultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
-  // The prior result stays available after an edit, but stale presentation is
-  // a settled-state concern: never interrupt a live or draining replay.
-  const resultIsStale = rawResultIsStale && runState === "complete" && playback.phase === "settled";
+  // The prior result stays available after an edit, and becomes stale as soon
+  // as the editable board no longer matches the run that produced it.
+  const resultIsStale = rawResultIsStale && runState === "complete";
+  // A completed run remains available as evidence, but the canvas itself
+  // returns to a clean editable state after the playback reset.
   const showSimulationVisuals = simulationResult !== null && runState === "complete";
+  // Keep retained run evidence visible on the board after an edit. The stale
+  // marker belongs to the status surfaces, not to the editable canvas styling.
+  const boardEvidenceIsStale = false;
   const presentationEvents = experimentPresentation?.events ?? simulationResult?.events;
   const activeConnectionIds = useMemo(() => {
     if (!presentationEvents) return new Set<string>();
@@ -250,7 +255,7 @@ export function usePlaygroundWorkspace() {
           architecture.connections,
           selectedComponentId,
           showSimulationVisuals ? simulationResult : null,
-          resultIsStale,
+          boardEvidenceIsStale,
           attentionComponentId,
           playbackVisualByComponent.get(component.id) ??
             (playbackVisualsActive ? idlePlaybackVisual(component.id) : undefined),
@@ -274,7 +279,7 @@ export function usePlaygroundWorkspace() {
       selectedComponentId,
       showSimulationVisuals,
       simulationResult,
-      resultIsStale,
+      boardEvidenceIsStale,
       attentionComponentId,
       connectingFrom,
       settlingNodeIds,
@@ -323,7 +328,7 @@ export function usePlaygroundWorkspace() {
         deletable: !playbackVisualsActive,
         activeConnectionIds,
         trafficActive: showSimulationVisuals || playbackVisualsActive,
-        resultIsStale,
+        resultIsStale: boardEvidenceIsStale,
         load: shareEdgeLoad,
         playbackLoad: tickLoad,
         offset: offsets.get(connection.id) ?? 0,
@@ -342,7 +347,7 @@ export function usePlaygroundWorkspace() {
     selectedConnectionId,
     showSimulationVisuals,
     playbackVisualsActive,
-    resultIsStale,
+    boardEvidenceIsStale,
     simulationResult,
     presentationEvents,
     pulsingEdgeIds,
@@ -630,6 +635,7 @@ export function usePlaygroundWorkspace() {
   const onRunSimulation = useCallback(() => {
     const runKey = architectureSimulationKey(architecture);
     setRunState("running");
+    setSimulationResult(null);
     setUnexpectedError(null);
     setOfficialVerification(null);
     setOfficialSummary(null);
@@ -658,7 +664,10 @@ export function usePlaygroundWorkspace() {
           architecture,
           durationMs,
           buildRunTimeline(outcome.events, durationMs),
-          () => setRunState("complete"),
+          () => {
+            playback.reset();
+            setRunState("complete");
+          },
           (event) => {
             if (event.type === "component_saturated" && event.componentId) playback.markComponentFailed(event.componentId);
           },
@@ -671,7 +680,7 @@ export function usePlaygroundWorkspace() {
         setRunState("error");
       }
     }, 0);
-  }, [architecture, playback.startTimed]);
+  }, [architecture, playback.reset, playback.startTimed]);
 
   useEffect(() => {
     registerPacketRerouteHandler(({ componentId }) => {

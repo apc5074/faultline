@@ -16,7 +16,6 @@ export function RunResultsPlate({
   onSubmitOfficial,
   onReviewFirstFailure,
   onRun,
-  onDismiss,
 }: {
   result: SuccessfulSimulation;
   verdict: RunVerdict;
@@ -26,7 +25,6 @@ export function RunResultsPlate({
   onSubmitOfficial: () => void;
   onReviewFirstFailure: () => void;
   onRun: () => void;
-  onDismiss: () => void;
 }) {
   const { passed, total, allPassed } = verdict;
 
@@ -34,7 +32,6 @@ export function RunResultsPlate({
     <section className={`run-results-plate${stale ? " run-results-plate--stale" : ""}`} aria-label="Last run results">
       <div className="run-results-plate__heading">
         <p>{stale ? "Design changed — run again" : "Last run"}</p>
-        <button type="button" onClick={onDismiss} aria-label="Dismiss last run results">×</button>
       </div>
       <p className={`run-results-plate__verdict tabular${allPassed ? "" : " run-results-plate__verdict--fail"}`}>
         <span aria-hidden>{allPassed ? "✓" : "✕"}</span> {passed} / {total} requirements passed

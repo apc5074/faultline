@@ -212,6 +212,10 @@ assert.match(verdictChip, /onClick=\{onClick\}/);
 
 const workspaceSource = readFileSync(new URL("../features/architecture-canvas/usePlaygroundWorkspace.ts", import.meta.url), "utf8");
 assert.match(workspaceSource, /rawResultIsStale/);
-assert.match(workspaceSource, /runState === "complete" && playback\.phase === "settled"/);
+assert.match(workspaceSource, /showSimulationVisuals = simulationResult !== null && runState === "complete"/);
+assert.match(workspaceSource, /playback\.reset\(\);\s*setRunState\("complete"\)/);
+
+const architectureCanvas = readFileSync(new URL("../features/architecture-canvas/ArchitectureCanvas.tsx", import.meta.url), "utf8");
+assert.doesNotMatch(architectureCanvas, /RunResultsPlate/);
 
 console.log("run feedback verified");

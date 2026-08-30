@@ -1,10 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { useTransitionLinkClick } from "@/features/page-transition/PageTransitionProvider";
+import { markLevelIntroPending } from "@/features/architecture-canvas/level-intro-storage";
 
-const LEVEL_ONE_HREF = "/level/1";
+const LEVEL_ONE_HREF = "/level/1?intro=1";
 
 export function PlayLevelLink({
   className,
@@ -16,7 +17,14 @@ export function PlayLevelLink({
   const handleClick = useTransitionLinkClick(LEVEL_ONE_HREF);
 
   return (
-    <a className={className} href={LEVEL_ONE_HREF} onClick={handleClick}>
+    <a
+      className={className}
+      href={LEVEL_ONE_HREF}
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        markLevelIntroPending();
+        handleClick(event);
+      }}
+    >
       {children}
     </a>
   );

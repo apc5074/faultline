@@ -147,7 +147,8 @@ export function WebMcpRegistration({
         });
         emitWebMcpTelemetry({ kind: "registration_error", errorClass: "registration" });
       }
-      if (process.env.NODE_ENV === "development") {
+      const expectedCancellation = error instanceof DOMException && error.name === "AbortError";
+      if (process.env.NODE_ENV === "development" && !expectedCancellation) {
         console.error("[WebMCP] surface registration failed.", error);
       }
     });

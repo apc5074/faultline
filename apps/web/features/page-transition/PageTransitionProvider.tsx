@@ -14,8 +14,6 @@ import {
 
 type TransitionPhase = "idle" | "covering" | "covered" | "revealing";
 
-const NAVIGATION_TIMEOUT_MS = 1600;
-
 const PageTransitionContext = createContext<(href: string) => void>(() => {});
 
 export function usePageTransitionNavigate() {
@@ -52,6 +50,7 @@ export function PageTransitionProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [phase, setPhase] = useState<TransitionPhase>("idle");
   const pendingPathRef = useRef<string | null>(null);
+  const pendingHrefRef = useRef<string | null>(null);
   const navigationCommittedRef = useRef(false);
 
   const navigate = useCallback(
@@ -69,9 +68,13 @@ export function PageTransitionProvider({ children }: { children: ReactNode }) {
       }
 
       pendingPathRef.current = targetPath;
+      pendingHrefRef.current = href;
       navigationCommittedRef.current = false;
+      // Start loading the destination while the current screen is still
+      // visible. The cover animation is then the loading state, not a reveal
+      // that races the new page's first paint.
+      router.prefetch(href);
       setPhase("covering");
-      router.push(href);
     },
     [pathname, router],
   );
@@ -88,20 +91,14 @@ export function PageTransitionProvider({ children }: { children: ReactNode }) {
     }
   }, [phase]);
 
-  useEffect(() => {
-    if (phase !== "covering" && phase !== "covered") return;
-    const timeout = window.setTimeout(() => {
-      navigationCommittedRef.current = true;
-      setPhase((current) => (current === "covered" ? "revealing" : current));
-    }, NAVIGATION_TIMEOUT_MS);
-    return () => window.clearTimeout(timeout);
-  }, [phase]);
-
   const handlePanelAnimationEnd = () => {
     if (phase === "covering") {
       setPhase("covered");
+      const href = pendingHrefRef.current;
+      if (href) router.push(href);
     } else if (phase === "revealing") {
       pendingPathRef.current = null;
+      pendingHrefRef.current = null;
       navigationCommittedRef.current = false;
       setPhase("idle");
     }
@@ -115,9 +112,7 @@ export function PageTransitionProvider({ children }: { children: ReactNode }) {
           <div
             className="page-transition__panel"
             onAnimationEnd={handlePanelAnimationEnd}
-          >
-            <span className="page-transition__loader" />
-          </div>
+          />
         </div>
       ) : null}
     </PageTransitionContext.Provider>

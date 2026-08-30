@@ -11,6 +11,7 @@ import {
   challengeRedirectRps,
   challengeWriteRps,
 } from "@/features/architecture-canvas/playground-challenge";
+import { consumeLevelIntroPending } from "@/features/architecture-canvas/level-intro-storage";
 
 function formatCompactCount(value: number): string {
   if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`;
@@ -313,6 +314,8 @@ export function useLevelBriefing() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const forceBrief = searchParams.get("brief") === "1";
+  const forceIntro = searchParams.get("intro") === "1";
+  const introInitializedRef = useRef(false);
 
   const stripBriefParam = useCallback(() => {
     if (!forceBrief) return;
@@ -324,15 +327,35 @@ export function useLevelBriefing() {
     });
   }, [forceBrief, pathname, router, searchParams]);
 
+  const stripIntroParam = useCallback(() => {
+    if (!forceIntro) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("intro");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [forceIntro, pathname, router, searchParams]);
+
   useEffect(() => {
     if (forceBrief) {
       setHelpOpen(false);
       setOpen(true);
       return;
     }
+
+    if (introInitializedRef.current) return;
+    introInitializedRef.current = true;
+    const shouldShowIntro = forceIntro || consumeLevelIntroPending();
+    if (!shouldShowIntro) {
+      setHelpOpen(false);
+      setOpen(false);
+      return;
+    }
+
     setHelpOpen(true);
     setOpen(false);
-  }, [forceBrief]);
+  }, [forceBrief, forceIntro]);
 
   const closeBriefing = useCallback(() => {
     setOpen(false);
@@ -342,7 +365,8 @@ export function useLevelBriefing() {
   const closeHelp = useCallback(() => {
     setHelpOpen(false);
     setOpen(true);
-  }, []);
+    stripIntroParam();
+  }, [stripIntroParam]);
 
   const openBriefing = useCallback(() => {
     setOpen(true);
