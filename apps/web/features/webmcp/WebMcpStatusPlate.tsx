@@ -34,8 +34,9 @@ const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
 };
 
 const STARTER_PROMPTS = [
-  "Call get_coaching_policy first, then get_challenge. Tell me what evidence you need before reviewing my design.",
-  "Call get_session_focus. Inspect the focused component and simulator evidence, then give me one finding and one question.",
+  "Review my current Faultline design with review_current_design. Give me one grounded finding and one question.",
+  "Review my selected component using the current Faultline evidence.",
+  "Why is this requirement failing? Give one finding and one question.",
 ] as const;
 
 /** Compact, progressive-enhancement status for the external agent surface. */
@@ -57,6 +58,11 @@ export function WebMcpStatusPlate({ status }: { status: WebMcpStatus }) {
           {status.failedToolCount} tool{status.failedToolCount === 1 ? "" : "s"}{" "}
           failed to register
         </span>
+      ) : null}
+      {status.state === "failed" || status.state === "partial" ? (
+        <button type="button" onClick={() => window.dispatchEvent(new Event("faultline:webmcp-retry"))}>
+          Retry WebMCP
+        </button>
       ) : null}
       <a className="webmcp-status-plate__link" href="/webmcp">
         WebMCP guide

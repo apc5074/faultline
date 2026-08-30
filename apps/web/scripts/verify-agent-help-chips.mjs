@@ -77,9 +77,10 @@ assert.equal(focusOutput.pendingHelpRequest?.componentId, "service-1");
 assert.equal(focusOutput.revision, 2);
 
 for (const chip of AGENT_HELP_CHIPS) {
-  assert.ok(chip.clipboardPrompt.includes("get_coaching_policy"));
-  assert.ok(chip.clipboardPrompt.includes("get_session_focus"));
-  assert.ok(chip.clipboardPrompt.includes("Do not modify architecture"));
+  assert.ok(chip.clipboardPrompt.includes("Faultline"));
+  assert.ok(chip.clipboardPrompt.includes("one"));
+  assert.match(chip.clipboardPrompt, /do not modify|without changing/);
+  assert.ok(chip.suggestedCapabilityNames.includes("review_current_design"));
   assert.ok(chip.suggestedCapabilityNames.length > 0);
 }
 

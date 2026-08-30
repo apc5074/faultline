@@ -1,0 +1,7 @@
+{
+  "productionMetadataBytesMax": 4700,
+  "bootstrapResultBytesMax": 8192,
+  "warmCallbackP95Ms": 25,
+  "maxReviewRecipeEvaluations": 3,
+  "note": "Intentional surface or contract changes must update this snapshot and the WMP-009 review together. Timing limits are browser-owned deterministic-fixture budgets."
+}

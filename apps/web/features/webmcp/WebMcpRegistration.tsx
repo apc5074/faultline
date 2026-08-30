@@ -2,7 +2,7 @@
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS } from "@faultline/webmcp";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useAgentSessionStore,
@@ -55,6 +55,13 @@ export function WebMcpRegistration({
   onExperimentResultRef.current = onExperimentResult;
   onStatusChangeRef.current = onStatusChange;
   const generationRef = useRef(0);
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    const retry = () => setRetryToken((token) => token + 1);
+    window.addEventListener("faultline:webmcp-retry", retry);
+    return () => window.removeEventListener("faultline:webmcp-retry", retry);
+  }, []);
 
   useEffect(() => {
     if (webMcpFeatureState() === "disabled") {
@@ -147,7 +154,7 @@ export function WebMcpRegistration({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [availabilityFingerprint, evidenceSource, registry]);
+  }, [availabilityFingerprint, evidenceSource, registry, retryToken]);
 
   return null;
 }

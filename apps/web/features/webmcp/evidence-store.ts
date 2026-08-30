@@ -5,6 +5,7 @@ import type {
   AgentSessionState,
   LiveAgentSnapshot,
 } from "@faultline/agent-capabilities";
+import { buildReviewRevisionDelta, buildReviewUseCasePackets } from "@faultline/agent-capabilities";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { SIMULATOR_VERSION } from "@faultline/simulator";
 
@@ -87,6 +88,7 @@ export function createWebMcpEvidenceSource(options: {
 }): WebMcpEvidenceSource {
   const buildContext = options.buildContext ?? createAgentContext;
   let completed: PreparedWebMcpEvidence | undefined;
+  let history: PreparedWebMcpEvidence[] = [];
   let inFlight: { key: string; promise: Promise<PreparedWebMcpEvidence> } | undefined;
   let disposed = false;
 
@@ -98,7 +100,12 @@ export function createWebMcpEvidenceSource(options: {
 
   function start(key: string, architecture: Architecture, challenge: ChallengeDefinition): Promise<PreparedWebMcpEvidence> {
     const promise = Promise.resolve(buildContext(architecture, challenge)).then((context) => {
-      const prepared = { key, context, indexes: buildIndexes(context) };
+      const indexes = buildIndexes(context);
+      const reviewPackets = buildReviewUseCasePackets({ ...context, reviewPackets: undefined });
+      const previous = history.at(-1);
+      const preparedContext = { ...context, reviewPackets, ...(previous ? { reviewDelta: buildReviewRevisionDelta(previous.context, { ...context, reviewPackets }) } : {}) };
+      const prepared = { key, context: preparedContext, indexes };
+      history = [...history.filter((entry) => entry.key !== key), prepared].slice(-2);
       if (!disposed && inFlight?.key === key) completed = prepared;
       if (inFlight?.key === key) inFlight = undefined;
       return prepared;
@@ -132,6 +139,6 @@ export function createWebMcpEvidenceSource(options: {
     getSnapshot: async (signal) => ({ context: (await getEvidence(signal)).context, session: options.getSession() }),
     getSession: options.getSession,
     prewarm: () => { void getEvidence().catch(() => undefined); },
-    dispose: () => { disposed = true; completed = undefined; inFlight = undefined; },
+    dispose: () => { disposed = true; completed = undefined; inFlight = undefined; history = []; },
   };
 }

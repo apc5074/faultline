@@ -13,8 +13,8 @@ const workspace = await readFile(
 );
 
 assert.match(status, /Starter prompts/);
-assert.match(status, /get_coaching_policy first/);
-assert.match(status, /get_session_focus/);
+assert.match(status, /review_current_design/);
+assert.match(status, /Retry WebMCP/);
 assert.match(status, /one finding and one question/);
 assert.match(status, /Optional — your game works without WebMCP/);
 assert.match(status, /href="\/webmcp"/);
@@ -22,7 +22,7 @@ assert.doesNotMatch(status, /edit.*architecture|submit/i);
 assert.doesNotMatch(status, /read.*visual.*simulated/);
 assert.match(status, /Agent tools disabled/);
 assert.match(workspace, /playground-topbar__agent-status/);
-assert.match(docs, /get_coaching_policy.*Call first/s);
+assert.match(docs, /review_current_design/);
 assert.match(docs, /WebMCP is not an architecture editing API/);
 
 console.log("WebMCP polish verified");

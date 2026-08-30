@@ -30,6 +30,7 @@ const concurrent = await Promise.all([source.getEvidence(), source.getEvidence()
 assert.equal(builds, 1);
 assert.equal(new Set(concurrent.map((snapshot) => snapshot.key)).size, 1);
 assert.equal(concurrent[0].context.evidenceMeta.generatedAt, concurrent[1].context.evidenceMeta.generatedAt);
+assert.ok(concurrent[0].context.reviewPackets);
 
 session = { ...session, revision: 1, focus: { kind: "component", componentId: "service-1", source: "selection" } };
 assert.equal((await source.getSnapshot()).session.revision, 1);
@@ -40,6 +41,9 @@ const edited = await source.getEvidence();
 assert.equal(builds, 2);
 assert.equal(edited.context.architecture.components[0].config.instances, 2);
 assert.notEqual(edited.key, concurrent[0].key);
+assert.equal(edited.context.reviewDelta.fromRevision, "1");
+assert.equal(edited.context.reviewDelta.toRevision, "2");
+assert.deepEqual(edited.context.reviewDelta.changedComponentIds, ["service-1"]);
 
 buildDelays.push(20, 0);
 architecture = { ...architecture, components: [{ ...architecture.components[0], config: { instances: 3 } }] };

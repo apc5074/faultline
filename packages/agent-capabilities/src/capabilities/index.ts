@@ -86,7 +86,7 @@ export type {
 } from "./estimate-capacity.js";
 
 export { getMetricsCapability, buildGetMetricsOutput } from "./get-metrics.js";
-export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput } from "./review-current-design.js";
+export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput, buildReviewUseCasePackets, buildReviewRevisionDelta } from "./review-current-design.js";
 export type { ReviewCurrentDesignOutput } from "./review-current-design.js";
 export type {
   GetMetricsComponent,

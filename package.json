@@ -12,6 +12,7 @@
     "verify:level-profiles": "pnpm --filter @faultline/challenges build && node packages/challenges/scripts/verify-level-profile-schema.mjs && node packages/challenges/scripts/verify-url-shortener-level-profile.mjs && pnpm --filter @faultline/web run verify:level1-starter && pnpm --filter @faultline/web run verify:volume-share-visuals && pnpm --filter @faultline/web run verify:level-teaching",
     "verify:phase-4": "pnpm --filter @faultline/web run verify:alias && pnpm --filter @faultline/web run verify:fastest-leaderboard && pnpm --filter @faultline/web run verify:cheapest-leaderboard && pnpm --filter @faultline/web run verify:my-rank && pnpm --filter @faultline/web run verify:submission && pnpm --filter @faultline/web run verify:phase-4",
     "verify:phase-4-live": "pnpm --filter @faultline/web run verify:phase-4-live",
-    "verify:webmcp-first": "pnpm --filter @faultline/agent-capabilities build && pnpm --filter @faultline/webmcp build && node --experimental-strip-types apps/web/scripts/verify-webmcp-first.mjs"
+    "verify:webmcp-first": "pnpm --filter @faultline/agent-capabilities build && pnpm --filter @faultline/webmcp build && node --experimental-strip-types apps/web/scripts/verify-webmcp-first.mjs",
+    "verify:webmcp-performance": "pnpm --filter @faultline/agent-capabilities verify && pnpm --filter @faultline/webmcp verify && pnpm --filter @faultline/web run verify:webmcp-polish && pnpm --filter @faultline/web run verify:webmcp-performance"
   }
 }

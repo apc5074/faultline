@@ -7,9 +7,11 @@ export const metadata: Metadata = {
 };
 
 const PROMPTS = [
-  "Inspect my architecture. What is the first bottleneck the simulator sees, and what evidence supports that?",
-  "Review my Global URL Shortener design for the current challenge. Give me one finding and one question.",
-  "Inspect the focused component and the current simulator evidence. Explain what I should change without editing the design.",
+  "Review my current Faultline design with review_current_design. What is the first simulator-grounded bottleneck?",
+  "Review my selected component using the current Faultline evidence. Give me one finding and one question.",
+  "Why is this requirement failing? Use the current Faultline evidence and give me one finding and one question.",
+  "Trace my focused workload path and show me the first weak link.",
+  "Review my deterministic cost pressure without changing the design.",
   "Propose one bounded failure experiment, explain what it will test, and wait for my approval before running it.",
 ];
 
@@ -87,8 +89,9 @@ export default function WebMcpPage() {
           <p className="webmcp-guide__kicker">03 / Prompt it well</p>
           <h2 id="prompts-title">Start with a design question</h2>
           <p className="webmcp-guide__section-intro">
-            Good prompts give the agent a job, ask for evidence, and leave the
-            design decision with you.
+            Start with one review_current_design call. Ask for targeted follow-up
+            evidence only when the first finding needs more detail; independent
+            reads can run in parallel when the host supports it.
           </p>
           <div className="webmcp-guide__prompt-list">
             {PROMPTS.map((prompt) => <code key={prompt}>{prompt}</code>)}

@@ -1,17 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { urlShortenerChallenge } from "@faultline/challenges";
+import { urlShortenerChallenge, urlShortenerStarterArchitecture } from "@faultline/challenges";
 import { registerAgentWebMcpSurface } from "@faultline/webmcp";
 import { createAgentContext } from "../lib/agent-context/create-agent-context.ts";
 
-const architecture = {
-  version: 1,
-  components: [
-    { id: "traffic-source-start", type: "traffic-source", config: { label: "Incoming traffic" }, deployments: [], ui: { x: 80, y: 180 } },
-    { id: "service-1", type: "service", config: { instances: 2 }, deployments: [], ui: { x: 220, y: 180 } },
-  ],
-  connections: [],
-};
+const architecture = urlShortenerStarterArchitecture();
+
+const budget = JSON.parse(await readFile(new URL("./webmcp-performance-budget.json", import.meta.url), "utf8"));
 
 function percentile(values, p) {
   const sorted = [...values].sort((a, b) => a - b);
@@ -46,11 +42,16 @@ const warmEvents = [];
 const warm = await registrationRun(warmEvents);
 const reviewEvents = [];
 const review = await registrationRun(reviewEvents);
-await invoke(review.tools, "get_coaching_policy");
-await invoke(review.tools, "get_session_focus");
-await invoke(review.tools, "inspect_component", { componentId: "service-1" });
-await invoke(review.tools, "get_metrics");
-for (let index = 0; index < 10; index += 1) await invoke(review.tools, index % 2 ? "get_metrics" : "inspect_component", index % 2 ? {} : { componentId: "service-1" });
+const bootstrap = await invoke(review.tools, "review_current_design", { intent: "auto" });
+assert.equal(bootstrap.ok, true);
+assert.equal(bootstrap.data.evidence.architectureRevision, review.result.manifest.revision);
+assert.equal(bootstrap.data.evidence.available, true);
+assert.ok(bootstrap.data.suggestedNextTools.length > 0);
+const component = await invoke(review.tools, "inspect_component", { componentId: "service-start" });
+assert.equal(component.ok, true);
+const metrics = await invoke(review.tools, "get_metrics");
+assert.equal(metrics.ok, true);
+for (let index = 0; index < 10; index += 1) await invoke(review.tools, index % 2 ? "get_metrics" : "inspect_component", index % 2 ? {} : { componentId: "service-start" });
 
 const metadataBytes = [...cold.tools.values()].reduce((sum, tool) => sum + JSON.stringify({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations ?? null }).length, 0);
 const registrationMs = [...coldEvents, ...warmEvents, ...reviewEvents].filter((event) => event.name === "registration_total_ms").map((event) => event.durationMs ?? 0);
@@ -63,15 +64,28 @@ const contextSnapshotMs = reviewEvents.filter((event) => event.name === "context
 const resultBytes = reviewEvents.filter((event) => event.name === "result_bytes").map((event) => event.bytes ?? 0);
 const callbacks = reviewEvents.filter((event) => event.name === "tool_callback_total_ms").map((event) => event.durationMs ?? 0);
 const simulations = cold.evaluations + warm.evaluations + review.evaluations;
+const phaseMaxima = {
+  registration_total_ms: Math.max(...registrationMs),
+  surface_build_ms: Math.max(...surfaceBuildMs),
+  context_snapshot_ms: Math.max(...contextSnapshotMs),
+  capability_execution_ms: Math.max(...reviewEvents.filter((event) => event.name === "capability_execution_ms").map((event) => event.durationMs ?? 0)),
+  tool_callback_total_ms: Math.max(...callbacks),
+};
+const slowestPhase = Object.entries(phaseMaxima).sort(([, left], [, right]) => right - left)[0];
 assert.ok(cold.result.registeredToolNames.length > 0);
 assert.equal(cold.result.registeredToolNames.length, cold.result.resolvedToolNames.length);
 assert.equal(review.result.failedToolNames.length, 0);
+const serializedBytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
+assert.ok(metadataBytes <= budget.productionMetadataBytesMax, `Production WebMCP metadata is ${metadataBytes} bytes; update the explicit snapshot only for an intentional surface change.`);
+assert.ok(serializedBytes(bootstrap) <= budget.bootstrapResultBytesMax, `Bootstrap result exceeds ${budget.bootstrapResultBytesMax} bytes.`);
+assert.ok(percentile(callbacks, 0.95) <= budget.warmCallbackP95Ms, `Warm callback p95 exceeded ${budget.warmCallbackP95Ms}ms.`);
+assert.ok(review.evaluations <= budget.maxReviewRecipeEvaluations, `Review recipe performed ${review.evaluations} simulator builds.`);
 
 const report = {
-  fixture: "Level 1 deterministic two-component draft",
+  fixture: "Level 1 deterministic fail-first starter",
   fixtureCommit: process.env.FAULTLINE_FIXTURE_COMMIT ?? "unknown",
   generatedAt: new Date().toISOString(),
-  note: "Baseline captures the current uncached WebMCP surface; generatedAt is report metadata only and is never part of simulator evidence.",
+  note: "Candidate release-gate report; generatedAt is report metadata only and is never part of simulator evidence.",
   registration: {
     coldEvaluations: cold.evaluations,
     warmEvaluations: warm.evaluations,
@@ -81,11 +95,12 @@ const report = {
     registrationMs: { cold: registrationSummary(coldEvents), warm: registrationSummary(warmEvents), all: { p50: percentile(registrationMs, 0.5), p95: percentile(registrationMs, 0.95), max: Math.max(...registrationMs) } },
     surfaceBuildMs: { p50: percentile(surfaceBuildMs, 0.5), p95: percentile(surfaceBuildMs, 0.95), max: Math.max(...surfaceBuildMs) },
   },
-  reviewRecipe: { calls: 4, names: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"] },
+  reviewRecipe: { calls: 3, names: ["review_current_design", "inspect_component", "get_metrics"], bootstrapBytes: serializedBytes(bootstrap) },
   repeatedReads: { calls: 10, additionalEvaluations: review.evaluations, resultBytes: { p50: percentile(resultBytes, 0.5), p95: percentile(resultBytes, 0.95), max: Math.max(...resultBytes) } },
   callbackMs: { p50: percentile(callbacks, 0.5), p95: percentile(callbacks, 0.95), max: Math.max(...callbacks) },
   contextSnapshotMs: { p50: percentile(contextSnapshotMs, 0.5), p95: percentile(contextSnapshotMs, 0.95), max: Math.max(...contextSnapshotMs) },
   simulatorEvaluationMs: { p50: percentile(reviewEvents.filter((event) => event.name === "simulator_evaluation_ms").map((event) => event.durationMs ?? 0), 0.5), p95: percentile(reviewEvents.filter((event) => event.name === "simulator_evaluation_ms").map((event) => event.durationMs ?? 0), 0.95), max: Math.max(...reviewEvents.filter((event) => event.name === "simulator_evaluation_ms").map((event) => event.durationMs ?? 0)) },
+  slowestPhase: slowestPhase ? { name: slowestPhase[0], maxMs: slowestPhase[1] } : null,
   totalEvaluations: simulations,
 };
 console.log(JSON.stringify(report, null, 2));

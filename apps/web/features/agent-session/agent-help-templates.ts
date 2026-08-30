@@ -22,40 +22,40 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
     label: "Review selection",
     template: "Coach the player about their selected component.",
     clipboardPrompt:
-      "In Faultline, review my current focus. Call get_coaching_policy and get_session_focus first, then inspect the selected component and relevant simulator evidence. Give one grounded finding, optionally highlight a verified reference, and end with one question. Do not modify architecture or prescribe a final topology.",
+      "Review my selected component using the current Faultline evidence. Give one grounded finding and one question; do not modify the design.",
     requiresSelection: true,
     promptIntent: "component_review",
-    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"],
+    suggestedCapabilityNames: ["review_current_design", "inspect_component", "get_metrics"],
   },
   {
     id: "trace-workload",
     label: "Trace workload",
     template: "Trace the focused workload channel or path.",
     clipboardPrompt:
-      "In Faultline, trace the relevant workload channel or path. Call get_coaching_policy and get_session_focus first. Prefer targeted component and simulator evidence before get_architecture. Explain one verified path finding, optionally highlight a real reference, and ask one question. Do not modify architecture or prescribe a final topology.",
+      "Trace my focused workload path in Faultline and show me the first weak link. Give one verified finding and one question; do not modify the design.",
     requiresSelection: false,
     promptIntent: "workload_trace",
-    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"],
+    suggestedCapabilityNames: ["review_current_design", "inspect_component", "get_metrics"],
   },
   {
     id: "review-requirement",
     label: "Review requirement",
     template: "Investigate the focused or failing requirement.",
     clipboardPrompt:
-      "In Faultline, investigate a focused or failing requirement. Call get_coaching_policy and get_session_focus, then get_requirements and current simulator evidence. Give one grounded finding and the smallest next investigation. Do not modify architecture or prescribe a final topology.",
+      "Why is this requirement failing in Faultline? Use the current evidence, give one finding and one question, and do not modify the design.",
     requiresSelection: false,
     promptIntent: "requirement_failure",
-    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "get_requirements", "get_metrics"],
+    suggestedCapabilityNames: ["review_current_design", "get_requirements", "get_metrics"],
   },
   {
     id: "review-cost",
     label: "Review cost",
     template: "Explain the current monthly cost breakdown.",
     clipboardPrompt:
-      "In Faultline, review deterministic cost evidence. Call get_coaching_policy and get_session_focus, then get_cost_breakdown and targeted component evidence if needed. Give one grounded finding and one question. Do not modify architecture or prescribe a final topology.",
+      "Review my deterministic cost pressure in Faultline without changing the design. Give one grounded finding and one question.",
     requiresSelection: false,
     promptIntent: "cost_review",
-    suggestedCapabilityNames: ["get_coaching_policy", "get_session_focus", "get_cost_breakdown", "inspect_component"],
+    suggestedCapabilityNames: ["review_current_design", "get_cost_breakdown", "inspect_component"],
   },
 ] as const;
 

@@ -137,6 +137,7 @@ export const noInputSchema: CapabilityInputSchema<undefined> = {
 export interface ReviewCurrentDesignInput {
   readonly intent?: "auto" | "component_review" | "requirement_failure" | "workload_trace" | "cost_review";
   readonly targetId?: string;
+  readonly knownEvidenceRevision?: string;
 }
 
 export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrentDesignInput> = {
@@ -145,15 +146,17 @@ export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrent
     properties: {
       intent: { type: "string", enum: ["auto", "component_review", "requirement_failure", "workload_trace", "cost_review"] },
       targetId: { type: "string", minLength: 1 },
+      knownEvidenceRevision: { type: "string", minLength: 1 },
     },
     additionalProperties: false,
   },
   safeParse(input) {
     if (input === undefined || input === null) return { success: true as const, data: {} };
-    if (!isRecord(input) || !hasOnlyKeys(input, ["intent", "targetId"])) return { success: false as const, errors: ["review_current_design input contains unknown properties."] };
+    if (!isRecord(input) || !hasOnlyKeys(input, ["intent", "targetId", "knownEvidenceRevision"])) return { success: false as const, errors: ["review_current_design input contains unknown properties."] };
     if (input.intent !== undefined && (typeof input.intent !== "string" || !["auto", "component_review", "requirement_failure", "workload_trace", "cost_review"].includes(input.intent))) return { success: false as const, errors: ["intent must be a supported review intent."] };
     if (input.targetId !== undefined && (typeof input.targetId !== "string" || input.targetId.trim().length === 0)) return { success: false as const, errors: ["targetId must be a non-empty string."] };
-    return { success: true as const, data: { ...(input.intent ? { intent: input.intent as ReviewCurrentDesignInput["intent"] } : {}), ...(input.targetId ? { targetId: input.targetId } : {}) } };
+    if (input.knownEvidenceRevision !== undefined && (typeof input.knownEvidenceRevision !== "string" || input.knownEvidenceRevision.length === 0 || input.knownEvidenceRevision.length > 128)) return { success: false as const, errors: ["knownEvidenceRevision must be a bounded non-empty string."] };
+    return { success: true as const, data: { ...(input.intent ? { intent: input.intent as ReviewCurrentDesignInput["intent"] } : {}), ...(input.targetId ? { targetId: input.targetId } : {}), ...(input.knownEvidenceRevision ? { knownEvidenceRevision: input.knownEvidenceRevision } : {}) } };
   },
 };
 

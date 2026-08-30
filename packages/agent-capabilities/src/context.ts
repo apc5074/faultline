@@ -31,6 +31,33 @@ export interface AgentSystemMetrics {
   readonly minimumHeadroom?: number;
 }
 
+/** Bounded, revision-stable WebMCP review packets materialized beside evidence. */
+export interface ReviewUseCasePackets {
+  readonly overview: { readonly failedRequirements: readonly RequirementResult[]; readonly highestImpactBottleneck?: unknown; readonly costHeadroom?: number };
+  readonly component: Readonly<Record<string, { readonly component: unknown; readonly neighbors: readonly string[]; readonly relatedRequirements: readonly RequirementResult[] }>>;
+  readonly requirement: Readonly<Record<string, { readonly result: RequirementResult; readonly implicatedComponentIds: readonly string[]; readonly caveats: readonly string[]; readonly relatedBottlenecks: readonly unknown[] }>>;
+  readonly workload: Readonly<Record<string, { readonly channel: AgentWorkloadChannelEvidence }>>;
+  readonly cost: { readonly contributors: readonly string[]; readonly topContributors: readonly unknown[]; readonly monthlyTotal?: number; readonly budget: number; readonly remainingBudget?: number };
+}
+
+export interface ReviewRevisionDelta {
+  readonly fromRevision: string;
+  readonly toRevision: string;
+  readonly addedComponentIds: readonly string[];
+  readonly removedComponentIds: readonly string[];
+  readonly changedComponentIds: readonly string[];
+  readonly addedConnectionIds: readonly string[];
+  readonly removedConnectionIds: readonly string[];
+  readonly changedRequirementIds: readonly string[];
+  readonly metricDeltas: readonly { readonly componentId: string; readonly metric: string; readonly from?: number; readonly to?: number }[];
+  readonly costDelta?: { readonly monthlyTotal: number; readonly amount: number };
+  readonly changedWorkloadChannelIds: readonly string[];
+  readonly firstChangedConstrainedHop?: string;
+  readonly dynamicCapabilitiesAdded: readonly string[];
+  readonly dynamicCapabilitiesRemoved: readonly string[];
+  readonly unchangedCriticalCaveats: readonly string[];
+}
+
 /** Scenario outcomes attached to the snapshot (e.g. viral hot-key). */
 export interface AgentScenarioEvidence {
   readonly hotKey?: {
@@ -133,6 +160,9 @@ export interface AgentContext {
    * Compact narrative + placement intents only — never playtest checklists or pros/cons walls.
    */
   readonly levelTeaching?: AgentLevelTeaching;
+  /** Optional WebMCP-local packets; absent for other adapters and legacy contexts. */
+  readonly reviewPackets?: ReviewUseCasePackets;
+  readonly reviewDelta?: ReviewRevisionDelta;
 }
 
 /** Safe fallback for synthetic/dev contexts that predate evidence metadata. */
