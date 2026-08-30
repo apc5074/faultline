@@ -1362,6 +1362,210 @@ main {
   white-space: normal;
 }
 
+/* ── WebMCP guide ── */
+
+.webmcp-guide {
+  min-height: 100svh;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.webmcp-guide__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper-dark);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.webmcp-guide__wordmark,
+.webmcp-guide__back,
+.webmcp-guide a {
+  color: var(--color-ink);
+}
+
+.webmcp-guide__wordmark,
+.webmcp-guide__back {
+  text-decoration: none;
+}
+
+.webmcp-guide__back:hover,
+.webmcp-guide a:hover {
+  color: var(--color-signal-red);
+}
+
+.webmcp-guide__content {
+  width: min(100% - 2rem, 860px);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 7vw, 5.5rem) 0 4rem;
+}
+
+.webmcp-guide__hero {
+  max-width: 44rem;
+  padding-bottom: clamp(2.5rem, 7vw, 5rem);
+}
+
+.webmcp-guide__eyebrow,
+.webmcp-guide__kicker {
+  margin: 0 0 0.75rem;
+  color: var(--color-signal-red);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.webmcp-guide h1,
+.webmcp-guide h2,
+.webmcp-guide h3,
+.webmcp-guide p {
+  margin-top: 0;
+}
+
+.webmcp-guide h1 {
+  max-width: 42rem;
+  margin-bottom: 1rem;
+  font-size: clamp(2.25rem, 7vw, 5.5rem);
+  letter-spacing: -0.09em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.webmcp-guide__hero > p:last-child,
+.webmcp-guide__section-intro,
+.webmcp-guide__footer p {
+  max-width: 42rem;
+  color: var(--color-ink-faint);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.webmcp-guide__section {
+  padding: 2.5rem 0;
+  border-top: 1px solid var(--color-ink-hairline);
+}
+
+.webmcp-guide h2 {
+  margin-bottom: 1.25rem;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  letter-spacing: -0.06em;
+  text-transform: uppercase;
+}
+
+.webmcp-guide__steps {
+  display: grid;
+  gap: 0.8rem;
+  max-width: 46rem;
+  margin: 0;
+  padding-left: 1.4rem;
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.webmcp-guide__steps strong {
+  font-weight: 700;
+}
+
+.webmcp-guide__note,
+.webmcp-guide__callout {
+  max-width: 46rem;
+  margin: 1.25rem 0 0;
+  padding: 0.8rem 1rem;
+  border-left: 2px solid var(--color-signal-red);
+  background: var(--color-paper-dark);
+  color: var(--color-ink-faint);
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+
+.webmcp-guide code {
+  padding: 0.1rem 0.25rem;
+  background: var(--color-paper-dark);
+  color: var(--color-ink);
+  font: 0.9em var(--font-mono), monospace;
+}
+
+.webmcp-guide__ability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.webmcp-guide__ability {
+  min-height: 11rem;
+  padding: 1rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper-dark);
+}
+
+.webmcp-guide__ability-label {
+  color: var(--color-signal-red);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.webmcp-guide__ability h3 {
+  margin: 1.4rem 0 0.6rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.webmcp-guide__ability p {
+  margin-bottom: 0;
+  color: var(--color-ink-faint);
+  font-size: 0.68rem;
+  line-height: 1.55;
+}
+
+.webmcp-guide__prompt-list {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 46rem;
+}
+
+.webmcp-guide__prompt-list code {
+  display: block;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper-dark);
+  font-size: 0.68rem;
+  line-height: 1.55;
+  white-space: normal;
+}
+
+.webmcp-guide__footer {
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-ink-hairline);
+}
+
+.webmcp-guide__footer strong {
+  color: var(--color-ink);
+}
+
+.webmcp-guide__footer .webmcp-guide__fineprint {
+  font-size: 0.62rem;
+}
+
+@media (width <= 640px) {
+  .webmcp-guide__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .webmcp-guide__ability-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Level briefing (Level 1 intro) ── */
 
 .level-briefing {
@@ -2491,11 +2695,11 @@ main {
 .component-rail__category {
   margin: 0;
   padding: 0.4rem 0.65rem 0.2rem;
-  font-size: 0.52rem;
+  font-size: 0.56rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-ink-faint);
+  color: var(--color-ink);
 }
 
 .component-rail__item {
@@ -2526,11 +2730,12 @@ main {
   max-width: 100%;
   overflow: hidden;
   font-size: 0.58rem;
+  font-weight: 700;
   line-height: 1.25;
   letter-spacing: 0.06em;
   text-overflow: ellipsis;
   text-transform: uppercase;
-  color: var(--color-ink-faint);
+  color: var(--color-ink);
 }
 
 .component-rail__item:hover .component-rail__label {
