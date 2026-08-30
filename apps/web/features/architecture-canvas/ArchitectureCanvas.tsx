@@ -115,7 +115,6 @@ function ArchitectureWorkspace() {
             ) : null}
           </div>
           <AccountAuthPlate nextPath="/level/1" minimal compact />
-          <WebMcpStatusPlate status={webMcpStatus} />
         </header>
         <Suspense fallback={null}>
           <AuthCallbackNotice />
@@ -161,6 +160,10 @@ function ArchitectureWorkspace() {
               onSelectRegion={workspace.onSelectRegion}
               onClearWorldSelection={workspace.clearSelection}
             />
+
+            <div className="playground-canvas__agent-status">
+              <WebMcpStatusPlate status={webMcpStatus} />
+            </div>
 
             <div className="playground-corner-hud">
               {workspace.runState === "complete" ? (

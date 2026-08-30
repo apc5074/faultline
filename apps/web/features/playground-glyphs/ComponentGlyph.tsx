@@ -242,7 +242,6 @@ function CacheGlyph({
                 width={cw - 3}
                 height={ch - 3}
                 fill={GLYPH_INK.ink}
-                className="cell-flicker"
               />
             );
           })}

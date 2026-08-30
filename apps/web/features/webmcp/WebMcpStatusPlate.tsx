@@ -35,11 +35,6 @@ export function WebMcpStatusPlate({ status }: { status: WebMcpStatus }) {
   return (
     <section className={`webmcp-status-plate webmcp-status-plate--${status.state}`} aria-label="WebMCP status" aria-live="polite">
       <span className="webmcp-status-plate__state">WebMCP · {STATUS_LABEL[status.state]}</span>
-      {status.state !== "unsupported" ? (
-        <span className="webmcp-status-plate__tools">
-          {status.readToolCount} read · {status.visualToolCount} visual · {status.experimentToolCount} simulated
-        </span>
-      ) : null}
       <span className="webmcp-status-plate__prompt">{STATUS_PROMPT[status.state]}</span>
       {status.failedToolCount > 0 ? (
         <span className="webmcp-status-plate__prompt">{status.failedToolCount} tool{status.failedToolCount === 1 ? "" : "s"} failed to register</span>

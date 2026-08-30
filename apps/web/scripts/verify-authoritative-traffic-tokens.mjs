@@ -19,6 +19,7 @@ import {
   spawnAccrualPerTick,
 } from "../features/traffic-playback/authoritative-edge-traffic.ts";
 import {
+  CACHE_HIT_FLASH_TICKS,
   cdnAnimationPassForArrivalCount,
   redisVisualSampleRate,
   resetTickSimulationState,
@@ -250,6 +251,57 @@ assert.equal(redisVisualSampleRate(0), 0);
 assert.equal(redisVisualSampleRate(0.5), 0.5);
 assert.equal(redisVisualSampleRate(1), 1);
 
+console.log("Check — Redis activity is a brief confirmed-hit acknowledgement");
+const cachePacket = {
+  id: "cache-hit",
+  shape: "request",
+  connectionId: "e-redis",
+  progress: 1,
+  dwellComponentId: "redis1",
+  dwellProgress: 0.99,
+  cacheVisualActive: true,
+  componentVisualActive: true,
+};
+const cacheHitPlan = {
+  rates: new Map([
+    ["e-redis", { connectionId: "e-redis", forwardRps: 100, writeRps: 0 }],
+  ]),
+  redirectRps: 100,
+  componentActivityRates: new Map([["redis1", 1]]),
+};
+resetTickSimulationState();
+let cacheFrame = tickSimulation(
+  blankSimGraph().components,
+  blankSimGraph().connections,
+  [cachePacket],
+  1,
+  1,
+  { authoritativeTraffic: cacheHitPlan },
+);
+const hitRedis = cacheFrame.components.find((component) => component.id === "redis1");
+assert.equal(hitRedis?.cacheHitFlash, true, "a sampled authoritative cache hit flashes Redis");
+assert.equal(hitRedis?.mechanismCount, 0, "a hit never fills Redis with packet cells");
+
+resetTickSimulationState();
+const cacheMissPlan = {
+  ...cacheHitPlan,
+  rates: new Map([
+    ["e-redis", { connectionId: "e-redis", forwardRps: 100, writeRps: 0 }],
+    ["e-pierce", { connectionId: "e-pierce", forwardRps: 100, writeRps: 0 }],
+  ]),
+};
+cacheFrame = tickSimulation(
+  blankSimGraph().components,
+  blankSimGraph().connections,
+  [cachePacket],
+  1,
+  CACHE_HIT_FLASH_TICKS,
+  { authoritativeTraffic: cacheMissPlan },
+);
+const missRedis = cacheFrame.components.find((component) => component.id === "redis1");
+assert.equal(missRedis?.cacheHitFlash, false, "a cache miss does not animate Redis as a hit");
+assert.equal(missRedis?.state, "idle", "a cache miss leaves the Redis glyph visually contained");
+
 console.log("Check — write lane spawns even when reads absorbed");
 const writeOnlyRates = new Map([
   ["e-pierce", { connectionId: "e-pierce", forwardRps: 0, writeRps: redirectRps * 0.1 }],
@@ -334,7 +386,7 @@ for (const componentId of ["cdn1", "lb1", "svc1", "redis1", "pg1"]) {
   assert.ok(dwelled.has(componentId), `packet should visibly dwell at ${componentId}`);
 }
 
-console.log("Check — Redis cells illuminate only while a packet dwells there");
+console.log("Check — Redis dwell does not create packet-cell animation");
 resetTickSimulationState();
 ({ components, connections } = blankSimGraph());
 packets = [];
@@ -355,13 +407,13 @@ for (let tick = 0; tick < 2000 && !sawRedisDwell; tick += 1) {
   );
   assert.equal(
     redis?.mechanismCount,
-    redisDwellers.length,
-    "Redis should not add synthetic processing cells",
+    0,
+    "Redis dwellers must not fill the cache glyph with packet cells",
   );
   assert.equal(
-    redis?.processingSlotIndices?.length,
-    new Set(redisDwellers.map((packet) => packet.id)).size,
-    "each dwelling packet should own one stable Redis cell",
+    redis?.processingSlotIndices,
+    undefined,
+    "Redis dwellers must not receive animated cache-cell slots",
   );
   sawRedisDwell = redisDwellers.length > 0;
 }

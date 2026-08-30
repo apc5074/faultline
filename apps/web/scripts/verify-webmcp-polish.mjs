@@ -7,6 +7,10 @@ const status = await readFile(
   "utf8",
 );
 const docs = await readFile(new URL("../../../docs/WEBMCP.md", import.meta.url), "utf8");
+const workspace = await readFile(
+  new URL("../features/architecture-canvas/ArchitectureCanvas.tsx", import.meta.url),
+  "utf8",
+);
 
 assert.match(status, /Starter prompts/);
 assert.match(status, /get_coaching_policy first/);
@@ -15,6 +19,8 @@ assert.match(status, /one finding and one question/);
 assert.match(status, /Optional — your game works without WebMCP/);
 assert.match(status, /https:\/\/webmcp\.dev/);
 assert.doesNotMatch(status, /edit.*architecture|submit/i);
+assert.doesNotMatch(status, /read.*visual.*simulated/);
+assert.match(workspace, /playground-canvas__agent-status/);
 assert.match(docs, /get_coaching_policy.*Call first/s);
 assert.match(docs, /WebMCP is not an architecture editing API/);
 

@@ -35,12 +35,8 @@ const rejectionCounts = new Map<string, number>();
  * climbs, so a meltdown never becomes red confetti.
  */
 export const MAX_VISIBLE_REJECTED_PER_COMPONENT = 3;
-
-function stableSlot(packetId: string, capacity: number): number {
-  let hash = 0;
-  for (let index = 0; index < packetId.length; index += 1) hash = (hash * 31 + packetId.charCodeAt(index)) >>> 0;
-  return hash % Math.max(1, capacity);
-}
+/** A cache hit is a brief acknowledgement, not sustained component motion. */
+export const CACHE_HIT_FLASH_TICKS = 5;
 
 /** Cache activity samples the simulator's realized cache usefulness exactly. */
 export function redisVisualSampleRate(realizedHitRate: number): number {
@@ -56,23 +52,6 @@ function shouldShowComponentActivity(componentId: string, plan: AuthoritativeTra
   }
   componentVisualAccrual.set(componentId, next - 1);
   return true;
-}
-
-/** Gives each concurrently dwelling cache packet a deterministic, distinct cell. */
-function stableSlots(packetIds: readonly string[], capacity: number): number[] {
-  const slots = Math.max(1, capacity);
-  const occupied = new Set<number>();
-  return [...packetIds].sort().flatMap((packetId) => {
-    const initial = stableSlot(packetId, slots);
-    for (let offset = 0; offset < slots; offset += 1) {
-      const slot = (initial + offset) % slots;
-      if (!occupied.has(slot)) {
-        occupied.add(slot);
-        return [slot];
-      }
-    }
-    return [];
-  });
 }
 
 /** One CDN node-pass animation represents a four-packet sample. */
@@ -369,9 +348,6 @@ export function tickSimulation(
         const next = pickOutbound(comp, outs);
         return [hopPacket(traveling, next.id, false)];
       }
-      if (comp.type === "cache") {
-        cacheHitFlashes.set(comp.id, tick);
-      }
       return [respondBack(traveling)];
     }
 
@@ -559,9 +535,15 @@ export function tickSimulation(
     const passCount =
       comp.type === "cdn" ? (cdnPassCounts.get(comp.id) ?? comp.passCount ?? 0) : comp.passCount;
 
+    const cacheHitFlash =
+      comp.type === "cache" && tick - (cacheHitFlashes.get(comp.id) ?? -Infinity) < CACHE_HIT_FLASH_TICKS;
+
     let state = comp.state;
     if (state !== "failed") {
-      if (processingDwellers.length === 0) state = "idle";
+      // Redis only animates a confirmed cache hit. Misses and write-pierce
+      // packets still travel their real edges, but do not keep the cache busy.
+      if (comp.type === "cache") state = cacheHitFlash ? "processing" : "idle";
+      else if (processingDwellers.length === 0) state = "idle";
       else if (comp.type === "queue" && processingDwellers.length >= comp.depth) state = "overloaded";
       else if (comp.type === "server" && processingDwellers.length >= comp.instances * 3) state = "overloaded";
       else state = "processing";
@@ -570,13 +552,11 @@ export function tickSimulation(
     const armAngle =
       comp.type === "load_balancer" ? (lbArmAngles.get(comp.id) ?? comp.armAngle ?? 0) : comp.armAngle;
 
-    const cacheHitFlash =
-      comp.type === "cache" && tick - (cacheHitFlashes.get(comp.id) ?? -Infinity) < 12;
     const scale = shareScale(comp.id);
     const mechanismCount = Math.max(
       0,
       comp.type === "cache"
-        ? visibleDwellers.length
+        ? 0
         : comp.type === "server"
           // ServerGlyph bays represent the configured pool, not individual
           // packets. Average dwellers across instances so a burst does not
@@ -588,14 +568,12 @@ export function tickSimulation(
     return {
       ...comp,
       state: comp.type !== "cache" && scale <= 0 && state === "processing" ? "idle" : state,
-      processingPackets,
+      processingPackets: comp.type === "cache" ? [] : processingPackets,
       armAngle,
       passCount: comp.type === "cdn" ? Math.round((passCount ?? 0) * scale) : passCount,
       cacheHitFlash: comp.type === "cache" ? cacheHitFlash : scale > 0 && cacheHitFlash,
       mechanismCount,
-      processingSlotIndices: comp.type === "cache"
-        ? stableSlots(visibleDwellers.map((packet) => packet.id), comp.capacity)
-        : undefined,
+      processingSlotIndices: undefined,
       rejectedCount: rejectionCounts.get(comp.id) || undefined,
     };
   });
