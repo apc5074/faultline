@@ -20,7 +20,7 @@ assert.match(status, /Optional — your game works without WebMCP/);
 assert.match(status, /https:\/\/webmcp\.dev/);
 assert.doesNotMatch(status, /edit.*architecture|submit/i);
 assert.doesNotMatch(status, /read.*visual.*simulated/);
-assert.match(workspace, /playground-canvas__agent-status/);
+assert.match(workspace, /playground-topbar__agent-status/);
 assert.match(docs, /get_coaching_policy.*Call first/s);
 assert.match(docs, /WebMCP is not an architecture editing API/);
 

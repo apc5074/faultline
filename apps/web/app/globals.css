@@ -1177,6 +1177,7 @@ main {
 }
 
 .playground-topbar {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -1185,6 +1186,14 @@ main {
   padding: 0 1rem;
   border-bottom: 1px solid var(--color-ink-hairline);
   background: var(--color-paper-dark);
+}
+
+.playground-topbar__agent-status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  transform: translate(-50%, -50%);
 }
 
 .playground-topbar .account-auth-plate {
@@ -1302,14 +1311,6 @@ main {
 .webmcp-status-plate__prompt {
   padding-left: 0.42rem;
   border-left: 1px solid var(--color-ink-hairline);
-}
-
-.playground-canvas__agent-status {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 6;
-  transform: translate(-50%, -50%);
 }
 
 .webmcp-status-plate__link {
@@ -4542,6 +4543,13 @@ h1 {
     height: auto;
     min-height: 36px;
     padding: 0.35rem 0.75rem;
+  }
+
+  .playground-topbar__agent-status {
+    position: static;
+    order: 3;
+    width: 100%;
+    transform: none;
   }
 
   .playground-topbar__hints {
