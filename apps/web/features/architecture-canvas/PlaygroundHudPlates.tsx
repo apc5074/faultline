@@ -243,18 +243,20 @@ export function RequirementsHud({
             )}
           </li>
         ) : null}
-        {activeChallenge.unscoredTargets?.map((target) => (
-          <li key={target.id} className="hud-plate__row hud-plate__row--deferred">
-            <div className="hud-plate__row-header">
-              <span>{target.label}</span>
-              <span className="hud-plate__mark" aria-hidden>
-                …
-              </span>
-            </div>
-            <p className="hud-plate__values tabular">≥{(target.target * 100).toFixed(2)}% · not scored yet</p>
-            <p className="hud-plate__explanation">{target.reason}</p>
-          </li>
-        ))}
+        {process.env.NODE_ENV !== "production"
+          ? activeChallenge.unscoredTargets?.map((target) => (
+              <li key={target.id} className="hud-plate__row hud-plate__row--deferred">
+                <div className="hud-plate__row-header">
+                  <span>{target.label}</span>
+                  <span className="hud-plate__mark" aria-hidden>
+                    …
+                  </span>
+                </div>
+                <p className="hud-plate__values tabular">≥{(target.target * 100).toFixed(2)}% · not scored yet</p>
+                <p className="hud-plate__explanation">{target.reason}</p>
+              </li>
+            ))
+          : null}
       </ul>
     </aside>
   );

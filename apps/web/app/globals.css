@@ -2400,29 +2400,6 @@ main {
   text-transform: none;
 }
 
-.data-plate-inspector__origin-bar {
-  display: flex;
-  height: 0.4rem;
-  margin: 0.15rem 0 0.55rem;
-  overflow: hidden;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--color-ink-hairline) 80%, transparent);
-  gap: 1px;
-}
-
-.data-plate-inspector__origin-seg {
-  min-width: 2px;
-  background: color-mix(in srgb, var(--color-ink) 55%, transparent);
-}
-
-.data-plate-inspector__origin-seg:nth-child(2n) {
-  background: color-mix(in srgb, var(--color-ink) 38%, transparent);
-}
-
-.data-plate-inspector__origin-seg:nth-child(3n) {
-  background: color-mix(in srgb, var(--color-ink) 48%, transparent);
-}
-
 .data-plate-inspector__origin-list {
   margin: 0;
   padding: 0;

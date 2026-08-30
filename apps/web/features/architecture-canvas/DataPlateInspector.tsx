@@ -829,10 +829,9 @@ export function DataPlateInspector({
             </div>
           </div>
           <PlateHint>
-            Exactly one primary holds writes. Replicas add ordinary read
-            capacity in other zones; total replicas must match the configured
-            count. The simulator rejects invalid placements and never
-            auto-promotes.
+            One primary handles writes. Replicas add reads and must match the
+            configured count; invalid placements are rejected with no
+            auto-promotion.
           </PlateHint>
         </div>
         <SpecList>
@@ -1156,20 +1155,6 @@ export function DataPlateInspector({
           </PlateHint>
         ) : (
           <>
-            <div
-              className="data-plate-inspector__origin-bar"
-              role="img"
-              aria-label="Approximate share of demand by region"
-            >
-              {originShares.map((origin) => (
-                <span
-                  key={origin.regionId}
-                  className="data-plate-inspector__origin-seg"
-                  style={{ flex: `${Math.max(origin.barWeight, 0.04)} 1 0` }}
-                  title={`${origin.label} ~${origin.sharePct}%`}
-                />
-              ))}
-            </div>
             <ul className="data-plate-inspector__origin-list">
               {originShares.map((origin) => (
                 <li
