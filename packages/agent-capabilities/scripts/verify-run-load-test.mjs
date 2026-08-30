@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createDefaultCapabilityRegistry, resolveExperimentCapabilities } from "../dist/index.js";
+import { createDefaultCapabilityRegistry, createEmptyAgentSessionState, grantExperimentConsent, resolveExperimentCapabilities } from "../dist/index.js";
 
 const challenge = {
   slug: "tiny-api", version: 1, title: "Tiny API", prompt: "Build a small API.", developmentOnly: true,
@@ -29,6 +29,18 @@ const context = { challenge, architecture, simulation: { available: true, compon
 const registry = createDefaultCapabilityRegistry();
 assert.deepEqual(resolveExperimentCapabilities(registry, context).names, ["run_load_test", "change_traffic_pattern", "inject_component_failure"]);
 const before = JSON.stringify({ architecture, challenge });
+const denied = await registry.invoke("run_load_test", context, {}, { session: createEmptyAgentSessionState() });
+assert.deepEqual(denied, {
+  ok: false,
+  code: "CONSENT_REQUIRED",
+  message: "Human approval is required for this named simulated experiment.",
+});
+const consentedSession = {
+  ...createEmptyAgentSessionState(),
+  experimentConsent: grantExperimentConsent(context, "run_load_test"),
+};
+const consented = await registry.invoke("run_load_test", context, {}, { session: consentedSession });
+assert.equal(consented.ok, true);
 const defaultResult = await registry.invoke("run_load_test", context, {});
 assert.equal(defaultResult.ok, true);
 assert.equal(defaultResult.data.simulated, true);

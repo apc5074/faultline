@@ -14,9 +14,19 @@ The Vercel project deploys `apps/web` (Root Directory). Its production branch is
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe | Yes; P0-005 | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe | Optional legacy fallback | Local `.env`; Vercel Preview/Production environment settings |
 | `NEXT_PUBLIC_FAULTLINE_DEV_EXPERIMENTS` | Browser-safe experiment harness flag | No | Dev/test default on when unset; production defaults off; `false` always hides; `true` opts in on Preview |
+| `NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED` | Browser-safe registration rollback flag | No | Leave unset/true in Preview and Production to expose WebMCP; set `false` only to disable browser tool registration while preserving gameplay |
+| `NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN` | Browser-safe browser origin-trial token | Browser/version dependent | Vercel Preview/Production value must match the exact deployed origin; never treat it as a secret |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only | No | Local `.env`; Vercel Preview/Production environment settings |
 
 Only `NEXT_PUBLIC_*` variables may be exposed to browser code. Server-only values must be read by server-side code only and must never be copied into a `NEXT_PUBLIC_*` variable or returned in a response. Legacy or provider-specific variable names are not part of this contract.
+
+## WebMCP release procedure
+
+Use a deployed Preview URL for browser WebMCP validation; localhost is not the public integration path. Confirm the host/browser’s current site-tool support and approval flow at release time rather than inferring it from generic browser API availability. A successful test shows **Agent ready**, invokes a read tool, and leaves the game fully playable after closing the agent host. **Unsupported browser**, **Partial registration**, **Registration failed**, and **Agent tools disabled** are all non-blocking states with truthful top-bar guidance.
+
+Set `NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED=true` in Preview first. Promote the same origin-trial token only when it was issued for the Production origin; Preview and Production may require separate values. A registration-only rollback sets that flag to `false` and redeploys—do not set `NODE_ENV` manually, since Vercel and Next use it to select development versus production behavior. `/dev/webmcp` is intentionally development-only; regular Level 1 registration remains available in production when enabled.
+
+The page emits the `faultline:webmcp` browser event for allowlisted registration state, tool-family counts, and registration/timeout error class. It carries no prompts, architecture, account, tool input, or tool output. Page navigation aborts the registration generation; opening a new tab starts a new page-local session.
 
 ## Supabase migrations and probe
 

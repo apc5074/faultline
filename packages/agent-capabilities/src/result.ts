@@ -3,6 +3,7 @@ export type CapabilityErrorCode =
   | "NOT_FOUND"
   | "SIMULATION_UNAVAILABLE"
   | "INVALID_INPUT"
+  | "CONSENT_REQUIRED"
   | "CANCELLED";
 
 export type CapabilityResult<T> =

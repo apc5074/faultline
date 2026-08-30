@@ -17,6 +17,8 @@ Faultline keeps three responsibilities separate:
 
 The deployed origin needs a valid `NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN` when the browser build requires one. This value is browser-visible by design and is emitted as an origin-trial meta tag.
 
+For a staged rollout, enable `NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED` in a Vercel Preview deployment, verify the browser/agent host’s current approval flow, then enable it in Production. Setting it to `false` is a registration-only rollback: it never disables Level 1 gameplay. Do not set `NODE_ENV` manually.
+
 ## Surfaces
 
 Every tool invocation reads a fresh live snapshot:
@@ -90,3 +92,5 @@ For local diagnostics, `/dev/webmcp` uses the same capability builders and visua
 ## Safety boundary
 
 WebMCP is not an architecture editing API. Agents may inspect, test, and add ephemeral marks, but must not own a player's architecture decisions or official submission. Official results are always re-simulated server-side.
+
+Experiment capabilities require a recent, human-controlled page-session consent for the exact capability and current canonical architecture. Consent expires after five minutes and tool calls cannot create or renew it. A denied or expired invocation returns `CONSENT_REQUIRED` without running simulator work; experiment outputs remain simulated and never affect official verification, accounts, or leaderboards.

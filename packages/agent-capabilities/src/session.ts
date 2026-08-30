@@ -2,6 +2,7 @@ import type { Architecture } from "@faultline/core";
 
 import type { AgentContext } from "./context.js";
 import type { CapabilityErrorCode } from "./result.js";
+import type { Phase8ExperimentCapabilityName } from "./capability-names.js";
 
 /** Maximum coaching annotations visible on the canvas at once. */
 export const AGENT_ANNOTATION_MAX_COUNT = 12;
@@ -57,6 +58,14 @@ export interface AgentPendingHelpRequest {
   readonly workloadChannelId?: string;
 }
 
+/** One human-granted, page-local approval for a named simulated experiment. */
+export interface ExperimentConsent {
+  readonly capabilityName: Phase8ExperimentCapabilityName;
+  readonly architectureRevision: string;
+  readonly grantedAt: string;
+  readonly expiresAt: string;
+}
+
 export type AgentAnnotationTone = "neutral" | "question" | "risk";
 
 export interface AgentFocusAnnotation extends AgentVisualMetadata {
@@ -97,6 +106,7 @@ export interface AgentSessionState {
   readonly focus: AgentSessionFocus;
   readonly pendingHelpRequest: AgentPendingHelpRequest | null;
   readonly annotations: readonly AgentAnnotation[];
+  readonly experimentConsent: ExperimentConsent | null;
   readonly revision: number;
 }
 
@@ -133,6 +143,7 @@ export function createEmptyAgentSessionState(): AgentSessionState {
     focus: { kind: "none" },
     pendingHelpRequest: null,
     annotations: [],
+    experimentConsent: null,
     revision: 0,
   };
 }

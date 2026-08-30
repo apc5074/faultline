@@ -7,6 +7,7 @@ import {
   type AgentPendingHelpRequest,
   type AgentSessionFocus,
   type AgentSessionState,
+  type ExperimentConsent,
 } from "@faultline/agent-capabilities";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import {
@@ -43,6 +44,7 @@ export interface AgentSessionStore {
   clearAnnotations(scope?: "all" | "component", componentId?: string): void;
   /** Drop ephemeral focus ticks; keep notes/paths (Run lifecycle). */
   clearFocusOnRun(): void;
+  setExperimentConsent(consent: ExperimentConsent | null): void;
 }
 
 interface AgentSessionContextValue {
@@ -112,6 +114,9 @@ export function AgentSessionProvider({
       },
       clearFocusOnRun: () => {
         commitSession(clearFocusAnnotationsOnRun(sessionRef.current));
+      },
+      setExperimentConsent: (experimentConsent) => {
+        commitSession({ ...sessionRef.current, experimentConsent, revision: sessionRef.current.revision + 1 });
       },
     }),
     [commitSession],

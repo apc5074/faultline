@@ -1,4 +1,4 @@
-export type WebMcpSurfaceStatus = "unsupported" | "registering" | "ready" | "partial" | "failed";
+export type WebMcpSurfaceStatus = "unsupported" | "registering" | "ready" | "partial" | "failed" | "disabled";
 
 export interface WebMcpStatus {
   readonly state: WebMcpSurfaceStatus;
@@ -15,6 +15,7 @@ const STATUS_LABEL: Record<WebMcpSurfaceStatus, string> = {
   ready: "Agent ready",
   partial: "Partial registration",
   failed: "Registration failed",
+  disabled: "Agent tools disabled",
 };
 
 const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
@@ -23,6 +24,7 @@ const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
   ready: "Connect your agent via WebMCP",
   partial: "Some agent tools unavailable — gameplay unaffected",
   failed: "Agent tools unavailable — gameplay unaffected",
+  disabled: "Agent tools are temporarily disabled — gameplay unaffected",
 };
 
 const STARTER_PROMPTS = [
@@ -35,6 +37,9 @@ export function WebMcpStatusPlate({ status }: { status: WebMcpStatus }) {
   return (
     <section className={`webmcp-status-plate webmcp-status-plate--${status.state}`} aria-label="WebMCP status" aria-live="polite">
       <span className="webmcp-status-plate__state">WebMCP · {STATUS_LABEL[status.state]}</span>
+      {status.state !== "unsupported" && status.state !== "disabled" ? (
+        <span className="webmcp-status-plate__tools">{status.readToolCount} read · {status.visualToolCount} visual · {status.experimentToolCount} simulated</span>
+      ) : null}
       <span className="webmcp-status-plate__prompt">{STATUS_PROMPT[status.state]}</span>
       {status.failedToolCount > 0 ? (
         <span className="webmcp-status-plate__prompt">{status.failedToolCount} tool{status.failedToolCount === 1 ? "" : "s"} failed to register</span>

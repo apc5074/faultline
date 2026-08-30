@@ -12,6 +12,7 @@ import { createVisualCommandPublisher } from "@/features/agent-session/visual-in
 import type { ExperimentResult, RegionId } from "@faultline/core";
 import type { PinnedObservation } from "@faultline/agent-capabilities";
 import type { WebMcpStatus } from "./WebMcpStatusPlate";
+import { emitWebMcpTelemetry, webMcpFeatureState } from "./webmcp-config";
 
 /**
  * Registers resolver-selected read and visual WebMCP surfaces when the browser supports it.
@@ -59,11 +60,19 @@ export function WebMcpRegistration({
   const generationRef = useRef(0);
 
   useEffect(() => {
+    if (webMcpFeatureState() === "disabled") {
+      onStatusChangeRef.current({
+        state: "disabled", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0,
+      });
+      emitWebMcpTelemetry({ kind: "registration_state", state: "disabled" });
+      return;
+    }
     const modelContext = getWebMcpModelContext();
     if (!modelContext) {
       onStatusChangeRef.current({
         state: "unsupported", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0,
       });
+      emitWebMcpTelemetry({ kind: "registration_state", state: "unsupported" });
       return;
     }
 
@@ -84,6 +93,7 @@ export function WebMcpRegistration({
     onStatusChangeRef.current({
       state: "registering", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
     });
+    emitWebMcpTelemetry({ kind: "registration_state", state: "registering" });
 
     void registerAgentWebMcpSurface({
       modelContext,
@@ -111,12 +121,20 @@ export function WebMcpRegistration({
         failedToolCount: result.failedToolNames.length,
         generation,
       });
+      emitWebMcpTelemetry({
+        kind: "registration_state", state,
+        readToolCount: result.readToolNames.length,
+        visualToolCount: result.visualToolNames.length,
+        experimentToolCount: result.experimentToolNames.length,
+        failedToolCount: result.failedToolNames.length,
+      });
     }).catch((error) => {
       window.clearTimeout(timeout);
       if (active && !timedOut && generationRef.current === generation) {
         onStatusChangeRef.current({
           state: "failed", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
         });
+        emitWebMcpTelemetry({ kind: "registration_error", errorClass: "registration" });
       }
       if (process.env.NODE_ENV === "development") {
         console.error("[WebMCP] surface registration failed.", error);

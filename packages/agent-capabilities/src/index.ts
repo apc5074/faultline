@@ -12,6 +12,7 @@ export * from "./registry.js";
 export * from "./resolve-capabilities.js";
 export * from "./resolve-visual-capabilities.js";
 export * from "./resolve-experiment-capabilities.js";
+export * from "./experiment-consent.js";
 export * from "./resolve-phase8-read-capabilities.js";
 export * from "./schemas.js";
 export * from "./visual-executors.js";
