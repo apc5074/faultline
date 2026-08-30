@@ -32,6 +32,8 @@ import {
   formatCost,
   reconnectAroundComponent,
   resolveInitialArchitecture,
+  loadPersistedArchitecture,
+  persistArchitecture,
   worldSelectionForComponent,
 } from "@/features/architecture-canvas/playground-architecture-utils";
 import type { ConnectingFrom } from "@/features/architecture-canvas/playground-connect-hints";
@@ -67,6 +69,7 @@ export function usePlaygroundWorkspace() {
     bumpRankRefresh,
   } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(resolveInitialArchitecture);
+  const draftHydratedRef = useRef(false);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [attentionComponentId, setAttentionComponentId] = useState<string | null>(null);
@@ -92,6 +95,16 @@ export function usePlaygroundWorkspace() {
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
   const { screenToFlowPosition, fitView } = useReactFlow();
+
+  useEffect(() => {
+    const persisted = loadPersistedArchitecture();
+    if (persisted) setArchitecture(persisted);
+    draftHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (draftHydratedRef.current) persistArchitecture(architecture);
+  }, [architecture]);
 
   const paletteDefinitions = useMemo(
     () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),

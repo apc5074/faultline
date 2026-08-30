@@ -100,6 +100,7 @@ export const annotateComponentInputSchema: CapabilityInputSchema<AnnotateCompone
     properties: {
       componentId: { type: "string", minLength: 1 },
       text: { type: "string", minLength: 1 },
+      tone: { type: "string", enum: ["neutral", "question", "risk"] },
     },
     required: ["componentId", "text"],
     additionalProperties: false,

@@ -100,7 +100,7 @@ export const annotateComponentCapability: AgentCapability<
   CapabilityResult<VisualAnnotationIntent>
 > = {
   name: "annotate_component",
-  description: `Add marginal coaching prose beside one component (max 280 characters). ${COACHING_VISUAL_RULES}`,
+  description: `Mark one component with a grounded coaching note (max 280 characters; use tone risk for a simulator-supported bottleneck). ${COACHING_VISUAL_RULES}`,
   inputSchema: annotateComponentInputSchema,
   mode: "visual",
   availableWhen: () => true,

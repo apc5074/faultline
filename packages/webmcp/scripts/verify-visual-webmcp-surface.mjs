@@ -33,6 +33,9 @@ assert.deepEqual(surface.resolvedNames, [
   "pin_observation",
 ]);
 assert.deepEqual(surface.tools.map((tool) => tool.name), surface.resolvedNames);
+const annotateTool = surface.tools.find((tool) => tool.name === "annotate_component");
+assert.ok(annotateTool);
+assert.deepEqual(annotateTool.inputSchema.properties.tone.enum, ["neutral", "question", "risk"]);
 assert.deepEqual(surface.skipped, [
   { name: "focus_region", reason: "unavailable" },
 ]);

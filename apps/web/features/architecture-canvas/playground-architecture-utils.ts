@@ -1,5 +1,5 @@
 import { componentRegistry } from "@faultline/component-catalog";
-import { checkConnectionCompatibility, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection } from "@faultline/core";
+import { checkConnectionCompatibility, validateArchitecture, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection } from "@faultline/core";
 
 import { buildLevel1HeroScene, isLevel1HeroSceneEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { activeLevelStarterArchitecture } from "@/features/architecture-canvas/playground-challenge";
@@ -8,6 +8,32 @@ import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 
 export function resolveInitialArchitecture(): Architecture {
   return isLevel1HeroSceneEnabled() ? buildLevel1HeroScene() : activeLevelStarterArchitecture();
+}
+
+const PLAYGROUND_DRAFT_KEY = "faultline:level1:draft:v1";
+
+/** Restore only a validated local draft; official runs/results are never persisted here. */
+export function loadPersistedArchitecture(): Architecture | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PLAYGROUND_DRAFT_KEY);
+    if (!raw || raw.length > 1_000_000) return null;
+    const envelope = JSON.parse(raw) as { challenge?: string; architecture?: unknown };
+    if (envelope.challenge !== "url-shortener") return null;
+    const result = validateArchitecture(envelope.architecture);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function persistArchitecture(architecture: Architecture): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PLAYGROUND_DRAFT_KEY, JSON.stringify({ version: 1, challenge: "url-shortener", architecture }));
+  } catch {
+    // Storage can be unavailable or full; gameplay remains fully local and playable.
+  }
 }
 
 /** Simulation-relevant architecture fingerprint; UI position changes do not invalidate results. */

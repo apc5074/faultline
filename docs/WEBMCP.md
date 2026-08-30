@@ -59,7 +59,7 @@ Visual tools change only the ephemeral agent annotation layer. They never change
 | Tool | Input | Mark |
 | --- | --- | --- |
 | `focus_component` | `{ componentId }` | Corner focus bracket. |
-| `annotate_component` | `{ componentId, text, tone? }` | Marginal note; text is limited to 280 characters. |
+| `annotate_component` | `{ componentId, text, tone? }` | Marginal note; `tone` may be `neutral`, `question`, or `risk`; text is limited to 280 characters. |
 | `highlight_connection` | `{ connectionId, label? }` | Emphasized existing connection. |
 | `clear_annotations` | `{ scope?: "all" \| "component", componentId? }` | Removes matching coaching marks. |
 

@@ -75,6 +75,9 @@ importers:
         specifier: workspace:*
         version: link:../simulator
     devDependencies:
+      '@faultline/challenges':
+        specifier: workspace:*
+        version: link:../challenges
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
