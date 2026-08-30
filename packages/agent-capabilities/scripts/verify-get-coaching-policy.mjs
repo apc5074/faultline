@@ -83,7 +83,7 @@ assert.equal(output.visualBudget.maxGesturesPerAnswer, 2);
 assert.equal(output.visualBudget.defaultBehavior, "non_disruptive_emphasis");
 assert.equal(output.visualBudget.selectionOrViewport, "only_on_explicit_human_request");
 assert.equal(output.turnProtocol.length, 5);
-assert.ok(output.turnProtocol[0].includes("get_coaching_policy"));
+assert.ok(output.turnProtocol[0].includes("review_current_design"));
 assert.ok(output.prohibitedActions.some((action) => action.includes("Mutate architecture")));
 assert.ok(output.prohibitedActions.some((action) => action.includes("labels, notes")));
 assert.deepEqual(
@@ -91,9 +91,9 @@ assert.deepEqual(
   ["component_review", "requirement_failure", "workload_trace", "cost_review", "experiment_proposal"],
 );
 assert.deepEqual(output.toolRecipes[0].capabilityNames.slice(0, 3), [
-  "get_coaching_policy",
-  "get_session_focus",
+  "review_current_design",
   "inspect_component",
+  "get_metrics",
 ]);
 assert.ok(output.toolRecipes[2].capabilityNames.includes("get_architecture"));
 assert.ok(output.toolRecipes[4].steps.some((step) => step.includes("explicit approval")));

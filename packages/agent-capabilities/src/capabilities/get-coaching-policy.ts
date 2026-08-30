@@ -6,6 +6,9 @@ import { noInputSchema } from "../schemas.js";
 
 /** Coaching personality contract shared by embedded and external agents. */
 export interface GetCoachingPolicyOutput {
+  readonly policyVersion: "wmp-1";
+  readonly policyDigest: string;
+  readonly summary: string;
   readonly policyText: string;
   readonly focusThemes: readonly string[];
   readonly prohibitedRevealCategories: readonly string[];
@@ -20,6 +23,9 @@ export interface GetCoachingPolicyOutput {
 export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoachingPolicyOutput {
   const policy = context.challenge.coachingPolicy;
   return {
+    policyVersion: "wmp-1",
+    policyDigest: "faultline-reviewer-wmp-1",
+    summary: "Use simulator evidence as truth; give one grounded finding and one focused question; preserve human ownership and request consent before simulated experiments.",
     policyText: buildCoachingPolicy(context),
     focusThemes: policy?.focusThemes ?? [],
     prohibitedRevealCategories: policy?.prohibitedRevealCategories ?? [],

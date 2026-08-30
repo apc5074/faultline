@@ -9,6 +9,9 @@ import type { WebMcpModelContext, WebMcpRegisterToolOptions, WebMcpTool } from "
 import { measureWebMcpTiming, type WebMcpTimingSink } from "./timing.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
 
+/** Browser registration deadline derived from the WMP-001 lifecycle baseline. */
+export const WEBMCP_REGISTRATION_DEADLINE_MS = 2_000;
+
 export interface WebMcpRegistrationManifest {
   readonly revision: string;
   readonly tools: readonly WebMcpTool[];
@@ -54,8 +57,8 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   const context = resolveLiveAgentSnapshot(await getContext()).context;
   if (signal.aborted) return abortedResult();
   const [read, visual, experiment] = await Promise.all([
-    measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, context, development, timing }), { mode: "read" }),
-    measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, context, development, timing, ...(onVisualIntent ? { onVisualIntent } : {}) }), { mode: "visual" }),
+    measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, context, development, timing, profile: "production" }), { mode: "read" }),
+    measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, context, development, timing, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}) }), { mode: "visual" }),
     measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}) }), { mode: "experiment" }),
   ]);
   if (signal.aborted) return abortedResult();

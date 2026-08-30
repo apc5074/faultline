@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 
 import {
-  BASELINE_READ_CAPABILITY_NAMES,
-  BASELINE_VISUAL_CAPABILITY_NAMES,
+  WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES,
+  WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES,
   createDefaultCapabilityRegistry,
 } from "@faultline/agent-capabilities";
 import { registerAgentWebMcpSurface } from "../dist/index.js";
@@ -45,12 +45,12 @@ const result = await registerAgentWebMcpSurface({
   onVisualIntent: (intent) => intents.push(intent),
 });
 
-assert.deepEqual(result.readToolNames, [...BASELINE_READ_CAPABILITY_NAMES]);
-assert.deepEqual(result.visualToolNames, [...BASELINE_VISUAL_CAPABILITY_NAMES].filter((name) => name !== "focus_region"));
+assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].slice(0, 5));
+assert.deepEqual(result.visualToolNames, [...WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES]);
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
 assert.deepEqual(result.resolvedToolNames, result.registeredToolNames);
 assert.deepEqual(result.failedToolNames, []);
-assert.equal(registered.length, 15);
+assert.equal(registered.length, 9);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
 assert.ok(focusTool);

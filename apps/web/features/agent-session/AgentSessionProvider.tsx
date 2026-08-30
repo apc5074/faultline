@@ -82,9 +82,11 @@ export function AgentSessionProvider({
   useEffect(() => {
     const previous = sessionRef.current;
     const pruned = pruneSessionForArchitecture(previous, architectureRef.current);
-    if (!sessionChangedByPrune(previous, pruned)) return;
+    const consentMatchesRevision = !previous.experimentConsent || previous.experimentConsent.architectureRevision === architectureAvailabilityFingerprint(architectureRef.current);
+    const nextSession = consentMatchesRevision ? pruned : { ...pruned, experimentConsent: null };
+    if (!sessionChangedByPrune(previous, nextSession) && consentMatchesRevision) return;
     sessionRef.current = {
-      ...pruned,
+      ...nextSession,
       revision: previous.revision,
     };
     setSessionVersion((version) => version + 1);

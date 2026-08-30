@@ -23,6 +23,14 @@ import { measureWebMcpTiming, recordWebMcpTiming, serializedWebMcpBytes, type We
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
 
+/** Keep host-facing metadata short; the shared capability remains verbose for other adapters. */
+function webMcpDescription(capability: RegisteredCapability): string {
+  const firstSentence = capability.description.split(". ")[0]?.trim() ?? capability.description;
+  if (capability.mode === "visual") return `${firstSentence}. Makes an ephemeral coaching mark only.`;
+  if (capability.mode === "experiment") return `${firstSentence}. Simulated only; requires explicit human consent.`;
+  return `${firstSentence}.`;
+}
+
 export type WebMcpContextFactory = () => AgentContext | LiveAgentSnapshot | Promise<AgentContext | LiveAgentSnapshot>;
 
 export interface ToWebMcpToolOptions {
@@ -46,7 +54,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
 
   return {
     name: capability.name,
-    description: capability.description,
+    description: webMcpDescription(capability),
     inputSchema: capability.inputSchema.jsonSchema,
     ...(annotations ? { annotations } : {}),
     execute: async (input: unknown, executionContext: WebMcpToolExecutionContext) => {
@@ -74,6 +82,15 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           session,
         }), { capability: capability.name, mode: capability.mode });
         const sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
+        // A read may span a canonical edit. Re-read the prepared source before
+        // publishing facts so an old snapshot is never presented as current.
+        const latestSnapshot = resolveLiveAgentSnapshot(await measureWebMcpTiming(timing, "context_snapshot_ms", getContext));
+        if (latestSnapshot.context.evidenceMeta?.architectureRevision !== context.evidenceMeta?.architectureRevision) {
+          return sanitizeWebMcpCapabilityResult(
+            capabilityError("NOT_FOUND", "Current evidence was superseded by a newer architecture revision; retry the read."),
+            capability.name,
+          );
+        }
         recordWebMcpTiming(timing, { name: "result_bytes", bytes: serializedWebMcpBytes(sanitized), capability: capability.name });
         if (capability.mode === "experiment" && sanitized.ok && onExperimentResult) {
           const data = sanitized.data as { simulated?: boolean };
@@ -89,6 +106,9 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
         }
         return sanitized;
       } catch (error) {
+        if (isCapabilityCancelled(executionContext.signal)) {
+          return sanitizeWebMcpCapabilityResult(capabilityCancelled(), capability.name);
+        }
         return unexpectedWebMcpCapabilityFailure(capability.name, error, development);
       } finally {
         recordWebMcpTiming(timing, { name: "tool_callback_total_ms", durationMs: performance.now() - startedAt, capability: capability.name });

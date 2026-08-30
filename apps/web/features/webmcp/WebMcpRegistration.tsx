@@ -1,7 +1,7 @@
 "use client";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { getWebMcpModelContext, registerAgentWebMcpSurface } from "@faultline/webmcp";
+import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS } from "@faultline/webmcp";
 import { useEffect, useMemo, useRef } from "react";
 
 import {
@@ -87,7 +87,7 @@ export function WebMcpRegistration({
           state: "partial", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
         });
       }
-    }, 8_000);
+    }, WEBMCP_REGISTRATION_DEADLINE_MS);
     onStatusChangeRef.current({
       state: "registering", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation,
     });

@@ -10,6 +10,7 @@ import {
   resolveLiveAgentSnapshot,
   resolveVisualCapabilities,
   RESOLVED_VISUAL_CAPABILITY_NAME_ORDER,
+  WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES,
 } from "@faultline/agent-capabilities";
 
 import { toWebMcpTool, type ToWebMcpToolOptions, type WebMcpContextFactory } from "./to-webmcp-tool.js";
@@ -37,6 +38,7 @@ export interface BuildVisualWebMcpSurfaceOptions {
   readonly onVisualIntent?: VisualIntentHandler;
   readonly timing?: WebMcpTimingSink;
   readonly context?: AgentContext;
+  readonly profile?: "complete" | "production";
 }
 
 /** @deprecated Use BuildVisualWebMcpSurfaceOptions. */
@@ -68,7 +70,7 @@ function visualIneligibleReason(
 export async function buildVisualWebMcpSurface(
   options: BuildVisualWebMcpSurfaceOptions,
 ): Promise<AgentVisualSurface> {
-  const { registry, getContext, development = false, onVisualIntent, timing } = options;
+  const { registry, getContext, development = false, onVisualIntent, timing, profile = "complete" } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -92,7 +94,8 @@ export async function buildVisualWebMcpSurface(
   const tools: WebMcpTool[] = [];
   const skipped: AgentVisualSurfaceSkip[] = [...resolved.skipped];
 
-  for (const capability of resolved.capabilities) {
+  const allowedNames = new Set(profile === "production" ? WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES : RESOLVED_VISUAL_CAPABILITY_NAME_ORDER);
+  for (const capability of resolved.capabilities.filter((candidate) => allowedNames.has(candidate.name as typeof WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES[number]))) {
     const reason = visualIneligibleReason(capability, context);
     if (reason) {
       configurationFailure(`Resolved visual capability "${capability.name}" is ineligible: ${reason}.`, development);
@@ -106,7 +109,7 @@ export async function buildVisualWebMcpSurface(
   return {
     tools,
     skipped,
-    resolvedNames: resolved.names,
+    resolvedNames: resolved.names.filter((name) => allowedNames.has(name as typeof WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES[number])),
   };
 }
 

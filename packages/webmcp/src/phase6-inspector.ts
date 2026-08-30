@@ -46,6 +46,7 @@ export interface Phase6InspectorEntry {
 
 export interface Phase6InspectorSnapshot {
   readonly browserSupported: boolean;
+  readonly surfaceProfile: "complete";
   readonly entries: readonly Phase6InspectorEntry[];
   readonly tools: readonly WebMcpTool[];
   readonly resolvedNames: readonly InspectorCapabilityName[];
@@ -157,6 +158,7 @@ export async function buildPhase6InspectorSnapshot(
 
   return {
     browserSupported,
+    surfaceProfile: "complete",
     entries,
     tools: [...readSurface.tools, ...visualSurface.tools, ...experimentSurface.tools],
     resolvedNames: [

@@ -11,6 +11,7 @@ import {
   resolveCapabilities,
   resolveLiveAgentSnapshot,
   RESOLVED_CAPABILITY_NAME_ORDER,
+  WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES,
 } from "@faultline/agent-capabilities";
 
 import { toWebMcpTool, type WebMcpContextFactory } from "./to-webmcp-tool.js";
@@ -47,6 +48,7 @@ export interface BuildPhase6ReadSurfaceOptions {
   readonly development?: boolean;
   readonly timing?: WebMcpTimingSink;
   readonly context?: AgentContext;
+  readonly profile?: "complete" | "production";
 }
 
 export class Phase6SurfaceConfigurationError extends Error {
@@ -84,7 +86,7 @@ function configurationFailure(message: string, development: boolean): never | vo
 export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
-  const { registry, getContext, development = false, timing } = options;
+  const { registry, getContext, development = false, timing, profile = "complete" } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -108,7 +110,11 @@ export async function buildAgentReadSurface(
     skipped.push({ name: skip.name, reason });
   }
 
-  for (const capability of resolved.capabilities) {
+  const allowedNames = new Set(profile === "production" ? WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES : RESOLVED_CAPABILITY_NAME_ORDER);
+  const orderedCapabilities = profile === "production"
+    ? WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES.flatMap((name) => resolved.capabilities.filter((candidate) => candidate.name === name))
+    : resolved.capabilities;
+  for (const capability of orderedCapabilities.filter((candidate) => allowedNames.has(candidate.name as typeof WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES[number]))) {
     const reason = ineligibleReason(capability, context);
     if (reason) {
       configurationFailure(`Resolved surface capability "${capability.name}" is ineligible: ${reason}.`, development);
@@ -122,7 +128,7 @@ export async function buildAgentReadSurface(
   return {
     tools,
     skipped,
-    resolvedNames: resolved.names,
+    resolvedNames: (profile === "production" ? WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES.filter((name) => resolved.names.includes(name)) : resolved.names).filter((name) => allowedNames.has(name as typeof WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES[number])),
   };
 }
 

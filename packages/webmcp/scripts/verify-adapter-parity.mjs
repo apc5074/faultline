@@ -161,7 +161,8 @@ async function assertParity({ tool, context, input, label }) {
 function assertToolMetadataParity(tool) {
   const capability = registry.get(tool.name);
   assert.equal(tool.name, capability.name);
-  assert.equal(tool.description, capability.description);
+  assert.ok(tool.description.length <= capability.description.length + 45);
+  if (capability.mode === "experiment") assert.match(tool.description, /explicit human consent/);
   assert.deepEqual(tool.inputSchema, capability.inputSchema.jsonSchema);
   assert.equal(tool.annotations?.readOnlyHint, capability.annotations?.readOnlyHint);
   assert.equal(tool.annotations?.idempotentHint, capability.annotations?.idempotentHint);

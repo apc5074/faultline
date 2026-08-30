@@ -51,10 +51,10 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "component_review",
       purpose: "Review the human-focused component without dumping the whole architecture.",
-      capabilityNames: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics", "estimate_capacity"],
+      capabilityNames: ["review_current_design", "inspect_component", "get_metrics", "estimate_capacity"],
       evidenceCategories: ["session_focus", "component", "simulation", "workload_path"],
       steps: [
-        "Read policy and focus.",
+        "Read the bootstrap review.",
         "Inspect the focused component first; use metrics or capacity only when needed to explain its behavior.",
         "Optionally emphasize the real component or connection after the finding.",
       ],
@@ -62,7 +62,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "requirement_failure",
       purpose: "Investigate a failed requirement from simulator evidence.",
-      capabilityNames: ["get_coaching_policy", "get_session_focus", "get_requirements", "get_metrics", "inspect_bottlenecks"],
+      capabilityNames: ["review_current_design", "get_requirements", "get_metrics", "inspect_bottlenecks"],
       evidenceCategories: ["session_focus", "requirement", "simulation", "workload_path"],
       steps: [
         "Read the requirement and current simulator result.",
@@ -73,7 +73,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "workload_trace",
       purpose: "Trace a workload channel or path using targeted component and simulator evidence.",
-      capabilityNames: ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics", "get_architecture"],
+      capabilityNames: ["review_current_design", "inspect_component", "get_metrics", "get_architecture"],
       evidenceCategories: ["session_focus", "workload_path", "component", "connection", "simulation"],
       steps: [
         "Start at focused evidence and inspect named components before requesting architecture-wide context.",
@@ -84,7 +84,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "cost_review",
       purpose: "Review deterministic cost pressure and the evidence behind it.",
-      capabilityNames: ["get_coaching_policy", "get_session_focus", "get_cost_breakdown", "inspect_component", "get_metrics"],
+      capabilityNames: ["review_current_design", "get_cost_breakdown", "inspect_component", "get_metrics"],
       evidenceCategories: ["session_focus", "cost", "component", "simulation"],
       steps: [
         "Read deterministic cost evidence before making a cost claim.",
@@ -95,7 +95,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "experiment_proposal",
       purpose: "Propose one bounded simulated experiment without surprise effects.",
-      capabilityNames: ["get_coaching_policy", "get_session_focus", "get_metrics", "inspect_bottlenecks", "run_load_test", "flush_cache", "inject_component_failure", "inject_region_failure"],
+      capabilityNames: ["review_current_design", "get_metrics", "inspect_bottlenecks", "run_load_test", "flush_cache", "inject_component_failure", "inject_region_failure"],
       evidenceCategories: ["session_focus", "simulation", "experiment", "workload_path"],
       steps: [
         "Read baseline evidence and state one hypothesis.",

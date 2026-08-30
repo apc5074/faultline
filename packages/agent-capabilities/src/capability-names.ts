@@ -34,6 +34,22 @@ export const PHASE_8_EXPERIMENT_CAPABILITY_NAMES = [
 ] as const;
 export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 
+/** WebMCP production profile; the complete registry remains available to other adapters and the dev inspector. */
+export const WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES = [
+  "review_current_design",
+  "inspect_component",
+  "get_architecture",
+  "get_metrics",
+  "get_cost_breakdown",
+  ...PHASE_7_DYNAMIC_CAPABILITY_NAMES,
+] as const;
+export const WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES = [
+  "focus_component",
+  "annotate_component",
+  "highlight_connection",
+  "clear_annotations",
+] as const;
+
 export type BaselineReadCapabilityName = (typeof BASELINE_READ_CAPABILITY_NAMES)[number];
 export type Phase7DynamicCapabilityName = (typeof PHASE_7_DYNAMIC_CAPABILITY_NAMES)[number];
 export type Phase8ExperimentCapabilityName = (typeof PHASE_8_EXPERIMENT_CAPABILITY_NAMES)[number];

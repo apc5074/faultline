@@ -316,7 +316,7 @@ function WebMcpInspectorWorkspace({
       {snapshot ? (
         <>
           <p className="webmcp-inspector__status">
-            Browser WebMCP: {snapshot.browserSupported ? "supported" : "unsupported"}
+            Browser WebMCP: {snapshot.browserSupported ? "supported" : "unsupported"} · surface: complete semantic registry (production uses the smaller WebMCP profile)
           </p>
 
           <section className="webmcp-inspector__panel" aria-label="Read tools">
