@@ -36,7 +36,9 @@ const architecture = {
       ui: { x: 3, y: 4 },
     },
   ],
-  connections: [],
+  connections: [
+    { id: "service-db", sourceComponentId: "service-1", targetComponentId: "postgres-1", type: "read_write" },
+  ],
 };
 
 const simulation = {
@@ -110,6 +112,10 @@ if (service.ok) {
       effective: 1,
       unitCostPressure: 1,
     },
+    topology: {
+      upstream: [],
+      downstream: [{ id: "postgres-1", type: "postgres", connectionId: "service-db", connectionType: "read_write" }],
+    },
   });
 }
 
@@ -129,6 +135,10 @@ if (postgres.ok) {
       writeUtilization: 0.333,
     },
     monthlyCost: 2_000,
+    topology: {
+      upstream: [{ id: "service-1", type: "service", connectionId: "service-db", connectionType: "read_write" }],
+      downstream: [],
+    },
   });
 }
 

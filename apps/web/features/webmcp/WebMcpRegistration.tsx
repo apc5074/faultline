@@ -2,7 +2,7 @@
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import type { PresentationCue } from "@faultline/agent-capabilities";
-import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type WebMcpRegistrationGroup } from "@faultline/webmcp";
+import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type WebMcpRegistrationGroup, type WebMcpTraceEvent } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -81,13 +81,17 @@ function useWebMcpGroupRegistration({
     }, WEBMCP_REGISTRATION_DEADLINE_MS);
     statusRef.current(group, { state: "registering", ...empty, generation });
     const timing = (event: Parameters<typeof emitWebMcpTelemetry>[0]) => emitWebMcpTelemetry(event);
+    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason });
     void registerAgentWebMcpSurface({
       modelContext, registry, getContext: (signal) => evidenceSource.getSnapshot(signal),
       getCurrentEvidenceRevision: () => evidenceSource.getEvidenceRevision(), signal: controller.signal,
-      development: process.env.NODE_ENV === "development", group, timing,
+      development: process.env.NODE_ENV === "development", group, timing, trace,
       onVisualIntent: (intent) => visualRef.current?.(intent),
       ...(experimentRef.current ? { onExperimentResult: (result: ExperimentResult) => experimentRef.current?.(result) } : {}),
-      onPresentationCue: (cue) => presentationRef.current?.(cue),
+      onPresentationCue: (cue) => {
+        presentationRef.current?.(cue);
+        if (process.env.NODE_ENV !== "production") emitWebMcpTelemetry({ kind: "trace", traceName: "cue_applied", cueKind: cue.kind, targetCount: cue.targets.length, evidenceRevision: cue.targets[0]?.evidenceRevision });
+      },
     }).then((result) => {
       if (!active || generationRef.current !== generation) return;
       window.clearTimeout(timeout);

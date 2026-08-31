@@ -7,7 +7,7 @@ export function webMcpFeatureState(): WebMcpFeatureState {
 }
 
 export type WebMcpTelemetryEvent = {
-  readonly kind: "registration_state" | "registration_error" | "timing";
+  readonly kind: "registration_state" | "registration_error" | "timing" | "trace";
   readonly state?: "unsupported" | "registering" | "ready" | "partial" | "failed" | "disabled";
   readonly readToolCount?: number;
   readonly visualToolCount?: number;
@@ -19,6 +19,13 @@ export type WebMcpTelemetryEvent = {
   readonly mode?: "read" | "visual" | "experiment";
   readonly capability?: string;
   readonly errorClass?: "registration" | "timeout";
+  readonly traceName?: string;
+  readonly group?: string;
+  readonly inputShape?: readonly string[];
+  readonly cueKind?: "spotlight" | "path";
+  readonly targetCount?: number;
+  readonly evidenceRevision?: string;
+  readonly reason?: string;
 };
 
 /** Emits only allowlisted lifecycle diagnostics; no prompts, architecture, accounts, or payloads. */

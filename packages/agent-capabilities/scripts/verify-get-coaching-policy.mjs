@@ -84,6 +84,7 @@ assert.equal(output.visualBudget.defaultBehavior, "non_disruptive_emphasis");
 assert.equal(output.visualBudget.selectionOrViewport, "only_on_explicit_human_request");
 assert.equal(output.turnProtocol.length, 5);
 assert.ok(output.turnProtocol[0].includes("review_current_design"));
+assert.ok(output.policyText.includes("Never assume a CDN"));
 assert.ok(output.prohibitedActions.some((action) => action.includes("Mutate architecture")));
 assert.ok(output.prohibitedActions.some((action) => action.includes("labels, notes")));
 assert.deepEqual(

@@ -116,12 +116,13 @@ function WebMcpInspectorWorkspace({
   const [invokeResult, setInvokeResult] = useState<string | null>(null);
   const [invoking, setInvoking] = useState(false);
   const [timingEvents, setTimingEvents] = useState<readonly WebMcpTelemetryEvent[]>([]);
+  const [traceEvents, setTraceEvents] = useState<readonly WebMcpTelemetryEvent[]>([]);
 
   useEffect(() => {
     const onTelemetry = (event: Event) => {
       const detail = (event as CustomEvent<WebMcpTelemetryEvent>).detail;
-      if (detail?.kind !== "timing") return;
-      setTimingEvents((current) => [...current, detail].slice(-40));
+      if (detail?.kind === "timing") setTimingEvents((current) => [...current, detail].slice(-40));
+      if (detail?.kind === "trace") setTraceEvents((current) => [...current, detail].slice(-80));
     };
     window.addEventListener("faultline:webmcp", onTelemetry);
     return () => window.removeEventListener("faultline:webmcp", onTelemetry);
@@ -272,6 +273,14 @@ function WebMcpInspectorWorkspace({
         <p>Most recent browser-owned timing spans. Values are bounded and contain no architecture or prompt data.</p>
         {timingEvents.length === 0 ? <p>No WebMCP timing spans recorded yet.</p> : (
           <pre>{timingEvents.map((event, index) => `${index + 1}. ${event.name}: ${event.durationMs?.toFixed(2) ?? event.bytes ?? 0}${event.durationMs !== undefined ? " ms" : " bytes"}${event.capability ? ` · ${event.capability}` : ""}`).join("\n")}</pre>
+        )}
+      </section>
+
+      <section className="webmcp-inspector__panel" aria-label="Safe lifecycle trace">
+        <h2>Safe lifecycle trace</h2>
+        <p>Development-only stage events. Inputs and evidence payloads are never retained.</p>
+        {traceEvents.length === 0 ? <p>No WebMCP lifecycle traces recorded yet.</p> : (
+          <pre>{traceEvents.map((event, index) => `${index + 1}. ${event.traceName ?? "trace"}${event.capability ? ` · ${event.capability}` : ""}${event.targetCount !== undefined ? ` · targets:${event.targetCount}` : ""}${event.reason ? ` · ${event.reason}` : ""}`).join("\n")}</pre>
         )}
       </section>
 

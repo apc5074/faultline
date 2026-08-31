@@ -6,7 +6,7 @@ import { buildExperimentWebMcpSurface } from "./experiment-webmcp-surface.js";
 import { buildAgentReadSurface } from "./phase6-read-surface.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpModelContext, WebMcpRegisterToolOptions, WebMcpTool } from "./types.js";
-import { measureWebMcpTiming, type WebMcpTimingSink } from "./timing.js";
+import { measureWebMcpTiming, recordWebMcpTrace, type WebMcpTimingSink, type WebMcpTraceSink } from "./timing.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
 
 /** Browser registration deadline derived from the WMP-001 lifecycle baseline. */
@@ -35,6 +35,7 @@ export interface RegisterAgentWebMcpSurfaceOptions {
   readonly onExperimentResult?: (result: ExperimentResult) => void;
   readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly timing?: WebMcpTimingSink;
+  readonly trace?: WebMcpTraceSink;
   /** Limit this registration generation to one independently reconciled group. */
   readonly group?: WebMcpRegistrationGroup;
 }
@@ -60,7 +61,8 @@ function fingerprintManifest(tools: readonly WebMcpTool[]): string {
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
 export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, group = "all" } = options;
+  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, group = "all" } = options;
+  recordWebMcpTrace(trace, { name: "registration_started", group });
   const startedAt = performance.now();
   if (signal.aborted) return abortedResult(group);
   const context = resolveLiveAgentSnapshot(await getContext()).context;
@@ -70,13 +72,13 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   const includeExperiments = group === "all" || group === "experiments";
   const [read, visual, experiment] = await Promise.all([
     includeRead
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production", ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "read" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "read" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeVisual
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "visual" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "visual" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeExperiments
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "experiment" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, ...(onExperimentResult ? { onExperimentResult } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "experiment" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
   ]);
   if (signal.aborted) return abortedResult(group);
@@ -107,6 +109,7 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   for (const result of registrationResults.sort((a, b) => a.index - b.index)) {
     const name = tools[result.index]!.name;
     if (result.status === "registered") registeredToolNames.push(name);
+    if (result.status === "registered") recordWebMcpTrace(trace, { name: "tool_registered", group, capability: name });
     if (result.status === "failed") failedToolNames.push(name);
   }
   timing?.({ kind: "timing", name: "registration_total_ms", durationMs: performance.now() - startedAt });

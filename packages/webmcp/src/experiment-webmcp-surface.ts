@@ -10,10 +10,10 @@ import { resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
 import type { PresentationCue } from "@faultline/agent-capabilities";
 import { toWebMcpTool, type ToWebMcpToolOptions, type WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool } from "./types.js";
-import type { WebMcpTimingSink } from "./timing.js";
+import type { WebMcpTimingSink, WebMcpTraceSink } from "./timing.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
-export interface BuildExperimentWebMcpSurfaceOptions { readonly registry: AgentCapabilityRegistry; readonly getContext: WebMcpContextFactory; readonly getCurrentEvidenceRevision?: () => string; readonly development?: boolean; readonly onExperimentResult?: (result: ExperimentResult) => void; readonly onPresentationCue?: (cue: PresentationCue) => void; readonly timing?: WebMcpTimingSink; readonly context?: AgentContext; }
+export interface BuildExperimentWebMcpSurfaceOptions { readonly registry: AgentCapabilityRegistry; readonly getContext: WebMcpContextFactory; readonly getCurrentEvidenceRevision?: () => string; readonly development?: boolean; readonly onExperimentResult?: (result: ExperimentResult) => void; readonly onPresentationCue?: (cue: PresentationCue) => void; readonly timing?: WebMcpTimingSink; readonly trace?: WebMcpTraceSink; readonly context?: AgentContext; }
 export interface ExperimentWebMcpSurface { readonly tools: readonly WebMcpTool[]; readonly resolvedNames: readonly string[]; readonly skipped: readonly { name: string; reason: "missing" | "unavailable" }[]; }
 
 /** Build the opt-in experiment surface without mixing experiments into read-only tools. */
@@ -28,11 +28,12 @@ export async function buildExperimentWebMcpSurface(options: BuildExperimentWebMc
     ...(options.onExperimentResult ? { onExperimentResult: options.onExperimentResult } : {}),
     ...(options.onPresentationCue ? { onPresentationCue: options.onPresentationCue } : {}),
     ...(options.timing ? { timing: options.timing } : {}),
+    ...(options.trace ? { trace: options.trace } : {}),
   };
   const tools = resolved.capabilities
     .filter((capability) => capability.mode === "experiment" && capability.annotations?.destructiveHint !== true)
     .map((capability) => {
-      const tool = toWebMcpTool(capability as RegisteredCapability, toolOptions);
+      const tool = toWebMcpTool(capability as RegisteredCapability, { ...toolOptions, traceGroup: capability.exposure?.group });
       return { ...tool, description: `${tool.description} Requires explicit user intent and inspect-first reasoning; this is simulated only.` };
     });
   return { tools, resolvedNames: resolved.names, skipped: resolved.skipped };

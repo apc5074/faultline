@@ -24,7 +24,7 @@ import { wrapWebMcpEnvelope } from "./envelope.js";
 import { sanitizeWebMcpCapabilityResult, unexpectedWebMcpCapabilityFailure } from "./error-safety.js";
 import type { WebMcpEvidenceLease, WebMcpTool, WebMcpToolExecutionContext } from "./types.js";
 import { publishVisualIntent, type VisualIntentHandler } from "./visual-intent.js";
-import { measureWebMcpTiming, recordWebMcpTiming, serializedWebMcpBytes, type WebMcpTimingSink } from "./timing.js";
+import { measureWebMcpTiming, recordWebMcpTiming, recordWebMcpTrace, serializedWebMcpBytes, type WebMcpTimingSink, type WebMcpTraceSink } from "./timing.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
 
@@ -95,6 +95,8 @@ export interface ToWebMcpToolOptions {
   /** Apply a grounded read-result presentation cue without changing selection or viewport. */
   readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly timing?: WebMcpTimingSink;
+  readonly trace?: WebMcpTraceSink;
+  readonly traceGroup?: string;
 }
 
 /**
@@ -102,7 +104,7 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, traceGroup } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
   const publishedExperimentDigests = new Set<string>();
 
@@ -131,12 +133,15 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
       }
 
       try {
+        const inputShape = isRecord(input) ? Object.keys(input).sort().slice(0, 8) : [];
         let attempt = 0;
         let sanitized: CapabilityResult<unknown>;
         let capabilityResult: CapabilityResult<unknown> = capabilityError("CANCELLED", "Not executed.");
         let experimentCanPublish = false;
         while (true) {
           const lease = await acquireLease(executionContext.signal);
+          recordWebMcpTrace(trace, { name: "tool_invoked", capability: capability.name, ...(traceGroup ? { group: traceGroup } : {}), inputShape, evidenceRevision: lease.evidenceRevision });
+          recordWebMcpTrace(trace, { name: "lease_acquired", capability: capability.name, evidenceRevision: lease.evidenceRevision });
           const { context, session } = lease.snapshot;
           if (isCapabilityCancelled(executionContext.signal)) {
             return sanitizeWebMcpCapabilityResult(capabilityCancelled(), capability.name);
@@ -158,6 +163,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
             surfaceRevision: availableToolNames ? computeSurfaceRevisionFromTools(availableToolNames) : surfaceRevision,
           }), { capability: capability.name, mode: capability.mode });
           sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
+          recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, evidenceRevision: lease.evidenceRevision, outcome: sanitized.ok ? "success" : sanitized.code === "CANCELLED" ? "cancelled" : "error", ...(sanitized.ok ? {} : { errorCode: sanitized.code }) });
           const resultData = sanitized.ok && sanitized.data && typeof sanitized.data === "object"
             ? sanitized.data as Record<string, unknown>
             : undefined;
@@ -200,17 +206,22 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               ),
               capability.name,
             );
+            recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, outcome: "superseded", errorCode: "NOT_FOUND", evidenceRevision: lease.evidenceRevision });
           }
-          if (sanitized.ok && onPresentationCue && sanitized.data && typeof sanitized.data === "object" && "presentation" in sanitized.data) {
+          if (sanitized.ok && sanitized.data && typeof sanitized.data === "object" && "presentation" in sanitized.data) {
             const cue = (sanitized.data as { presentation?: unknown }).presentation;
+            if (cue) recordWebMcpTrace(trace, { name: "cue_derived", capability: capability.name, cueKind: (cue as { kind?: string }).kind === "path" ? "path" : "spotlight", targetCount: Array.isArray((cue as { targets?: unknown }).targets) ? (cue as { targets: unknown[] }).targets.length : 0, primaryKind: String(((cue as { targets?: Array<{ kind?: unknown }> }).targets ?? []).find((target) => target?.kind)?.kind ?? "unknown"), cameraIntent: String((cue as { camera?: unknown }).camera ?? "none") });
             if (cue && validatePresentationCue(cue, lease.evidenceRevision)) {
               // Presentation is advisory. A browser callback failure must not
               // prevent the current evidence envelope from reaching the host.
               try {
-                onPresentationCue(cue as PresentationCue);
+                onPresentationCue?.(cue as PresentationCue);
+                if (onPresentationCue) recordWebMcpTrace(trace, { name: "cue_published", capability: capability.name, cueKind: cue.kind, targetCount: cue.targets.length, evidenceRevision: lease.evidenceRevision });
               } catch (error) {
                 if (development) console.warn("WebMCP presentation callback failed", error);
               }
+            } else if (cue) {
+              recordWebMcpTrace(trace, { name: "cue_rejected", capability: capability.name, reason: "invalid_or_stale" });
             }
           }
           attempt += 1;

@@ -17,7 +17,7 @@ import { toWebMcpTool, type ToWebMcpToolOptions, type WebMcpContextFactory } fro
 import type { WebMcpTool } from "./types.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
 import type { PresentationCue } from "@faultline/agent-capabilities";
-import type { WebMcpTimingSink } from "./timing.js";
+import type { WebMcpTimingSink, WebMcpTraceSink } from "./timing.js";
 
 export type AgentVisualSurfaceSkipReason = "missing" | "ineligible_mode" | "ineligible_annotations" | "unavailable";
 
@@ -40,6 +40,7 @@ export interface BuildVisualWebMcpSurfaceOptions {
   readonly onVisualIntent?: VisualIntentHandler;
   readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly timing?: WebMcpTimingSink;
+  readonly trace?: WebMcpTraceSink;
   readonly context?: AgentContext;
   readonly profile?: "complete" | "production";
 }
@@ -70,7 +71,7 @@ function visualIneligibleReason(
 export async function buildVisualWebMcpSurface(
   options: BuildVisualWebMcpSurfaceOptions,
 ): Promise<AgentVisualSurface> {
-  const { registry, getContext, getCurrentEvidenceRevision, development = false, onVisualIntent, onPresentationCue, timing, profile = "complete" } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, development = false, onVisualIntent, onPresentationCue, timing, trace, profile = "complete" } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -91,6 +92,7 @@ export async function buildVisualWebMcpSurface(
     ...(onVisualIntent ? { onVisualIntent } : {}),
     ...(onPresentationCue ? { onPresentationCue } : {}),
     timing,
+    trace,
   };
 
   const tools: WebMcpTool[] = [];
@@ -105,7 +107,7 @@ export async function buildVisualWebMcpSurface(
       continue;
     }
 
-    tools.push(toWebMcpTool(capability, toolOptions));
+    tools.push(toWebMcpTool(capability, { ...toolOptions, traceGroup: capability.exposure?.group }));
   }
 
   return {

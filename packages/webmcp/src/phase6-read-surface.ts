@@ -17,7 +17,7 @@ import {
 
 import { toWebMcpTool, type WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool } from "./types.js";
-import type { WebMcpTimingSink } from "./timing.js";
+import type { WebMcpTimingSink, WebMcpTraceSink } from "./timing.js";
 
 export type Phase6ReadSurfaceSkipReason =
   | "missing"
@@ -46,6 +46,7 @@ export interface BuildPhase6ReadSurfaceOptions {
    */
   readonly development?: boolean;
   readonly timing?: WebMcpTimingSink;
+  readonly trace?: WebMcpTraceSink;
   readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly context?: AgentContext;
   readonly profile?: "complete" | "production";
@@ -82,7 +83,7 @@ function configurationFailure(message: string, development: boolean): never | vo
 export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
-  const { registry, getContext, getCurrentEvidenceRevision, development = false, timing, profile = "complete", onPresentationCue } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, development = false, timing, trace, profile = "complete", onPresentationCue } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -120,7 +121,7 @@ export async function buildAgentReadSurface(
       continue;
     }
 
-    tools.push(toWebMcpTool(capability, { registry, getContext, getCurrentEvidenceRevision, availableToolNames, development, timing, ...(onPresentationCue ? { onPresentationCue } : {}) }));
+    tools.push(toWebMcpTool(capability, { registry, getContext, getCurrentEvidenceRevision, availableToolNames, development, timing, trace, traceGroup: capability.exposure?.group, ...(onPresentationCue ? { onPresentationCue } : {}) }));
   }
 
   return {
