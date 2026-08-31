@@ -12,6 +12,65 @@ export function resolveInitialArchitecture(): Architecture {
 
 const PLAYGROUND_DRAFT_KEY = "faultline:level1:draft:v1";
 
+const UUID_SUFFIX_PATTERN = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function hasUuidSuffix(id: string): boolean {
+  return UUID_SUFFIX_PATTERN.test(id);
+}
+
+/** Rewrites legacy `type-<uuid>` canvas ids to sequential `type-N` ids. */
+export function migrateFriendlyArchitectureIds(architecture: Architecture): Architecture {
+  const idMap = new Map<string, string>();
+  const usedIds = new Set<string>();
+
+  for (const component of architecture.components) {
+    if (!hasUuidSuffix(component.id)) usedIds.add(component.id);
+  }
+  for (const connection of architecture.connections) {
+    if (!hasUuidSuffix(connection.id)) usedIds.add(connection.id);
+  }
+
+  for (const component of architecture.components) {
+    if (!hasUuidSuffix(component.id)) continue;
+    const prefix = component.id.replace(UUID_SUFFIX_PATTERN, "");
+    const nextId = nextSequentialId(prefix, usedIds);
+    idMap.set(component.id, nextId);
+    usedIds.add(nextId);
+  }
+
+  for (const connection of architecture.connections) {
+    if (!hasUuidSuffix(connection.id)) continue;
+    const nextId = nextSequentialId("connection", usedIds);
+    idMap.set(connection.id, nextId);
+    usedIds.add(nextId);
+  }
+
+  if (idMap.size === 0) return architecture;
+
+  return {
+    ...architecture,
+    components: architecture.components.map((component) => {
+      const nextComponentId = idMap.get(component.id) ?? component.id;
+      return {
+        ...component,
+        id: nextComponentId,
+        deployments: component.deployments.map((deployment) => ({
+          ...deployment,
+          id: deployment.id.includes(component.id)
+            ? deployment.id.replace(component.id, nextComponentId)
+            : deployment.id,
+        })),
+      };
+    }),
+    connections: architecture.connections.map((connection) => ({
+      ...connection,
+      id: idMap.get(connection.id) ?? connection.id,
+      sourceComponentId: idMap.get(connection.sourceComponentId) ?? connection.sourceComponentId,
+      targetComponentId: idMap.get(connection.targetComponentId) ?? connection.targetComponentId,
+    })),
+  };
+}
+
 /** Restore only a validated local draft; official runs/results are never persisted here. */
 export function loadPersistedArchitecture(): Architecture | null {
   if (typeof window === "undefined") return null;
@@ -21,7 +80,7 @@ export function loadPersistedArchitecture(): Architecture | null {
     const envelope = JSON.parse(raw) as { challenge?: string; architecture?: unknown };
     if (envelope.challenge !== "url-shortener") return null;
     const result = validateArchitecture(envelope.architecture);
-    return result.success ? result.data : null;
+    return result.success ? migrateFriendlyArchitectureIds(result.data) : null;
   } catch {
     return null;
   }

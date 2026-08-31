@@ -14,7 +14,7 @@ import {
   challengeRedirectRps,
   challengeWriteRps,
 } from "@/features/architecture-canvas/playground-challenge";
-import { formatCost } from "@/features/architecture-canvas/playground-architecture-utils";
+import { componentDisplayLabel, formatCost } from "@/features/architecture-canvas/playground-architecture-utils";
 import type { SimulationRunState, SuccessfulSimulation } from "@/features/architecture-canvas/playground-types";
 
 function formatCompactCost(amount: number): string {
@@ -157,7 +157,7 @@ export function BudgetHud({
   const lineItemLabel = (componentId: string, fallback?: string) => {
     if (fallback) return fallback;
     const component = architecture.components.find((candidate) => candidate.id === componentId);
-    return component ? componentRegistry.get(component.type).label : componentId;
+    return component ? componentDisplayLabel(architecture, componentId) : "Infrastructure";
   };
 
   return (
