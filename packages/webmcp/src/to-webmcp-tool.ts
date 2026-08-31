@@ -5,6 +5,7 @@ import type {
   CapabilityResult,
   ClearAnnotationsIntent,
   LiveAgentSnapshot,
+  PresentationCue,
   VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
 import type { ExperimentResult } from "@faultline/core";
@@ -15,6 +16,7 @@ import {
   computeSurfaceRevision,
   isCapabilityCancelled,
   resolveLiveAgentSnapshot,
+  validatePresentationCue,
 } from "@faultline/agent-capabilities";
 
 import { toWebMcpAnnotations } from "./annotations.js";
@@ -59,16 +61,20 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 /** Keep host-facing metadata explicit and compact; the shared capability remains verbose for other adapters. */
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
-    review_current_design: "When: begin a review. Returns: current focus, simulator evidence, and next reads. Side effect: none. Recovery: retry if evidence is superseded.",
-    inspect_design_entity: "When: inspect one referenced entity. Returns: targeted simulator-grounded facts. Side effect: none. Recovery: refresh stale references.",
+    review_current_design: "Use for an overview or current UI focus. For a named component, connection, error, or path, use a targeted entity read. Current grounded targets frame automatically.",
+    inspect_design_entity: "Use for a named component, connection, requirement/error, or workload. Current targeted evidence frames its valid subject/path. Refresh stale refs.",
     inspect_component_option: "When: explain an unlocked catalog option. Returns: factual configuration and modeled behavior. Side effect: none. Recovery: unavailable types are rejected.",
     compare_design_evidence: "When: compare retained evidence. Returns: deterministic changes and provenance. Side effect: none. Recovery: retry when a baseline is unavailable.",
     expand_design_evidence: "When: deeper evidence is requested. Returns: up to two named evidence sections. Side effect: none. Recovery: refresh an expired review reference.",
+    focus_component: "Call after inspecting evidence and before answering whenever discussing one specific existing component. Visually highlights and zooms to that component. Use its exact current component ID.",
+    highlight_connection: "Call after inspecting evidence and before answering whenever discussing a relationship between connected components. Highlights the connection and frames both endpoints. Use its exact current connection ID.",
+    annotate_component: "Call only when a persistent grounded coaching note is useful. Adds a note without changing the architecture.",
+    clear_annotations: "Call to remove prior agent coaching marks from the canvas.",
   };
   if (metadata[capability.name]) return metadata[capability.name]!;
-  if (capability.mode === "visual") return "When: add a coaching mark. Returns: validated visual intent. Side effect: ephemeral page annotation only. Recovery: retry current IDs.";
+  if (capability.mode === "visual") return "Apply one validated visual coaching action using current IDs. Does not change the architecture.";
   if (capability.mode === "experiment") return "When: run one approved experiment. Requires: explicit human consent for this exact name. Returns: baseline, outcome, delta, and simulator events. Side effect: temporary simulation only. Recovery: approve this exact named experiment or retry current evidence.";
-  return `When: request ${titleFor(capability).toLowerCase()}. Returns: simulator-grounded facts. Side effect: none. Recovery: retry current evidence.`;
+  return `Current simulator facts; targeted results frame valid subjects. Retry stale evidence.`;
 }
 
 export type WebMcpContextFactory = (signal?: AbortSignal) => AgentContext | LiveAgentSnapshot | Promise<AgentContext | LiveAgentSnapshot>;
@@ -86,6 +92,8 @@ export interface ToWebMcpToolOptions {
   /** Apply visual coaching intents to the client session store before returning to the agent. */
   readonly onVisualIntent?: VisualIntentHandler;
   readonly onExperimentResult?: (result: ExperimentResult) => void;
+  /** Apply a grounded read-result presentation cue without changing selection or viewport. */
+  readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly timing?: WebMcpTimingSink;
 }
 
@@ -94,7 +102,7 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, timing } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
   const publishedExperimentDigests = new Set<string>();
 
@@ -169,6 +177,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
             sanitized = wrapWebMcpEnvelope(sanitized, context, {
               capabilityName: capability.name,
               mode: capability.mode,
+              input,
               lease,
               availableToolNames,
               simulated: capabilityResult.ok && capability.mode === "experiment" && isRecord(capabilityResult.data) && capabilityResult.data.simulated === true,
@@ -191,6 +200,18 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               ),
               capability.name,
             );
+          }
+          if (sanitized.ok && onPresentationCue && sanitized.data && typeof sanitized.data === "object" && "presentation" in sanitized.data) {
+            const cue = (sanitized.data as { presentation?: unknown }).presentation;
+            if (cue && validatePresentationCue(cue, lease.evidenceRevision)) {
+              // Presentation is advisory. A browser callback failure must not
+              // prevent the current evidence envelope from reaching the host.
+              try {
+                onPresentationCue(cue as PresentationCue);
+              } catch (error) {
+                if (development) console.warn("WebMCP presentation callback failed", error);
+              }
+            }
           }
           attempt += 1;
           break;

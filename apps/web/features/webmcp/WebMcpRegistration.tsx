@@ -1,6 +1,7 @@
 "use client";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import type { PresentationCue } from "@faultline/agent-capabilities";
 import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type WebMcpRegistrationGroup } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -17,6 +18,17 @@ import { emitWebMcpTelemetry, webMcpFeatureState } from "./webmcp-config";
 
 type GroupStatus = Pick<WebMcpStatus, "state" | "readToolCount" | "visualToolCount" | "experimentToolCount" | "failedToolCount"> & { generation: number };
 
+function groupStatusFingerprint(status: GroupStatus): string {
+  return JSON.stringify([
+    status.state,
+    status.readToolCount,
+    status.visualToolCount,
+    status.experimentToolCount,
+    status.failedToolCount,
+    status.generation,
+  ]);
+}
+
 function useWebMcpGroupRegistration({
   group,
   reconciliationKey,
@@ -25,6 +37,7 @@ function useWebMcpGroupRegistration({
   retryToken,
   onVisualIntent,
   onExperimentResult,
+  onPresentationCue,
   onStatus,
 }: {
   group: WebMcpRegistrationGroup;
@@ -34,14 +47,17 @@ function useWebMcpGroupRegistration({
   retryToken: number;
   onVisualIntent?: (intent: Parameters<ReturnType<typeof createVisualCommandPublisher>>[0]) => void;
   onExperimentResult?: (result: ExperimentResult) => void;
+  onPresentationCue?: (cue: PresentationCue) => void;
   onStatus: (group: WebMcpRegistrationGroup, status: GroupStatus) => void;
 }) {
   const generationRef = useRef(0);
   const visualRef = useRef(onVisualIntent);
   const experimentRef = useRef(onExperimentResult);
+  const presentationRef = useRef(onPresentationCue);
   const statusRef = useRef(onStatus);
   visualRef.current = onVisualIntent;
   experimentRef.current = onExperimentResult;
+  presentationRef.current = onPresentationCue;
   statusRef.current = onStatus;
 
   useEffect(() => {
@@ -59,10 +75,8 @@ function useWebMcpGroupRegistration({
     evidenceSource.prewarm();
     const generation = ++generationRef.current;
     let active = true;
-    let timedOut = false;
     const empty = { readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0 };
     const timeout = window.setTimeout(() => {
-      timedOut = true;
       if (active && generationRef.current === generation) statusRef.current(group, { state: "partial", ...empty, generation });
     }, WEBMCP_REGISTRATION_DEADLINE_MS);
     statusRef.current(group, { state: "registering", ...empty, generation });
@@ -73,14 +87,21 @@ function useWebMcpGroupRegistration({
       development: process.env.NODE_ENV === "development", group, timing,
       onVisualIntent: (intent) => visualRef.current?.(intent),
       ...(experimentRef.current ? { onExperimentResult: (result: ExperimentResult) => experimentRef.current?.(result) } : {}),
+      onPresentationCue: (cue) => presentationRef.current?.(cue),
     }).then((result) => {
-      if (!active || timedOut || generationRef.current !== generation) return;
+      if (!active || generationRef.current !== generation) return;
       window.clearTimeout(timeout);
-      const state = result.registeredToolNames.length === 0 ? "failed" : result.failedToolNames.length === 0 && result.registeredToolNames.length === result.resolvedToolNames.length ? "ready" : "partial";
+      const state = result.resolvedToolNames.length === 0
+        ? "ready"
+        : result.failedToolNames.length === 0 && result.registeredToolNames.length === result.resolvedToolNames.length
+          ? "ready"
+          : result.registeredToolNames.length === 0
+            ? "failed"
+            : "partial";
       statusRef.current(group, { state, readToolCount: result.readToolNames.length, visualToolCount: result.visualToolNames.length, experimentToolCount: result.experimentToolNames.length, failedToolCount: result.failedToolNames.length, generation });
     }).catch((error) => {
       window.clearTimeout(timeout);
-      if (active && !timedOut && generationRef.current === generation) statusRef.current(group, { state: "failed", ...empty, generation });
+      if (active && generationRef.current === generation) statusRef.current(group, { state: "failed", ...empty, generation });
       if (process.env.NODE_ENV === "development" && !(error instanceof DOMException && error.name === "AbortError")) console.error("[WebMCP] group registration failed.", error);
     });
     return () => { active = false; window.clearTimeout(timeout); controller.abort(); };
@@ -95,24 +116,28 @@ export function WebMcpRegistration({
   reconciliationKey,
   onStatusChange,
   onFocusComponent,
+  onFocusConnection,
   onFocusRegion,
   onPinObservation,
   onExperimentResult,
+  onPresentationCue,
 }: {
   reconciliationKey: string;
   onStatusChange: (status: WebMcpStatus) => void;
   onFocusComponent?: (componentId: string) => void;
+  onFocusConnection?: (connectionId: string) => void;
   onFocusRegion?: (regionId: RegionId) => void;
   onPinObservation?: (observation: PinnedObservation) => void;
   onExperimentResult?: (result: ExperimentResult) => void;
+  onPresentationCue?: (cue: PresentationCue) => void;
 }) {
   const evidenceSource = useWebMcpEvidenceSource();
   const sessionStore = useAgentSessionStore();
   const session = useAgentSessionState();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const onVisualIntent = useMemo(
-    () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusRegion, onPinObservation }),
-    [onFocusComponent, onFocusRegion, onPinObservation, sessionStore],
+    () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusConnection, onFocusRegion, onPinObservation }),
+    [onFocusComponent, onFocusConnection, onFocusRegion, onPinObservation, sessionStore],
   );
   // These callbacks are presentation/workspace concerns and may change as
   // playback or selection state changes. Registration itself must not restart
@@ -122,7 +147,13 @@ export function WebMcpRegistration({
   onStatusChangeRef.current = onStatusChange;
   const [retryToken, setRetryToken] = useState(0);
   const [groupStatuses, setGroupStatuses] = useState<Record<string, GroupStatus>>({});
-  const onGroupStatus = useCallback((group: WebMcpRegistrationGroup, status: GroupStatus) => setGroupStatuses((current) => ({ ...current, [group]: status })), []);
+  const onGroupStatus = useCallback((group: WebMcpRegistrationGroup, status: GroupStatus) => {
+    setGroupStatuses((current) => {
+      if (current[group] && groupStatusFingerprint(current[group]) === groupStatusFingerprint(status)) return current;
+      return { ...current, [group]: status };
+    });
+  }, []);
+  const publishedStatusRef = useRef<WebMcpStatus | null>(null);
 
   useEffect(() => {
     const retry = () => setRetryToken((token) => token + 1);
@@ -131,10 +162,10 @@ export function WebMcpRegistration({
   }, []);
 
   const stableKey = reconciliationKey.split(":", 1)[0] ?? reconciliationKey;
-  useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "experiments", reconciliationKey, evidenceSource, registry, retryToken, onExperimentResult, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "experiments", reconciliationKey, evidenceSource, registry, retryToken, onExperimentResult, onPresentationCue, onStatus: onGroupStatus });
 
   useEffect(() => {
     const statuses = Object.values(groupStatuses);
@@ -145,8 +176,20 @@ export function WebMcpRegistration({
       experimentToolCount: total.experimentToolCount + status.experimentToolCount,
       failedToolCount: total.failedToolCount + status.failedToolCount,
     }), { readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0 });
-    const state = statuses.some((status) => status.state === "failed") ? "partial" : statuses.every((status) => status.state === "ready") ? "ready" : statuses.some((status) => status.state === "registering") ? "registering" : "partial";
-    onStatusChangeRef.current({ ...counts, state, generation: Math.max(...statuses.map((status) => status.generation)) });
+    const state: WebMcpStatus["state"] = statuses.some((status) => status.state === "failed") ? "partial" : statuses.every((status) => status.state === "ready") ? "ready" : statuses.some((status) => status.state === "registering") ? "registering" : "partial";
+    const nextStatus = { ...counts, state, generation: Math.max(...statuses.map((status) => status.generation)) };
+    const previousStatus = publishedStatusRef.current;
+    if (
+      previousStatus &&
+      previousStatus.state === nextStatus.state &&
+      previousStatus.readToolCount === nextStatus.readToolCount &&
+      previousStatus.visualToolCount === nextStatus.visualToolCount &&
+      previousStatus.experimentToolCount === nextStatus.experimentToolCount &&
+      previousStatus.failedToolCount === nextStatus.failedToolCount &&
+      previousStatus.generation === nextStatus.generation
+    ) return;
+    publishedStatusRef.current = nextStatus;
+    onStatusChangeRef.current(nextStatus);
   }, [groupStatuses]);
 
   // Focus/help changes are explicit player signals. Prewarm their current

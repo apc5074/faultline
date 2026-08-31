@@ -4,6 +4,7 @@ import type {
   AgentContext,
   CapabilityResult,
   ResolvedCapabilityName,
+  PresentationCue,
 } from "@faultline/agent-capabilities";
 import {
   BaselineCapabilityConfigurationError,
@@ -48,6 +49,7 @@ export interface BuildPhase6ReadSurfaceOptions {
    */
   readonly development?: boolean;
   readonly timing?: WebMcpTimingSink;
+  readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly context?: AgentContext;
   readonly profile?: "complete" | "production";
 }
@@ -87,7 +89,7 @@ function configurationFailure(message: string, development: boolean): never | vo
 export async function buildAgentReadSurface(
   options: BuildPhase6ReadSurfaceOptions,
 ): Promise<Phase6ReadSurface> {
-  const { registry, getContext, getCurrentEvidenceRevision, development = false, timing, profile = "complete" } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, development = false, timing, profile = "complete", onPresentationCue } = options;
   const context = options.context ?? resolveLiveAgentSnapshot(await getContext()).context;
 
   let resolved;
@@ -125,7 +127,7 @@ export async function buildAgentReadSurface(
       continue;
     }
 
-    tools.push(toWebMcpTool(capability, { registry, getContext, getCurrentEvidenceRevision, availableToolNames, development, timing }));
+    tools.push(toWebMcpTool(capability, { registry, getContext, getCurrentEvidenceRevision, availableToolNames, development, timing, ...(onPresentationCue ? { onPresentationCue } : {}) }));
   }
 
   return {

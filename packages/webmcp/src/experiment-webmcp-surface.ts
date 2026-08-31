@@ -7,12 +7,13 @@ import {
   type CapabilityResult,
 } from "@faultline/agent-capabilities";
 import { resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
+import type { PresentationCue } from "@faultline/agent-capabilities";
 import { toWebMcpTool, type ToWebMcpToolOptions, type WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool } from "./types.js";
 import type { WebMcpTimingSink } from "./timing.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
-export interface BuildExperimentWebMcpSurfaceOptions { readonly registry: AgentCapabilityRegistry; readonly getContext: WebMcpContextFactory; readonly getCurrentEvidenceRevision?: () => string; readonly development?: boolean; readonly onExperimentResult?: (result: ExperimentResult) => void; readonly timing?: WebMcpTimingSink; readonly context?: AgentContext; }
+export interface BuildExperimentWebMcpSurfaceOptions { readonly registry: AgentCapabilityRegistry; readonly getContext: WebMcpContextFactory; readonly getCurrentEvidenceRevision?: () => string; readonly development?: boolean; readonly onExperimentResult?: (result: ExperimentResult) => void; readonly onPresentationCue?: (cue: PresentationCue) => void; readonly timing?: WebMcpTimingSink; readonly context?: AgentContext; }
 export interface ExperimentWebMcpSurface { readonly tools: readonly WebMcpTool[]; readonly resolvedNames: readonly string[]; readonly skipped: readonly { name: string; reason: "missing" | "unavailable" }[]; }
 
 /** Build the opt-in experiment surface without mixing experiments into read-only tools. */
@@ -25,6 +26,7 @@ export async function buildExperimentWebMcpSurface(options: BuildExperimentWebMc
     getCurrentEvidenceRevision: options.getCurrentEvidenceRevision,
     ...(options.development !== undefined ? { development: options.development } : {}),
     ...(options.onExperimentResult ? { onExperimentResult: options.onExperimentResult } : {}),
+    ...(options.onPresentationCue ? { onPresentationCue: options.onPresentationCue } : {}),
     ...(options.timing ? { timing: options.timing } : {}),
   };
   const tools = resolved.capabilities

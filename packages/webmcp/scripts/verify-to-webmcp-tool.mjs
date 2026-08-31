@@ -82,6 +82,13 @@ for (const capability of registry.list()) {
   assert.equal(typeof tool.execute, "function");
 }
 
+const focusMetadata = toWebMcpTool(registry.get("focus_component"), { registry, getContext });
+assert.match(focusMetadata.description, /before answering/i);
+assert.match(focusMetadata.description, /zooms/i);
+const relationshipMetadata = toWebMcpTool(registry.get("highlight_connection"), { registry, getContext });
+assert.match(relationshipMetadata.description, /relationship/i);
+assert.match(relationshipMetadata.description, /frames both endpoints/i);
+
 const inspectTool = toWebMcpTool(registry.get("inspect_component"), { registry, getContext });
 const inspected = await inspectTool.execute({ componentId: "service-1" }, {});
 assert.equal(contextCalls, 1);

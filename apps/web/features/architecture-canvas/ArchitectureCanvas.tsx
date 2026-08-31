@@ -82,6 +82,8 @@ function ArchitectureWorkspace() {
         reconciliationKey={workspace.webMcpReconciliationKey}
         onStatusChange={handleWebMcpStatus}
         onFocusComponent={workspace.focusComponentInPresentation}
+        onFocusConnection={workspace.focusConnectionInPresentation}
+        onPresentationCue={workspace.spotlightPresentationCue}
         onFocusRegion={workspace.focusRegionInPresentation}
         onPinObservation={workspace.pinObservation}
         onExperimentResult={publishResult}
@@ -156,6 +158,7 @@ function ArchitectureWorkspace() {
               onSelectComponent={workspace.onSelectComponent}
               onSelectRegion={workspace.onSelectRegion}
               onClearWorldSelection={workspace.clearSelection}
+              onViewportInteraction={workspace.setCanvasInteraction}
             />
 
             <div className="playground-corner-hud">

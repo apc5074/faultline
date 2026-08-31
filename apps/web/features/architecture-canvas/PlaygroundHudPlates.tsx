@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture, RequirementDefinition, RequirementResult } from "@faultline/core";
 import { estimateMonthlyCost } from "@faultline/simulator";
@@ -24,6 +26,113 @@ function formatCompactCost(amount: number): string {
   return formatCost(amount);
 }
 
+function CostEstimateInfo() {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const popupId = useId();
+  const [open, setOpen] = useState(false);
+  const [popupPosition, setPopupPosition] = useState<CSSProperties>({});
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const closeSoon = useCallback(() => {
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => setOpen(false), 140);
+  }, [clearCloseTimer]);
+
+  const positionPopup = useCallback(() => {
+    const button = buttonRef.current;
+    const popup = popupRef.current;
+    if (!button || !popup) return;
+
+    const margin = 12;
+    const gap = 8;
+    const buttonRect = button.getBoundingClientRect();
+    const popupWidth = Math.min(320, window.innerWidth - margin * 2);
+    const popupHeight = popup.offsetHeight;
+    const left = Math.max(
+      margin,
+      Math.min(buttonRect.right - popupWidth, window.innerWidth - popupWidth - margin),
+    );
+    const belowTop = buttonRect.bottom + gap;
+    const top =
+      belowTop + popupHeight <= window.innerHeight - margin
+        ? belowTop
+        : Math.max(margin, buttonRect.top - popupHeight - gap);
+
+    setPopupPosition({ top, left, maxWidth: popupWidth });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    positionPopup();
+    const handleViewportChange = () => positionPopup();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [open, positionPopup]);
+
+  return (
+    <span className="hud-plate__estimate-help">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="hud-plate__estimate-help-button"
+        aria-label="How the pre-run cost estimate is calculated"
+        aria-controls={popupId}
+        aria-expanded={open}
+        onClick={() => {
+          clearCloseTimer();
+          setOpen((current) => !current);
+        }}
+        onMouseEnter={() => {
+          clearCloseTimer();
+          setOpen(true);
+        }}
+        onMouseLeave={closeSoon}
+        onFocus={() => {
+          clearCloseTimer();
+          setOpen(true);
+        }}
+        onBlur={closeSoon}
+      >
+        ?
+      </button>
+      {open ? (
+        <div
+          ref={popupRef}
+          id={popupId}
+          role="tooltip"
+          className="hud-plate__estimate-popup"
+          style={popupPosition}
+          onMouseEnter={clearCloseTimer}
+          onMouseLeave={closeSoon}
+        >
+          <strong>What “Est.” is based on</strong>
+          <ul>
+            <li>Your current components, tiers, replicas, and regions</li>
+            <li>Base monthly infrastructure pricing</li>
+            <li>No realized traffic or CDN usage yet</li>
+            <li>No workload pressure or cross-region transfer charges</li>
+          </ul>
+          <p>Run the simulation to replace this with the authoritative monthly cost.</p>
+        </div>
+      ) : null}
+    </span>
+  );
+}
+
 export function BudgetHud({
   architecture,
   traffic,
@@ -41,6 +150,7 @@ export function BudgetHud({
     challenge: activeChallenge,
   });
   const budget = activeChallenge.monthlyBudget;
+  const hasSimulatedCost = traffic !== undefined || geographicRoutes !== undefined;
   const overBudget = cost.monthlyTotal > budget;
   const breakdown = [...cost.lineItems].sort((left, right) => right.amount - left.amount);
 
@@ -51,9 +161,16 @@ export function BudgetHud({
   };
 
   return (
-    <aside className="hud-plate hud-plate--budget" aria-label="Infrastructure budget">
-      <p className="hud-plate__title">Budget</p>
+    <aside
+      className="hud-plate hud-plate--budget"
+      aria-label={`Infrastructure budget${hasSimulatedCost ? " based on simulation" : " estimate"}`}
+    >
+      <div className="hud-plate__title-row">
+        <p className="hud-plate__title">Budget</p>
+        {!hasSimulatedCost ? <CostEstimateInfo /> : null}
+      </div>
       <p className={`hud-plate__totals tabular${overBudget ? " hud-plate__totals--over" : ""}`}>
+        {!hasSimulatedCost ? <span className="hud-plate__estimate-label">Est.</span> : null}
         <strong>{formatCompactCost(cost.monthlyTotal)}</strong>
         <span>/ {formatCompactCost(budget)}</span>
       </p>

@@ -1,4 +1,4 @@
-import type { AgentCapabilityMode, AgentCapabilityRegistry } from "@faultline/agent-capabilities";
+import type { AgentCapabilityMode, AgentCapabilityRegistry, PresentationCue } from "@faultline/agent-capabilities";
 import { isPhase7DynamicCapabilityName, resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
 import type { ExperimentResult } from "@faultline/core";
 import { buildVisualWebMcpSurface } from "./agent-visual-surface.js";
@@ -32,6 +32,7 @@ export interface RegisterAgentWebMcpSurfaceOptions {
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
   readonly onExperimentResult?: (result: ExperimentResult) => void;
+  readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly timing?: WebMcpTimingSink;
   /** Limit this registration generation to one independently reconciled group. */
   readonly group?: WebMcpRegistrationGroup;
@@ -58,7 +59,7 @@ function fingerprintManifest(tools: readonly WebMcpTool[]): string {
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
 export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, timing, group = "all" } = options;
+  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, group = "all" } = options;
   const startedAt = performance.now();
   if (signal.aborted) return abortedResult(group);
   const context = resolveLiveAgentSnapshot(await getContext()).context;
@@ -68,13 +69,13 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   const includeExperiments = group === "all" || group === "experiments";
   const [read, visual, experiment] = await Promise.all([
     includeRead
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production" }), { mode: "read" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production", ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "read" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeVisual
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}) }), { mode: "visual" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "visual" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeExperiments
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}) }), { mode: "experiment" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildExperimentWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, ...(onExperimentResult ? { onExperimentResult } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "experiment" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
   ]);
   if (signal.aborted) return abortedResult(group);

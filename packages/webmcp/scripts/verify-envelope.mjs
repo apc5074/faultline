@@ -46,6 +46,19 @@ const validContext = {
 
 const registry = createDefaultCapabilityRegistry();
 
+let publishedCueCount = 0;
+const cueTool = toWebMcpTool(registry.get("inspect_component"), {
+  registry,
+  getContext: () => validContext,
+  onPresentationCue: () => {
+    publishedCueCount += 1;
+    throw new Error("presentation host unavailable");
+  },
+});
+const cueResult = await cueTool.execute({ componentId: "service-1" }, {});
+assert.equal(cueResult.ok, true, "presentation callback failure preserves evidence");
+assert.equal(publishedCueCount, 1, "current successful read publishes exactly one cue");
+
 for (const name of ["review_current_design", "get_metrics", "get_cost_breakdown", "inspect_design_entity", "expand_design_evidence"]) {
   const tool = toWebMcpTool(registry.get(name), { registry, getContext: () => validContext });
   const result = await tool.execute(

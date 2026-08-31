@@ -9,6 +9,7 @@ export * from "./capability.js";
 export * from "./context.js";
 export * from "./result.js";
 export * from "./evidence-result.js";
+export * from "./presentation-cue.js";
 export * from "./output-validators.js";
 export * from "./registry.js";
 export * from "./resolve-capabilities.js";

@@ -10,6 +10,7 @@ export interface VisualCommandPublisherOptions {
    * giving the command access to architecture or simulation state.
    */
   readonly onFocusComponent?: (componentId: string) => void;
+  readonly onFocusConnection?: (connectionId: string) => void;
   readonly onFocusRegion?: (regionId: RegionId) => void;
   readonly onPinObservation?: (observation: PinnedObservation) => void;
 }
@@ -37,6 +38,9 @@ export function createVisualCommandPublisher(
       store.applyAnnotations([intent.annotation]);
       if (intent.annotation.type === "focus") {
         options.onFocusComponent?.(intent.annotation.componentId);
+      }
+      if (intent.annotation.type === "path") {
+        options.onFocusConnection?.(intent.annotation.connectionId);
       }
       return;
     }

@@ -3,7 +3,7 @@
 import { useReactFlow, type Connection as FlowConnection, type Edge, type EdgeChange, type NodeChange } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
-import { architectureAvailabilityFingerprint, type PinnedObservation } from "@faultline/agent-capabilities";
+import { architectureAvailabilityFingerprint, type PinnedObservation, type PresentationCue } from "@faultline/agent-capabilities";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
 import { componentRegistry } from "@faultline/component-catalog";
@@ -73,6 +73,13 @@ export function usePlaygroundWorkspace() {
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [attentionComponentId, setAttentionComponentId] = useState<string | null>(null);
+  const [attentionComponentIds, setAttentionComponentIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [attentionConnectionIds, setAttentionConnectionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [attentionPrimaryConnectionId, setAttentionPrimaryConnectionId] = useState<string | null>(null);
+  const attentionTimeoutRef = useRef<number | null>(null);
+  const canvasInteractionRef = useRef(false);
+  const presentationVersionRef = useRef(0);
+  const pendingCameraRef = useRef<{ readonly version: number; readonly componentIds: readonly string[] } | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
   const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
   const [pinnedObservations, setPinnedObservations] = useState<readonly PinnedObservation[]>([]);
@@ -93,6 +100,7 @@ export function usePlaygroundWorkspace() {
   const [experimentPresentation, setExperimentPresentation] = useState<ExperimentResult | null>(null);
   const [requirementsReviewKey, setRequirementsReviewKey] = useState(0);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
+  const rejectedNodeDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
   const { screenToFlowPosition, fitView } = useReactFlow();
 
@@ -256,6 +264,7 @@ export function usePlaygroundWorkspace() {
           selectedComponentId,
           showSimulationVisuals ? simulationResult : null,
           boardEvidenceIsStale,
+          attentionComponentIds,
           attentionComponentId,
           playbackVisualByComponent.get(component.id) ??
             (playbackVisualsActive ? idlePlaybackVisual(component.id) : undefined),
@@ -280,6 +289,7 @@ export function usePlaygroundWorkspace() {
       showSimulationVisuals,
       simulationResult,
       boardEvidenceIsStale,
+      attentionComponentIds,
       attentionComponentId,
       connectingFrom,
       settlingNodeIds,
@@ -327,6 +337,8 @@ export function usePlaygroundWorkspace() {
         selected: connection.id === selectedConnectionId,
         deletable: !playbackVisualsActive,
         activeConnectionIds,
+        attentionConnectionIds,
+        attentionPrimaryConnectionId,
         trafficActive: showSimulationVisuals || playbackVisualsActive,
         resultIsStale: boardEvidenceIsStale,
         load: shareEdgeLoad,
@@ -344,6 +356,8 @@ export function usePlaygroundWorkspace() {
     architecture.connections,
     architecture.components,
     activeConnectionIds,
+    attentionConnectionIds,
+    attentionPrimaryConnectionId,
     selectedConnectionId,
     showSimulationVisuals,
     playbackVisualsActive,
@@ -379,6 +393,11 @@ export function usePlaygroundWorkspace() {
 
   const onNodesChange = useCallback(
     (changes: NodeChange<PlaygroundFlowNode>[]) => {
+      if (changes.some((change) => change.type === "position" || change.type === "select")) {
+        if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+        attentionTimeoutRef.current = null;
+        setAttentionComponentId(null);
+      }
       const structuralChanges = changes.filter((change) => change.type !== "remove");
 
       if (structuralChanges.length > 0) {
@@ -412,6 +431,8 @@ export function usePlaygroundWorkspace() {
 
         const removedComponent = architecture.components.find((component) => component.id === change.id);
         if (removedComponent?.type === "traffic-source") {
+          rejectedNodeDeleteIdsRef.current.add(change.id);
+          window.setTimeout(() => rejectedNodeDeleteIdsRef.current.delete(change.id), 0);
           setInteractionNotice("The traffic source can't be deleted.");
           continue;
         }
@@ -606,6 +627,11 @@ export function usePlaygroundWorkspace() {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
+      if (changes.some((change) => change.type === "select" || change.type === "remove")) {
+        if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+        attentionTimeoutRef.current = null;
+        setAttentionComponentId(null);
+      }
       const selectedChanges = changes.filter((change) => change.type === "select");
       if (selectedChanges.length > 0) {
         const newlySelected = selectedChanges.find((change) => change.selected);
@@ -620,7 +646,17 @@ export function usePlaygroundWorkspace() {
 
       if (playback.playbackRunning) return;
 
-      const removedIds = new Set(changes.filter((change) => change.type === "remove").map((change) => change.id));
+      const removedIds = new Set(
+        changes
+          .filter((change) => change.type === "remove")
+          .filter((change) => {
+            const connection = architecture.connections.find((candidate) => candidate.id === change.id);
+            return !connection || ![connection.sourceComponentId, connection.targetComponentId].some((componentId) =>
+              rejectedNodeDeleteIdsRef.current.has(componentId),
+            );
+          })
+          .map((change) => change.id),
+      );
       if (removedIds.size === 0) return;
 
       setArchitecture((current) => ({
@@ -629,7 +665,7 @@ export function usePlaygroundWorkspace() {
       }));
       setSelectedConnectionId((current) => (current && removedIds.has(current) ? null : current));
     },
-    [playback.playbackRunning],
+    [architecture.connections, playback.playbackRunning],
   );
 
   const onRunSimulation = useCallback(() => {
@@ -935,6 +971,9 @@ export function usePlaygroundWorkspace() {
 
   const onSelectComponent = useCallback(
     (componentId: string, deploymentId?: string) => {
+      if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      attentionTimeoutRef.current = null;
+      setAttentionComponentId(null);
       setSelectedComponentId(componentId);
       setWorldSelection(
         deploymentId
@@ -947,6 +986,9 @@ export function usePlaygroundWorkspace() {
 
   const onSelectRegion = useCallback(
     (regionId: RegionId) => {
+      if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      attentionTimeoutRef.current = null;
+      setAttentionComponentId(null);
       setWorldSelection({ kind: "region", regionId });
       const deployed = architecture.components.find((component) =>
         component.deployments.some((deployment) => deployment.regionId === regionId),
@@ -957,9 +999,127 @@ export function usePlaygroundWorkspace() {
   );
 
   const clearSelection = useCallback(() => {
+    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+    attentionTimeoutRef.current = null;
+    setAttentionComponentId(null);
     setSelectedComponentId(null);
     setSelectedConnectionId(null);
     setWorldSelection(null);
+  }, []);
+
+  const spotlightPresentationCue = useCallback((cue: PresentationCue) => {
+    // Every cue replaces both the visible mark set and any deferred camera work.
+    const version = presentationVersionRef.current + 1;
+    presentationVersionRef.current = version;
+    pendingCameraRef.current = null;
+
+    const liveComponents = new Set(architecture.components.map((component) => component.id));
+    const liveConnections = new Map(architecture.connections.map((connection) => [connection.id, connection]));
+    const componentIds: string[] = [];
+    const connectionIds = new Set<string>();
+    const addComponent = (id: string) => {
+      if (liveComponents.has(id) && !componentIds.includes(id) && componentIds.length < 5) componentIds.push(id);
+    };
+
+    // Explicit components preserve evidence order. Connection-only cues gain their
+    // live endpoints so a relationship can still be framed.
+    for (const target of cue.targets) {
+      if (target.kind === "component") addComponent(target.entityId);
+      if (target.kind === "connection") {
+        const connection = liveConnections.get(target.entityId);
+        if (!connection) continue;
+        connectionIds.add(connection.id);
+        addComponent(connection.sourceComponentId);
+        addComponent(connection.targetComponentId);
+      }
+    }
+    if (cue.kind === "path") {
+      for (let index = 0; index < componentIds.length - 1; index += 1) {
+        const sourceId = componentIds[index]!;
+        const targetId = componentIds[index + 1]!;
+        const connection = architecture.connections.find((candidate) =>
+          candidate.sourceComponentId === sourceId && candidate.targetComponentId === targetId,
+        );
+        if (connection) connectionIds.add(connection.id);
+      }
+    }
+    const primary = cue.targets.find((target) => target.emphasis === "primary");
+    const primaryComponentId = primary?.kind === "component" && componentIds.includes(primary.entityId)
+      ? primary.entityId
+      : componentIds[0];
+    if (!primaryComponentId) return;
+
+    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+    setAttentionComponentIds(new Set(componentIds));
+    setAttentionConnectionIds(connectionIds);
+    setAttentionPrimaryConnectionId(
+      [...connectionIds].find((connectionId) => {
+        const connection = liveConnections.get(connectionId);
+        return connection?.sourceComponentId === primaryComponentId || connection?.targetComponentId === primaryComponentId;
+      }) ?? null,
+    );
+    setAttentionComponentId(primaryComponentId);
+
+    if (cue.camera === "frame-primary" || cue.camera === "frame-path") {
+      const frameIds = cue.camera === "frame-primary" ? [primaryComponentId] : componentIds;
+      pendingCameraRef.current = { version, componentIds: frameIds };
+      if (viewMode !== "logical") setViewMode("logical");
+      if (!canvasInteractionRef.current && viewMode === "logical") {
+        pendingCameraRef.current = null;
+        fitView({ nodes: frameIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
+      }
+    }
+    attentionTimeoutRef.current = window.setTimeout(() => {
+      if (presentationVersionRef.current !== version) return;
+      pendingCameraRef.current = null;
+      setAttentionComponentId(null);
+      setAttentionComponentIds(new Set());
+      setAttentionConnectionIds(new Set());
+      setAttentionPrimaryConnectionId(null);
+      attentionTimeoutRef.current = null;
+    }, 4500);
+  }, [architecture.components, architecture.connections, fitView, viewMode]);
+
+  useEffect(() => {
+    const componentIds = new Set(architecture.components.map((component) => component.id));
+    const connectionIds = new Set(architecture.connections.map((connection) => connection.id));
+    setAttentionComponentIds((current) => new Set([...current].filter((id) => componentIds.has(id))));
+    setAttentionConnectionIds((current) => new Set([...current].filter((id) => connectionIds.has(id))));
+  }, [architecture.components, architecture.connections]);
+
+  useEffect(() => {
+    if (attentionComponentId !== null) return;
+    setAttentionComponentIds(new Set());
+    setAttentionConnectionIds(new Set());
+    setAttentionPrimaryConnectionId(null);
+  }, [attentionComponentId]);
+
+  // A cue arriving while the world map is visible switches views first; the
+  // logical React Flow instance can then receive the exact queued node set.
+  useEffect(() => {
+    if (viewMode !== "logical" || canvasInteractionRef.current) return;
+    const pending = pendingCameraRef.current;
+    if (!pending || pending.version !== presentationVersionRef.current) return;
+    const componentIds = pending.componentIds.filter((id) => architecture.components.some((component) => component.id === id));
+    pendingCameraRef.current = null;
+    if (componentIds.length > 0) {
+      fitView({ nodes: componentIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
+    }
+  }, [architecture.components, fitView, viewMode]);
+
+  const setCanvasInteraction = useCallback((active: boolean) => {
+    canvasInteractionRef.current = active;
+    if (active || viewMode !== "logical") return;
+    const pending = pendingCameraRef.current;
+    pendingCameraRef.current = null;
+    const componentIds = pending?.componentIds.filter((id) => architecture.components.some((component) => component.id === id)) ?? [];
+    if (pending && pending.version === presentationVersionRef.current && componentIds.length > 0) {
+      fitView({ nodes: componentIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
+    }
+  }, [architecture.components, fitView, viewMode]);
+
+  useEffect(() => () => {
+    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
   }, []);
 
   const focusComponentInPresentation = useCallback(
@@ -969,10 +1129,37 @@ export function usePlaygroundWorkspace() {
       setSelectedComponentId(componentId);
       setSelectedConnectionId(null);
       setWorldSelection(worldSelectionForComponent(architecture, componentId));
-      if (viewMode === "logical") fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 });
+      // An explicit focus request should behave like the player clicked the
+      // component: return to the logical board and perform the real fitView.
+      const version = presentationVersionRef.current + 1;
+      presentationVersionRef.current = version;
+      pendingCameraRef.current = { version, componentIds: [componentId] };
+      if (viewMode !== "logical") {
+        setViewMode("logical");
+      } else if (!canvasInteractionRef.current) {
+        pendingCameraRef.current = null;
+        fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 });
+      }
     },
     [architecture, fitView, viewMode],
   );
+
+  const focusConnectionInPresentation = useCallback((connectionId: string) => {
+    const connection = architecture.connections.find((candidate) => candidate.id === connectionId);
+    if (!connection) return;
+    const evidenceRevision = webMcpReconciliationKey;
+    spotlightPresentationCue({
+      contractVersion: "presentation-1",
+      kind: "path",
+      reason: "causal-path",
+      camera: "frame-path",
+      targets: [
+        { ref: connection.id, kind: "connection", entityId: connection.id, evidenceRevision, emphasis: "primary" },
+        { ref: connection.sourceComponentId, kind: "component", entityId: connection.sourceComponentId, evidenceRevision, emphasis: "secondary" },
+        { ref: connection.targetComponentId, kind: "component", entityId: connection.targetComponentId, evidenceRevision, emphasis: "secondary" },
+      ],
+    });
+  }, [architecture.connections, spotlightPresentationCue, webMcpReconciliationKey]);
 
   const reviewFirstFailure = useCallback(() => {
     if (!simulationResult || runState !== "complete") return;
@@ -1049,10 +1236,13 @@ export function usePlaygroundWorkspace() {
     onSelectComponent,
     onSelectRegion,
     clearSelection,
+    spotlightPresentationCue,
+    setCanvasInteraction,
     reviewFirstFailure,
     pinObservation: (observation: PinnedObservation) => setPinnedObservations((current) => [...current.filter((entry) => `${entry.target}:${entry.id}:${entry.metricId}` !== `${observation.target}:${observation.id}:${observation.metricId}`), observation].slice(-6)),
     clearPinnedObservations: () => setPinnedObservations([]),
     focusComponentInPresentation,
+    focusConnectionInPresentation,
     focusRegionInPresentation,
   };
 }

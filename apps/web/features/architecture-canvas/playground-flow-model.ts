@@ -47,7 +47,8 @@ export function componentToNode(
   selectedComponentId: string | null,
   simulation: SuccessfulSimulation | null,
   resultIsStale: boolean,
-  attentionComponentId: string | null,
+  attentionComponentIds: ReadonlySet<string>,
+  attentionPrimaryComponentId: string | null,
   playbackVisual: ComponentPlaybackVisual | undefined,
   playbackActive: boolean,
   runPulseKey: string | undefined,
@@ -115,7 +116,8 @@ export function componentToNode(
       playbackActive,
       runPulseKey,
       firstFailing,
-      attention: component.id === attentionComponentId,
+      attention: attentionComponentIds.has(component.id),
+      attentionPrimary: component.id === attentionPrimaryComponentId,
       connectedPortIds: connectedPortIdsForComponent(component.id, connections),
       interactionPhase,
       connectDimmed,
@@ -135,6 +137,8 @@ export function connectionToEdge(
     selected?: boolean;
     deletable?: boolean;
     activeConnectionIds: ReadonlySet<string>;
+    attentionConnectionIds: ReadonlySet<string>;
+    attentionPrimaryConnectionId: string | null;
     trafficActive: boolean;
     resultIsStale: boolean;
     load: number;
@@ -149,7 +153,7 @@ export function connectionToEdge(
   const visualLoad = Math.max(context.load, context.playbackLoad);
   const active =
     context.trafficActive &&
-    (context.activeConnectionIds.has(connection.id) || visualLoad > 0);
+    (context.activeConnectionIds.has(connection.id) || context.attentionConnectionIds.has(connection.id) || visualLoad > 0);
   return {
     id: connection.id,
     type: "ink",
@@ -168,6 +172,8 @@ export function connectionToEdge(
       offset: context.offset,
       hops: context.hops,
       pulse: context.pulse,
+      attention: context.attentionConnectionIds.has(connection.id),
+      attentionPrimary: connection.id === context.attentionPrimaryConnectionId,
       peeling: context.peeling,
       semanticZoomOut: context.semanticZoomOut,
     },

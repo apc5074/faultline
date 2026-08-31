@@ -16,6 +16,10 @@ assert.match(source, /Cost breakdown/);
 assert.match(source, /OVER BUDGET/);
 assert.match(source, /lineItems/);
 assert.match(source, /sort\(\(left, right\) => right\.amount - left\.amount\)/);
+assert.match(source, /hasSimulatedCost/);
+assert.match(source, /hud-plate__estimate-label/);
+assert.match(source, /What “Est\.” is based on/);
+assert.match(source, /getBoundingClientRect/);
 
 const cost = estimateMonthlyCost({
   architecture: urlShortenerStarterArchitecture(),

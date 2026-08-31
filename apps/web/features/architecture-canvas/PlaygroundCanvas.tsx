@@ -70,6 +70,7 @@ export type PlaygroundCanvasProps = {
   onSelectComponent: (componentId: string, deploymentId?: string) => void;
   onSelectRegion: (regionId: RegionId) => void;
   onClearWorldSelection: () => void;
+  onViewportInteraction: (active: boolean) => void;
 };
 
 export function PlaygroundCanvas({
@@ -104,6 +105,7 @@ export function PlaygroundCanvas({
   onSelectComponent,
   onSelectRegion,
   onClearWorldSelection,
+  onViewportInteraction,
 }: PlaygroundCanvasProps) {
   return (
     <div
@@ -129,9 +131,17 @@ export function PlaygroundCanvas({
           connectionLineComponent={InkConnectionLine}
           onNodesChange={onNodesChange}
           onConnect={onConnect}
-          onConnectStart={onConnectStart}
-          onConnectEnd={onConnectEnd}
+          onConnectStart={(event, params) => {
+            onViewportInteraction(true);
+            onConnectStart(event, params);
+          }}
+          onConnectEnd={() => {
+            onConnectEnd();
+            onViewportInteraction(false);
+          }}
           onEdgesChange={onEdgesChange}
+          onNodeDragStart={() => onViewportInteraction(true)}
+          onNodeDragStop={() => onViewportInteraction(false)}
           isValidConnection={isValidConnection}
           onDragOver={onDragOver}
           onDrop={onDrop}
@@ -150,6 +160,8 @@ export function PlaygroundCanvas({
               return current === next ? current : next;
             });
           }}
+          onMoveStart={() => onViewportInteraction(true)}
+          onMoveEnd={() => onViewportInteraction(false)}
           defaultViewport={PLAYGROUND_DEFAULT_VIEWPORT}
           deleteKeyCode={["Backspace", "Delete"]}
           minZoom={PLAYGROUND_MIN_ZOOM}

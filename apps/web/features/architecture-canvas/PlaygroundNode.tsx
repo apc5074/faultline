@@ -40,6 +40,7 @@ export type PlaygroundNodeData = {
   /** Settled: this node was the first component to fail in the last run. */
   firstFailing?: boolean;
   attention: boolean;
+  attentionPrimary: boolean;
   connectedPortIds: ReadonlySet<string>;
   interactionPhase: NodeInteractionPhase;
   connectDimmed: boolean;
@@ -106,6 +107,7 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
         "playground-node",
         data.resultIsStale && data.simulation ? "playground-node--stale" : "",
         data.attention ? "playground-node--attention" : "",
+        data.attentionPrimary ? "playground-node--attention-primary" : "",
         dragging ? "playground-node--dragging" : "",
         data.interactionPhase === "settling" ? "playground-node--settling" : "",
         data.interactionPhase === "deleting" ? "playground-node--deleting" : "",
@@ -121,6 +123,7 @@ export function PlaygroundNode({ data, selected, dragging }: NodeProps<Playgroun
         data.definition.label,
         ariaLabel,
         data.firstFailing ? "first to fail last run" : null,
+        data.attentionPrimary ? "primary agent-highlighted target" : data.attention ? "agent-highlighted target" : null,
       ]
         .filter(Boolean)
         .join(", ")}

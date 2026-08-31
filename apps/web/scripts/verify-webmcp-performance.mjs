@@ -44,14 +44,14 @@ const reviewEvents = [];
 const review = await registrationRun(reviewEvents);
 const bootstrap = await invoke(review.tools, "review_current_design", { intent: "auto" });
 assert.equal(bootstrap.ok, true);
-assert.equal(bootstrap.data.evidence.architectureRevision, review.result.manifest.revision);
-assert.equal(bootstrap.data.evidence.available, true);
-assert.ok(bootstrap.data.suggestedNextTools.length > 0);
-const component = await invoke(review.tools, "inspect_component", { componentId: "service-start" });
+assert.equal(bootstrap.data.state.evidenceRevision, review.result.manifest.revision);
+assert.equal(bootstrap.data.provenance.source, "live_draft_projection");
+assert.ok(bootstrap.data.next.length > 0);
+const component = await invoke(review.tools, "inspect_design_entity", { kind: "component", ref: "service-start" });
 assert.equal(component.ok, true);
 const metrics = await invoke(review.tools, "get_metrics");
 assert.equal(metrics.ok, true);
-for (let index = 0; index < 10; index += 1) await invoke(review.tools, index % 2 ? "get_metrics" : "inspect_component", index % 2 ? {} : { componentId: "service-start" });
+for (let index = 0; index < 10; index += 1) await invoke(review.tools, index % 2 ? "get_metrics" : "inspect_design_entity", index % 2 ? {} : { kind: "component", ref: "service-start" });
 
 const metadataBytes = [...cold.tools.values()].reduce((sum, tool) => sum + JSON.stringify({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations ?? null }).length, 0);
 const registrationMs = [...coldEvents, ...warmEvents, ...reviewEvents].filter((event) => event.name === "registration_total_ms").map((event) => event.durationMs ?? 0);
@@ -95,7 +95,7 @@ const report = {
     registrationMs: { cold: registrationSummary(coldEvents), warm: registrationSummary(warmEvents), all: { p50: percentile(registrationMs, 0.5), p95: percentile(registrationMs, 0.95), max: Math.max(...registrationMs) } },
     surfaceBuildMs: { p50: percentile(surfaceBuildMs, 0.5), p95: percentile(surfaceBuildMs, 0.95), max: Math.max(...surfaceBuildMs) },
   },
-  reviewRecipe: { calls: 3, names: ["review_current_design", "inspect_component", "get_metrics"], bootstrapBytes: serializedBytes(bootstrap) },
+  reviewRecipe: { calls: 3, names: ["review_current_design", "inspect_design_entity", "get_metrics"], bootstrapBytes: serializedBytes(bootstrap) },
   repeatedReads: { calls: 10, additionalEvaluations: review.evaluations, resultBytes: { p50: percentile(resultBytes, 0.5), p95: percentile(resultBytes, 0.95), max: Math.max(...resultBytes) } },
   callbackMs: { p50: percentile(callbacks, 0.5), p95: percentile(callbacks, 0.95), max: Math.max(...callbacks) },
   contextSnapshotMs: { p50: percentile(contextSnapshotMs, 0.5), p95: percentile(contextSnapshotMs, 0.95), max: Math.max(...contextSnapshotMs) },

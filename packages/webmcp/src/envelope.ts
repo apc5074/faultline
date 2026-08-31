@@ -11,8 +11,10 @@ import {
   computeSurfaceRevision,
   provenanceFromContext,
   projectQuantitativeEvidence,
+  presentationCueForCapability,
   separatePlayerAuthored,
   stripEnvelopeSourceFields,
+  validatePresentationCue,
   validateAgentEvidenceResult,
 } from "@faultline/agent-capabilities";
 import { capabilityError } from "@faultline/agent-capabilities";
@@ -40,6 +42,12 @@ function extractTruncated(data: Record<string, unknown>): { readonly sections: r
   return sections.length > 0 ? { sections } : { sections: ["payload"] };
 }
 
+function extractPresentationCue(data: Record<string, unknown>, evidenceRevision: string) {
+  if (!Object.prototype.hasOwnProperty.call(data, "presentationCue")) return undefined;
+  const cue = data.presentationCue;
+  return validatePresentationCue(cue, evidenceRevision) ? cue : null;
+}
+
 function projectCapabilityData(
   capabilityName: string,
   data: Record<string, unknown>,
@@ -52,6 +60,8 @@ function projectCapabilityData(
 export interface WrapWebMcpEnvelopeOptions {
   readonly capabilityName: string;
   readonly mode: "read" | "visual" | "experiment";
+  /** Validated by the capability registry before a successful result is returned. */
+  readonly input?: unknown;
   readonly lease: WebMcpEvidenceLease;
   readonly availableToolNames?: ReadonlySet<string>;
   readonly simulated?: boolean;
@@ -72,7 +82,12 @@ export function wrapWebMcpEnvelope(
 
   const next = extractSuggestions(result.data);
   const truncated = extractTruncated(result.data);
+  const explicitPresentation = extractPresentationCue(result.data, options.lease.evidenceRevision);
+  const presentation = explicitPresentation === null
+    ? undefined
+    : explicitPresentation ?? presentationCueForCapability(options.capabilityName, result.data, context, options.input);
   const projected = projectCapabilityData(options.capabilityName, result.data);
+  delete projected.presentationCue;
   const surfaceRevision = options.availableToolNames
     ? computeSurfaceRevision([...options.availableToolNames])
     : options.lease.surfaceRevision;
@@ -83,7 +98,7 @@ export function wrapWebMcpEnvelope(
     resultDigest: computeResultDigest(projected),
   };
   const provenance = provenanceFromContext(context, options.mode, options.simulated === true);
-  const envelope = buildAgentEvidenceResult(projected, state, provenance, next, truncated);
+  const envelope = buildAgentEvidenceResult(projected, state, provenance, next, truncated, presentation);
   if (!validateAgentEvidenceResult(envelope)) {
     return capabilityError("INVALID_INPUT", `Capability "${options.capabilityName}" produced an invalid envelope.`);
   }

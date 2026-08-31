@@ -1,4 +1,5 @@
 import type { AgentContext, EvidenceMeta } from "./context.js";
+import { validatePresentationCue, type PresentationCue } from "./presentation-cue.js";
 
 /** Adapter-neutral WebMCP evidence result contract (WMP-016). */
 export const WMP_EVIDENCE_CONTRACT_VERSION = "wmp-2" as const;
@@ -31,6 +32,7 @@ export interface AgentEvidenceResult<T> {
   readonly state: AgentEvidenceState;
   readonly provenance: AgentEvidenceProvenance;
   readonly data: T;
+  readonly presentation?: PresentationCue;
   readonly next?: readonly ActiveToolSuggestion[];
   readonly truncated?: { readonly sections: readonly string[] };
 }
@@ -157,12 +159,14 @@ export function buildAgentEvidenceResult<T>(
   provenance: AgentEvidenceProvenance,
   next?: readonly ActiveToolSuggestion[],
   truncated?: { readonly sections: readonly string[] },
+  presentation?: PresentationCue,
 ): AgentEvidenceResult<T> {
   return {
     contractVersion: WMP_EVIDENCE_CONTRACT_VERSION,
     state: { ...state, resultDigest: computeResultDigest(data) },
     provenance,
     data,
+    ...(presentation ? { presentation } : {}),
     ...(next && next.length > 0 ? { next } : {}),
     ...(truncated ? { truncated } : {}),
   };
@@ -347,6 +351,7 @@ export function validateAgentEvidenceResult(value: unknown): value is AgentEvide
     typeof provenance.simulatorVersion === "string" &&
     typeof provenance.stale === "boolean" &&
     ["live_draft_projection", "player_run", "simulated_experiment"].includes(provenance.source)
+    && (record.presentation === undefined || validatePresentationCue(record.presentation, state.evidenceRevision))
   );
 }
 

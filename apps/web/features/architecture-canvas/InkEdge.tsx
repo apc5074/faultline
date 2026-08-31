@@ -12,6 +12,8 @@ export type InkEdgeData = {
   hops?: HopMarker[];
   pulse?: boolean;
   peeling?: boolean;
+  attention?: boolean;
+  attentionPrimary?: boolean;
   semanticZoomOut?: boolean;
 };
 
@@ -33,6 +35,8 @@ export function InkEdge({
   const stale = data?.stale ?? false;
   const semanticZoomOut = data?.semanticZoomOut ?? false;
   const isSelected = selected ?? false;
+  const attention = data?.attention ?? false;
+  const attentionPrimary = data?.attentionPrimary ?? false;
   const strokeWidth = semanticZoomOut
     ? active
       ? 1 + load * 1.5
@@ -40,6 +44,10 @@ export function InkEdge({
     : strokeWidthForLoad(load, active && !stale);
   const stroke = isSelected
     ? "var(--color-signal-red)"
+    : attentionPrimary
+      ? "var(--color-signal-red)"
+    : attention
+      ? "var(--color-signal-green)"
     : stale
       ? "var(--color-ink-hairline)"
       : "var(--color-ink)";
@@ -54,13 +62,15 @@ export function InkEdge({
           data?.peeling ? "ink-edge--peeling" : "",
           data?.pulse && !semanticZoomOut ? "ink-edge--pulse" : "",
           isSelected ? "ink-edge--selected" : "",
+          attention ? "ink-edge--attention" : "",
+          attentionPrimary ? "ink-edge--attention-primary" : "",
           semanticZoomOut ? "ink-edge--stream" : "",
         ]
           .filter(Boolean)
           .join(" ")}
         style={{
           stroke,
-          strokeWidth: isSelected ? strokeWidth + 1 : strokeWidth,
+          strokeWidth: isSelected || attentionPrimary ? strokeWidth + 1 : attention ? strokeWidth + 0.75 : strokeWidth,
           strokeLinecap: "square",
           strokeLinejoin: "miter",
           opacity,
