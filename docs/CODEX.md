@@ -1,166 +1,181 @@
-# Codex project memory
+# Faultline operational map for coding agents
 
-This is the short operational guide for agents editing Faultline. It complements
-the product and architecture documents; it does not replace the active phase
-plan or package source code.
+Use this guide after the root [`AGENTS.md`](../AGENTS.md). It describes the
+repository as it runs today. It is not a phase tracker: plans can define task
+order, but source code and executable checks decide current behavior.
 
-## Working snapshot
+## Start a task
 
-- Product: Faultline, a daily distributed-systems design game.
-- Product rule: the human changes the architecture, the deterministic simulator
-  determines truth, and the agent inspects or challenges the design.
-- Current priority: finish an excellent Level 1 Global URL Shortener before
-  adding breadth.
-- Active curriculum plan: `plans/level/1/plan.md` (Level Profiles LP-01…LP-08).
-  Affinity foundation is in `plans/level/plan.md` (T-01…T-10 shipped; **T-11**
-  human playtest is the remaining exit — confirm fail-first starter + CDN≫Redis
-  share visuals). **Geography completeness:** `plans/geo.md` (GEO-01…05 shipped —
-  absorb-then-route, CDN offload, miss-path LB/Router, regional Service capacity,
-  independent regional Redis footprints, Postgres primary/replica geo rules, geo
-  latency under absorb, hot-key geo path, geo transfer cost, geo requirements
-  aggregation, Service scaling UX, Router/LB inspector teaching, Traffic Source
-  origin hardening, Postgres/Redis regional controls, World map arcs; next
-  logical playback under geo, geo failure hooks, docs sync; next
-  **GEO-20** geo verification umbrella).
-  Older phase plans under
-  `plans/phase N/` apply only when the ticket points there.
-- The worktree may contain unfinished user changes. Run `git status` first and
-  preserve unrelated edits.
+1. Run `git status --short`; treat every existing change as user-owned unless
+   the task clearly created it.
+2. Identify the requested boundary in the map below.
+3. Read that package's public exports, the closest implementation, and its
+   verification script before editing a downstream consumer.
+4. For a task governed by a plan, use the plan for scope/dependencies only;
+   verify its technical assumptions in the code first.
+5. Make the smallest change, run the closest check, then review the diff.
 
-## Where changes belong
+## Runtime map
 
-| Need | Start here | Keep out of |
+```text
+Level Profile JSON ──compile──> ChallengeDefinition
+                                     │
+canonical Architecture ─────────────┼──> simulator evaluation ──> metrics/cost/requirements/events
+                                     │                                  │
+component catalog ──────────────────┘                                  ├──> canvas/map/playback
+                                                                        ├──> agent context/capabilities
+trusted challenge snapshot + submitted Architecture ──> server verification ──> Supabase persistence
+```
+
+The web playground currently selects `urlShortenerChallenge` in
+`apps/web/features/architecture-canvas/playground-challenge.ts`. `tiny-api` is
+also exported for package verification, and `premiere-night` has a serialized
+profile/challenge export; neither fact means a route exposes it to players.
+
+### Package ownership and entry points
+
+| Concern | Begin with | Important rule |
 | --- | --- | --- |
-| Serializable architecture, IDs, regions, experiment contracts | `packages/core/src` | React components and adapters |
-| Component definitions and ports | `packages/component-catalog/src` | Challenge-specific conditionals |
-| **New levels / curriculum** | `packages/challenges/src/levels/*.level.json` then compile helpers | Dual-maintained TS challenge bodies; simulator slug branches |
-| Level rules, workload, targets, validation | `packages/challenges/src` | UI and agent capability code |
-| Traffic, capacity, latency, geography, cost, experiments, events | `packages/simulator/src` | Browser-only presentation logic |
-| Agent schemas, capability execution, resolver, session context | `packages/agent-capabilities/src` | AI SDK and WebMCP adapters |
-| AI SDK tool conversion and request/session wiring | `apps/web/lib/ai` | Duplicated domain execution |
-| WebMCP registration and adapter behavior | `packages/webmcp/src` | A second capability registry |
-| Canvas, map, playback, annotations, panels | `apps/web/features` | New simulator semantics |
-| Persistence, official attempts, server re-simulation | `apps/web/lib`, `apps/web/app/api`, `supabase` | Client-only result authority |
-| Account identity, OAuth linking, history, streak | `docs/ACCOUNTS.md`, `apps/web/lib/auth` | Simulator or client-supplied user IDs |
+| Canonical architecture | `packages/core/src/architecture.ts` | `Architecture` is serializable and versioned. Never derive IDs from indexes; never use `ui` in truth calculations. |
+| Connections and workload contracts | `packages/core/src/workload-contract.ts`, `workload-flow.ts` | Semantic connection types are domain data, not React Flow details. |
+| Component definitions | `packages/component-catalog/src/index.ts` and the component file | Every placeable type must be registered in `componentRegistry`; reuse its schema/ports/defaults. |
+| Challenge content | `packages/challenges/src/levels/*.level.json` | Product challenges use static JSON import plus `compileChallengeFromLevelProfile`; Node-only loading stays outside the root export. |
+| Challenge validation/hash | `packages/challenges/src/validation.ts`, `config-hash.ts` | Published/official configuration must remain deterministic. |
+| Simulator truth | `packages/simulator/src/requirements.ts`, `traffic.ts` | `evaluateRequirements` is the usual complete evaluation entry point; it owns requirement outcomes and cost input. |
+| Experiments | `packages/core/src/experiment.ts`, `packages/simulator/src/experiment.ts` | An experiment is an overlay, never a mutation of Architecture, ChallengeDefinition, or catalog config. |
+| Agent semantics | `packages/agent-capabilities/src/registry.ts`, `capabilities/`, `resolve-*.ts` | Add behavior here before adapting it for a host. Validate inputs at the capability boundary. |
+| WebMCP | `packages/webmcp/src/register-agent-surface.ts` | Registration builds a production manifest from resolved shared capabilities; it does not own business rules. |
+| Live agent evidence | `apps/web/lib/agent-context/create-agent-context.ts` | Build evidence from a fresh canonical architecture + challenge evaluation; never invent metrics when evidence is invalid/absent. |
+| Interactive UI | `apps/web/features/architecture-canvas/usePlaygroundWorkspace.ts` | Architecture is editable state; view/selection/playback/annotation state is not simulation input. |
+| Official competition | `apps/web/lib/competition/verify-submission.ts`, `apps/web/app/api/submissions/route.ts` | Server uses trusted challenge versions and shared simulator results; browser-provided claims are not truth. |
+| Database | `supabase/migrations/` | Migrations are ordered source of truth. Add a migration; do not modify deployed history. |
 
-Use package barrel exports (`src/index.ts`) when a contract is public. Follow an
-existing import path before creating a new abstraction.
+## Contracts agents commonly break
 
-## Edit routing checklist
+### Canonical architecture and simulator
 
-1. Read the relevant ticket in the active plan (`plans/level/1/plan.md` for Level
-   Profiles, or `plans/phase N/plan.md` when that ticket governs) and its
-   dependency gate.
-2. Read only the contract docs needed for that ticket:
-   `ARCHITECTURE`, `SIMULATOR`, `COMPONENTS`, `CHALLENGES`, `COST_MODEL`,
-   `AI`, `WEBMCP`, `ACCOUNTS`, or `PRODUCTION`.
-3. **New level work starts at a Level Profile JSON** under
-   `packages/challenges/src/levels/`. Compile into `ChallengeDefinition`; do not
-   hand-maintain a second affinity/workload table in TS. Follow the Extending
-   affinity checklist in `docs/CHALLENGES.md` for new mechanisms.
-4. Locate the canonical type/function and its barrel export before editing a
-   consumer. Do not recreate a domain calculation in the UI.
-5. For a new component, update the component catalog and challenge allowance;
-   do not add a component-specific simulator shortcut.
-6. For new agent behavior, add one adapter-neutral capability first, then use
-   the existing AI SDK and WebMCP adapters. Resolve availability from the live
-   architecture/context rather than hard-coding it in a React component.
-7. For visuals, consume complete simulator/result event batches (and LP-05 share
-   mapper over absorb RPS). Presentation state is ephemeral and must never become
-   architecture or official-submission input. Profile `volumeProfile` bands are
-   playtest guards only — not scored shares.
-8. Validate untrusted architecture, capability input, and adapter payloads at
-   their boundary with the existing schemas/parsers (`assert*` — no Zod).
-9. Inspect `git diff` before finishing and report targeted checks run.
+- Call `validateArchitecture`/`parseArchitecture` for untrusted
+  architecture-shaped input. This establishes structural validity only.
+- Call simulator evaluation with the registered catalog for placement, region,
+  capacity, and other simulation semantics. Do not duplicate those rules in a
+  route or component.
+- Component deployments remain part of the same logical component. Where
+  deployments are present, the simulator validates component-specific capacity
+  relationships (for example service instance totals and Postgres roles).
+- Requirements evaluate outcomes. Avoid component-name or topology checks.
+- Simulator events are authoritative inputs to animation/presentation; do not
+  manufacture traffic, cache hits, outages, or resource metrics.
 
-## Non-negotiable boundaries
+### Challenges and levels
 
-- `@faultline/simulator` is deterministic and independent of React, the DOM,
-  AI, Supabase, and network calls.
-- The same canonical `Architecture` feeds the logical canvas, world map,
-  simulator, agent context, and official submission validation.
-- The simulator—not an LLM or browser heuristic—owns pass/fail, metrics,
-  routing, capacity, latency, cost, and experiment outcomes.
-- WebMCP uses shared semantic capabilities and schemas. The adapter translates
-  and registers them without duplicating domain logic.
-- Agents may inspect, annotate, and run explicitly supported temporary
-  experiments, but may not mutate architecture, official attempts, or
-  leaderboard state.
-- Geography, workload affinity, cache behavior, hot-key behavior, and cost are
-  real modeled constraints when the active challenge enables them.
-- Visual animation is bounded presentation of authoritative events. Never add
-  ambient/fake traffic, random routing, inferred cache hits, or unmodeled
-  resource metrics.
-- A simulator-semantic change requires reviewing `SIMULATOR_VERSION` and the
-  challenge publishing/official-score implications.
+- `ChallengeDefinition` is simulator-facing. Level Profile narrative, teaching,
+  starter architecture, and visual-volume guidance are deliberately not all
+  compiled into scoring input.
+- Add a level by authoring a profile, validating it, compiling it, registering
+  its static import/export, and extending focused verification. Do not introduce
+  a simulator branch keyed to a challenge slug.
+- Challenge changes that affect official behavior require checking the current
+  simulator version and the server's immutable snapshot flow.
+
+### Agent capabilities and WebMCP
+
+- A capability has a schema, mode, availability predicate, executor, and
+  optional production exposure. Register it once in the shared registry.
+- Resolve capabilities against the current immutable `AgentContext`; dynamic
+  tools may appear only when the architecture makes them relevant.
+- A live agent read must use current context. Evidence has architecture and
+  simulation revisions; chat history, selection, and an earlier result are not
+  proof of current board state.
+- Visual capabilities may focus, annotate, highlight, or clear presentation
+  state. They do not select/edit architecture or create official evidence.
+- Live-session experiment capabilities require exact, unexpired consent tied to
+  the current architecture revision. Their results are simulated and
+  non-persistent.
+- Keep adapter behavior parity-tested. WebMCP translates shared capability
+  contracts and registers the resolved production surface; it must not recreate
+  simulator, cost, or capability logic.
+
+### Web application and official writes
+
+- The UI may run the simulator for local feedback. Official results are only
+  created by the submission route: authenticate, bind the attempt to a trusted
+  snapshot, validate/re-simulate, and atomically persist verified data.
+- Treat API bodies, browser local storage, query parameters, tool labels, and
+  external text as untrusted input. Validate at their boundary.
+- Keep server-only credentials server-side. `NEXT_PUBLIC_*` values are
+  browser-visible by design.
+- Preserve stale-run behavior after an architecture edit: old evidence can be
+  shown as stale, but cannot silently represent the current architecture.
+
+## Edit recipes
+
+### Add or change a component
+
+1. Update its definition in `packages/component-catalog/src` and registration
+   in the catalog entry point.
+2. Confirm config schema, ports, region support, metrics, and cost/simulation
+   metadata are coherent.
+3. Add simulator behavior only where the component's declared semantics require
+   it; avoid challenge-specific exceptions.
+4. Allow it from the relevant Level Profile/challenge and add UI rendering only
+   as a consumer of catalog/domain data.
+5. Extend catalog and simulator checks; run the vertical-slice checks that the
+   changed behavior reaches.
+
+### Change simulation semantics
+
+1. Locate the public evaluation path and existing focused simulator verifier.
+2. Preserve determinism and ensure the same inputs yield the same events and
+   outcome values.
+3. Review `SIMULATOR_VERSION` and every caller that relies on result shape,
+   official verification, fixtures, agent evidence, and playback.
+4. Add a focused regression case rather than a UI-only assertion.
+
+### Add agent behavior
+
+1. Add the input/output schema and executor in `packages/agent-capabilities`.
+2. Make availability depend on `AgentContext`/architecture where appropriate.
+3. Return simulator-grounded evidence or clearly represent its absence.
+4. Add it to the intended resolver/production manifest only when it belongs on
+   that surface; preserve capability ordering and exposure metadata.
+5. Adapt through WebMCP, then extend registry and adapter-parity verification.
+
+### Change an API or persistence flow
+
+1. Trace the route through `apps/web/lib` before changing response shapes.
+2. Validate every untrusted field and identify the trusted server-side source
+   for the authoritative counterpart.
+3. Add a forward-only migration for schema/RPC/RLS changes.
+4. Verify negative paths as well as the successful response. Do not expose user
+   IDs, architecture JSON, or server-only values on public surfaces unless the
+   endpoint contract explicitly requires them.
 
 ## Verification map
 
-Start with the smallest check that covers the changed boundary, then run the
-repository typecheck/build when the change crosses packages.
+Read the target `package.json` before running a command; these are current
+high-value entry points:
 
-| Changed area | First targeted check | Broader check |
+| Changed boundary | First check | Broaden when needed |
 | --- | --- | --- |
-| Core contracts | `pnpm --filter @faultline/core verify` | `pnpm typecheck` |
-| Catalog | `pnpm --filter @faultline/component-catalog verify` | `pnpm typecheck` |
-| Challenge rules | `pnpm --filter @faultline/challenges verify` | `pnpm typecheck` |
-| Level Profiles (schema, Level 1 JSON, starter, share visuals, teaching) | `pnpm verify:level-profiles` | `pnpm --filter @faultline/challenges verify` |
-| Simulator semantics | `pnpm --filter @faultline/simulator verify` | `pnpm build` |
-| Workload affinity (helpers, placement, Level 1 calibration, agent fit, UI evidence) | `pnpm verify:affinity` | `pnpm --filter @faultline/simulator verify` |
-| Agent capabilities | `pnpm --filter @faultline/agent-capabilities verify` | `pnpm typecheck` |
-| WebMCP adapter | `pnpm --filter @faultline/webmcp verify` | `pnpm typecheck` |
-| Web UI behavior | the matching `apps/web` `verify:*` script | `pnpm build` |
-| Geography completeness | `pnpm verify:geo` | `pnpm build` |
+| `core` | `pnpm --filter @faultline/core verify` | `pnpm typecheck` |
+| component catalog | `pnpm --filter @faultline/component-catalog verify` | catalog consumers/typecheck |
+| challenge/profile | `pnpm --filter @faultline/challenges verify` or `pnpm verify:level-profiles` | simulator and web profile checks |
+| simulator | `pnpm --filter @faultline/simulator verify` | `pnpm build` |
+| workload affinity | `pnpm verify:affinity` | simulator + web checks in that command |
+| agent capabilities | `pnpm --filter @faultline/agent-capabilities verify` | `pnpm typecheck` |
+| WebMCP | `pnpm --filter @faultline/webmcp verify` | `pnpm verify:agent-context` or web build |
+| web UI | matching `pnpm --filter @faultline/web verify:<name>` | `pnpm build` |
+| official competition | matching web `verify:submission`, `verify:leaderboards`, or `verify:competition-config` | `pnpm verify:phase-4` |
 
-Useful focused web checks include `verify:agent-session`,
-`verify:dynamic-surface-parity`, `verify:workload-evidence`,
-`verify:level1-starter`, `verify:volume-share-visuals`, `verify:level-teaching`,
-`verify:authoritative-traffic-tokens`, `verify:presentation-playback`, and
-`verify:presentation-events` when those files are involved. For Level Profile lock across challenges + web, prefer
-`pnpm verify:level-profiles` from the repo root. For affinity foundation lock,
-prefer `pnpm verify:affinity`. Check `apps/web/package.json` for the current
-script name; don’t invent a command from an older phase.
+The root `pnpm typecheck` covers core, catalog, challenges, simulator,
+agent-capabilities, and web. The root `pnpm build` additionally builds those
+packages and the Next application; `@faultline/webmcp` has its own typecheck/
+verify commands and is not included in the root typecheck script.
 
-## Common traps
+## Before handoff
 
-- `ui` coordinates and view mode are presentation state, not simulator input.
-- Regional deployments are placement of one logical component, not a second
-  architecture model. Regional capacity totals must match logical totals.
-- Postgres read and write pressure are distinct; replicas do not shard one
-  viral hot key, and writes remain primary-only.
-- Geographic latency is supplied by simulator results. Do not copy the latency
-  matrix into UI code or double-count round trips.
-- A cold cache, failed component, failed region, or reroute in an experiment is
-  simulated evidence. Never label it as a real outage or show invented repair,
-  failover, or promotion.
-- Stale results must remain visibly stale after an architecture edit. Do not
-  silently reuse them as current evidence.
-- Any routing capability named in production guidance must be present in the
-  production manifest and tested through the registered production surface;
-  capability unit tests cannot substitute for a registered-surface regression.
-- Keep timers in one playback/controller layer. Cards, edges, map arcs, and
-  chat should consume derived state rather than each scheduling animation.
-- Do not add Level 2/3 components or infrastructure unless the active ticket
-  requires them.
-- New levels author as Level Profiles (`*.level.json`); do not treat the hero
-  scene as the playground starter. Volume bands are teaching/playtest only.
-
-## Candidate memory files
-
-Keep durable, cross-cutting rules here and in the root `AGENTS.md`. Add more
-files only when a directory has local rules that would otherwise be repeated in
-every task.
-
-| Priority | Candidate | Add when |
-| --- | --- | --- |
-| P0 | `AGENTS.md` | A repository-wide invariant or workflow changes |
-| P0 | `docs/CODEX.md` (this file) | Editing routes, traps, verification, or project snapshot change |
-| P1 | `packages/simulator/AGENTS.md` | Simulator-specific determinism/test conventions recur in tasks |
-| P1 | `packages/agent-capabilities/AGENTS.md` | Capability schema/resolver/adapter parity rules need local examples |
-| P1 | `apps/web/AGENTS.md` | UI work repeatedly needs playback, stale-state, and client/server boundaries |
-| P2 | `packages/webmcp/AGENTS.md` | WebMCP lifecycle and registration details grow beyond `docs/WEBMCP.md` |
-| P2 | `docs/DECISIONS.md` | Several architecture decisions need dated rationale, not task instructions |
-
-Do not create a generic `memory.md` full of transient status. Put changing work
-status in the phase plan, durable semantics in the domain docs, and stable edit
-guidance in this file.
+- Run `git diff --check` and inspect `git diff`.
+- Confirm documentation names current behavior; remove phase-status claims
+  rather than copying them forward.
+- Report the changed boundaries, intentional tradeoffs, and exact commands run.
+- If a check could not run, say why and do not represent it as passing.

@@ -1,117 +1,238 @@
-# WebMCP
+# WebMCP integration contract
 
-Faultline uses browser WebMCP as its primary external-agent coaching surface. It is a progressive enhancement: if the browser does not expose `document.modelContext`, the game remains fully playable and the top-bar plate reports **Unsupported browser**.
+Faultline exposes optional browser WebMCP tools through
+`@faultline/webmcp`. This package is an adapter over the shared
+`@faultline/agent-capabilities` registry: it does not implement a second
+architecture model, simulator, cost model, capability schema, or eligibility
+rule.
 
-Faultline keeps three responsibilities separate:
+The current source of truth is:
 
-- The player changes the architecture.
-- The deterministic simulator determines metrics, requirements, and official pass/fail.
-- An agent reads evidence, asks useful questions, and may draw ephemeral coaching marks.
+- shared semantic capabilities: `packages/agent-capabilities/src`;
+- browser adapter: `packages/webmcp/src`;
+- Level 1 registration and current evidence: `apps/web/features/webmcp/` and
+  `apps/web/features/agent-session/`;
+- live context construction: `apps/web/lib/agent-context/create-agent-context.ts`.
 
-## Browser setup
+## What is currently exposed
 
-1. Use a browser/agent host with WebMCP enabled for the current browser build.
-2. Open Level 1. WebMCP is registered independently of embedded model configuration.
-3. Confirm the top-bar WebMCP plate reaches **Agent ready**. It shows the registered read and visual tool counts.
-4. Connect an external agent through the browser's WebMCP discovery flow. Page code does not enumerate or connect to agents directly.
+WebMCP is a progressive enhancement of the Level 1 canvas. It is enabled unless
+`NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED` is `false`, `0`, or `off`; it is also
+unavailable when the browser does not expose `document.modelContext.registerTool`.
+In either case, gameplay and local simulation continue without it.
 
-The deployed origin needs a valid `NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN` when the browser build requires one. This value is browser-visible by design and is emitted as an origin-trial meta tag.
+The web app registers four independent production groups:
 
-For a staged rollout, enable `NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED` in a Vercel Preview deployment, verify the browser/agent host’s current approval flow, then enable it in Production. Setting it to `false` is a registration-only rollback: it never disables Level 1 gameplay. Do not set `NODE_ENV` manually.
+| Group | Purpose | Reconciles when |
+| --- | --- | --- |
+| `stable-review` | Core current-design reads. | Challenge identity changes or registration retry. |
+| `stable-visual` | Persistent coaching marks/focus intents. | Challenge identity changes or registration retry. |
+| `specialists` | Architecture-dependent read tools. | The challenge or architecture availability fingerprint changes. |
+| `experiments` | Explicitly consented, temporary simulated scenarios. | The challenge or architecture availability fingerprint changes. |
 
-## Surfaces
-
-Every tool invocation acquires one live evidence lease:
+The shared production manifest (`wmp-production-1`) presently permits:
 
 ```text
-{ snapshot: { context: AgentContext, session: AgentSessionState },
-  evidenceRevision, surfaceRevision, sessionRevision, isCurrent() }
+stable-review:
+  review_current_design, expand_design_evidence, inspect_design_entity,
+  inspect_component_option, compare_design_evidence, get_architecture,
+  inspect_component, estimate_capacity, get_metrics, get_cost_breakdown
+
+specialists:
+  inspect_cache, inspect_replication, inspect_regional_traffic, inspect_queue,
+  inspect_processing, inspect_object_storage, inspect_playback_origin
+
+stable-visual:
+  focus_component, annotate_component, highlight_connection, clear_annotations
+
+experiments:
+  run_load_test, change_traffic_pattern, flush_cache,
+  inject_component_failure, inject_region_failure, slow_consumers
 ```
 
-`AgentContext` contains the challenge, canonical architecture, simulator evidence, and cost evidence. `AgentSessionState` contains human focus, a pending help request, annotations, and a revision. Selection and help changes do not require WebMCP re-registration.
+Registration is not exposure. A tool must be registered in the shared registry,
+belong to the production manifest, have the required mode/safety annotations,
+and be available for the current `AgentContext`. Specialist and experiment
+availability is determined by shared architecture predicates and capability
+logic, not by model choice or UI heuristics.
 
-The lease is acquired with the tool invocation's `AbortSignal`, so cancellation
-can stop cold evidence construction without cancelling another waiter sharing the
-same immutable build. Read-only calls retry once when a canonical edit supersedes
-their lease before publication; visual and experiment calls return a controlled
-superseded result instead of retrying or publishing stale evidence.
+## Runtime flow
 
-Simulator-grounded reads include evidence provenance when live simulator context is available: architecture revision, simulation run ID, simulator version, generation time, and explicit stale state. Agents must treat unavailable or stale evidence as such rather than presenting it as current truth.
+```text
+editable Architecture + active Challenge + session
+                  │
+                  ▼
+WebMcpEvidenceSource builds/reuses prepared current evidence
+                  │
+                  ▼
+WebMCP adapter resolves production group → document.modelContext.registerTool
+                  │                                      │
+                  ▼                                      ▼
+           tool invocation                    shared registry invocation
+                                                       │
+                                    read evidence / visual intent / simulated experiment
+                                                       │
+                  ┌────────────────────────────────────┴──────────────────────────────────┐
+                  ▼                                                                       ▼
+          validated evidence envelope                                 page-owned visual/experiment bridge
+```
 
-### Read surface
+`WebMcpRegistration` creates the default shared registry and passes a live
+evidence source to `registerAgentWebMcpSurface`. A separate `AbortController`
+owns each registration generation; cleanup aborts it. The browser-facing status
+reports `unsupported`, `registering`, `ready`, `partial`, `failed`, or
+`disabled`, including per-mode registered/failed tool counts.
 
-Read tools are idempotent and read-only. They return facts; they do not decide correctness or mutate a design. Browser-facing metadata uses the standard WebMCP `title`, JSON-serializable `inputSchema`, `readOnlyHint`, and `untrustedContentHint` fields; richer Faultline semantics remain adapter-internal.
+The package uses a 2-second registration deadline for UI status. It does not
+cancel or make gameplay depend on a slow browser registration.
 
-| Tool | Purpose |
-| --- | --- |
-| `get_coaching_policy` | Returns Faultline's current reviewer contract, learning themes, bounded tool recipes, spatial budget, and prohibited actions. Call first. |
-| `get_session_focus` | Returns the human's selection and pending help request. |
-| `get_challenge` | Returns the active problem, workload, scenarios, and budget. |
-| `get_requirements` | Returns the configured success criteria. |
-| `get_architecture` | Returns canonical architecture state, without UI-only data, plus `inventory` with logical totals and deterministic counts/IDs by type. |
-| `inspect_component` | Reads the current invocation revision for `{ componentId }`, or an exact type selector such as `{ selector: { type: "postgres", scope: "all" | "topmost" } }`; `all` is the default for unqualified type-wide/count/existence questions, while `topmost` is positional only. |
-| `inspect_component_option` | Explains one challenge-unlocked catalog option, including configuration, modeled behavior, constraints, and learning themes. Omit `type` only for the bounded current-option list. |
-| `estimate_capacity` | Reports capacity, load, headroom, and bottleneck evidence. |
-| `get_metrics` | Returns compact simulator outcomes and scenario evidence; call first for health questions. |
-| `get_cost_breakdown` | Returns deterministic cost evidence. |
-| `inspect_cache` | Available only when the current architecture contains a cache. |
-| `inspect_replication` | Available only when the current architecture contains replication-relevant structure. |
-| `inspect_regional_traffic` | Available only when the current architecture contains geographic traffic structure. |
+## Current evidence and freshness
 
-The production WebMCP read profile is the stable set `review_current_design`, `expand_design_evidence`, `inspect_design_entity`, `inspect_component_option`, `compare_design_evidence`, `get_architecture`, `inspect_component`, `estimate_capacity`, `get_metrics`, and `get_cost_breakdown`. The specialist tools `inspect_cache`, `inspect_replication`, and `inspect_regional_traffic` are dynamically registered only when their structural predicate is true. `get_coaching_policy`, `get_session_focus`, `get_challenge`, and `get_requirements` remain available to complete semantic/embedded adapters but are not silently implied to be production WebMCP tools.
+`createWebMcpEvidenceSource` builds an exact UI-free evidence key from:
 
-Current-board facts are volatile. A production host must perform the direct read during the answer; it must not answer inventory, type counts, configuration, deployments, placement, or connections from chat history or an earlier evidence revision. Use `get_architecture.inventory` for board-wide contents and `inspect_component` with `scope: "all"` for an exact type count.
+- canonical architecture (components, deployments, and connections sorted by
+  stable IDs; no `ui` coordinates);
+- active challenge;
+- current `SIMULATOR_VERSION`; and
+- the WebMCP evidence contract marker.
 
-### Visual surface
+It caches prepared evidence for that exact key, deduplicates one in-flight
+build, retains a bounded history for review comparison, and can retain the last
+player-visible run as a comparison baseline. It builds indexes and compact
+review packets beside the context; those are adapter-facing evidence aids, not
+new simulator truth.
 
-Visual tools change only the ephemeral agent annotation layer. They never change architecture, simulation state, or official results. They are marked `readOnlyHint: false` and `destructiveHint: false` because they make visible coaching marks, not domain mutations.
+Each tool execution acquires a `WebMcpEvidenceLease` containing a
+`LiveAgentSnapshot`, evidence revision, surface revision, and session revision.
+Before an invocation it checks current availability; every capability call goes
+through `AgentCapabilityRegistry.invoke`, which validates input and enforces
+live experiment consent. After execution, the adapter checks whether the lease
+is still current. A superseded read is retried once on a fresh lease; otherwise
+the caller receives a controlled stale/superseded error response rather than a
+claim about the newer board.
 
-| Tool | Input | Mark |
+Do not reuse old chat content, selection, annotation state, or a previous
+result for a current-board assertion. Build a current context and use the
+shared evidence fingerprint/revision utilities.
+
+## Tool adaptation and results
+
+`toWebMcpTool` maps a shared `AgentCapability` to the minimal browser tool
+shape:
+
+- `name`, host-facing `title` and compact description;
+- the shared `inputSchema.jsonSchema` without adapter-specific reconstruction;
+- safe WebMCP annotations derived from shared annotations; and
+- an async executor backed by the shared registry.
+
+Some tools that can return player-authored material are marked with
+`untrustedContentHint`. Only `readOnlyHint` and `untrustedContentHint` are
+mapped to browser tool annotations. The read surface requires both
+`readOnlyHint` and `idempotentHint`; visual and experiment builders reject a
+positive `destructiveHint`.
+
+Successful object results are wrapped in the shared evidence envelope. The
+adapter projects quantitative evidence, separates player-authored content,
+filters follow-up suggestions to tools in the active surface, derives or
+validates a presentation cue, and attaches:
+
+- provenance (architecture revision, simulator/run identity, freshness, mode,
+  and simulated status where applicable);
+- known state (evidence/session/surface revisions, digest, request
+  fingerprint);
+- up to three next-tool suggestions;
+- truncation information when supplied by a capability; and
+- validated subjects and presentation framing.
+
+The adapter validates the completed envelope before returning it. Controlled
+capability errors are sanitized to `NOT_FOUND`, `SIMULATION_UNAVAILABLE`,
+`INVALID_INPUT`, `CANCELLED`, or `CONSENT_REQUIRED`, with safe recovery fields
+only. Unexpected failures return a generic error; development diagnostics may
+log locally, but stack traces are not exposed to agents.
+
+## Visual and experiment effects
+
+WebMCP tools do not receive architecture-edit powers.
+
+- Visual capabilities return shared, validated intents. The adapter publishes
+  only supported focus/annotation/connection/clear/region/pin intents to the
+  web app’s single `createVisualCommandPublisher`, which applies them to the
+  page-owned agent session or presentation callbacks.
+- A presentation cue derived from a read result is advisory. It is validated
+  against the evidence revision before its callback runs; a callback error does
+  not prevent the evidence response.
+- Experiment capabilities remain on a separate surface. The shared registry
+  requires exact, revision-bound, five-minute human consent for a live session.
+  The adapter publishes only successful results marked `simulated: true`,
+  deduplicated by result digest for the lifetime of that tool instance.
+
+Visual marks, viewport focus, playback, and experiment panels are not
+architecture state, simulator input, official-submission input, or persistent
+competition evidence. Experiments do not modify the player’s design.
+
+## Registration lifecycle and observability
+
+`registerAgentWebMcpSurface` first builds a coherent manifest from one prepared
+context, then registers each tool through `modelContext.registerTool` with the
+generation’s abort signal. It records resolved, registered, failed, and
+per-mode tool names. A manifest includes the production contract version,
+evidence revision, tools, skip names, and a fingerprint of host-visible tool
+metadata.
+
+Optional timing events cover registration/surface construction, context and
+simulator work, capability execution, callback duration, and result bytes.
+Trace events cover registration, invocation, leases, completion, and cue
+lifecycle. Browser telemetry is allowlisted: it does not include prompts,
+architecture JSON, accounts, or result payloads, and revisions are reduced to
+a safe digest before emission.
+
+`/dev/webmcp` is the current development inspector for registrations, traces,
+timing, mock session signals, annotations, and manual invocation. It is not the
+production capability profile.
+
+## Change rules
+
+| Change | Start with | Required follow-through |
 | --- | --- | --- |
-| `focus_component` | `{ componentId }` | Corner focus bracket. |
-| `annotate_component` | `{ componentId, text, tone? }` | Marginal note; `tone` may be `neutral`, `question`, or `risk`; text is limited to 280 characters. |
-| `highlight_connection` | `{ connectionId, label? }` | Emphasized existing connection. |
-| `clear_annotations` | `{ scope?: "all" \| "component", componentId? }` | Removes matching coaching marks. |
+| Semantic tool, input/output, availability, consent | `@faultline/agent-capabilities` | Registry/resolver verifier first; adapt here only after shared behavior exists. |
+| Production tool exposure/group | `capability-names.ts` in agent capabilities | WebMCP surface, tool-routing, and adapter-parity checks. |
+| Browser API adaptation, envelope, safety, registration | `packages/webmcp/src` | Preserve shared schemas/results, cancellation, revision leases, and error sanitization. |
+| Live context/evidence cache | `apps/web/lib/agent-context/`, `features/webmcp/evidence-store.ts` | Preserve UI-free identity and fresh simulator-grounded evidence. |
+| Visual bridge or experiment presentation | `features/agent-session/visual-intent-bridge.ts`, workspace callbacks | Keep effects page-owned and unable to mutate canonical architecture. |
+| Feature switch/status/telemetry | `features/webmcp/webmcp-config.ts`, `WebMcpRegistration.tsx` | Keep diagnostics allowlisted and WebMCP optional. |
 
-Unknown component and connection IDs are rejected. At most 12 annotations are visible. Marks referring to deleted architecture objects are pruned. The player can always use **Clear marks** without reconnecting an agent.
+Never implement a domain capability solely in `packages/webmcp` or
+`apps/web`. Never use WebMCP results as official scoring input. Never expose
+cross-origin registration options, server credentials, raw user content, or
+unsanitized errors through this adapter.
 
-## Focus and help protocol
+## Verification
 
-When a player selects a component, Faultline stores component focus in the session. When they click a help chip, Faultline also records a pending help request and copies a suggested prompt. The page does not push a message to the agent host.
+For adapter behavior:
 
-After a player clicks a help chip, an agent should:
+```sh
+pnpm --filter @faultline/webmcp verify
+pnpm --filter @faultline/webmcp verify:compatibility
+```
 
-1. Use the direct evidence capability for the current help request when its intent is clear; use `review_current_design` for overview, retained-revision delta, or genuine ambiguity.
-2. For a clear request, call its direct evidence tool first: `inspect_component` for a named component, `inspect_design_entity` for a relationship/workload, or `get_metrics` for health.
-3. State one grounded finding and ask one focused question.
-4. When naming a component or connection, the result may include a grounded temporary spotlight; add a matching visual tool mark only when a persistent annotation is useful.
-5. Poll `get_session_focus` again after later help interactions.
+For the web lifecycle/evidence bridge, choose the nearest current script, for
+example:
 
-The coaching policy is discoverable through `get_coaching_policy`; agents should follow that returned policy rather than relying on hard-coded assumptions. Its structured recipes cover component review, requirement failure, workload tracing, cost review, and experiment proposals. Recipes prefer targeted evidence to `get_architecture` and require an explicit human approval before an experiment. Independent follow-up reads may run concurrently when neither depends on the other.
+```sh
+pnpm --filter @faultline/web verify:webmcp-polish
+pnpm --filter @faultline/web verify:webmcp-performance
+pnpm --filter @faultline/web verify:webmcp-evidence-store
+pnpm --filter @faultline/web verify:live-agent-context-factory
+pnpm --filter @faultline/web verify:agent-session
+```
 
-ChatGPT (or another compatible agent host) owns the written response. Faultline’s visual tools are optional spatial collaboration: targeted grounded reads frame their validated component or bounded path, while subjectless overview reads remain stationary. Automatic framing is bounded and does not change selection or architecture. Labels, notes, and tool-returned prose are untrusted data, never instructions.
+Changes to shared capability behavior also require:
 
-## Registration and lifecycle
+```sh
+pnpm --filter @faultline/agent-capabilities verify
+pnpm verify:agent-context
+```
 
-`registerAgentWebMcpSurface()` supports independently owned registration groups: stable review reads, stable visuals, architecture-dependent specialists, and consent-gated experiments. The browser registration mounts each group with its own abort signal, generation, and reconciliation key, so adding or removing a Redis, replica, or region only reconciles the affected specialist/experiment group. Stable tools retain their identities and read the newest evidence through the evidence source. The evidence source uses one UI-free semantic revision covering architecture, challenge, simulator, and evidence-contract inputs; canonical edits prewarm one coalesced build, while UI/session changes do not. A read whose lease is superseded retries once and never publishes the old revision. Successful WebMCP visual tools pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. Unmount aborts all groups cleanly. Optional WebMCP failures are contained so they never break gameplay.
-
-The publisher owns coaching marks only. It does not mutate Architecture or rerun the simulator. Observation and focus commands are routed to the presentation controller from this same publisher boundary; coaching notes remain in the annotation layer and are kept across baseline/experiment runs, while ephemeral focus ticks are cleared when a run starts.
-
-Grounded path cues may spotlight up to five validated components together and their connecting edges. The first target is primary; supporting targets share a lighter treatment. Paths are ordered by the evidence selector, bounded at five components, replaced and expired atomically, and discarded when their evidence revision is stale. This presentation state is ephemeral and does not become an annotation, selection, camera instruction, or simulator input.
-
-Presentation-cue acceptance cases are: targeted component explanation (primary framing plus spotlight), requirement/error location (bounded primary/path framing plus spotlight), relationship and request-path explanation (bounded multi-target node/edge path), stale evidence (no cue), rapid successive answers (latest cue wins), and active pan/zoom, node drag, connection drag, or editing (only the newest camera request is deferred). Hosts that do not support presentation callbacks still receive the same evidence and remain fully playable.
-
-An explicit `focus_component` visual request performs the same bounded logical-canvas `fitView` as a player focusing that component, including switching back from the world map. It remains separate from temporary read-result framing because it is an explicit coaching visual action.
-
-For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and is available in any local development build. Its in-memory trace exposes only allowlisted capability/group/generation, bounded revision digest, selector scope, matched count, outcome, and retry fields; it never retains IDs, labels, configuration, prompts, payloads, or prose. The production surface is available whenever the browser supports WebMCP; an unsupported host leaves gameplay fully functional.
-
-## Safety boundary
-
-WebMCP is not an architecture editing API. Agents may inspect, test, and add ephemeral marks, but must not own a player's architecture decisions or official submission. Official results are always re-simulated server-side.
-
-Experiment capabilities require a recent, human-controlled page-session consent for the exact capability and current canonical architecture. Consent expires after five minutes and tool calls cannot create or renew it. A denied or expired invocation returns `CONSENT_REQUIRED` without running simulator work; experiment outputs remain simulated and never affect official verification, accounts, or leaderboards.
-
-Controlled failures preserve an actionable recovery object with a stable code,
-retryability, current evidence revision when known, and— for experiments— the
-explicit `approve_exact_experiment` action. Adapter errors never expose stacks,
-raw exceptions, prompts, or inaccessible tool names.
+Finally run `git diff --check` and inspect the diff. Test unsupported and
+disabled states as well as successful registration: WebMCP must remain an
+optional observer/coach of the running game.

@@ -1,169 +1,126 @@
-# AGENTS.md
+# Faultline agent guide
 
-## Product
+Faultline is a systems-design game. A player edits an architecture; shared,
+deterministic code evaluates it; an agent can inspect, annotate, and run
+explicitly supported simulated experiments. The simulator—not a UI heuristic or
+language model—decides metrics, requirements, cost, and official eligibility.
 
-Faultline is a daily distributed-systems design game.
+This file is repository-wide policy. Read [`docs/CODEX.md`](docs/CODEX.md) for
+the current code map, edit routing, and command selection.
 
-Core rule:
+## Trust order
 
-> Human designs. Simulator determines truth. Agent challenges the design.
+Use the current implementation as the factual source of truth:
 
-Current priority: ship one excellent Level 1 (Global URL Shortener) before adding breadth.
+1. Public types, implementations, registrations, migrations, and route code.
+2. Verification scripts and package scripts that exercise those contracts.
+3. This guide and focused domain docs, which explain durable intent.
+4. Plans, tickets, and historical notes, which may define requested scope but
+   do not establish current behavior by themselves.
 
-## Start Here
+When prose and code disagree, do not silently preserve the prose. Verify the
+behavior in code, implement the requested change against that behavior, and
+update the relevant durable documentation in the same change when it is now
+wrong.
 
-Before meaningful work:
+## Repository shape
 
-1. Read the active ticket in the current phase plan (`plans/phase N/plan.md`).
-   `plans/overall.md` is product vision, not an instruction to skip the active
-   phase sequence.
-2. Inspect the existing implementation.
-3. Read only the relevant docs listed below.
-4. Implement the smallest production-quality change that satisfies the ticket.
-5. Keep the current Level 1 flow working.
+| Area | Owns |
+| --- | --- |
+| `packages/core` | Serializable domain contracts: architecture, connections, regions, challenges, workloads, and experiment envelopes. |
+| `packages/component-catalog` | The registered component catalog, config schemas, ports, defaults, and component metadata. |
+| `packages/challenges` | Challenge definitions, Level Profile schema/compilation, curriculum helpers, and config hashing. |
+| `packages/simulator` | Deterministic validation, traffic/capacity/latency/cost/requirements, geography, workload paths, and experiments. |
+| `packages/agent-capabilities` | Adapter-neutral capabilities, schemas, evidence, session/consent rules, and capability resolution. |
+| `packages/webmcp` | Browser WebMCP adaptation, registration, visual intent, error handling, and lifecycle behavior. |
+| `apps/web` | Next.js routes and product UI: canvas, map, playback, agent session, official attempts, and server adapters. |
+| `supabase/migrations` | Append-only database schema, RLS, functions, and competition/account persistence rules. |
 
-For editing routes, verification commands, common traps, and Codex-specific
-project memory, read [`docs/CODEX.md`](docs/CODEX.md) after the active ticket.
-It is operational guidance, not a replacement for the phase plan or domain
-contracts.
+## Non-negotiable contracts
 
-Do not skip ahead to future phases unless required by the active ticket.
+- There is one canonical `Architecture` (`@faultline/core`). Component and
+  connection IDs are stable; `ui` coordinates are presentation data only.
+- The component registry is the only catalog registration boundary. Do not add
+  component behavior solely in React, a challenge, or an agent tool.
+- Challenges define workload and outcome requirements. They may limit the
+  sandbox, but must not score a prescribed topology or named component.
+- The simulator is deterministic and framework/provider independent. UI,
+  adapters, and server routes consume its results; they do not recalculate its
+  formulas.
+- Simulator validation is stricter than structural architecture parsing. Use
+  the public parser/validator at untrusted boundaries and simulator evaluation
+  for simulation-specific validity.
+- Regional deployments are placement of a logical component in the same
+  architecture, not another architecture model. Logical capacity totals and
+  deployment capacity must agree where the simulator requires it.
+- Agent capabilities are semantic operations in `@faultline/agent-capabilities`.
+  WebMCP is an adapter, not another source of domain logic.
+- Agents never mutate the player's canonical architecture, submit official
+  attempts, or write leaderboard state. Experiments are typed, temporary
+  simulator overlays and require the existing human-consent path when invoked
+  through a live agent session.
+- Official submission is server-authoritative: bind an authenticated attempt to
+  a trusted challenge snapshot, validate the submitted architecture, run the
+  shared simulator, then persist the verified result. Never accept browser
+  claims for metrics, cost, pass/fail, time, or eligibility.
+- Playback, annotations, selection, view mode, and stale-result state are
+  ephemeral presentation/session state. They must not become simulation or
+  official-submission input.
 
-## Repository Map
+## Working procedure
 
-- `apps/web` — Next.js product
-- `packages/core` — shared domain contracts
-- `packages/simulator` — deterministic simulation truth
-- `packages/component-catalog` — component definitions
-- `packages/challenges` — challenge definitions
-- `packages/agent-capabilities` — shared semantic agent capabilities
-- `packages/webmcp` — WebMCP adapter
-- `supabase` — migrations/schema
-- `docs` — durable architecture/domain documentation
-- `docs/CODEX.md` — concise edit routing, verification map, and agent memory
-- `plans/phase N/plan.md` — active execution plan and ticket order
-- `plans/overall.md` — durable product vision and rationale
+1. Run `git status --short`. Preserve unrelated work.
+2. Locate the owning package and its public entry point before changing a
+   consumer. Follow current call sites and its verification script.
+3. Read only the source and durable docs needed for that boundary. A task plan
+   can constrain scope, but confirm all factual claims in current code.
+4. Make the smallest cohesive change. Reuse existing contracts and validation
+   patterns; do not add a dependency or parallel abstraction without a present
+   product need.
+5. Validate at the narrowest affected boundary, then broaden when a changed
+   public contract crosses packages or reaches the web/server surface.
+6. Inspect `git diff --check` and `git diff` before handoff. State what changed
+   and which checks actually ran.
 
-## Sources of Truth
+## Boundary rules
 
-Read only what is relevant:
-
-- `plans/phase N/plan.md` — current implementation order
-- `docs/ARCHITECTURE.md` — system boundaries
-- `docs/SIMULATOR.md` — simulation semantics
-- `docs/COMPONENTS.md` — component contract
-- `docs/CHALLENGES.md` — challenge contract
-- `docs/COST_MODEL.md` — deterministic cost rules
-- `docs/AI.md` — embedded AI architecture
-- `docs/WEBMCP.md` — WebMCP behavior
-- `docs/PRODUCTION.md` — Vercel/Supabase production architecture
-
-## Architectural Invariants
-
-1. There is one canonical architecture model.
-2. There is one deterministic simulator shared by browser and server.
-3. The simulator, never an LLM, determines pass/fail.
-4. Official leaderboard results are re-simulated server-side.
-5. The human owns architecture changes during challenges.
-6. Embedded AI and WebMCP share one agent capability registry.
-7. Agent capabilities may depend on current architecture state.
-8. Canvas and world map consume the same architecture state.
-9. Geography must affect simulation where applicable.
-10. Cost is a real challenge constraint.
-11. Simulation emits events; UI animations consume them.
-12. Challenges should score outcomes, not specific technologies.
-13. New components register through the component catalog.
-14. Build Level 1 before Level 2 breadth.
-
-## Production
-
-Primary stack:
-
-- TypeScript
-- Next.js
-- Vercel
-- Supabase/Postgres
-- React Flow
-- Vercel AI SDK
-- Vercel AI Gateway
-- WebMCP
-
-Do not add infrastructure or dependencies without a current product need.
-
-## AI
-
-Embedded AI is the default user experience.
-
-WebMCP exposes the same semantic capability layer to external agents.
-
-Do not duplicate domain logic between AI SDK tools and WebMCP tools.
-
-AI interprets simulator evidence; it does not invent metrics or decide correctness.
-
-During active challenges agents may inspect, test, and inject simulated failures, but must not modify the architecture.
-
-## Level Development
-
-Build components because a level needs them.
-
-Level 1:
-Service, Postgres, Redis, Router, Load Balancer, CDN, replicas, geography.
-
-Level 2 adds:
-Queue, Worker, Event Stream.
-
-Level 3 adds:
-Rate Limiter and correctness/flash-traffic primitives.
-
-If Level 2 requires rewriting Level 1 fundamentals, reassess the abstraction.
-
-## Working Style
-
-Prefer:
-
-- small cohesive changes
-- explicit types
-- deterministic logic
-- schema validation at boundaries
-- boring infrastructure
-- minimal dependencies
-- production-ready vertical slices
-
-Avoid:
-
-- speculative frameworks
-- duplicated domain logic
-- future-feature implementation
-- giant refactors unrelated to the ticket
-- component-specific challenge hacks
-
-## Git Safety
-
-Before editing:
-
-`git status`
-
-Do not discard unrelated changes or rewrite unrelated code.
-
-Keep diffs scoped to the active ticket.
-
-Inspect `git diff` before finishing.
+| If you change… | Start at… | Keep out of… |
+| --- | --- | --- |
+| Architecture shape, IDs, regions, experiment types | `packages/core/src` | React state and adapter-specific schemas |
+| A component, config dial, port, or default | `packages/component-catalog/src` | Challenge-slug branches and UI-only rules |
+| Level content or a challenge rule | `packages/challenges/src/levels/*.level.json`, then compile/validation | Simulator slug branches and duplicated TypeScript challenge bodies |
+| Traffic, capacity, latency, cost, requirements, or experiment outcome | `packages/simulator/src` | Browser-only calculations |
+| Agent behavior or tool input/output | `packages/agent-capabilities/src` | WebMCP-only domain implementations |
+| Browser tool registration or visual intent | `packages/webmcp/src` | A second capability registry |
+| Canvas, map, playback, or annotation rendering | `apps/web/features` | Canonical domain semantics |
+| Official attempt, API, or persistence behavior | `apps/web/lib`, `apps/web/app/api`, `supabase/migrations` | Client-trusted scoring |
 
 ## Verification
 
-Early MVP work prioritizes production builds and targeted smoke testing.
+Use real package scripts; do not invent command names from old plans.
 
-Once formal tests exist, run checks relevant to the files changed.
+- Contract/package change: `pnpm --filter @faultline/<package> verify`
+- Cross-package type boundary: `pnpm typecheck`
+- Simulator semantics: `pnpm --filter @faultline/simulator verify`
+- Level Profile/curriculum change: `pnpm verify:level-profiles`
+- Affinity behavior: `pnpm verify:affinity`
+- Agent capability change: `pnpm --filter @faultline/agent-capabilities verify`
+- WebMCP adapter change: `pnpm --filter @faultline/webmcp verify`
+- Web feature: run the matching `apps/web` `verify:*` script, then `pnpm build`
+  when the change crosses into application production code.
 
-Do not spend time on unrelated full-suite work unless required by the ticket.
+Formal checks are executable documentation. Extend the narrow verifier when a
+new public behavior or a regression-prone invariant is introduced.
 
-## Definition of Good Work
+## Change safety
 
-A good change:
-
-- completes the active ticket
-- preserves architectural invariants
-- keeps production buildable
-- keeps Level 1 at least as playable as before
-- introduces no unnecessary infrastructure
-- leaves the next ticket easier to implement
+- Do not discard or rewrite unrelated worktree changes.
+- Do not use destructive Git commands unless the user explicitly requests them.
+- Add database changes as a new migration; do not edit an applied migration or
+  use a hosted dashboard as schema source of truth.
+- Do not expose server-only environment values to browser code.
+- Keep browser-only modules free of Node-only imports. In particular, the
+  challenge package's filesystem loader is intentionally not exported from its
+  browser-safe package root.
+- Avoid broad refactors, new infrastructure, and speculative features. Build
+  the requested vertical slice and preserve existing playable flows.
