@@ -313,9 +313,7 @@ export function HomeHelp({
                 <div>
                   <h3>Build a system</h3>
                   <p>
-                    Drag components from the rail onto the canvas and connect
-                    their ports. Make each request path explicit, from the entry
-                    point to the data it needs.
+                    Drag components onto the canvas and connect their ports.
                   </p>
                   <SystemFlowGraphic />
                 </div>
@@ -325,9 +323,8 @@ export function HomeHelp({
                 <div>
                   <h3>Run the simulation</h3>
                   <p>
-                    Press Run to send the current challenge workload through
-                    your design. Moving packets show the path the simulation
-                    evaluated.
+                    Press Run to send the workload through your design. Moving
+                    packets show the path the simulation evaluated.
                   </p>
                 </div>
               </li>
@@ -336,9 +333,8 @@ export function HomeHelp({
                 <div>
                   <h3>Read the evidence, then iterate</h3>
                   <p>
-                    Select components and use the data plates to find latency,
-                    saturation, cache behavior, and cost constraints. Change the
-                    design and run it again.
+                    Select components and use the run results to find
+                    bottlenecks. Change the design and run it again.
                   </p>
                   <InspectGraphic />
                 </div>
@@ -349,11 +345,11 @@ export function HomeHelp({
                   <h3>Bring an external agent into the loop</h3>
                   <p>
                     In a compatible browser, WebMCP lets your agent look at
-                    Faultline with you. Ask it to walk through the design,
-                    point at a component, explain a confusing result, or
-                    highlight a likely problem using live simulator evidence.
-                    You stay in charge of changes, and the simulator decides
-                    whether the design passes.
+                    Faultline with you. Ask it to walk through the design, point
+                    at a component, explain a confusing result, or highlight a
+                    likely problem using live simulator evidence. You stay in
+                    charge of changes, and the simulator decides whether the
+                    design passes.
                   </p>
                   <WebMcpGraphic />
                 </div>

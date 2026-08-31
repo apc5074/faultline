@@ -128,7 +128,7 @@ export {
   buildStartDesignInterviewOutput,
 } from "./start-design-interview.js";
 export type {
-  DesignInterviewAgendaItem,
+  DesignInterviewQuestion,
   StartDesignInterviewInput,
   StartDesignInterviewOutput,
 } from "./start-design-interview.js";

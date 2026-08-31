@@ -33,13 +33,30 @@ assert.equal(startDesignInterviewCapability.mode, "read");
 const opening = buildStartDesignInterviewOutput(context, { step: 0 });
 assert.equal(opening.ok, true);
 assert.equal(opening.data.phase, "opening");
-assert.equal(opening.data.openingQuestions.length, 3);
+assert.equal(opening.data.questionId, "opening-1");
+assert.equal(opening.data.totalQuestions, 6);
+assert.equal(opening.data.architectureRevision, "interview-revision");
+assert.equal(opening.data.agenda.length, 3);
+assert.equal(opening.data.agenda[0].questionId, "component-router");
+assert.equal(opening.data.agenda[0].ordinal, 4);
+assert.equal(opening.data.agenda[1].questionId, "component-services");
 assert.equal(opening.data.agenda[1].grouped, true);
 assert.deepEqual(opening.data.agenda[1].componentIds, ["service-a", "service-b"]);
 
-const component = buildStartDesignInterviewOutput(context, { step: 2 });
+const secondOpening = buildStartDesignInterviewOutput(context, { step: 1 });
+assert.equal(secondOpening.ok, true);
+assert.equal(secondOpening.data.questionId, "opening-2");
+assert.equal(secondOpening.data.phase, "opening");
+assert.equal(secondOpening.data.presentationCue, undefined);
+
+const thirdOpening = buildStartDesignInterviewOutput(context, { step: 2 });
+assert.equal(thirdOpening.ok, true);
+assert.equal(thirdOpening.data.questionId, "opening-3");
+
+const component = buildStartDesignInterviewOutput(context, { step: 4 });
 assert.equal(component.ok, true);
 assert.equal(component.data.phase, "component");
+assert.equal(component.data.questionId, "component-services");
 assert.equal(component.data.grouped, true);
 assert.equal(component.data.presentationCue.kind, "set");
 assert.deepEqual(component.data.presentationCue.targets.map((target) => target.entityId), ["service-a", "service-b"]);
