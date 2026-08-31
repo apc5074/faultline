@@ -84,6 +84,10 @@
 }
 
 .official-scorecard h2 { margin: 0.15rem 0 0; font-size: 1rem; }
+.official-scorecard__rank { margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid var(--color-ink-hairline); }
+.official-scorecard__rank-summary { margin: 0; font-size: 0.72rem; font-weight: 700; }
+.official-scorecard__rank-mark { color: var(--color-signal-green); }
+.official-scorecard__rank-meta { margin: 0.2rem 0 0; color: var(--color-ink-faint); font-size: 0.58rem; }
 .official-scorecard__version { color: var(--color-ink-faint); font-size: 0.55rem; }
 .official-scorecard__stale { color: var(--color-signal-red); font-weight: 700; }
 .official-scorecard__metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin: 0.7rem 0; }
@@ -97,7 +101,7 @@
 .official-scorecard__fail { color: var(--color-signal-red); font-weight: 800; }
 .official-scorecard__share-actions { margin-top: 0.65rem; }
 .official-scorecard__share { width: 100%; padding: 0.35rem; border: 1px solid var(--color-ink); background: var(--color-paper-dark); color: var(--color-ink); font: inherit; font-size: 0.58rem; cursor: pointer; }
-.official-scorecard__share:disabled { cursor: wait; opacity: 0.6; }
+.official-scorecard__share:disabled { cursor: pointer; opacity: 0.6; }
 .official-scorecard__share-buttons { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .official-scorecard__share-buttons .official-scorecard__share { flex: 1 1 8rem; }
 .official-scorecard__share-link { display: inline-flex; align-items: center; justify-content: center; padding: 0.35rem; border: 1px solid var(--color-ink-hairline); color: var(--color-ink); font-size: 0.58rem; text-decoration: none; }
@@ -1072,6 +1076,9 @@ main {
 
 .player-streak-hud--hint {
   justify-content: center;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
   text-align: center;
 }
 
@@ -3486,6 +3493,18 @@ h1 {
   border-bottom: 0;
 }
 
+.hud-plate__rank-list-self {
+  background: var(--color-paper-dark);
+  font-weight: 700;
+}
+
+.hud-plate__rank-gap {
+  display: block !important;
+  padding: 0.2rem 0 !important;
+  color: var(--color-ink-faint);
+  text-align: center;
+}
+
 .hud-plate__rank {
   color: var(--color-ink-faint);
 }
@@ -3915,7 +3934,7 @@ h1 {
 
 .sim-bar__button:disabled {
   opacity: 0.55;
-  cursor: wait;
+  cursor: pointer;
 }
 
 .sim-bar__button--joined {

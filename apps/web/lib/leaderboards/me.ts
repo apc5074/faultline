@@ -3,6 +3,23 @@ import "server-only";
 import { ActiveDailyChallengeError, getActiveDailyChallenge } from "@/lib/challenges/daily";
 import { createSupabaseServerClient, getCurrentAuthUser, getSupabasePublicConfig } from "@/lib/supabase/server";
 
+export type LeaderboardRanksSnapshot = {
+  alias: string;
+  fastestRank: number;
+  cheapestRank: number;
+};
+
+export function snapshotLeaderboardRanks(ranks: MyLeaderboardRanks): LeaderboardRanksSnapshot | null {
+  if (!ranks.authenticated || !ranks.ranked) {
+    return null;
+  }
+  return {
+    alias: ranks.alias,
+    fastestRank: ranks.fastestRank,
+    cheapestRank: ranks.cheapestRank,
+  };
+}
+
 export type MyLeaderboardRanks =
   | {
       authenticated: false;

@@ -4,6 +4,7 @@ import { hashArchitecture } from "@faultline/challenges";
 import type { Architecture, CostResult, RequirementResult } from "@faultline/core";
 
 import type { VerifiedCompetitionMetrics } from "@/lib/competition/verify-submission";
+import type { LeaderboardRanksSnapshot } from "@/lib/leaderboards/me";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type { VerifiedCompetitionMetrics };
@@ -60,6 +61,7 @@ export type RestoredVerifiedSubmission = {
     cheapestCost: number;
     solveTimeAtCheapest: number;
   } | null;
+  leaderboardRanks: LeaderboardRanksSnapshot | null;
 };
 
 export type DailyBestProjection = {
@@ -359,6 +361,7 @@ export async function getLatestEligibleSubmission(input: {
           solveTimeAtCheapest: dailyBest.solveTimeAtCheapest,
         }
       : null,
+    leaderboardRanks: null,
   };
 }
 

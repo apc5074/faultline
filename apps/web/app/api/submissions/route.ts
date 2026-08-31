@@ -2,6 +2,7 @@ import type { CostResult, RequirementResult } from "@faultline/core";
 
 import { OfficialAttemptError } from "@/lib/attempts/official";
 import { verifySubmission } from "@/lib/competition/verify-submission";
+import { getMyLeaderboardRanks, snapshotLeaderboardRanks } from "@/lib/leaderboards/me";
 import {
   getCurrentAuthUser,
   getSupabasePublicConfig,
@@ -45,6 +46,11 @@ export type SubmitOfficialResponse =
         costAtFastest: number;
         cheapestCost: number;
         solveTimeAtCheapest: number;
+      } | null;
+      leaderboardRanks: {
+        alias: string;
+        fastestRank: number;
+        cheapestRank: number;
       } | null;
     }
   | {
@@ -250,6 +256,15 @@ export async function POST(request: Request): Promise<Response> {
       withinBudget: verified.withinBudget,
     });
 
+    let leaderboardRanks = null;
+    if (committed.eligible) {
+      try {
+        leaderboardRanks = snapshotLeaderboardRanks(await getMyLeaderboardRanks());
+      } catch {
+        // Rank snapshot is display-only; the verified submission is already committed.
+      }
+    }
+
     return Response.json({
       ok: true,
       submissionId: committed.submission.id,
@@ -266,6 +281,7 @@ export async function POST(request: Request): Promise<Response> {
       cost: verified.cost,
       requirements: verified.requirements,
       dailyBest: summarizeDailyBest(committed.dailyBest),
+      leaderboardRanks,
     } satisfies SubmitOfficialResponse);
   } catch (error) {
     if (error instanceof OfficialAttemptError) {

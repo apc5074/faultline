@@ -65,7 +65,6 @@ export function usePlaygroundWorkspace() {
     completion,
     setSession,
     setCompletion,
-    bumpRankRefresh,
   } = useOfficialAttempt();
   const [architecture, setArchitecture] = useState<Architecture>(resolveInitialArchitecture);
   const draftHydratedRef = useRef(false);
@@ -973,7 +972,6 @@ export function usePlaygroundWorkspace() {
           }
           setCompletion({ streak, submission: body });
         }
-        bumpRankRefresh();
       } catch {
         setUnexpectedError("Could not submit official architecture.");
         setRunState("error");
@@ -981,7 +979,7 @@ export function usePlaygroundWorkspace() {
         setOfficialSubmitting(false);
       }
     })();
-  }, [architecture, officialSession, bumpRankRefresh, playback, setCompletion]);
+  }, [architecture, officialSession, playback, setCompletion]);
 
   const onSelectComponent = useCallback(
     (componentId: string, deploymentId?: string) => {

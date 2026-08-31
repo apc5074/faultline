@@ -1,5 +1,6 @@
 import { getProfileAlias } from "@/lib/auth/profile";
 import { getCurrentOfficialAttempt, OfficialAttemptError } from "@/lib/attempts/official";
+import { getMyLeaderboardRanks, snapshotLeaderboardRanks } from "@/lib/leaderboards/me";
 import {
   getLatestEligibleSubmission,
   SubmissionPersistError,
@@ -102,6 +103,17 @@ export async function GET(): Promise<Response> {
         );
       }
       throw error;
+    }
+
+    if (lastSubmission?.eligible) {
+      try {
+        const ranks = snapshotLeaderboardRanks(await getMyLeaderboardRanks());
+        if (ranks) {
+          lastSubmission = { ...lastSubmission, leaderboardRanks: ranks };
+        }
+      } catch {
+        // Rank snapshot is display-only during attempt restore.
+      }
     }
 
     return Response.json({

@@ -14,23 +14,19 @@ assert.match(lib, /getCurrentAuthUser/);
 assert.match(lib, /fastestRank/);
 assert.match(lib, /cheapestRank/);
 assert.match(lib, /ranked: false/);
+assert.match(lib, /snapshotLeaderboardRanks/);
 assert.doesNotMatch(lib, /userId:/);
 
-const ui = readFileSync(join(root, "features/leaderboards/PlayerRankHud.tsx"), "utf8");
-assert.match(ui, /\/api\/leaderboards\/me/);
-assert.match(ui, /Unranked/);
-assert.match(ui, /Fastest/);
-assert.match(ui, /Cheapest/);
-assert.doesNotMatch(ui, /\buserId\b|\buser_id\b/);
-assert.match(ui, /status: "unranked"/);
-assert.doesNotMatch(ui, /fastestRank:\s*0|cheapestRank:\s*0/);
+const submissionRoute = readFileSync(join(root, "app/api/submissions/route.ts"), "utf8");
+assert.match(submissionRoute, /leaderboardRanks/);
+assert.match(submissionRoute, /snapshotLeaderboardRanks/);
 
-const canvas = [
-  readFileSync(join(root, "features/architecture-canvas/ArchitectureCanvas.tsx"), "utf8"),
-  readFileSync(join(root, "features/architecture-canvas/usePlaygroundWorkspace.ts"), "utf8"),
-].join("\n");
-assert.match(canvas, /bumpRankRefresh/);
-assert.match(readFileSync(join(root, "features/architecture-canvas/ArchitectureCanvas.tsx"), "utf8"), /PlayerRankHud/);
+const scorecard = readFileSync(join(root, "features/official-attempt/OfficialScorecard.tsx"), "utf8");
+assert.match(scorecard, /leaderboardRanks/);
+assert.match(scorecard, /Fastest/);
+assert.match(scorecard, /Cheapest/);
+assert.match(scorecard, /Server-verified pass · within budget/);
+assert.doesNotMatch(scorecard, /Refresh|\/api\/leaderboards\/me/);
 
 const migration = readFileSync(
   join(root, "../../supabase/migrations/20260826166000_my_leaderboard_ranks.sql"),

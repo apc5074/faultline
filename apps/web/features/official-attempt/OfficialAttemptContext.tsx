@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 import type { RestoredVerifiedSubmission } from "@/lib/submissions/persist";
 
@@ -21,9 +21,6 @@ type OfficialAttemptContextValue = {
   setSession: (session: OfficialAttemptSession | null) => void;
   completion: OfficialAttemptCompletion | null;
   setCompletion: (completion: OfficialAttemptCompletion | null) => void;
-  /** Bumped after verified submission so rank HUD refetches. */
-  rankRefreshToken: number;
-  bumpRankRefresh: () => void;
 };
 
 const OfficialAttemptContext = createContext<OfficialAttemptContextValue | null>(null);
@@ -31,13 +28,9 @@ const OfficialAttemptContext = createContext<OfficialAttemptContextValue | null>
 export function OfficialAttemptProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<OfficialAttemptSession | null>(null);
   const [completion, setCompletion] = useState<OfficialAttemptCompletion | null>(null);
-  const [rankRefreshToken, setRankRefreshToken] = useState(0);
-  const bumpRankRefresh = useCallback(() => {
-    setRankRefreshToken((token) => token + 1);
-  }, []);
   const value = useMemo(
-    () => ({ session, setSession, completion, setCompletion, rankRefreshToken, bumpRankRefresh }),
-    [session, completion, rankRefreshToken, bumpRankRefresh],
+    () => ({ session, setSession, completion, setCompletion }),
+    [session, completion],
   );
   return <OfficialAttemptContext.Provider value={value}>{children}</OfficialAttemptContext.Provider>;
 }

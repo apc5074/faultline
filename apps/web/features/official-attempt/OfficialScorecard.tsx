@@ -13,15 +13,28 @@ function formatPercent(value: number): string {
 
 export function OfficialScorecard({ result, stale }: { result: VerifiedSubmission; stale: boolean }) {
   const passed = result.allRequirementsPass && result.withinBudget;
+  const ranks = result.eligible ? result.leaderboardRanks : null;
   return (
     <section className={`official-scorecard${stale ? " official-scorecard--stale" : ""}`} aria-label="Official verification scorecard">
       <div className="official-scorecard__heading">
         <div>
-          <p className="official-scorecard__eyebrow">Server-verified submission</p>
           <h2>{passed ? "PASS" : "Verified — not eligible"}</h2>
         </div>
-        <span className="official-scorecard__version">sim {result.simulatorVersion}</span>
       </div>
+      {ranks ? (
+        <div className="official-scorecard__rank">
+          <p className="official-scorecard__rank-summary tabular">
+            <span className="official-scorecard__rank-mark" aria-hidden>
+              ✓
+            </span>{" "}
+            {ranks.alias}
+          </p>
+          <p className="official-scorecard__rank-meta tabular">
+            Fastest #{ranks.fastestRank} · Cheapest #{ranks.cheapestRank}
+          </p>
+          <p className="official-scorecard__rank-meta">Server-verified pass · within budget</p>
+        </div>
+      ) : null}
       {stale ? <p className="official-scorecard__stale">Architecture changed after verification — edit and run again for current evidence.</p> : null}
       <dl className="official-scorecard__metrics tabular">
         <div><dt>Solve time</dt><dd>{result.officialSolveMs === null ? "—" : formatSolveTime(result.officialSolveMs)}</dd></div>

@@ -66,7 +66,7 @@ const canvas = [
 ].join("\n");
 assert.match(canvas, /evaluateRequirements/);
 assert.match(canvas, /Submit Official|onSubmitOfficial/);
-assert.match(assertFile("apps/web/features/architecture-canvas/ArchitectureCanvas.tsx"), /StartOfficialAttempt|LeaderboardHud|PlayerRankHud/);
+assert.match(assertFile("apps/web/features/architecture-canvas/ArchitectureCanvas.tsx"), /StartOfficialAttempt|LeaderboardHud|OfficialScorecard/);
 assert.doesNotMatch(canvas, /Sign in to play/);
 
 const submissions = assertFile("apps/web/app/api/submissions/route.ts");
@@ -107,8 +107,8 @@ assert.match(me, /getMyLeaderboardRanks/);
 const hud = assertFile("apps/web/features/leaderboards/LeaderboardHud.tsx");
 assert.match(hud, /Fastest/);
 assert.match(hud, /Cheapest/);
-const rankHud = assertFile("apps/web/features/leaderboards/PlayerRankHud.tsx");
-assert.match(rankHud, /Unranked/);
+const scorecard = assertFile("apps/web/features/official-attempt/OfficialScorecard.tsx");
+assert.match(scorecard, /Unranked|leaderboardRanks|Server-verified pass/);
 assert.doesNotMatch(rankHud, /\buserId\b|\buser_id\b/);
 
 console.log("Check — Phase 5+ not pulled forward as product features");

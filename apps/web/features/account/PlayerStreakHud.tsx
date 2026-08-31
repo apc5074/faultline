@@ -23,7 +23,7 @@ type StreakState =
  * Does not imply ranking — completion continuity only.
  */
 export function PlayerStreakHud({ compact = false }: { compact?: boolean }) {
-  const { session, rankRefreshToken } = useOfficialAttempt();
+  const { session, completion } = useOfficialAttempt();
   const [state, setState] = useState<StreakState>({ status: "idle" });
 
   const refresh = useCallback(async () => {
@@ -61,7 +61,7 @@ export function PlayerStreakHud({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     void refresh();
-  }, [refresh, rankRefreshToken]);
+  }, [refresh, completion]);
 
   if (state.status === "idle" || state.status === "guest") {
     return null;

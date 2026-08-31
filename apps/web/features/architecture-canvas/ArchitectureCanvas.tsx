@@ -8,7 +8,6 @@ import type { ExperimentResult } from "@faultline/core";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
 import { OfficialScorecard } from "@/features/official-attempt/OfficialScorecard";
-import { PlayerRankHud } from "@/features/leaderboards/PlayerRankHud";
 import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
 import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
 import { PlayerStreakHud } from "@/features/account/PlayerStreakHud";
@@ -244,7 +243,6 @@ function ArchitectureWorkspace() {
                     reviewKey={workspace.requirementsReviewKey}
                   />
                 ) : null}
-                <PlayerRankHud />
               </div>
             )}
           </aside>
