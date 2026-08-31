@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
-import { createDefaultCapabilityRegistry, WMP_EVIDENCE_CONTRACT_VERSION } from "@faultline/agent-capabilities";
-import { toWebMcpTool, validateAgentEvidenceResult } from "../dist/index.js";
+import { createDefaultCapabilityRegistry, computeSurfaceRevision, createEmptyAgentSessionState, createScopedEntityReference, validateEvidenceContinuation, WMP_EVIDENCE_CONTRACT_VERSION } from "@faultline/agent-capabilities";
+import { toWebMcpTool, validateAgentEvidenceResult, wrapWebMcpEnvelope } from "../dist/index.js";
 
 const challenge = {
   slug: "url-shortener",
@@ -45,6 +45,46 @@ const validContext = {
 };
 
 const registry = createDefaultCapabilityRegistry();
+const surfaceRevision = computeSurfaceRevision(["inspect_component"]);
+const scopedRef = createScopedEntityReference("component", "service-1", validContext.evidenceMeta.architectureRevision);
+
+const continuation = {
+  contractVersion: "continuation-1",
+  capabilityName: "inspect_component",
+  reasonCode: "explain_capacity",
+  input: { componentId: scopedRef.ref },
+  evidenceRevision: validContext.evidenceMeta.architectureRevision,
+  surfaceRevision,
+  targetRefs: [scopedRef],
+};
+assert.equal(validateEvidenceContinuation(continuation, validContext.evidenceMeta.architectureRevision, surfaceRevision), true);
+assert.equal(validateEvidenceContinuation({ ...continuation, evidenceRevision: "old-revision" }, validContext.evidenceMeta.architectureRevision, surfaceRevision), false);
+assert.equal(validateEvidenceContinuation({ ...continuation, input: { componentId: "service-1" } }, validContext.evidenceMeta.architectureRevision, surfaceRevision), false);
+
+const wrapped = wrapWebMcpEnvelope(
+  { ok: true, data: { answer: "grounded", suggestedNextTools: [continuation, { ...continuation, evidenceRevision: "old-revision" }] } },
+  validContext,
+  {
+    capabilityName: "review_current_design",
+    mode: "read",
+    input: {},
+    lease: {
+      snapshot: { context: validContext, session: createEmptyAgentSessionState() },
+      evidenceRevision: validContext.evidenceMeta.architectureRevision,
+      surfaceRevision,
+      sessionRevision: 0,
+      isCurrent: () => true,
+    },
+    availableToolNames: new Set(["inspect_component"]),
+  },
+);
+assert.equal(wrapped.ok, true);
+if (wrapped.ok) {
+  assert.equal(wrapped.data.next?.length, 1);
+  assert.equal(wrapped.data.next?.[0]?.capabilityName, "inspect_component");
+  assert.equal(validateAgentEvidenceResult(wrapped.data), true);
+  assert.ok(JSON.stringify(wrapped.data).length < 8_192);
+}
 
 let publishedCueCount = 0;
 const cueTool = toWebMcpTool(registry.get("inspect_component"), {
@@ -58,6 +98,13 @@ const cueTool = toWebMcpTool(registry.get("inspect_component"), {
 const cueResult = await cueTool.execute({ componentId: "service-1" }, {});
 assert.equal(cueResult.ok, true, "presentation callback failure preserves evidence");
 assert.equal(publishedCueCount, 1, "current successful read publishes exactly one cue");
+
+const staleTool = toWebMcpTool(registry.get("inspect_component"), {
+  registry,
+  getContext: () => ({ ...validContext, evidenceMeta: { ...validContext.evidenceMeta, architectureRevision: "env-rev-2" } }),
+});
+const staleResult = await staleTool.execute({ componentId: scopedRef.ref }, {});
+assert.equal(staleResult.ok, false, "stale continuation target cannot be read as current evidence");
 
 for (const name of ["review_current_design", "get_metrics", "get_cost_breakdown", "inspect_design_entity", "expand_design_evidence"]) {
   const tool = toWebMcpTool(registry.get(name), { registry, getContext: () => validContext });

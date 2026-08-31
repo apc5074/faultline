@@ -52,7 +52,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "component_review",
       purpose: "Review the human-focused component without dumping the whole architecture.",
-      capabilityNames: ["review_current_design", "inspect_component", "get_metrics", "estimate_capacity"],
+      capabilityNames: ["inspect_component", "get_metrics", "estimate_capacity", "review_current_design"],
       evidenceCategories: ["session_focus", "component", "simulation", "workload_path"],
       steps: [
         "Use inspect_component first for the focused component; use metrics or capacity only when needed to explain its behavior.",
@@ -73,7 +73,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "workload_trace",
       purpose: "Trace a workload channel or path using targeted component and simulator evidence.",
-      capabilityNames: ["review_current_design", "inspect_component", "get_metrics", "get_architecture"],
+      capabilityNames: ["inspect_design_entity", "inspect_component", "get_metrics", "get_architecture"],
       evidenceCategories: ["session_focus", "workload_path", "component", "connection", "simulation"],
       steps: [
         "Start with inspect_design_entity for a named workload path; inspect named components before requesting architecture-wide context.",
@@ -84,7 +84,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "cost_review",
       purpose: "Review deterministic cost pressure and the evidence behind it.",
-      capabilityNames: ["review_current_design", "get_cost_breakdown", "inspect_component", "get_metrics"],
+      capabilityNames: ["get_cost_breakdown", "inspect_component", "get_metrics", "review_current_design"],
       evidenceCategories: ["session_focus", "cost", "component", "simulation"],
       steps: [
         "Read get_cost_breakdown before making a cost claim.",

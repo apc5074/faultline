@@ -1,5 +1,7 @@
 import type { AgentContext, EvidenceMeta } from "./context.js";
 import { validatePresentationCue, type EvidenceSubjects, type PresentationCue } from "./presentation-cue.js";
+import type { CompareDesignEvidenceInput, InspectDesignEntityInput, ReviewEvidenceSection } from "./schemas.js";
+import { compareDesignEvidenceInputSchema, estimateCapacityInputSchema, expandDesignEvidenceInputSchema, inspectComponentInputSchema, inspectDesignEntityInputSchema, noInputSchema } from "./schemas.js";
 
 /** Adapter-neutral WebMCP evidence result contract (WMP-016). */
 export const WMP_EVIDENCE_CONTRACT_VERSION = "wmp-2" as const;
@@ -9,10 +11,43 @@ export type EvidenceProvenanceSource =
   | "player_run"
   | "simulated_experiment";
 
+/** @deprecated Migration-only shape. New capability code should emit EvidenceContinuation. */
 export interface ActiveToolSuggestion {
   readonly name: string;
   readonly reason: string;
 }
+
+export const EVIDENCE_CONTINUATION_CONTRACT_VERSION = "continuation-1" as const;
+export const MAX_EVIDENCE_CONTINUATIONS = 3;
+
+export type EvidenceContinuationReasonCode =
+  | "inspect_subject"
+  | "inspect_connection"
+  | "trace_workload"
+  | "explain_requirement"
+  | "explain_capacity"
+  | "inspect_cost_contributor"
+  | "expand_review"
+  | "compare_revision";
+
+interface EvidenceContinuationBase {
+  readonly contractVersion: typeof EVIDENCE_CONTINUATION_CONTRACT_VERSION;
+  readonly reasonCode: EvidenceContinuationReasonCode;
+  readonly evidenceRevision: string;
+  readonly surfaceRevision: string;
+  readonly targetRefs?: readonly ScopedEntityReference[];
+  readonly reviewRef?: string;
+}
+
+export type EvidenceContinuation =
+  | (EvidenceContinuationBase & { readonly capabilityName: "inspect_component"; readonly input: { readonly componentId: string }; readonly targetRefs: readonly [ScopedEntityReference] })
+  | (EvidenceContinuationBase & { readonly capabilityName: "inspect_design_entity"; readonly input: Extract<InspectDesignEntityInput, { readonly kind: "component" | "connection" | "requirement" | "region" | "workload"; readonly ref: string }>; readonly targetRefs: readonly [ScopedEntityReference] })
+  | (EvidenceContinuationBase & { readonly capabilityName: "estimate_capacity"; readonly input: { readonly componentId: string }; readonly targetRefs: readonly [ScopedEntityReference] })
+  | (EvidenceContinuationBase & { readonly capabilityName: "expand_design_evidence"; readonly input: { readonly reviewRef: string; readonly sections: readonly ReviewEvidenceSection[] }; readonly reviewRef: string })
+  | (EvidenceContinuationBase & { readonly capabilityName: "compare_design_evidence"; readonly input: CompareDesignEvidenceInput; readonly targetRefs?: readonly [ScopedEntityReference] })
+  | (EvidenceContinuationBase & { readonly capabilityName: "get_metrics" | "get_cost_breakdown"; readonly input: undefined });
+
+export type NextToolSuggestion = ActiveToolSuggestion | EvidenceContinuation;
 
 export interface AgentEvidenceState {
   readonly evidenceRevision: string;
@@ -36,7 +71,7 @@ export interface AgentEvidenceResult<T> {
   readonly data: T;
   readonly subjects?: EvidenceSubjects;
   readonly presentation?: PresentationCue;
-  readonly next?: readonly ActiveToolSuggestion[];
+  readonly next?: readonly NextToolSuggestion[];
   readonly truncated?: { readonly sections: readonly string[] };
 }
 
@@ -131,6 +166,85 @@ export function computeResultDigest(data: unknown): string {
   return evidenceDigest(JSON.stringify(data));
 }
 
+function isLegacyToolSuggestion(value: unknown): value is ActiveToolSuggestion {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.name === "string" && record.name.length > 0 && record.name.length <= 80 &&
+    typeof record.reason === "string" && record.reason.length > 0 && record.reason.length <= 280;
+}
+
+function continuationSchemaFor(capabilityName: EvidenceContinuation["capabilityName"]) {
+  switch (capabilityName) {
+    case "inspect_component": return inspectComponentInputSchema;
+    case "inspect_design_entity": return inspectDesignEntityInputSchema;
+    case "estimate_capacity": return estimateCapacityInputSchema;
+    case "expand_design_evidence": return expandDesignEvidenceInputSchema;
+    case "compare_design_evidence": return compareDesignEvidenceInputSchema;
+    case "get_metrics":
+    case "get_cost_breakdown": return noInputSchema;
+  }
+}
+
+function validateContinuationTargetRefs(
+  refs: unknown,
+  evidenceRevision: string,
+): refs is readonly ScopedEntityReference[] {
+  if (!Array.isArray(refs) || refs.length === 0 || refs.length > 3) return false;
+  const seen = new Set<string>();
+  return refs.every((value) => {
+    if (typeof value !== "object" || value === null) return false;
+    const ref = value as Record<string, unknown>;
+    if (typeof ref.ref !== "string" || typeof ref.kind !== "string" || !["component", "connection", "requirement", "region", "workload", "scenario", "experiment"].includes(ref.kind) || typeof ref.entityId !== "string" ||
+      ref.evidenceRevision !== evidenceRevision || ref.entityId.length === 0 || seen.has(ref.ref)) return false;
+    if (!Object.prototype.hasOwnProperty.call(ref, "ref") || ref.ref !== createScopedEntityReference(ref.kind as EntityKind, ref.entityId, evidenceRevision).ref) return false;
+    seen.add(ref.ref);
+    return true;
+  });
+}
+
+/** Validate one typed continuation without executing it or resolving a new target. */
+export function validateEvidenceContinuation(
+  value: unknown,
+  evidenceRevision: string,
+  surfaceRevision: string,
+): value is EvidenceContinuation {
+  if (typeof value !== "object" || value === null) return false;
+  const continuation = value as Record<string, unknown>;
+  const capabilityName = continuation.capabilityName;
+  if (continuation.contractVersion !== EVIDENCE_CONTINUATION_CONTRACT_VERSION ||
+    typeof capabilityName !== "string" ||
+    !["inspect_component", "inspect_design_entity", "estimate_capacity", "expand_design_evidence", "compare_design_evidence", "get_metrics", "get_cost_breakdown"].includes(capabilityName) ||
+    typeof continuation.reasonCode !== "string" ||
+    !["inspect_subject", "inspect_connection", "trace_workload", "explain_requirement", "explain_capacity", "inspect_cost_contributor", "expand_review", "compare_revision"].includes(continuation.reasonCode) ||
+    continuation.evidenceRevision !== evidenceRevision || continuation.surfaceRevision !== surfaceRevision) return false;
+
+  const schema = continuationSchemaFor(capabilityName as EvidenceContinuation["capabilityName"]);
+  if (!schema.safeParse(continuation.input).success) return false;
+  if (continuation.reviewRef !== undefined && (typeof continuation.reviewRef !== "string" || !/^wmp-ref-[0-9a-f]+$/.test(continuation.reviewRef))) return false;
+  if (continuation.targetRefs !== undefined && !validateContinuationTargetRefs(continuation.targetRefs, evidenceRevision)) return false;
+
+  if (capabilityName === "inspect_component" || capabilityName === "estimate_capacity") {
+    const refs = continuation.targetRefs;
+    const input = continuation.input as Record<string, unknown>;
+    return validateContinuationTargetRefs(refs, evidenceRevision) && refs.length === 1 &&
+      refs[0]!.kind === "component" && input.componentId === refs[0]!.ref;
+  }
+  if (capabilityName === "inspect_design_entity") {
+    const refs = continuation.targetRefs;
+    const input = continuation.input as Record<string, unknown>;
+    return validateContinuationTargetRefs(refs, evidenceRevision) && refs.length === 1 &&
+      input.ref === refs[0]!.ref && input.kind === refs[0]!.kind;
+  }
+  if (capabilityName === "expand_design_evidence") {
+    return typeof continuation.reviewRef === "string" &&
+      (continuation.input as Record<string, unknown>).reviewRef === continuation.reviewRef;
+  }
+  if (capabilityName === "compare_design_evidence" && continuation.targetRefs !== undefined) {
+    return (continuation.input as Record<string, unknown>).targetRef === continuation.targetRefs[0]?.ref;
+  }
+  return continuation.targetRefs === undefined && continuation.reviewRef === undefined;
+}
+
 export function createScopedEntityReference(
   kind: EntityKind,
   entityId: string,
@@ -183,7 +297,7 @@ export function buildAgentEvidenceResult<T>(
   data: T,
   state: AgentEvidenceState,
   provenance: AgentEvidenceProvenance,
-  next?: readonly ActiveToolSuggestion[],
+  next?: readonly NextToolSuggestion[],
   truncated?: { readonly sections: readonly string[] },
   presentation?: PresentationCue,
   resultDigest?: string,
@@ -414,6 +528,7 @@ export function validateAgentEvidenceResult(value: unknown): value is AgentEvide
     ["live_draft_projection", "player_run", "simulated_experiment"].includes(provenance.source)
     && (record.presentation === undefined || validatePresentationCue(record.presentation, state.evidenceRevision))
     && (record.subjects === undefined || validateNormalizedSubjects(record.subjects, state.evidenceRevision))
+    && (record.next === undefined || (Array.isArray(record.next) && record.next.length <= MAX_EVIDENCE_CONTINUATIONS && record.next.every((entry) => isLegacyToolSuggestion(entry) || validateEvidenceContinuation(entry, state.evidenceRevision, state.surfaceRevision))))
   );
 }
 

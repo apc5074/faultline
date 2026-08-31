@@ -92,10 +92,12 @@ assert.deepEqual(
   ["component_review", "requirement_failure", "workload_trace", "cost_review", "experiment_proposal"],
 );
 assert.deepEqual(output.toolRecipes[0].capabilityNames.slice(0, 3), [
-  "review_current_design",
   "inspect_component",
   "get_metrics",
+  "estimate_capacity",
 ]);
+assert.equal(output.toolRecipes[2].capabilityNames[0], "inspect_design_entity");
+assert.equal(output.toolRecipes[3].capabilityNames[0], "get_cost_breakdown");
 assert.ok(output.toolRecipes[2].capabilityNames.includes("get_architecture"));
 assert.ok(output.toolRecipes[4].steps.some((step) => step.includes("explicit approval")));
 
