@@ -389,10 +389,6 @@ main {
   text-transform: uppercase;
 }
 
-.home-page__wordmark {
-  color: var(--color-ink);
-}
-
 .home-page__help {
   padding: 0.45rem 0.65rem;
   border: 1px solid var(--color-ink-hairline);

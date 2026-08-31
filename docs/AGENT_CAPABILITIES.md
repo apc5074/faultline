@@ -96,9 +96,9 @@ The shared read resolver starts with these general-purpose operations:
 ```text
 review_current_design        expand_design_evidence      compare_design_evidence
 inspect_design_entity        inspect_component_option    get_coaching_policy
-get_session_focus            get_challenge               get_requirements
-get_architecture             inspect_component           estimate_capacity
-get_metrics                  get_cost_breakdown
+start_design_interview       get_session_focus          get_challenge
+get_requirements             get_architecture            inspect_component
+estimate_capacity            get_metrics                 get_cost_breakdown
 ```
 
 The resolver then conditionally adds specialists:

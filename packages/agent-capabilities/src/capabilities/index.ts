@@ -26,6 +26,7 @@ import { reviewCurrentDesignCapability } from "./review-current-design.js";
 import { compareDesignEvidenceCapability } from "./compare-design-evidence.js";
 import { expandDesignEvidenceCapability } from "./expand-design-evidence.js";
 import { inspectComponentOptionCapability } from "./inspect-component-option.js";
+import { startDesignInterviewCapability } from "./start-design-interview.js";
 
 export {
   getSessionFocusCapability,
@@ -122,6 +123,15 @@ export type {
   ScenarioComparisonChanges,
 } from "./compare-design-evidence.js";
 export type { ReviewCurrentDesignOutput } from "./review-current-design.js";
+export {
+  startDesignInterviewCapability,
+  buildStartDesignInterviewOutput,
+} from "./start-design-interview.js";
+export type {
+  DesignInterviewAgendaItem,
+  StartDesignInterviewInput,
+  StartDesignInterviewOutput,
+} from "./start-design-interview.js";
 export type {
   GetMetricsComponent,
   GetMetricsOutput,
@@ -153,6 +163,7 @@ export { slowConsumersCapability } from "./slow-consumers.js";
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
   return createAgentCapabilityRegistry([
     getCoachingPolicyCapability,
+    startDesignInterviewCapability,
     reviewCurrentDesignCapability,
     expandDesignEvidenceCapability,
     compareDesignEvidenceCapability,

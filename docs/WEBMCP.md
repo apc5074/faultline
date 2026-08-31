@@ -34,7 +34,7 @@ The shared production manifest (`wmp-production-1`) presently permits:
 
 ```text
 stable-review:
-  review_current_design, expand_design_evidence, inspect_design_entity,
+  review_current_design, start_design_interview, expand_design_evidence, inspect_design_entity,
   inspect_component_option, compare_design_evidence, get_architecture,
   inspect_component, estimate_capacity, get_metrics, get_cost_breakdown
 

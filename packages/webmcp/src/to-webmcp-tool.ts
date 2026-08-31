@@ -38,6 +38,7 @@ function computeSurfaceRevisionFromTools(names: ReadonlySet<string>): string {
 
 const TOOL_TITLES: Readonly<Record<string, string>> = {
   review_current_design: "Review current design",
+  start_design_interview: "Start design interview",
   expand_design_evidence: "Expand design evidence",
   inspect_design_entity: "Inspect design entity",
   inspect_component_option: "Inspect component option",
@@ -62,6 +63,7 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
     review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
+    start_design_interview: "Call when the player asks to be interviewed. Returns three high-level questions, then one component question per step; visually focuses the current component and groups stateless services.",
     get_architecture: "Read the current architecture and inventory for board-wide contents, logical component counts, and connections. Use this for unqualified board questions; do not reuse after a board edit.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
     inspect_component: "Read the current invocation revision. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all by default for type-wide/count/existence, topmost only when positional. Do not reuse after a board edit.",
