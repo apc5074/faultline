@@ -2,6 +2,8 @@ import type { Architecture, ChallengeDefinition, CostResult, RequirementResult }
 
 import type { AgentRegionalEvidence } from "./regional-evidence.js";
 import type { AgentWorkloadFitEvidence } from "./workload-fit-evidence.js";
+import { phase7DynamicCapabilityPredicate } from "./architecture-predicates.js";
+import { PHASE_7_DYNAMIC_CAPABILITY_NAMES } from "./capability-names.js";
 
 /** Provenance attached to simulator-grounded reads across every adapter. */
 export interface EvidenceMeta {
@@ -167,9 +169,63 @@ export interface AgentContext {
   readonly comparisonBaselines?: ComparisonBaselines;
 }
 
+export interface ComparisonSnapshot {
+  readonly evidenceMeta: EvidenceMeta;
+  readonly architecture: {
+    readonly version: Architecture["version"];
+    readonly components: readonly Omit<Architecture["components"][number], "ui">[];
+    readonly connections: Architecture["connections"];
+  };
+  readonly simulation?: AgentSimulationEvidence;
+  readonly requirementResults?: readonly RequirementResult[];
+  readonly cost?: CostResult;
+  readonly dynamicCapabilityNames: readonly string[];
+}
+
 export interface ComparisonBaselines {
-  readonly previousReview?: AgentContext;
-  readonly lastPlayerRun?: AgentContext;
+  /** Full AgentContext remains accepted for the migration window only. */
+  readonly previousReview?: ComparisonSnapshot | AgentContext;
+  readonly lastPlayerRun?: ComparisonSnapshot | AgentContext;
+}
+
+export function comparisonSnapshotFromContext(context: AgentContext): ComparisonSnapshot {
+  const simulation = context.simulation?.available === true
+    ? {
+        available: true as const,
+        components: Object.fromEntries(Object.entries(context.simulation.components).map(([id, evidence]) => [id, {
+          metrics: evidence.metrics,
+          ...(evidence.state !== undefined ? { state: evidence.state } : {}),
+        }])),
+        ...(context.simulation.system ? { system: context.simulation.system } : {}),
+        ...(context.simulation.scenarios ? { scenarios: context.simulation.scenarios } : {}),
+        ...(context.simulation.workloadPaths ? { workloadPaths: context.simulation.workloadPaths } : {}),
+      }
+    : context.simulation;
+  const semanticArchitecture = {
+    version: context.architecture.version,
+    components: context.architecture.components.map(({ ui: _ui, ...component }) => component),
+    connections: context.architecture.connections,
+  };
+  return {
+    evidenceMeta: evidenceMetaFor(context),
+    architecture: semanticArchitecture,
+    ...(simulation ? { simulation } : {}),
+    ...(context.requirementResults ? { requirementResults: context.requirementResults } : {}),
+    ...(context.cost ? { cost: { monthlyTotal: context.cost.monthlyTotal, lineItems: context.cost.lineItems.map(({ componentId, amount, label }) => ({ componentId, amount, ...(label !== undefined ? { label } : {}) })) } } : {}),
+    dynamicCapabilityNames: PHASE_7_DYNAMIC_CAPABILITY_NAMES.filter((name) => phase7DynamicCapabilityPredicate(name, context.architecture)),
+  };
+}
+
+/** Rehydrate only the comparison-facing shape; never reintroduce retained context fields. */
+export function comparisonContextFromSnapshot(snapshot: ComparisonSnapshot, challenge: ChallengeDefinition): AgentContext {
+  return {
+    challenge,
+    architecture: snapshot.architecture as Architecture,
+    ...(snapshot.simulation ? { simulation: snapshot.simulation } : {}),
+    ...(snapshot.requirementResults ? { requirementResults: snapshot.requirementResults } : {}),
+    ...(snapshot.cost ? { cost: snapshot.cost } : {}),
+    evidenceMeta: snapshot.evidenceMeta,
+  };
 }
 
 /** Safe fallback for synthetic/dev contexts that predate evidence metadata. */

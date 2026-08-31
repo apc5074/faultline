@@ -105,7 +105,7 @@ export type {
 } from "./estimate-capacity.js";
 
 export { getMetricsCapability, buildGetMetricsOutput } from "./get-metrics.js";
-export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput, buildReviewUseCasePackets, buildReviewRevisionDelta } from "./review-current-design.js";
+export { reviewCurrentDesignCapability, buildReviewCurrentDesignOutput, buildReviewUseCasePackets, buildReviewRevisionDelta, reviewRequestIdentity } from "./review-current-design.js";
 export { expandDesignEvidenceCapability, expandDesignEvidence, reviewReference } from "./expand-design-evidence.js";
 export type { ExpandDesignEvidenceOutput } from "./expand-design-evidence.js";
 export {

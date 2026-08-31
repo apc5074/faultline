@@ -1,5 +1,5 @@
 import type { PinnedObservation } from "@faultline/agent-capabilities";
-import type { Architecture, RegionId } from "@faultline/core";
+import type { RegionId } from "@faultline/core";
 import type { VisualIntent, VisualIntentHandler } from "@faultline/webmcp";
 
 import type { AgentSessionStore } from "./AgentSessionProvider";
@@ -52,12 +52,4 @@ export function createVisualCommandPublisher(
       console.warn("[Faultline] Ignored unsupported visual command.", intent);
     }
   };
-}
-
-/** @deprecated Use createVisualCommandPublisher. */
-export function createVisualIntentHandler(
-  store: AgentSessionStore,
-  _getArchitecture?: () => Architecture,
-): VisualIntentHandler {
-  return createVisualCommandPublisher(store);
 }

@@ -3,6 +3,7 @@ import {
   BASELINE_READ_CAPABILITY_NAMES,
   isBaselineReadCapabilityName,
   PHASE_7_DYNAMIC_CAPABILITY_NAMES,
+  PRODUCTION_CAPABILITY_MANIFEST,
   type ResolvedCapabilityName,
 } from "./capability-names.js";
 import type { AgentContext } from "./context.js";
@@ -36,6 +37,12 @@ export class BaselineCapabilityConfigurationError extends Error {
   override name = "BaselineCapabilityConfigurationError";
 }
 
+function hasValidProductionExposure(capability: RegisteredCapability): boolean {
+  const manifest = PRODUCTION_CAPABILITY_MANIFEST.find((entry) => entry.name === capability.name);
+  if (!manifest) return true;
+  return capability.exposure?.production === true && capability.exposure.group === manifest.group;
+}
+
 function resolveOrderedNames(
   registry: AgentCapabilityRegistry,
   context: AgentContext,
@@ -60,6 +67,9 @@ function resolveOrderedNames(
     }
 
     const capability = registry.get(name);
+    if (!hasValidProductionExposure(capability) && options.development) {
+      throw new BaselineCapabilityConfigurationError(`Production capability "${name}" has missing or invalid exposure metadata.`);
+    }
     if (!capability.availableWhen(context)) {
       skipped.push({ name, reason: "unavailable" });
       continue;

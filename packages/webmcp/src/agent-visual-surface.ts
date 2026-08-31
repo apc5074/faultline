@@ -44,9 +44,6 @@ export interface BuildVisualWebMcpSurfaceOptions {
   readonly profile?: "complete" | "production";
 }
 
-/** @deprecated Use BuildVisualWebMcpSurfaceOptions. */
-export type BuildAgentVisualSurfaceOptions = BuildVisualWebMcpSurfaceOptions;
-
 export class AgentVisualSurfaceConfigurationError extends Error {
   override name = "AgentVisualSurfaceConfigurationError";
 }
@@ -117,8 +114,5 @@ export async function buildVisualWebMcpSurface(
     resolvedNames: resolved.names.filter((name) => allowedNames.has(name as typeof WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES[number])),
   };
 }
-
-/** @deprecated Use buildVisualWebMcpSurface. */
-export const buildAgentVisualSurface = buildVisualWebMcpSurface;
 
 export { RESOLVED_VISUAL_CAPABILITY_NAME_ORDER };

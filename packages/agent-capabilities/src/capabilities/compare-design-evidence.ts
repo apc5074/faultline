@@ -1,7 +1,7 @@
 import type { RequirementResult } from "@faultline/core";
 
 import type { AgentCapability } from "../capability.js";
-import type { AgentContext, AgentScenarioEvidence, ComparisonBaselines, ReviewRevisionDelta } from "../context.js";
+import { comparisonContextFromSnapshot, type AgentContext, type AgentScenarioEvidence, type ComparisonBaselines, type ComparisonSnapshot, type ReviewRevisionDelta } from "../context.js";
 import { resolveInspectDesignEntityTarget } from "./inspect-design-entity.js";
 import { buildReviewRevisionDelta } from "./review-current-design.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
@@ -70,20 +70,23 @@ function resolveBaselineContext(
   scenarioId?: string,
 ): { ok: true; baselineContext: AgentContext } | { ok: false; reason: CompareDesignEvidenceOutput["baselineUnavailable"] } {
   const baselines: ComparisonBaselines | undefined = context.comparisonBaselines;
+  const asContext = (value: ComparisonSnapshot | AgentContext): AgentContext =>
+    "challenge" in value ? value : comparisonContextFromSnapshot(value, context.challenge);
   if (baseline === "previous_review") {
     if (!baselines?.previousReview) return { ok: false, reason: "not_retained" };
-    return { ok: true, baselineContext: baselines.previousReview };
+    return { ok: true, baselineContext: asContext(baselines.previousReview) };
   }
   if (baseline === "last_player_run") {
     if (!baselines?.lastPlayerRun) return { ok: false, reason: "no_player_run" };
-    return { ok: true, baselineContext: baselines.lastPlayerRun };
+    return { ok: true, baselineContext: asContext(baselines.lastPlayerRun) };
   }
   const source = baselines?.lastPlayerRun ?? baselines?.previousReview;
   if (!source) return { ok: false, reason: "not_retained" };
-  if (!scenarioId || !scenarioSlice(source, scenarioId as AuthoredScenarioId) || !scenarioSlice(context, scenarioId as AuthoredScenarioId)) {
+  const sourceContext = asContext(source);
+  if (!scenarioId || !scenarioSlice(sourceContext, scenarioId as AuthoredScenarioId) || !scenarioSlice(context, scenarioId as AuthoredScenarioId)) {
     return { ok: false, reason: "scenario_not_modeled" };
   }
-  return { ok: true, baselineContext: source };
+  return { ok: true, baselineContext: sourceContext };
 }
 
 function scenarioSlice(context: AgentContext, scenarioId: AuthoredScenarioId): unknown {

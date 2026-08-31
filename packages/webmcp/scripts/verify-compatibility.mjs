@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { buildPhase6ReadSurface, probeWebMcpCompatibility } from "../dist/index.js";
+import { buildAgentReadSurface, probeWebMcpCompatibility } from "../dist/index.js";
 
 const context = {
   challenge: { slug: "tiny-api", version: 1, allowedComponentTypes: ["service"] },
   architecture: { components: [{ id: "service-1", type: "service", config: {}, deployments: [] }], connections: [] },
   simulation: { available: true, components: {} },
 };
-const surface = await buildPhase6ReadSurface({ registry: createDefaultCapabilityRegistry(), getContext: () => context, development: true });
+const surface = await buildAgentReadSurface({ registry: createDefaultCapabilityRegistry(), getContext: () => context, development: true });
 for (const tool of surface.tools) {
   assert.match(tool.name, /^[A-Za-z0-9_.-]{1,128}$/);
   assert.equal(typeof tool.title, "string");

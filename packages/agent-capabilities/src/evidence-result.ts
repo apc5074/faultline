@@ -1,5 +1,5 @@
 import type { AgentContext, EvidenceMeta } from "./context.js";
-import { validatePresentationCue, type PresentationCue } from "./presentation-cue.js";
+import { validatePresentationCue, type EvidenceSubjects, type PresentationCue } from "./presentation-cue.js";
 
 /** Adapter-neutral WebMCP evidence result contract (WMP-016). */
 export const WMP_EVIDENCE_CONTRACT_VERSION = "wmp-2" as const;
@@ -19,6 +19,8 @@ export interface AgentEvidenceState {
   readonly sessionRevision: number;
   readonly surfaceRevision: string;
   readonly resultDigest: string;
+  /** Exact semantic request identity used for safe unchanged responses. */
+  readonly requestFingerprint?: string;
 }
 
 export interface AgentEvidenceProvenance {
@@ -32,6 +34,7 @@ export interface AgentEvidenceResult<T> {
   readonly state: AgentEvidenceState;
   readonly provenance: AgentEvidenceProvenance;
   readonly data: T;
+  readonly subjects?: EvidenceSubjects;
   readonly presentation?: PresentationCue;
   readonly next?: readonly ActiveToolSuggestion[];
   readonly truncated?: { readonly sections: readonly string[] };
@@ -42,6 +45,34 @@ export interface KnownStateInput {
   readonly sessionRevision: number;
   readonly surfaceRevision: string;
   readonly resultDigest: string;
+  /** Optional during the migration window; required for unchanged responses. */
+  readonly requestFingerprint?: string;
+}
+
+export interface RequestFingerprintInput {
+  readonly capabilityName: string;
+  readonly intent?: string;
+  readonly target?: { readonly kind: string; readonly id: string };
+  readonly evidenceRevision: string;
+  readonly sessionRevision: number;
+  readonly focus?: unknown;
+  readonly surfaceRevision: string;
+  readonly resultDigest: string;
+}
+
+/** Deterministic identity for one semantically scoped evidence request. */
+export function computeRequestFingerprint(input: RequestFingerprintInput): string {
+  return evidenceDigest(JSON.stringify({
+    contract: WMP_EVIDENCE_CONTRACT_VERSION,
+    capability: input.capabilityName,
+    intent: input.intent ?? "auto",
+    target: input.target ?? null,
+    evidenceRevision: input.evidenceRevision,
+    sessionRevision: input.sessionRevision,
+    focus: input.focus ?? null,
+    surfaceRevision: input.surfaceRevision,
+    resultDigest: input.resultDigest,
+  }));
 }
 
 export interface UnchangedEvidenceData {
@@ -109,11 +140,6 @@ export function createScopedEntityReference(
   return { ref, kind, entityId, evidenceRevision };
 }
 
-export function parseScopedEntityReference(value: string): ScopedEntityReference | undefined {
-  if (!value.startsWith("wmp-ent-")) return undefined;
-  return undefined;
-}
-
 /** Resolve a canonical ID or scoped reference against the current evidence revision. */
 export function resolveEntityTarget(
   target: string,
@@ -160,12 +186,15 @@ export function buildAgentEvidenceResult<T>(
   next?: readonly ActiveToolSuggestion[],
   truncated?: { readonly sections: readonly string[] },
   presentation?: PresentationCue,
+  resultDigest?: string,
+  subjects?: EvidenceSubjects,
 ): AgentEvidenceResult<T> {
   return {
     contractVersion: WMP_EVIDENCE_CONTRACT_VERSION,
-    state: { ...state, resultDigest: computeResultDigest(data) },
+    state: { ...state, resultDigest: resultDigest ?? computeResultDigest(data) },
     provenance,
     data,
+    ...(subjects ? { subjects } : {}),
     ...(presentation ? { presentation } : {}),
     ...(next && next.length > 0 ? { next } : {}),
     ...(truncated ? { truncated } : {}),
@@ -198,6 +227,9 @@ export function knownStateMatches(
   current: KnownStateInput,
 ): boolean {
   return (
+    typeof known.requestFingerprint === "string" &&
+    typeof current.requestFingerprint === "string" &&
+    known.requestFingerprint === current.requestFingerprint &&
     known.evidenceRevision === current.evidenceRevision &&
     known.sessionRevision === current.sessionRevision &&
     known.surfaceRevision === current.surfaceRevision &&
@@ -210,6 +242,9 @@ export function focusOnlyDelta(
   current: KnownStateInput,
 ): boolean {
   return (
+    typeof known.requestFingerprint === "string" &&
+    typeof current.requestFingerprint === "string" &&
+    known.requestFingerprint !== current.requestFingerprint &&
     known.evidenceRevision === current.evidenceRevision &&
     known.surfaceRevision === current.surfaceRevision &&
     known.resultDigest === current.resultDigest &&
@@ -338,6 +373,29 @@ export function isAgentEvidenceResult(value: unknown): value is AgentEvidenceRes
   );
 }
 
+function validateNormalizedSubjects(value: unknown, evidenceRevision: string): value is EvidenceSubjects {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.evidenceRevision !== "string" || record.evidenceRevision !== evidenceRevision ||
+    !["component", "path", "failure", "comparison"].includes(record.relation as string) ||
+    !Array.isArray(record.supporting) || !Array.isArray(record.connections)) return false;
+  const entries = [record.primary, ...record.supporting, ...record.connections].filter((entry) => entry !== undefined);
+  const refs = new Set<string>();
+  let componentCount = 0;
+  for (const entry of entries) {
+    if (typeof entry !== "object" || entry === null) return false;
+    const target = entry as Record<string, unknown>;
+    if (typeof target.ref !== "string" || typeof target.kind !== "string" || typeof target.entityId !== "string" ||
+      target.evidenceRevision !== evidenceRevision || (target.emphasis !== "primary" && target.emphasis !== "secondary") || refs.has(target.ref)) return false;
+    if (!(["component", "connection", "requirement", "workload", "region"] as string[]).includes(target.kind)) return false;
+    if (target.ref !== createScopedEntityReference(target.kind as EntityKind, target.entityId, evidenceRevision).ref) return false;
+    if (target.kind === "component") componentCount += 1;
+    refs.add(target.ref);
+  }
+  if (record.relation === "path" && (componentCount > 5 || record.connections.length > 5)) return false;
+  return record.primary !== undefined && (record.primary as Record<string, unknown>).emphasis === "primary";
+}
+
 export function validateAgentEvidenceResult(value: unknown): value is AgentEvidenceResult<unknown> {
   if (!isAgentEvidenceResult(value)) return false;
   const record = value as AgentEvidenceResult<unknown>;
@@ -348,10 +406,12 @@ export function validateAgentEvidenceResult(value: unknown): value is AgentEvide
     typeof state.sessionRevision === "number" &&
     typeof state.surfaceRevision === "string" &&
     typeof state.resultDigest === "string" &&
+    (state.requestFingerprint === undefined || typeof state.requestFingerprint === "string") &&
     typeof provenance.simulatorVersion === "string" &&
     typeof provenance.stale === "boolean" &&
     ["live_draft_projection", "player_run", "simulated_experiment"].includes(provenance.source)
     && (record.presentation === undefined || validatePresentationCue(record.presentation, state.evidenceRevision))
+    && (record.subjects === undefined || validateNormalizedSubjects(record.subjects, state.evidenceRevision))
   );
 }
 

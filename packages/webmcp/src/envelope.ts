@@ -7,15 +7,19 @@ import type {
 } from "@faultline/agent-capabilities";
 import {
   buildAgentEvidenceResult,
+  computeRequestFingerprint,
   computeResultDigest,
   computeSurfaceRevision,
   provenanceFromContext,
   projectQuantitativeEvidence,
   presentationCueForCapability,
+  presentationCueForSubjects,
+  subjectsForCapability,
   separatePlayerAuthored,
   stripEnvelopeSourceFields,
   validatePresentationCue,
   validateAgentEvidenceResult,
+  reviewRequestIdentity,
 } from "@faultline/agent-capabilities";
 import { capabilityError } from "@faultline/agent-capabilities";
 
@@ -83,31 +87,49 @@ export function wrapWebMcpEnvelope(
   const next = extractSuggestions(result.data);
   const truncated = extractTruncated(result.data);
   const explicitPresentation = extractPresentationCue(result.data, options.lease.evidenceRevision);
+  const subjects = subjectsForCapability(options.capabilityName, result.data, context, options.input);
   const presentation = explicitPresentation === null
     ? undefined
-    : explicitPresentation ?? presentationCueForCapability(options.capabilityName, result.data, context, options.input);
+    : explicitPresentation ?? (subjects ? presentationCueForSubjects(subjects) : presentationCueForCapability(options.capabilityName, result.data, context, options.input));
   const projected = projectCapabilityData(options.capabilityName, result.data);
   delete projected.presentationCue;
   const surfaceRevision = options.availableToolNames
     ? computeSurfaceRevision([...options.availableToolNames])
     : options.lease.surfaceRevision;
+  const reviewIdentity = options.capabilityName === "review_current_design"
+    ? reviewRequestIdentity(
+      (isRecord(options.input) ? options.input : {}) as Parameters<typeof reviewRequestIdentity>[0],
+      options.lease.snapshot.session,
+    )
+    : undefined;
+  const digestProjection = options.capabilityName === "review_current_design"
+    ? (() => { const { focus: _focus, ...focusIndependent } = projected; return focusIndependent; })()
+    : projected;
+  const resultDigest = computeResultDigest(digestProjection);
   const state: KnownStateInput = {
     evidenceRevision: options.lease.evidenceRevision,
     sessionRevision: options.lease.sessionRevision,
     surfaceRevision,
-    resultDigest: computeResultDigest(projected),
+    resultDigest,
+    requestFingerprint: computeRequestFingerprint({
+      capabilityName: options.capabilityName,
+      ...(reviewIdentity ?? {
+        ...(isRecord(options.input) && typeof options.input.intent === "string" ? { intent: options.input.intent } : {}),
+        ...(isRecord(options.input) && typeof options.input.targetId === "string" ? { target: { kind: "target", id: options.input.targetId } } : {}),
+      }),
+      evidenceRevision: options.lease.evidenceRevision,
+      sessionRevision: options.lease.sessionRevision,
+      focus: options.lease.snapshot.session.focus,
+      surfaceRevision,
+      resultDigest,
+    }),
   };
   const provenance = provenanceFromContext(context, options.mode, options.simulated === true);
-  const envelope = buildAgentEvidenceResult(projected, state, provenance, next, truncated, presentation);
+  const envelope = buildAgentEvidenceResult(projected, state, provenance, next, truncated, presentation, resultDigest, subjects);
   if (!validateAgentEvidenceResult(envelope)) {
     return capabilityError("INVALID_INPUT", `Capability "${options.capabilityName}" produced an invalid envelope.`);
   }
   return { ok: true, data: envelope };
-}
-
-/** True when the external agent receives the versioned envelope contract. */
-export function isWebMcpEnvelopeEnabled(): boolean {
-  return true;
 }
 
 export { validateAgentEvidenceResult };

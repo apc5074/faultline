@@ -9,8 +9,7 @@ import {
   resolveCapabilities,
 } from "@faultline/agent-capabilities";
 import {
-  buildPhase6ReadSurface,
-  PHASE_6_READ_CAPABILITY_NAMES,
+  buildAgentReadSurface,
   Phase6SurfaceConfigurationError,
 } from "../dist/phase6-read-surface.js";
 
@@ -41,7 +40,7 @@ const context = {
 const getContext = () => context;
 const registry = createDefaultCapabilityRegistry();
 
-const surface = await buildPhase6ReadSurface({ registry, getContext, development: true });
+const surface = await buildAgentReadSurface({ registry, getContext, development: true });
 
 assert.equal(surface.tools.length, BASELINE_READ_CAPABILITY_NAMES.length);
 assert.deepEqual(surface.resolvedNames, [...BASELINE_READ_CAPABILITY_NAMES]);
@@ -75,7 +74,7 @@ const redisArchitecture = {
   ],
 };
 const redisContext = { ...context, architecture: redisArchitecture };
-const redisSurface = await buildPhase6ReadSurface({
+const redisSurface = await buildAgentReadSurface({
   registry,
   getContext: () => redisContext,
   development: true,
@@ -89,7 +88,7 @@ const experimentRegistry = createAgentCapabilityRegistry(
 );
 
 await assert.rejects(
-  () => buildPhase6ReadSurface({ registry: experimentRegistry, getContext, development: true }),
+  () => buildAgentReadSurface({ registry: experimentRegistry, getContext, development: true }),
   (error) => error instanceof Phase6SurfaceConfigurationError && /ineligible_mode/.test(error.message),
 );
 
@@ -98,7 +97,7 @@ const missingRegistry = createAgentCapabilityRegistry(
 );
 
 await assert.rejects(
-  () => buildPhase6ReadSurface({ registry: missingRegistry, getContext, development: true }),
+  () => buildAgentReadSurface({ registry: missingRegistry, getContext, development: true }),
   (error) => error instanceof Phase6SurfaceConfigurationError && /get_metrics/.test(error.message),
 );
 
@@ -118,7 +117,7 @@ const unsafeAnnotationsRegistry = createAgentCapabilityRegistry(
 );
 
 await assert.rejects(
-  () => buildPhase6ReadSurface({ registry: unsafeAnnotationsRegistry, getContext, development: true }),
+  () => buildAgentReadSurface({ registry: unsafeAnnotationsRegistry, getContext, development: true }),
   (error) => error instanceof Phase6SurfaceConfigurationError && /ineligible_annotations/.test(error.message),
 );
 
@@ -129,11 +128,11 @@ const unavailableRegistry = createAgentCapabilityRegistry(
 );
 
 await assert.rejects(
-  () => buildPhase6ReadSurface({ registry: unavailableRegistry, getContext, development: true }),
+  () => buildAgentReadSurface({ registry: unavailableRegistry, getContext, development: true }),
   (error) => error instanceof Phase6SurfaceConfigurationError && /get_metrics.*unavailable/.test(error.message),
 );
 
-const productionMissing = await buildPhase6ReadSurface({
+const productionMissing = await buildAgentReadSurface({
   registry: missingRegistry,
   getContext,
   development: false,
@@ -154,6 +153,5 @@ assert.deepEqual(
   surface.tools.map((tool) => tool.name),
   resolveCapabilities(registry, context, { development: true }).names,
 );
-assert.deepEqual(PHASE_6_READ_CAPABILITY_NAMES, BASELINE_READ_CAPABILITY_NAMES);
 
 console.log("verify-phase6-read-surface: ok");

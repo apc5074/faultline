@@ -15,6 +15,7 @@ import { experimentReadiness } from "../experiment-readiness.js";
 import { PHASE_7_DYNAMIC_CAPABILITY_NAMES } from "../capability-names.js";
 import {
   computeResultDigest,
+  computeRequestFingerprint,
   focusOnlyDelta,
   knownStateMatches,
   projectQuantitativeEvidence,
@@ -128,13 +129,15 @@ function sessionFrom(options?: CapabilityExecutionOptions): AgentSessionState { 
 
 function reviewOutputDigest(output: ReviewCurrentDesignOutput): string {
   const stripped = stripEnvelopeSourceFields(output as unknown as Record<string, unknown>);
-  const projected = projectQuantitativeEvidence(separatePlayerAuthored("review_current_design", stripped));
+  const { focus: _focus, ...focusIndependent } = stripped;
+  const projected = projectQuantitativeEvidence(separatePlayerAuthored("review_current_design", focusIndependent));
   return computeResultDigest(projected);
 }
 
 function currentKnownState(
   context: AgentContext,
   output: ReviewCurrentDesignOutput,
+  input: ReviewCurrentDesignInput,
   session: AgentSessionState,
   surfaceRevision: string,
 ): KnownStateInput {
@@ -143,7 +146,38 @@ function currentKnownState(
     sessionRevision: session.revision,
     surfaceRevision,
     resultDigest: reviewOutputDigest(output),
+    requestFingerprint: computeRequestFingerprint({
+      capabilityName: "review_current_design",
+      ...reviewRequestIdentity(input, session),
+      evidenceRevision: context.evidenceMeta?.architectureRevision ?? "unversioned",
+      sessionRevision: session.revision,
+      focus: session.focus,
+      surfaceRevision,
+      resultDigest: reviewOutputDigest(output),
+    }),
   };
+}
+
+function targetKindForIntent(intent: string): string {
+  if (intent === "component_review") return "component";
+  if (intent === "requirement_failure") return "requirement";
+  if (intent === "workload_trace") return "workload";
+  return "unknown";
+}
+
+export function reviewRequestIdentity(input: ReviewCurrentDesignInput, session: AgentSessionState): {
+  readonly intent: string;
+  readonly target?: { readonly kind: string; readonly id: string };
+} {
+  const intent = intentFor(input, session);
+  const id = input.targetId
+    ?? (intent === "component_review" && session.focus.kind === "component" ? session.focus.componentId : undefined)
+    ?? (intent === "requirement_failure" && session.focus.kind === "requirement" ? session.focus.requirementId : undefined)
+    ?? (intent === "workload_trace" && session.focus.kind === "workload_channel" ? session.focus.workloadChannelId : undefined)
+    ?? (intent === "component_review" ? session.pendingHelpRequest?.componentId : undefined)
+    ?? (intent === "requirement_failure" ? session.pendingHelpRequest?.requirementId : undefined)
+    ?? (intent === "workload_trace" ? session.pendingHelpRequest?.workloadChannelId : undefined);
+  return { intent, ...(id ? { target: { kind: targetKindForIntent(intent), id } } : {}) };
 }
 
 function applyKnownState(
@@ -155,7 +189,7 @@ function applyKnownState(
 ): ReviewCurrentDesignOutput | { readonly unchanged: true } | { readonly focusOnly: true; readonly focus: ReturnType<typeof buildGetSessionFocusOutput>; readonly packet?: unknown } {
   const known = input.knownState;
   if (!known) return output;
-  const current = currentKnownState(context, output, session, surfaceRevision);
+  const current = currentKnownState(context, output, input, session, surfaceRevision);
   if (knownStateMatches(known, current)) return { unchanged: true };
   if (focusOnlyDelta(known, current)) {
     const packet = output.component ?? output.requirement ?? output.workload ?? output.cost ?? output.summary;
@@ -180,7 +214,8 @@ export function buildReviewCurrentDesignOutput(context: AgentContext, input: Rev
   if (invalidTarget) return invalidTarget;
   const knownRevision = input.knownEvidenceRevision;
   const currentRevision = context.evidenceMeta?.architectureRevision;
-  if (knownRevision && knownRevision === currentRevision) return capabilityOk({ policy: { version: "wmp-1", digest: digest(REVIEWER_CONTRACT.prohibitedActions.join("|")), contract: ["Use simulator evidence as truth.", "Give one finding and one focused question.", "Do not mutate architecture or invent metrics."] }, focus, evidence: { ...(context.evidenceMeta ?? { architectureRevision: "unversioned", simulationRunId: "unversioned", simulatorVersion: "unknown", isStale: true, generatedAt: "unknown" }), source: "live_draft_projection", updating: false, available: context.simulation?.available === true }, challenge: { slug: context.challenge.slug, title: context.challenge.title, budgetMonthly: context.challenge.monthlyBudget, learningThemes: context.challenge.coachingPolicy?.focusThemes ?? [] }, experimentReadiness: experimentReadiness(context, session), reviewRef: reviewReference(context, intent, input.targetId), availableSections: ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline", "experiment_readiness"], truncated: false, changeSummary: { ...(context.reviewDelta ?? { fromRevision: currentRevision ?? "unversioned", toRevision: currentRevision ?? "unversioned", addedComponentIds: [], removedComponentIds: [], changedComponentIds: [], addedConnectionIds: [], removedConnectionIds: [], changedRequirementIds: [], metricDeltas: [], changedWorkloadChannelIds: [], dynamicCapabilitiesAdded: [], dynamicCapabilitiesRemoved: [], unchangedCriticalCaveats: [] }), noMaterialChange: true }, suggestedNextTools: [] });
+  // Deprecated revision-only state is only useful for delta lookup. It can never
+  // suppress a targeted or intent-specific evidence projection.
   const deltaUnavailable = knownRevision ? (context.reviewDelta?.fromRevision === knownRevision ? undefined : "revision_not_retained" as const) : undefined;
   const evidenceMeta = context.evidenceMeta ?? { architectureRevision: "unversioned", simulationRunId: "unversioned", simulatorVersion: "unknown", isStale: true, generatedAt: "unknown" };
   const evidence = { ...evidenceMeta, source: evidenceMeta.simulationRunId.startsWith("live-") ? "live_draft_projection" as const : "player_run" as const, updating: false as const, available: context.simulation?.available === true };

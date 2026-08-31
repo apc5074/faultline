@@ -49,6 +49,27 @@ assert.ok(edited.context.comparisonBaselines?.previousReview);
 await source.recordPlayerRun("player-run-key");
 const withRun = await source.getEvidence();
 assert.equal(withRun.context.comparisonBaselines?.lastPlayerRun?.evidenceMeta?.simulationRunId, "run-player-run-key");
+const retained = withRun.context.comparisonBaselines;
+assert.ok(retained);
+assert.ok(JSON.stringify(retained).length < 12_000, "retained comparison payload must stay compact");
+assert.equal(JSON.stringify(retained).includes("comparisonBaselines"), false);
+assert.equal(JSON.stringify(retained).includes("reviewPackets"), false);
+assert.equal(JSON.stringify(retained).includes('"ui"'), false);
+
+const buildsBeforeWarmReads = builds;
+await Promise.all(Array.from({ length: 5 }, () => source.getEvidence()));
+assert.equal(builds, buildsBeforeWarmReads, "repeated warm reads must not rebuild simulator evidence");
+
+for (let revision = 5; revision <= 105; revision += 1) {
+  architecture = { ...architecture, components: [{ ...architecture.components[0], config: { instances: revision } }] };
+  const next = await source.getEvidence();
+  const baselines = next.context.comparisonBaselines;
+  assert.ok(baselines?.previousReview);
+  assert.ok(JSON.stringify(baselines).length < 12_000, `retained payload grew at revision ${revision}`);
+  assert.equal(JSON.stringify(baselines).includes("comparisonBaselines"), false);
+  assert.equal(JSON.stringify(baselines).includes("reviewPackets"), false);
+  assert.equal(JSON.stringify(baselines).includes('"ui"'), false);
+}
 
 buildDelays.push(20, 0);
 architecture = { ...architecture, components: [{ ...architecture.components[0], config: { instances: 3 } }] };

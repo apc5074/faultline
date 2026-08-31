@@ -30,6 +30,14 @@ export interface CapabilityInputSchema<TInput> {
 
 import type { AgentSessionState } from "./session.js";
 
+export type ProductionCapabilityGroup = "stable-review" | "stable-visual" | "specialists" | "experiments";
+
+export interface ProductionCapabilityExposure {
+  readonly production: boolean;
+  readonly group: ProductionCapabilityGroup;
+  readonly replaces?: readonly string[];
+}
+
 /** Adapter-neutral execution options forwarded from AI SDK, WebMCP, and other adapters. */
 export interface CapabilityExecutionOptions {
   readonly signal?: AbortSignal;
@@ -62,4 +70,6 @@ export interface AgentCapability<TContext, TInput, TOutput> {
     options?: CapabilityExecutionOptions,
   ): TOutput | Promise<TOutput>;
   annotations?: AgentCapabilityAnnotations;
+  /** Adapter-neutral production exposure; browser registration behavior stays in WebMCP. */
+  exposure?: ProductionCapabilityExposure;
 }

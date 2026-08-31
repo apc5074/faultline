@@ -5,7 +5,7 @@ import {
   createDefaultCapabilityRegistry,
   noInputSchema,
 } from "@faultline/agent-capabilities";
-import { registerPhase6ReadSurface, toWebMcpTool } from "../dist/index.js";
+import { registerReadWebMcpSurface, toWebMcpTool } from "../dist/index.js";
 
 const challenge = {
   slug: "tiny-api",
@@ -144,7 +144,7 @@ function createSlowRegistry(delayMs) {
   };
 
   const controller = new AbortController();
-  const pendingRegistration = registerPhase6ReadSurface({
+  const pendingRegistration = registerReadWebMcpSurface({
     modelContext,
     registry,
     getContext,
@@ -174,7 +174,7 @@ function createSlowRegistry(delayMs) {
 
   const controller = new AbortController();
   controller.abort();
-  const result = await registerPhase6ReadSurface({
+  const result = await registerReadWebMcpSurface({
     modelContext,
     registry,
     getContext: () => context,

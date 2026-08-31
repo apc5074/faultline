@@ -46,7 +46,13 @@ const deltaResult = buildReviewCurrentDesignOutput({ ...changedContext, reviewDe
 assert.equal(deltaResult.ok, true);
 assert.deepEqual(deltaResult.data.changeSummary.changedComponentIds, ["service-1"]);
 assert.equal(buildReviewCurrentDesignOutput({ ...changedContext, reviewPackets: buildReviewUseCasePackets(changedContext) }, { knownEvidenceRevision: "evicted" }, session).data.deltaUnavailable, "revision_not_retained");
-assert.equal(buildReviewCurrentDesignOutput(context, { knownEvidenceRevision: "fixture" }, session).data.changeSummary.noMaterialChange, true);
+const revisionHintOverview = buildReviewCurrentDesignOutput(context, { knownEvidenceRevision: "fixture" }, { ...session, focus: { kind: "none" } });
+assert.equal(revisionHintOverview.ok, true);
+assert.ok(revisionHintOverview.data.summary, "deprecated revision-only input must rebuild the requested overview");
+assert.equal(revisionHintOverview.data.changeSummary?.noMaterialChange, undefined);
+const revisionHintComponent = buildReviewCurrentDesignOutput(context, { intent: "component_review", targetId: "service-1", knownEvidenceRevision: "fixture" }, session);
+assert.equal(revisionHintComponent.ok, true);
+assert.ok(revisionHintComponent.data.component, "same evidence with a changed target must return targeted evidence");
 assert.equal(buildReviewCurrentDesignOutput(context, { intent: "component_review", targetId: "missing" }, session).ok, false);
 assert.equal(buildReviewCurrentDesignOutput(context, { intent: "cost_review", targetId: "service-1" }, session).ok, false);
 assert.equal(reviewCurrentDesignCapability.annotations.readOnlyHint, true);

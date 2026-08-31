@@ -19,9 +19,6 @@ import { toWebMcpTool, type WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool } from "./types.js";
 import type { WebMcpTimingSink } from "./timing.js";
 
-/** @deprecated Use BASELINE_READ_CAPABILITY_NAMES from @faultline/agent-capabilities. */
-export { BASELINE_READ_CAPABILITY_NAMES as PHASE_6_READ_CAPABILITY_NAMES } from "@faultline/agent-capabilities";
-
 export type Phase6ReadSurfaceSkipReason =
   | "missing"
   | "ineligible_mode"
@@ -59,10 +56,6 @@ export class Phase6SurfaceConfigurationError extends Error {
 }
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
-
-function mapResolverSkipReason(reason: "missing" | "unavailable"): Phase6ReadSurfaceSkipReason {
-  return reason;
-}
 
 function ineligibleReason(
   capability: RegisteredCapability,
@@ -106,7 +99,7 @@ export async function buildAgentReadSurface(
   const skipped: Phase6ReadSurfaceSkip[] = [];
 
   for (const skip of resolved.skipped) {
-    const reason = mapResolverSkipReason(skip.reason);
+    const reason = skip.reason;
     if (development && isBaselineReadCapabilityName(skip.name)) {
       configurationFailure(`Resolved surface capability "${skip.name}" is ineligible: ${reason}.`, development);
     }
@@ -133,12 +126,9 @@ export async function buildAgentReadSurface(
   return {
     tools,
     skipped,
-    resolvedNames: (profile === "production" ? WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES.filter((name) => resolved.names.includes(name)) : resolved.names).filter((name) => allowedNames.has(name as typeof WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES[number])),
+    resolvedNames: (profile === "production" ? WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES.filter((name) => resolved.names.includes(name as ResolvedCapabilityName)) : resolved.names).filter((name) => allowedNames.has(name as typeof WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES[number])) as ResolvedCapabilityName[],
   };
 }
-
-/** @deprecated Use buildAgentReadSurface. */
-export const buildPhase6ReadSurface = buildAgentReadSurface;
 
 /** Documented resolver order for diagnostics and verification. */
 export const RESOLVED_READ_SURFACE_CAPABILITY_NAMES = RESOLVED_CAPABILITY_NAME_ORDER;

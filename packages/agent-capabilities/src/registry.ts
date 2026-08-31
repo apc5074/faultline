@@ -3,6 +3,7 @@ import type { AgentContext } from "./context.js";
 import { capabilityCancelled, capabilityError, isCapabilityCancelled, type CapabilityResult } from "./result.js";
 import { hasCurrentExperimentConsent } from "./experiment-consent.js";
 import { architectureEvidenceFingerprint } from "./architecture-predicates.js";
+import { productionCapabilityExposure } from "./capability-names.js";
 
 export class DuplicateCapabilityError extends Error {
   override name = "DuplicateCapabilityError";
@@ -28,7 +29,9 @@ export class AgentCapabilityRegistry {
     if (this.#capabilities.has(capability.name)) {
       throw new DuplicateCapabilityError(`Capability "${capability.name}" is already registered.`);
     }
-    this.#capabilities.set(capability.name, capability as AnyCapability);
+    const exposure = productionCapabilityExposure(capability.name);
+    const registered = exposure && capability.exposure === undefined ? { ...capability, exposure } : capability;
+    this.#capabilities.set(capability.name, registered as AnyCapability);
   }
 
   get(name: string): AnyCapability {

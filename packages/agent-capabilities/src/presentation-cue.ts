@@ -30,6 +30,18 @@ export interface PresentationCue {
   readonly camera?: PresentationCameraIntent;
 }
 
+export type EvidenceSubjectRelation = "component" | "path" | "failure" | "comparison";
+
+export interface EvidenceSubjects {
+  readonly primary?: PresentationTarget;
+  readonly supporting: readonly PresentationTarget[];
+  readonly connections: readonly PresentationTarget[];
+  readonly relation: EvidenceSubjectRelation;
+  readonly evidenceRevision: string;
+  /** Evidence order is retained for deterministic path presentation. */
+  readonly ordered?: readonly PresentationTarget[];
+}
+
 export type PresentationTargetCandidates = Partial<Record<EntityKind, readonly string[]>>;
 
 export interface PresentationCueInput {
@@ -118,6 +130,43 @@ function stringValue(value: unknown): string | undefined {
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/** Project grounded legacy cue targets into the normalized subject contract. */
+export function subjectsForCapability(
+  capabilityName: string,
+  data: unknown,
+  context: AgentContext,
+  input?: unknown,
+): EvidenceSubjects | undefined {
+  const cue = presentationCueForCapability(capabilityName, data, context, input);
+  if (!cue) return undefined;
+  const primary = cue.targets.find((target) => target.emphasis === "primary");
+  if (!primary) return undefined;
+  const supporting = cue.targets.filter((target) => target.emphasis !== "primary" && target.kind !== "connection");
+  const connections = cue.targets.filter((target) => target.kind === "connection");
+  const relation: EvidenceSubjectRelation = cue.reason === "comparison-delta"
+    ? "comparison"
+    : cue.reason === "error-location"
+      ? "failure"
+      : cue.kind === "path"
+        ? "path"
+        : "component";
+  return { primary, supporting, connections, relation, evidenceRevision: primary.evidenceRevision, ordered: cue.targets };
+}
+
+/** Derive an advisory cue from normalized subjects without inspecting payloads. */
+export function presentationCueForSubjects(subjects: EvidenceSubjects): PresentationCue {
+  const targets = (subjects.ordered ?? [subjects.primary, ...subjects.supporting, ...subjects.connections]).filter((target): target is PresentationTarget => target !== undefined);
+  return {
+    contractVersion: PRESENTATION_CUE_CONTRACT_VERSION,
+    kind: subjects.relation === "component" ? "spotlight" : "path",
+    targets,
+    ...(subjects.relation === "comparison" ? { reason: "comparison-delta" as const } : {}),
+    ...(subjects.relation === "failure" ? { reason: "error-location" as const } : {}),
+    ...(subjects.relation === "path" ? { reason: "causal-path" as const } : {}),
+    camera: subjects.relation === "component" ? "frame-primary" : "frame-path",
+  };
 }
 
 /** Derive the default cue from structured capability evidence, never from prose. */

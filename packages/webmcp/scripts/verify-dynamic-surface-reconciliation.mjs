@@ -6,7 +6,7 @@ import {
   createDefaultCapabilityRegistry,
   resolveCapabilities,
 } from "@faultline/agent-capabilities";
-import { buildPhase6ReadSurface, registerAgentWebMcpSurface, toWebMcpTool } from "../dist/index.js";
+import { buildAgentReadSurface, registerAgentWebMcpSurface, toWebMcpTool } from "../dist/index.js";
 
 const challenge = {
   slug: "url-shortener",
@@ -71,7 +71,7 @@ movedUiArchitecture.components[0].ui = { x: 999, y: 999 };
 const registry = createDefaultCapabilityRegistry();
 
 async function surfaceNames(architecture) {
-  const surface = await buildPhase6ReadSurface({
+  const surface = await buildAgentReadSurface({
     registry,
     getContext: () => ({ challenge, architecture }),
     development: true,
@@ -116,7 +116,7 @@ if (!staleResult.ok) {
 }
 
 const resolved = resolveCapabilities(registry, { challenge, architecture: withRedisArchitecture }, { development: true });
-const webSurface = await buildPhase6ReadSurface({
+const webSurface = await buildAgentReadSurface({
   registry,
   getContext: () => ({ challenge, architecture: withRedisArchitecture }),
   development: true,

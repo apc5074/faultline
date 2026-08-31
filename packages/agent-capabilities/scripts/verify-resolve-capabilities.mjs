@@ -7,6 +7,7 @@ import {
   architectureHasRedis,
   BaselineCapabilityConfigurationError,
   BASELINE_READ_CAPABILITY_NAMES,
+  PRODUCTION_CAPABILITY_MANIFEST,
   createAgentCapabilityRegistry,
   createDefaultCapabilityRegistry,
   capabilitySurfaceFingerprint,
@@ -37,6 +38,15 @@ const baselineArchitecture = {
 const context = { challenge, architecture: baselineArchitecture };
 
 const defaultRegistry = createDefaultCapabilityRegistry();
+assert.deepEqual(
+  [...new Set(defaultRegistry.list().filter((capability) => capability.exposure?.production === true).map((capability) => capability.name))].sort(),
+  PRODUCTION_CAPABILITY_MANIFEST.map(({ name }) => name).sort(),
+  "registry production exposure must come from the ordered manifest",
+);
+for (const entry of PRODUCTION_CAPABILITY_MANIFEST) {
+  const capability = defaultRegistry.get(entry.name);
+  assert.deepEqual(capability.exposure, { production: entry.production, group: entry.group });
+}
 const baselineFingerprint = capabilitySurfaceFingerprint(defaultRegistry, context);
 
 const registry = defaultRegistry;
@@ -56,6 +66,15 @@ assert.deepEqual(first.skipped, [
 
 const missingBaselineRegistry = createAgentCapabilityRegistry(
   registry.list().filter((capability) => capability.name !== "get_metrics"),
+);
+const invalidExposureRegistry = createAgentCapabilityRegistry([
+  ...registry.list().map((capability) => capability.name === "get_metrics"
+    ? { ...capability, exposure: { production: true, group: "specialists" } }
+    : capability),
+]);
+assert.throws(
+  () => resolveCapabilities(invalidExposureRegistry, context, { development: true }),
+  (error) => error instanceof BaselineCapabilityConfigurationError && /invalid exposure metadata/.test(error.message),
 );
 assert.throws(
   () => resolveCapabilities(missingBaselineRegistry, context, { development: true }),

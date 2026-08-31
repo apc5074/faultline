@@ -17,7 +17,7 @@ import {
   useAgentSessionStore,
 } from "@/features/agent-session/AgentSessionProvider";
 import { AGENT_HELP_CHIPS, buildPendingHelpRequest } from "@/features/agent-session/agent-help-templates";
-import { createVisualIntentHandler } from "@/features/agent-session/visual-intent-bridge";
+import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
 import type { WebMcpTelemetryEvent } from "@/features/webmcp/webmcp-config";
 
 const DEFAULT_ARCHITECTURE: Architecture = {
@@ -103,8 +103,8 @@ function WebMcpInspectorWorkspace({
   const sessionStore = useAgentSessionStore();
   const session = useAgentSessionState();
   const onVisualIntent = useMemo(
-    () => createVisualIntentHandler(sessionStore, () => getContext().context.architecture),
-    [sessionStore, getContext],
+    () => createVisualCommandPublisher(sessionStore),
+    [sessionStore],
   );
 
   const [snapshot, setSnapshot] = useState<Phase6InspectorSnapshot | null>(null);

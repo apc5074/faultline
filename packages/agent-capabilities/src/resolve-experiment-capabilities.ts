@@ -1,5 +1,5 @@
 import type { AgentCapability } from "./capability.js";
-import { PHASE_8_EXPERIMENT_CAPABILITY_NAMES, type Phase8ExperimentCapabilityName } from "./capability-names.js";
+import { WEBMCP_PRODUCTION_EXPERIMENT_CAPABILITY_NAMES, type Phase8ExperimentCapabilityName } from "./capability-names.js";
 import type { AgentContext } from "./context.js";
 import type { AgentCapabilityRegistry } from "./registry.js";
 import type { CapabilityResult } from "./result.js";
@@ -20,7 +20,7 @@ export function resolveExperimentCapabilities(
   const capabilities: RegisteredCapability[] = [];
   const names: Phase8ExperimentCapabilityName[] = [];
   const skipped: Array<ResolveExperimentCapabilitiesResult["skipped"][number]> = [];
-  for (const name of PHASE_8_EXPERIMENT_CAPABILITY_NAMES) {
+  for (const name of WEBMCP_PRODUCTION_EXPERIMENT_CAPABILITY_NAMES as readonly Phase8ExperimentCapabilityName[]) {
     if (!registry.has(name)) { skipped.push({ name, reason: "missing" }); continue; }
     const capability = registry.get(name);
     if (capability.mode !== "experiment") { skipped.push({ name, reason: "unavailable" }); continue; }

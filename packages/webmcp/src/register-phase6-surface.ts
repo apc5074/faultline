@@ -51,6 +51,3 @@ export async function registerReadWebMcpSurface(
 
   return { resolvedToolNames: surface.resolvedNames, registeredToolNames, failedToolNames };
 }
-
-/** @deprecated Use registerReadWebMcpSurface. */
-export const registerPhase6ReadSurface = registerReadWebMcpSurface;

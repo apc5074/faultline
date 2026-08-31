@@ -176,6 +176,7 @@ export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrent
           sessionRevision: { type: "number" },
           surfaceRevision: { type: "string", minLength: 1 },
           resultDigest: { type: "string", minLength: 1 },
+          requestFingerprint: { type: "string", minLength: 1 },
         },
         required: ["evidenceRevision", "sessionRevision", "surfaceRevision", "resultDigest"],
         additionalProperties: false,
@@ -190,13 +191,14 @@ export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrent
     if (input.targetId !== undefined && (typeof input.targetId !== "string" || input.targetId.trim().length === 0)) return { success: false as const, errors: ["targetId must be a non-empty string."] };
     if (input.knownEvidenceRevision !== undefined && (typeof input.knownEvidenceRevision !== "string" || input.knownEvidenceRevision.length === 0 || input.knownEvidenceRevision.length > 128)) return { success: false as const, errors: ["knownEvidenceRevision must be a bounded non-empty string."] };
     if (input.knownState !== undefined) {
-      if (!isRecord(input.knownState) || !hasOnlyKeys(input.knownState, ["evidenceRevision", "sessionRevision", "surfaceRevision", "resultDigest"])) return { success: false as const, errors: ["knownState contains unknown properties."] };
+      if (!isRecord(input.knownState) || !hasOnlyKeys(input.knownState, ["evidenceRevision", "sessionRevision", "surfaceRevision", "resultDigest", "requestFingerprint"])) return { success: false as const, errors: ["knownState contains unknown properties."] };
       if (typeof input.knownState.evidenceRevision !== "string" || input.knownState.evidenceRevision.length === 0) return { success: false as const, errors: ["knownState.evidenceRevision must be a non-empty string."] };
       if (typeof input.knownState.sessionRevision !== "number" || !Number.isFinite(input.knownState.sessionRevision)) return { success: false as const, errors: ["knownState.sessionRevision must be a finite number."] };
       if (typeof input.knownState.surfaceRevision !== "string" || input.knownState.surfaceRevision.length === 0) return { success: false as const, errors: ["knownState.surfaceRevision must be a non-empty string."] };
       if (typeof input.knownState.resultDigest !== "string" || input.knownState.resultDigest.length === 0) return { success: false as const, errors: ["knownState.resultDigest must be a non-empty string."] };
+      if (input.knownState.requestFingerprint !== undefined && (typeof input.knownState.requestFingerprint !== "string" || input.knownState.requestFingerprint.length === 0 || input.knownState.requestFingerprint.length > 128)) return { success: false as const, errors: ["knownState.requestFingerprint must be a bounded non-empty string."] };
     }
-    return { success: true as const, data: { ...(input.intent ? { intent: input.intent as ReviewCurrentDesignInput["intent"] } : {}), ...(input.targetId ? { targetId: input.targetId } : {}), ...(input.knownEvidenceRevision ? { knownEvidenceRevision: input.knownEvidenceRevision } : {}), ...(input.knownState ? { knownState: { evidenceRevision: String(input.knownState.evidenceRevision), sessionRevision: Number(input.knownState.sessionRevision), surfaceRevision: String(input.knownState.surfaceRevision), resultDigest: String(input.knownState.resultDigest) } } : {}) } };
+    return { success: true as const, data: { ...(input.intent ? { intent: input.intent as ReviewCurrentDesignInput["intent"] } : {}), ...(input.targetId ? { targetId: input.targetId } : {}), ...(input.knownEvidenceRevision ? { knownEvidenceRevision: input.knownEvidenceRevision } : {}), ...(input.knownState ? { knownState: { evidenceRevision: String(input.knownState.evidenceRevision), sessionRevision: Number(input.knownState.sessionRevision), surfaceRevision: String(input.knownState.surfaceRevision), resultDigest: String(input.knownState.resultDigest), ...(input.knownState.requestFingerprint ? { requestFingerprint: String(input.knownState.requestFingerprint) } : {}) } } : {}) } };
   },
 };
 

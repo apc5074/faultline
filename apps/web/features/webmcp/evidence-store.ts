@@ -5,7 +5,7 @@ import type {
   AgentSessionState,
   LiveAgentSnapshot,
 } from "@faultline/agent-capabilities";
-import { buildReviewRevisionDelta, buildReviewUseCasePackets } from "@faultline/agent-capabilities";
+import { buildReviewRevisionDelta, buildReviewUseCasePackets, comparisonSnapshotFromContext, type ComparisonSnapshot } from "@faultline/agent-capabilities";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import { SIMULATOR_VERSION } from "@faultline/simulator";
 import { architectureEvidenceFingerprint } from "@faultline/agent-capabilities";
@@ -81,14 +81,21 @@ function buildIndexes(context: AgentContext): WebMcpEvidenceIndexes {
 
 function attachComparisonBaselines(
   context: AgentContext,
-  previousReview?: AgentContext,
-  playerRun?: AgentContext,
+  previousReview?: ComparisonSnapshot,
+  playerRun?: ComparisonSnapshot,
 ): AgentContext {
   const comparisonBaselines = {
     ...(previousReview ? { previousReview } : {}),
     ...(playerRun ? { lastPlayerRun: playerRun } : {}),
   };
   return Object.keys(comparisonBaselines).length > 0 ? { ...context, comparisonBaselines } : context;
+}
+
+function assertComparisonSnapshot(snapshot: ComparisonSnapshot): void {
+  const serialized = JSON.stringify(snapshot);
+  if (serialized.includes("comparisonBaselines") || serialized.includes("reviewPackets") || serialized.includes("reviewDelta")) {
+    throw new Error("ComparisonSnapshot contains forbidden recursive context fields.");
+  }
 }
 
 export function createWebMcpEvidenceSource(options: {
@@ -123,6 +130,10 @@ export function createWebMcpEvidenceSource(options: {
   }
 
   function prepareEvidence(key: string, context: AgentContext, previous?: PreparedWebMcpEvidence): PreparedWebMcpEvidence {
+    const previousSnapshot = previous ? comparisonSnapshotFromContext(previous.context) : undefined;
+    const playerRunSnapshot = lastPlayerRun ? comparisonSnapshotFromContext(lastPlayerRun.context) : undefined;
+    if (previousSnapshot) assertComparisonSnapshot(previousSnapshot);
+    if (playerRunSnapshot) assertComparisonSnapshot(playerRunSnapshot);
     const indexes = buildIndexes(context);
     const reviewPackets = buildReviewUseCasePackets({ ...context, reviewPackets: undefined });
     const preparedContext = attachComparisonBaselines(
@@ -131,8 +142,8 @@ export function createWebMcpEvidenceSource(options: {
         reviewPackets,
         ...(previous ? { reviewDelta: buildReviewRevisionDelta(previous.context, { ...context, reviewPackets }) } : {}),
       },
-      previous?.context,
-      lastPlayerRun?.context,
+      previousSnapshot,
+      playerRunSnapshot,
     );
     return { key, context: preparedContext, indexes };
   }
@@ -165,6 +176,8 @@ export function createWebMcpEvidenceSource(options: {
     const { architecture, challenge, key } = currentInputs();
     return buildPlayerRunContext(architecture, challenge, runKey).then((context) => {
       lastPlayerRun = prepareEvidence(key, context);
+      const snapshot = comparisonSnapshotFromContext(lastPlayerRun.context);
+      assertComparisonSnapshot(snapshot);
       if (completed?.key === key) {
         const { comparisonBaselines: _comparisonBaselines, reviewPackets: _reviewPackets, reviewDelta: _reviewDelta, ...baseContext } = completed.context;
         completed = prepareEvidence(key, baseContext, history.at(-1));

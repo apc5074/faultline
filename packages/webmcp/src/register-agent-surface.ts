@@ -1,5 +1,5 @@
 import type { AgentCapabilityMode, AgentCapabilityRegistry, PresentationCue } from "@faultline/agent-capabilities";
-import { isPhase7DynamicCapabilityName, resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
+import { productionCapabilityGroup, PRODUCTION_CAPABILITY_MANIFEST_VERSION, resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
 import type { ExperimentResult } from "@faultline/core";
 import { buildVisualWebMcpSurface } from "./agent-visual-surface.js";
 import { buildExperimentWebMcpSurface } from "./experiment-webmcp-surface.js";
@@ -16,6 +16,7 @@ export const WEBMCP_REGISTRATION_DEADLINE_MS = 2_000;
 export type WebMcpRegistrationGroup = "all" | "stable-review" | "stable-visual" | "specialists" | "experiments";
 
 export interface WebMcpRegistrationManifest {
+  readonly contractVersion: typeof PRODUCTION_CAPABILITY_MANIFEST_VERSION;
   readonly revision: string;
   readonly tools: readonly WebMcpTool[];
   readonly namesByMode: Readonly<Record<AgentCapabilityMode, readonly string[]>>;
@@ -54,7 +55,7 @@ function abortedResult(group: WebMcpRegistrationGroup): RegisterAgentWebMcpSurfa
 }
 
 function fingerprintManifest(tools: readonly WebMcpTool[]): string {
-  return JSON.stringify(tools.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations ?? null })));
+  return JSON.stringify({ contractVersion: PRODUCTION_CAPABILITY_MANIFEST_VERSION, tools: tools.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations ?? null })) });
 }
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
@@ -79,14 +80,13 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
   ]);
   if (signal.aborted) return abortedResult(group);
-  const readTools = group === "stable-review"
-    ? read.tools.filter((tool) => !isPhase7DynamicCapabilityName(tool.name))
-    : group === "specialists"
-      ? read.tools.filter((tool) => isPhase7DynamicCapabilityName(tool.name))
-      : read.tools;
+  const readTools = group === "stable-review" || group === "specialists"
+    ? read.tools.filter((tool) => productionCapabilityGroup(tool.name) === group)
+    : read.tools;
   const tools = [...readTools, ...visual.tools, ...experiment.tools];
   const namesByMode = { read: readTools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name) } as const;
   const manifest: WebMcpRegistrationManifest = {
+    contractVersion: PRODUCTION_CAPABILITY_MANIFEST_VERSION,
     revision: context.evidenceMeta?.architectureRevision ?? "unversioned",
     tools,
     namesByMode,

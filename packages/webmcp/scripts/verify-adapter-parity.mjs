@@ -5,7 +5,7 @@ import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
 
-import { buildPhase6ReadSurface } from "../dist/index.js";
+import { buildAgentReadSurface } from "../dist/index.js";
 
 function createLiveAgentContextFactory(source) {
   return () => createAgentContext(source.getArchitecture(), source.getChallenge());
@@ -200,7 +200,7 @@ function assertToolMetadataParity(tool) {
 }
 
 async function buildSurface(getContext) {
-  return buildPhase6ReadSurface({ registry, getContext, development: true });
+  return buildAgentReadSurface({ registry, getContext, development: true });
 }
 
 const validSurface = await buildSurface(() => validContext);
