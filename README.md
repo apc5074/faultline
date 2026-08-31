@@ -10,11 +10,11 @@ Play solo in any browser. In ChatGPT's in-app browser, or Chrome with WebMCP ena
 
 ---
 
-## Agents in the room
+## Working with an Agent
 
 Built for the [WebMCP Challenge](https://webmcp.devpost.com/).
 
-WebMCP was interseting to me because it allows the agent to actually be on the page. Most AI focus on how we can automate something, but WebMCP is built for coming up with ways for agents and humans to work in the same session together.
+WebMCP was interesting to me because it allows the agent to actually be on the page. Most AI workflows focus on how we can automate something, but WebMCP is built for coming up with ways for agents and humans to work in the same session together.
 
 I wanted to build an app that utilizes this collaboration without allowing the AI to do everything.
 
