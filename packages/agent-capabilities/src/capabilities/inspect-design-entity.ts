@@ -19,10 +19,11 @@ import {
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import {
   inspectDesignEntityInputSchema,
+  type ComponentReference,
   type InspectDesignEntityInput,
   type InspectDesignEntityKind,
 } from "../schemas.js";
-import { buildOutput as buildComponentOutput } from "./inspect-component-selectors.js";
+import { buildOutput as buildComponentOutput, selectComponentsBySelector } from "./inspect-component-selectors.js";
 import { experimentReadiness } from "../experiment-readiness.js";
 import { createEmptyAgentSessionState, type AgentSessionState } from "../session.js";
 
@@ -385,16 +386,99 @@ function withinByteBudget(output: InspectDesignEntityOutput): boolean {
   return JSON.stringify(output).length <= ENTITY_BYTE_BUDGET;
 }
 
+function componentIdsForReference(context: AgentContext, reference: ComponentReference): readonly string[] {
+  if ("componentId" in reference) {
+    return context.architecture.components.some((component) => component.id === reference.componentId)
+      ? [reference.componentId]
+      : [];
+  }
+  return selectComponentsBySelector(context.architecture.components, reference).map((component) => component.id);
+}
+
+function inspectStructuredConnection(
+  context: AgentContext,
+  input: Extract<InspectDesignEntityInput, { readonly kind: "connection"; readonly endpoints: { readonly source: ComponentReference; readonly target: ComponentReference } }>,
+): CapabilityResult<InspectDesignEntityOutput> {
+  const sourceIds = componentIdsForReference(context, input.endpoints.source);
+  const targetIds = componentIdsForReference(context, input.endpoints.target);
+  const matches = context.architecture.connections.filter(
+    (connection) => sourceIds.includes(connection.sourceComponentId) && targetIds.includes(connection.targetComponentId),
+  );
+  if (matches.length === 0) {
+    return capabilityError("NOT_FOUND", "No current connection matches the structured endpoints.", {
+      retryable: true,
+      currentEvidenceRevision: context.evidenceMeta?.architectureRevision,
+      recoveryTool: "get_architecture",
+    });
+  }
+  if (matches.length > 1) {
+    const choices = matches
+      .map((connection) => entityRefFor(context, "connection", connection.id))
+      .sort((left, right) => left.localeCompare(right));
+    return capabilityError("INVALID_INPUT", `Multiple current connections match the structured endpoints. Choose one of: ${matches.map((connection) => connection.id).sort().join(", ")}.`, {
+      retryable: false,
+      currentEvidenceRevision: context.evidenceMeta?.architectureRevision,
+      recoveryTool: "inspect_design_entity",
+      choices,
+    });
+  }
+  const output = inspectConnectionEntity(context, matches[0]!.id);
+  return output ? capabilityOk(output) : capabilityError("NOT_FOUND", "The matched connection is no longer live.");
+}
+
+function defaultWorkloadChannelId(context: AgentContext): string | undefined {
+  const channels = context.simulation?.available === true ? context.simulation.workloadPaths ?? {} : {};
+  const failing = Object.entries(channels)
+    .flatMap(([channelId, channel]) => channel.paths
+      .filter((path) => path.status !== "complete")
+      .map((path) => ({ channelId, pathId: path.pathId })))
+    .sort((left, right) => left.channelId.localeCompare(right.channelId) || left.pathId.localeCompare(right.pathId));
+  if (failing[0]) return failing[0].channelId;
+  return Object.keys(channels).sort((left, right) => left.localeCompare(right))[0];
+}
+
+function inspectStructuredWorkload(
+  context: AgentContext,
+  input: Extract<InspectDesignEntityInput, { readonly kind: "workload"; readonly selector: { readonly scope: "named" | "default" } }>,
+): CapabilityResult<InspectDesignEntityOutput> {
+  const channelId = input.selector.scope === "default" ? defaultWorkloadChannelId(context) : input.selector.channelId;
+  if (!channelId || !(context.simulation?.available === true && context.simulation.workloadPaths?.[channelId])) {
+    return capabilityError("NOT_FOUND", input.selector.scope === "default" ? "No current workload path is available for the default selector." : `Unknown workload channel "${channelId ?? ""}".`, {
+      retryable: true,
+      currentEvidenceRevision: context.evidenceMeta?.architectureRevision,
+      recoveryTool: "review_current_design",
+    });
+  }
+  const output = inspectWorkloadEntity(context, channelId);
+  return output ? capabilityOk(output) : capabilityError("NOT_FOUND", `Unknown workload channel "${channelId}".`);
+}
+
 export function inspectDesignEntity(
   context: AgentContext,
   input: InspectDesignEntityInput,
   session: AgentSessionState = createEmptyAgentSessionState(),
 ): CapabilityResult<InspectDesignEntityOutput> {
+  if (input.kind === "connection" && "endpoints" in input) {
+    const result = inspectStructuredConnection(context, input);
+    if (!result.ok) return result;
+    return withinByteBudget(result.data)
+      ? result
+      : capabilityError("INVALID_INPUT", "The matched connection exceeds the bounded payload budget.");
+  }
+  if (input.kind === "workload" && "selector" in input) {
+    const result = inspectStructuredWorkload(context, input);
+    if (!result.ok) return result;
+    return withinByteBudget(result.data)
+      ? result
+      : capabilityError("INVALID_INPUT", "The selected workload exceeds the bounded payload budget.");
+  }
+
   const resolved = resolveInspectDesignEntityTarget(input.kind, input.ref, context);
   if (!resolved.ok) {
     return capabilityError(resolved.code, resolved.message, {
       retryable: resolved.code === "NOT_FOUND",
       ...(resolved.choices ? { recoveryTool: "inspect_design_entity" } : {}),
+      ...(resolved.choices ? { choices: resolved.choices } : {}),
       ...(resolved.code === "NOT_FOUND" ? { currentEvidenceRevision: context.evidenceMeta?.architectureRevision, recoveryTool: "review_current_design" } : {}),
     });
   }
@@ -418,7 +502,7 @@ export const inspectDesignEntityCapability: AgentCapability<
 > = {
   name: "inspect_design_entity",
   description:
-    "Inspect one named design entity: component, connection, requirement, workload channel, or active region. Accepts exact ids or current scoped references; never accepts free-form queries.",
+    "Inspect one named design entity by exact ref, a connection using structured endpoints, or a workload using selector { scope: \"named\" | \"default\" }. Never accepts free-form queries.",
   inputSchema: inspectDesignEntityInputSchema,
   mode: "read",
   availableWhen: () => true,

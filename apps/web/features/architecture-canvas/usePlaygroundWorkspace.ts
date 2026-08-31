@@ -1018,7 +1018,7 @@ export function usePlaygroundWorkspace() {
     const componentIds: string[] = [];
     const connectionIds = new Set<string>();
     const addComponent = (id: string) => {
-      if (liveComponents.has(id) && !componentIds.includes(id) && componentIds.length < 5) componentIds.push(id);
+      if (liveComponents.has(id) && !componentIds.includes(id) && (cue.kind !== "path" || componentIds.length < 5)) componentIds.push(id);
     };
 
     // Explicit components preserve evidence order. Connection-only cues gain their
@@ -1031,16 +1031,6 @@ export function usePlaygroundWorkspace() {
         connectionIds.add(connection.id);
         addComponent(connection.sourceComponentId);
         addComponent(connection.targetComponentId);
-      }
-    }
-    if (cue.kind === "path") {
-      for (let index = 0; index < componentIds.length - 1; index += 1) {
-        const sourceId = componentIds[index]!;
-        const targetId = componentIds[index + 1]!;
-        const connection = architecture.connections.find((candidate) =>
-          candidate.sourceComponentId === sourceId && candidate.targetComponentId === targetId,
-        );
-        if (connection) connectionIds.add(connection.id);
       }
     }
     const primary = cue.targets.find((target) => target.emphasis === "primary");
@@ -1060,7 +1050,7 @@ export function usePlaygroundWorkspace() {
     );
     setAttentionComponentId(primaryComponentId);
 
-    if (cue.camera === "frame-primary" || cue.camera === "frame-path") {
+    if (cue.camera === "frame-primary" || cue.camera === "frame-path" || cue.camera === "frame-set") {
       const frameIds = cue.camera === "frame-primary" ? [primaryComponentId] : componentIds;
       pendingCameraRef.current = { version, componentIds: frameIds };
       if (viewMode !== "logical") setViewMode("logical");

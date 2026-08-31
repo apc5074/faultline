@@ -1,6 +1,7 @@
 export * from "./live-agent-snapshot.js";
 export * from "./session.js";
 export * from "./coaching-policy.js";
+export * from "./tool-routing.js";
 export * from "./regional-evidence.js";
 export * from "./workload-fit-evidence.js";
 export * from "./architecture-predicates.js";

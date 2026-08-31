@@ -25,7 +25,7 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
       "Review my selected component using the current Faultline evidence. Give one grounded finding and one question; do not modify the design.",
     requiresSelection: true,
     promptIntent: "component_review",
-    suggestedCapabilityNames: ["review_current_design", "inspect_design_entity", "get_metrics"],
+    suggestedCapabilityNames: ["inspect_component", "review_current_design", "get_metrics"],
   },
   {
     id: "trace-workload",
@@ -35,7 +35,7 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
       "Trace my focused workload path in Faultline and show me the first weak link. Give one verified finding and one question; do not modify the design.",
     requiresSelection: false,
     promptIntent: "workload_trace",
-    suggestedCapabilityNames: ["review_current_design", "inspect_design_entity", "get_metrics"],
+    suggestedCapabilityNames: ["inspect_design_entity", "review_current_design", "get_metrics"],
   },
   {
     id: "review-requirement",
@@ -55,7 +55,7 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
       "Review my deterministic cost pressure in Faultline without changing the design. Give one grounded finding and one question.",
     requiresSelection: false,
     promptIntent: "cost_review",
-    suggestedCapabilityNames: ["review_current_design", "get_cost_breakdown", "inspect_design_entity"],
+    suggestedCapabilityNames: ["get_cost_breakdown", "review_current_design", "inspect_design_entity"],
   },
 ] as const;
 

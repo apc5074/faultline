@@ -12,6 +12,7 @@ export type CapabilityRecovery = {
   readonly currentEvidenceRevision?: string;
   readonly requiresUserAction?: "approve_exact_experiment";
   readonly recoveryTool?: string;
+  readonly choices?: readonly string[];
 };
 
 export type CapabilityResult<T> =

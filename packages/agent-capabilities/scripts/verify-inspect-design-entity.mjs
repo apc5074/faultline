@@ -70,6 +70,48 @@ if (connection.ok) {
   assert.ok(connection.data.endpointMetrics.length === 2);
 }
 
+const cdnLbContext = {
+  ...context,
+  architecture: {
+    ...architecture,
+    components: [
+      ...architecture.components,
+      { id: "cdn-1", type: "cdn", config: {}, deployments: [], ui: { x: -2, y: 0 } },
+      { id: "lb-1", type: "load-balancer", config: {}, deployments: [], ui: { x: -1, y: 0 } },
+    ],
+    connections: [
+      ...architecture.connections,
+      { id: "cdn-lb", sourceComponentId: "cdn-1", sourcePortId: "out", targetComponentId: "lb-1", targetPortId: "in", type: "request" },
+    ],
+  },
+};
+const structuredConnection = inspectDesignEntity(cdnLbContext, {
+  kind: "connection",
+  endpoints: { source: { componentId: "cdn-1" }, target: { componentId: "lb-1" } },
+});
+assert.equal(structuredConnection.ok, true);
+if (structuredConnection.ok) assert.equal(structuredConnection.data.entityId, "cdn-lb");
+
+const ambiguousConnection = inspectDesignEntity({
+  ...cdnLbContext,
+  architecture: {
+    ...cdnLbContext.architecture,
+    connections: [
+      ...cdnLbContext.architecture.connections,
+      { id: "cdn-lb-duplicate", sourceComponentId: "cdn-1", sourcePortId: "out", targetComponentId: "lb-1", targetPortId: "in", type: "request" },
+    ],
+  },
+}, {
+  kind: "connection",
+  endpoints: { source: { type: "cdn", scope: "all" }, target: { type: "load-balancer", scope: "all" } },
+});
+assert.equal(ambiguousConnection.ok, false);
+if (!ambiguousConnection.ok) {
+  assert.equal(ambiguousConnection.code, "INVALID_INPUT");
+  assert.equal(ambiguousConnection.recovery?.choices?.length, 2);
+  assert.ok(ambiguousConnection.recovery?.choices?.every((choice) => choice.startsWith("wmp-ent-")));
+}
+
 const requirement = inspectDesignEntity(context, { kind: "requirement", ref: "latency" });
 assert.equal(requirement.ok, true);
 if (requirement.ok) assert.equal(requirement.data.status, "failed");
@@ -91,6 +133,22 @@ if (region.ok) {
   assert.equal(region.data.deployments.length, 2);
   assert.equal(region.data.originShare?.redirectRps, 100000);
 }
+const namedWorkload = inspectDesignEntity(context, { kind: "workload", selector: { scope: "named", channelId: "redirects" } });
+assert.equal(namedWorkload.ok, true);
+if (namedWorkload.ok) assert.deepEqual(namedWorkload.data.channel.paths[0].connectionIds, ["svc-pg"]);
+const defaultWorkload = inspectDesignEntity({
+  ...context,
+  simulation: {
+    ...context.simulation,
+    workloadPaths: {
+      ...context.simulation.workloadPaths,
+      "z-failing": { channelId: "z-failing", paths: [{ pathId: "z-path", componentIds: ["service-1"], connectionIds: [], status: "failed" }] },
+      "a-failing": { channelId: "a-failing", paths: [{ pathId: "a-path", componentIds: ["service-1"], connectionIds: [], status: "failed" }] },
+    },
+  },
+}, { kind: "workload", selector: { scope: "default" } });
+assert.equal(defaultWorkload.ok, true);
+if (defaultWorkload.ok) assert.equal(defaultWorkload.data.entityId, "a-failing");
 
 const ambiguous = resolveInspectDesignEntityTarget("component", "service", context);
 assert.equal(ambiguous.ok, false);

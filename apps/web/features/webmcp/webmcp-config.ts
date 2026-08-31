@@ -22,7 +22,7 @@ export type WebMcpTelemetryEvent = {
   readonly traceName?: string;
   readonly group?: string;
   readonly inputShape?: readonly string[];
-  readonly cueKind?: "spotlight" | "path";
+  readonly cueKind?: "spotlight" | "path" | "set";
   readonly targetCount?: number;
   readonly evidenceRevision?: string;
   readonly reason?: string;

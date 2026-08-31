@@ -3,9 +3,9 @@ import type { AgentContext } from "../context.js";
 import { createScopedEntityReference, resolveEntityTarget } from "../evidence-result.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 import { inspectComponentInputSchema, type InspectComponentInput } from "../schemas.js";
-import { buildOutput } from "./inspect-component-selectors.js";
+import { buildOutput, selectComponentsBySelector, type InspectComponentSelectionOutput } from "./inspect-component-selectors.js";
 
-export type { InspectComponentOutput } from "./inspect-component-selectors.js";
+export type { InspectComponentOutput, InspectComponentSelectionOutput } from "./inspect-component-selectors.js";
 export { buildOutput } from "./inspect-component-selectors.js";
 
 /**
@@ -15,7 +15,28 @@ export { buildOutput } from "./inspect-component-selectors.js";
 export function inspectComponent(
   context: AgentContext,
   input: InspectComponentInput,
-): CapabilityResult<import("./inspect-component-selectors.js").InspectComponentOutput> {
+): CapabilityResult<import("./inspect-component-selectors.js").InspectComponentOutput | InspectComponentSelectionOutput> {
+  if ("selector" in input) {
+    const matches = selectComponentsBySelector(context.architecture.components, input.selector);
+    if (matches.length === 0) {
+      const available = context.challenge.allowedComponentTypes.includes(input.selector.type);
+      return capabilityError(
+        available ? "NOT_FOUND" : "INVALID_INPUT",
+        available
+          ? `No current component matches type "${input.selector.type}".`
+          : `Component type "${input.selector.type}" is unavailable for this challenge.`,
+      );
+    }
+    return capabilityOk<InspectComponentSelectionOutput>({
+      selection: {
+        type: input.selector.type,
+        scope: input.selector.scope,
+        resolvedComponentIds: matches.map((component) => component.id),
+      },
+      components: matches.map((component) => buildOutput(component, context)),
+    });
+  }
+
   const revision = context.evidenceMeta?.architectureRevision ?? "unversioned";
   const resolved = resolveEntityTarget(input.componentId, revision, {
     component: context.architecture.components.map((component) => component.id),
@@ -49,11 +70,11 @@ export function componentEntityReference(context: AgentContext, componentId: str
 export const inspectComponentCapability: AgentCapability<
   AgentContext,
   InspectComponentInput,
-  CapabilityResult<import("./inspect-component-selectors.js").InspectComponentOutput>
+  CapabilityResult<import("./inspect-component-selectors.js").InspectComponentOutput | InspectComponentSelectionOutput>
 > = {
   name: "inspect_component",
   description:
-    "Inspect one infrastructure component: config, simulator metrics, workload-fit evidence when present, and monthly cost when available. Returns NOT_FOUND for unknown IDs.",
+    "Inspect one infrastructure component by exact componentId, or select an exact catalog type with selector { type, scope: \"all\" | \"topmost\" }. Returns a collection for selectors and NOT_FOUND for unknown IDs or unmatched types.",
   inputSchema: inspectComponentInputSchema,
   mode: "read",
   availableWhen: () => true,

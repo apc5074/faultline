@@ -65,7 +65,7 @@ export type {
 } from "./get-architecture.js";
 
 export { inspectComponentCapability, inspectComponent } from "./inspect-component.js";
-export type { InspectComponentOutput } from "./inspect-component.js";
+export type { InspectComponentOutput, InspectComponentSelectionOutput } from "./inspect-component.js";
 export { inspectComponentOptionCapability, inspectComponentOption } from "./inspect-component-option.js";
 export type { ComponentOptionFacts, InspectComponentOptionOutput } from "./inspect-component-option.js";
 export {

@@ -158,12 +158,50 @@ if (noSimulation.ok) {
   assert.equal(noSimulation.data.monthlyCost, 12_000);
 }
 
+const selectorArchitecture = {
+  ...architecture,
+  components: [
+    architecture.components[0],
+    architecture.components[1],
+    { ...architecture.components[1], id: "postgres-z", ui: { x: 9, y: 10 } },
+    { ...architecture.components[1], id: "postgres-a", ui: { x: 3, y: 10 } },
+    { ...architecture.components[1], id: "postgres-b", ui: { x: 3, y: 10 } },
+  ],
+};
+const selectorContext = { ...context, architecture: selectorArchitecture };
+const allPostgres = inspectComponent(selectorContext, { selector: { type: "postgres", scope: "all" } });
+assert.equal(allPostgres.ok, true);
+if (allPostgres.ok) {
+  assert.deepEqual(allPostgres.data.selection, {
+    type: "postgres",
+    scope: "all",
+    resolvedComponentIds: ["postgres-1", "postgres-a", "postgres-b", "postgres-z"],
+  });
+  assert.deepEqual(allPostgres.data.components.map((component) => component.id), [
+    "postgres-1",
+    "postgres-a",
+    "postgres-b",
+    "postgres-z",
+  ]);
+}
+const topmostPostgres = inspectComponent(selectorContext, { selector: { type: "postgres", scope: "topmost" } });
+assert.equal(topmostPostgres.ok, true);
+if (topmostPostgres.ok) assert.deepEqual(topmostPostgres.data.selection.resolvedComponentIds, ["postgres-1"]);
+
+const noMatchingType = inspectComponent(context, { selector: { type: "redis", scope: "all" } });
+assert.equal(noMatchingType.ok, false);
+if (!noMatchingType.ok) assert.equal(noMatchingType.code, "INVALID_INPUT");
+
 const registry = createDefaultCapabilityRegistry();
 assert.ok(registry.has("inspect_component"));
 
 const badInput = await registry.invoke("inspect_component", context, {});
 assert.equal(badInput.ok, false);
 if (!badInput.ok) assert.equal(badInput.code, "INVALID_INPUT");
+
+const badSelector = await registry.invoke("inspect_component", context, { selector: { type: "DB", scope: "all" } });
+assert.equal(badSelector.ok, false);
+if (!badSelector.ok) assert.equal(badSelector.code, "INVALID_INPUT");
 
 const invoked = await registry.invoke("inspect_component", context, { componentId: "service-1" });
 assert.equal(invoked.ok, true);

@@ -5,9 +5,9 @@ import type { AgentContext } from "./context.js";
 /** Versioned, adapter-neutral presentation guidance. It is never simulator truth. */
 export const PRESENTATION_CUE_CONTRACT_VERSION = "presentation-1" as const;
 
-export type PresentationCueKind = "spotlight" | "path";
+export type PresentationCueKind = "spotlight" | "path" | "set";
 export type PresentationEmphasis = "primary" | "secondary";
-export type PresentationCameraIntent = "none" | "frame-primary" | "frame-path";
+export type PresentationCameraIntent = "none" | "frame-primary" | "frame-path" | "frame-set";
 export type PresentationReasonCode =
   | "finding"
   | "error-location"
@@ -30,7 +30,7 @@ export interface PresentationCue {
   readonly camera?: PresentationCameraIntent;
 }
 
-export type EvidenceSubjectRelation = "component" | "path" | "failure" | "comparison";
+export type EvidenceSubjectRelation = "component" | "path" | "set" | "failure" | "comparison";
 
 export interface EvidenceSubjects {
   readonly primary?: PresentationTarget;
@@ -99,10 +99,10 @@ export function validatePresentationCue(value: unknown, evidenceRevision?: strin
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   if (record.contractVersion !== PRESENTATION_CUE_CONTRACT_VERSION) return false;
-  if (record.kind !== "spotlight" && record.kind !== "path") return false;
+  if (record.kind !== "spotlight" && record.kind !== "path" && record.kind !== "set") return false;
   if (!Array.isArray(record.targets) || record.targets.length === 0) return false;
   if (record.reason !== undefined && !["finding", "error-location", "causal-path", "comparison-delta"].includes(record.reason as string)) return false;
-  if (record.camera !== undefined && !["none", "frame-primary", "frame-path"].includes(record.camera as string)) return false;
+  if (record.camera !== undefined && !["none", "frame-primary", "frame-path", "frame-set"].includes(record.camera as string)) return false;
 
   const refs = new Set<string>();
   let primaryCount = 0;
@@ -120,7 +120,9 @@ export function validatePresentationCue(value: unknown, evidenceRevision?: strin
     if (refs.has(entry.ref)) return false;
     refs.add(entry.ref);
     if (entry.emphasis === "primary") primaryCount += 1;
+    if (record.kind === "set" && entry.kind !== "component") return false;
   }
+  if (record.kind === "set" && record.camera !== "frame-set") return false;
   return primaryCount === 1;
 }
 
@@ -151,7 +153,9 @@ export function subjectsForCapability(
       ? "failure"
       : cue.kind === "path"
         ? "path"
-        : "component";
+        : cue.kind === "set"
+          ? "set"
+          : "component";
   return { primary, supporting, connections, relation, evidenceRevision: primary.evidenceRevision, ordered: cue.targets };
 }
 
@@ -160,12 +164,12 @@ export function presentationCueForSubjects(subjects: EvidenceSubjects): Presenta
   const targets = (subjects.ordered ?? [subjects.primary, ...subjects.supporting, ...subjects.connections]).filter((target): target is PresentationTarget => target !== undefined);
   return {
     contractVersion: PRESENTATION_CUE_CONTRACT_VERSION,
-    kind: subjects.relation === "component" ? "spotlight" : "path",
+    kind: subjects.relation === "component" ? "spotlight" : subjects.relation === "set" ? "set" : "path",
     targets,
     ...(subjects.relation === "comparison" ? { reason: "comparison-delta" as const } : {}),
     ...(subjects.relation === "failure" ? { reason: "error-location" as const } : {}),
     ...(subjects.relation === "path" ? { reason: "causal-path" as const } : {}),
-    camera: subjects.relation === "component" ? "frame-primary" : "frame-path",
+    camera: subjects.relation === "component" ? "frame-primary" : subjects.relation === "set" ? "frame-set" : "frame-path",
   };
 }
 
@@ -188,9 +192,18 @@ export function presentationCueForCapability(
   let primaryTarget: string | undefined;
 
   if (capabilityName === "inspect_component") {
+    const selection = recordValue(record.selection);
+    const selectedIds = Array.isArray(selection?.resolvedComponentIds)
+      ? selection.resolvedComponentIds.filter((value): value is string => typeof value === "string")
+      : [];
+    if (selectedIds.length > 0) {
+      kind = "set";
+      targets = selectedIds;
+      primaryTarget = selectedIds[0];
+    }
     const facts = recordValue(record.facts) ?? record;
     const componentId = stringValue(facts.id) ?? stringValue(facts.componentId);
-    if (componentId) {
+    if (componentId && selectedIds.length === 0) {
       targets = [componentId];
       primaryTarget = componentId;
     }
@@ -359,8 +372,9 @@ export function presentationCueForCapability(
   const resolvedComponentCount = new Set(targets.filter((target) => componentIds.has(target))).size;
   const resolvedConnectionCount = new Set(targets.filter((target) => connectionIds.has(target))).size;
   if (resolvedComponentCount + resolvedConnectionCount === 0) return undefined;
-  if (resolvedComponentCount + resolvedConnectionCount > 1) kind = "path";
-  camera = kind === "path" ? "frame-path" : "frame-primary";
+  if (kind === "path" && resolvedConnectionCount === 0 && resolvedComponentCount > 1) return undefined;
+  if (kind !== "set" && resolvedComponentCount + resolvedConnectionCount > 1) kind = "path";
+  camera = kind === "path" ? "frame-path" : kind === "set" ? "frame-set" : "frame-primary";
   return createPresentationCue({ kind, targets, primaryTarget, reason, camera }, evidenceRevision, {
     component: context.architecture.components.map((component) => component.id),
     connection: context.architecture.connections.map((connection) => connection.id),

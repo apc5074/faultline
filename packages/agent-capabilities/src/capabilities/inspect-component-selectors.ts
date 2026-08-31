@@ -1,6 +1,7 @@
 import type { ComponentInstance, CostResult, JsonObject } from "@faultline/core";
 
 import type { AgentContext, AgentSimulationEvidence, EvidenceMeta } from "../context.js";
+import type { ComponentSelector, ComponentType } from "../schemas.js";
 import type { AgentWorkloadFitEvidence } from "../workload-fit-evidence.js";
 
 /** Compact component inspection for agent grounding. */
@@ -26,6 +27,15 @@ export interface InspectComponentOutput {
   readonly evidence?: EvidenceMeta;
   /** Current architecture edges only; no labels, config, or UI data. */
   readonly topology: ComponentTopology;
+}
+
+export interface InspectComponentSelectionOutput {
+  readonly selection: {
+    readonly type: ComponentType;
+    readonly scope: ComponentSelector["scope"];
+    readonly resolvedComponentIds: readonly string[];
+  };
+  readonly components: readonly InspectComponentOutput[];
 }
 
 function monthlyCostForComponent(cost: CostResult | undefined, componentId: string): number | undefined {
@@ -77,4 +87,15 @@ export function buildOutput(component: ComponentInstance, context: AgentContext)
     ...(context.evidenceMeta ? { evidence: context.evidenceMeta } : {}),
     topology: topologyForComponent(component, context),
   };
+}
+
+/** Resolve selector matches in deterministic canvas order; UI order never enters simulation. */
+export function selectComponentsBySelector(
+  components: readonly ComponentInstance[],
+  selector: ComponentSelector,
+): readonly ComponentInstance[] {
+  const matches = components
+    .filter((component) => component.type === selector.type)
+    .sort((left, right) => left.ui.y - right.ui.y || left.ui.x - right.ui.x || left.id.localeCompare(right.id));
+  return selector.scope === "topmost" ? matches.slice(0, 1) : matches;
 }

@@ -32,6 +32,18 @@ assert.equal(cue.targets.filter((target) => target.emphasis === "primary").lengt
 assert.equal(cue.targets.find((target) => target.entityId === "service")?.emphasis, "primary");
 assert.ok(validatePresentationCue(JSON.parse(JSON.stringify(cue)), revision));
 
+const setCue = createPresentationCue(
+  { kind: "set", targets: ["router", "service", "redis"], primaryTarget: "router", camera: "frame-set" },
+  revision,
+  candidates,
+);
+assert.ok(setCue);
+assert.equal(setCue.kind, "set");
+assert.equal(setCue.camera, "frame-set");
+assert.deepEqual(setCue.targets.map((target) => target.entityId), ["router", "service", "redis"]);
+assert.ok(validatePresentationCue(JSON.parse(JSON.stringify(setCue)), revision));
+assert.equal(validatePresentationCue({ ...setCue, camera: "frame-path" }, revision), false);
+
 const cappedPath = createPresentationCue(
   { kind: "path", targets: ["router", "service", "redis", "component-4", "component-5", "component-6"] },
   revision,
@@ -127,6 +139,19 @@ const cacheCue = presentationCueForCapability(
 );
 assert.equal(cacheCue?.camera, "frame-primary");
 assert.equal(cacheCue?.targets[0]?.entityId, "redis");
+
+const selectionCue = presentationCueForCapability(
+  "inspect_component",
+  {
+    selection: { type: "postgres", scope: "all", resolvedComponentIds: ["router", "service"] },
+    components: [{ id: "router" }, { id: "service" }],
+  },
+  { ...context, architecture: { components: [{ id: "router", deployments: [] }, { id: "service", deployments: [] }], connections: [] } },
+  { selector: { type: "postgres", scope: "all" } },
+);
+assert.equal(selectionCue?.kind, "set");
+assert.equal(selectionCue?.camera, "frame-set");
+assert.deepEqual(selectionCue?.targets.map((target) => target.entityId), ["router", "service"]);
 
 const connectionCue = presentationCueForCapability(
   "inspect_design_entity",

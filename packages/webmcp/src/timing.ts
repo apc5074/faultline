@@ -39,7 +39,7 @@ export interface WebMcpTraceEvent {
   readonly evidenceRevision?: string;
   readonly outcome?: "success" | "error" | "cancelled" | "superseded";
   readonly errorCode?: string;
-  readonly cueKind?: "spotlight" | "path";
+  readonly cueKind?: "spotlight" | "path" | "set";
   readonly targetCount?: number;
   readonly primaryKind?: string;
   readonly cameraIntent?: string;

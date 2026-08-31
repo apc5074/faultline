@@ -39,13 +39,29 @@ assert.equal(noInputSchema.safeParse({ extra: true }).success, false);
 
 assert.deepEqual(inspectComponentInputSchema.jsonSchema, {
   type: "object",
-  properties: { componentId: { type: "string", minLength: 1 } },
-  required: ["componentId"],
+  properties: {
+    componentId: { type: "string", minLength: 1 },
+    selector: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["traffic-source", "service", "postgres", "redis", "global-router", "load-balancer", "cdn", "object-storage", "queue", "worker"],
+        },
+        scope: { type: "string", enum: ["all", "topmost"] },
+      },
+      required: ["type", "scope"],
+      additionalProperties: false,
+    },
+  },
   additionalProperties: false,
 });
 assert.equal(inspectComponentInputSchema.safeParse({ componentId: "svc-1" }).success, true);
+assert.equal(inspectComponentInputSchema.safeParse({ selector: { type: "postgres", scope: "all" } }).success, true);
 assert.equal(inspectComponentInputSchema.safeParse({}).success, false);
 assert.equal(inspectComponentInputSchema.safeParse({ componentId: "" }).success, false);
+assert.equal(inspectComponentInputSchema.safeParse({ selector: { type: "DB", scope: "all" } }).success, false);
+assert.equal(inspectComponentInputSchema.safeParse({ selector: { type: "postgres", scope: "nearest" } }).success, false);
 assert.equal(inspectComponentInputSchema.safeParse({ componentId: "svc-1", extra: true }).success, false);
 
 assert.deepEqual(estimateCapacityInputSchema.jsonSchema, {

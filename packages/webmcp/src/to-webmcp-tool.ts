@@ -61,13 +61,14 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 /** Keep host-facing metadata explicit and compact; the shared capability remains verbose for other adapters. */
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
-    review_current_design: "Use for an overview or current UI focus. For a named component, connection, error, or path, use a targeted entity read. Current grounded targets frame automatically.",
-    inspect_design_entity: "Use for a named component, connection, requirement/error, or workload. Current targeted evidence frames its valid subject/path. Refresh stale refs.",
+    review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
+    inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
+    inspect_component: "Use first for a named component with { componentId }, or a type with { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }. Current evidence frames the result.",
     inspect_component_option: "When: explain an unlocked catalog option. Returns: factual configuration and modeled behavior. Side effect: none. Recovery: unavailable types are rejected.",
     compare_design_evidence: "When: compare retained evidence. Returns: deterministic changes and provenance. Side effect: none. Recovery: retry when a baseline is unavailable.",
     expand_design_evidence: "When: deeper evidence is requested. Returns: up to two named evidence sections. Side effect: none. Recovery: refresh an expired review reference.",
-    focus_component: "Call after inspecting evidence and before answering whenever discussing one specific existing component. Visually highlights and zooms to that component. Use its exact current component ID.",
-    highlight_connection: "Call after inspecting evidence and before answering whenever discussing a relationship between connected components. Highlights the connection and frames both endpoints. Use its exact current connection ID.",
+    focus_component: "Before answering, use only for an explicit persistent focus gesture; targeted reads already frame current components. Visually zooms to its exact current component ID.",
+    highlight_connection: "Before answering, use only for an explicit persistent relationship mark; targeted reads already frame current paths. Persistent mark frames both endpoints using the exact current connection ID.",
     annotate_component: "Call only when a persistent grounded coaching note is useful. Adds a note without changing the architecture.",
     clear_annotations: "Call to remove prior agent coaching marks from the canvas.",
   };
@@ -210,7 +211,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           }
           if (sanitized.ok && sanitized.data && typeof sanitized.data === "object" && "presentation" in sanitized.data) {
             const cue = (sanitized.data as { presentation?: unknown }).presentation;
-            if (cue) recordWebMcpTrace(trace, { name: "cue_derived", capability: capability.name, cueKind: (cue as { kind?: string }).kind === "path" ? "path" : "spotlight", targetCount: Array.isArray((cue as { targets?: unknown }).targets) ? (cue as { targets: unknown[] }).targets.length : 0, primaryKind: String(((cue as { targets?: Array<{ kind?: unknown }> }).targets ?? []).find((target) => target?.kind)?.kind ?? "unknown"), cameraIntent: String((cue as { camera?: unknown }).camera ?? "none") });
+            if (cue) recordWebMcpTrace(trace, { name: "cue_derived", capability: capability.name, cueKind: (cue as { kind?: string }).kind === "path" ? "path" : (cue as { kind?: string }).kind === "set" ? "set" : "spotlight", targetCount: Array.isArray((cue as { targets?: unknown }).targets) ? (cue as { targets: unknown[] }).targets.length : 0, primaryKind: String(((cue as { targets?: Array<{ kind?: unknown }> }).targets ?? []).find((target) => target?.kind)?.kind ?? "unknown"), cameraIntent: String((cue as { camera?: unknown }).camera ?? "none") });
             if (cue && validatePresentationCue(cue, lease.evidenceRevision)) {
               // Presentation is advisory. A browser callback failure must not
               // prevent the current evidence envelope from reaching the host.
