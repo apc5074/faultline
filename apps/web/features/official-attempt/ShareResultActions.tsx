@@ -57,9 +57,9 @@ export function ShareResultActions({ submissionId, enabled }: { submissionId: st
       <div className="official-scorecard__share-buttons">
         <button type="button" className="official-scorecard__share" onClick={() => void copy()}>{status === "copied" ? "Link copied" : "Copy link"}</button>
         <a className="official-scorecard__share-link" href={`/s/${shareId}`} target="_blank" rel="noreferrer">Open preview ↗</a>
-        <a className="official-scorecard__share-link" href={`/s/${shareId}/opengraph-image`} download={`faultline-${shareId}.png`}>Save image ↓</a>
+        <a className="official-scorecard__share-link" href={`/s/${shareId}/opengraph-image`} download="faultline-result.png">Save image ↓</a>
       </div>
-      <p className="official-scorecard__share-url">{shareUrl}</p>
+      <p className="official-scorecard__share-status">Share link ready</p>
     </div>
   );
 }

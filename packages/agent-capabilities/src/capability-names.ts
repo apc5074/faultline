@@ -51,6 +51,8 @@ export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "inspect_component_option", production: true, group: "stable-review" },
   { name: "compare_design_evidence", production: true, group: "stable-review" },
   { name: "get_architecture", production: true, group: "stable-review" },
+  { name: "inspect_component", production: true, group: "stable-review" },
+  { name: "estimate_capacity", production: true, group: "stable-review" },
   { name: "get_metrics", production: true, group: "stable-review" },
   { name: "get_cost_breakdown", production: true, group: "stable-review" },
   { name: "inspect_cache", production: true, group: "specialists" },

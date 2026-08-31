@@ -81,13 +81,14 @@ function useWebMcpGroupRegistration({
     }, WEBMCP_REGISTRATION_DEADLINE_MS);
     statusRef.current(group, { state: "registering", ...empty, generation });
     const timing = (event: Parameters<typeof emitWebMcpTelemetry>[0]) => emitWebMcpTelemetry(event);
-    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason });
+    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, generation: event.generation, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason, selectorScope: event.selectorScope, matchedCount: event.matchedCount, retried: event.retried });
     void registerAgentWebMcpSurface({
       modelContext, registry, getContext: (signal) => evidenceSource.getSnapshot(signal),
       getCurrentEvidenceRevision: () => evidenceSource.getEvidenceRevision(), signal: controller.signal,
       development: process.env.NODE_ENV === "development", group, timing, trace,
       onVisualIntent: (intent) => visualRef.current?.(intent),
       ...(experimentRef.current ? { onExperimentResult: (result: ExperimentResult) => experimentRef.current?.(result) } : {}),
+      traceGeneration: generation,
       onPresentationCue: (cue) => {
         presentationRef.current?.(cue);
         if (process.env.NODE_ENV !== "production") emitWebMcpTelemetry({ kind: "trace", traceName: "cue_applied", cueKind: cue.kind, targetCount: cue.targets.length, evidenceRevision: cue.targets[0]?.evidenceRevision });
@@ -195,12 +196,6 @@ export function WebMcpRegistration({
     publishedStatusRef.current = nextStatus;
     onStatusChangeRef.current(nextStatus);
   }, [groupStatuses]);
-
-  // Focus/help changes are explicit player signals. Prewarm their current
-  // revision without changing the registered surface or invoking a tool.
-  useEffect(() => {
-    if (session.focus.kind !== "none" || session.pendingHelpRequest) evidenceSource.prewarm();
-  }, [evidenceSource, session.focus.kind, session.pendingHelpRequest, session.revision]);
 
   return null;
 }

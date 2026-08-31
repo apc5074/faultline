@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { urlShortenerChallenge } from "@faultline/challenges";
-import { createWebMcpEvidenceSource } from "../features/webmcp/evidence-store.ts";
+import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
+import { registerAgentWebMcpSurface } from "@faultline/webmcp";
+import { buildWebMcpEvidenceKey, createWebMcpEvidenceSource } from "../features/webmcp/evidence-store.ts";
 
 let architecture = {
   version: 1,
@@ -25,6 +27,16 @@ const source = createWebMcpEvidenceSource({
     };
   },
 });
+
+const reorderedArchitecture = {
+  ...architecture,
+  components: [...architecture.components].reverse(),
+};
+assert.equal(buildWebMcpEvidenceKey(architecture, urlShortenerChallenge), buildWebMcpEvidenceKey(reorderedArchitecture, urlShortenerChallenge));
+assert.notEqual(
+  buildWebMcpEvidenceKey(architecture, urlShortenerChallenge),
+  buildWebMcpEvidenceKey(architecture, { ...urlShortenerChallenge, version: urlShortenerChallenge.version + 1 }),
+);
 
 const concurrent = await Promise.all([source.getEvidence(), source.getEvidence(), source.getEvidence()]);
 assert.equal(builds, 1);
@@ -85,4 +97,68 @@ source.dispose();
 assert.rejects(source.getEvidence(), /disposed/);
 source.activate();
 assert.equal((await source.getEvidence()).context.architecture.components[0].config.instances, 4);
+
+let registeredArchitecture = {
+  version: 1,
+  components: [{ id: "postgres-1", type: "postgres", config: {}, deployments: [], ui: { x: 0, y: 0 } }],
+  connections: [],
+};
+let registeredBuilds = 0;
+const registeredSession = { focus: { kind: "none" }, pendingHelpRequest: null, annotations: [], experimentConsent: null, revision: 0 };
+const registeredSource = createWebMcpEvidenceSource({
+  getArchitecture: () => registeredArchitecture,
+  getChallenge: () => urlShortenerChallenge,
+  getSession: () => registeredSession,
+  buildContext: async (nextArchitecture, challenge) => {
+    registeredBuilds += 1;
+    return {
+      architecture: nextArchitecture,
+      challenge,
+      simulation: { available: false },
+      evidenceMeta: {
+        architectureRevision: buildWebMcpEvidenceKey(nextArchitecture, challenge),
+        simulationRunId: `registered-${registeredBuilds}`,
+        simulatorVersion: "test",
+        isStale: true,
+        generatedAt: `registered-build-${registeredBuilds}`,
+      },
+    };
+  },
+});
+const registeredTools = [];
+await registerAgentWebMcpSurface({
+  group: "stable-review",
+  modelContext: { registerTool: async (tool) => registeredTools.push(tool) },
+  registry: createDefaultCapabilityRegistry(),
+  getContext: (signal) => registeredSource.getSnapshot(signal),
+  getCurrentEvidenceRevision: () => registeredSource.getEvidenceRevision(),
+  signal: new AbortController().signal,
+  development: true,
+});
+assert.equal(registeredTools.filter((tool) => tool.name === "inspect_component").length, 1);
+const registeredInspect = registeredTools.find((tool) => tool.name === "inspect_component");
+assert.ok(registeredInspect);
+const invokeRegisteredInspect = async () => registeredInspect.execute({ selector: { type: "postgres", scope: "all" } }, {});
+const revisionA = await invokeRegisteredInspect();
+assert.equal(revisionA.ok, true);
+assert.equal(revisionA.data.data.selection.matchedCount, 1);
+assert.deepEqual(revisionA.data.data.selection.resolvedComponentIds, ["postgres-1"]);
+const evidenceRevisionA = revisionA.data.state.evidenceRevision;
+
+registeredArchitecture = { ...registeredArchitecture, components: [...registeredArchitecture.components, { id: "postgres-2", type: "postgres", config: {}, deployments: [], ui: { x: 100, y: 0 } }] };
+const revisionB = await invokeRegisteredInspect();
+assert.equal(revisionB.ok, true);
+assert.equal(revisionB.data.data.selection.matchedCount, 2);
+assert.deepEqual(revisionB.data.data.selection.resolvedComponentIds, ["postgres-1", "postgres-2"]);
+assert.notEqual(revisionB.data.state.evidenceRevision, evidenceRevisionA);
+assert.equal(registeredTools.filter((tool) => tool.name === "inspect_component").length, 1);
+
+registeredArchitecture = { ...registeredArchitecture, components: registeredArchitecture.components.filter((component) => component.id !== "postgres-1") };
+const revisionC = await invokeRegisteredInspect();
+assert.equal(revisionC.ok, true);
+assert.equal(revisionC.data.data.selection.matchedCount, 1);
+assert.deepEqual(revisionC.data.data.selection.resolvedComponentIds, ["postgres-2"]);
+assert.notEqual(revisionC.data.state.evidenceRevision, revisionB.data.state.evidenceRevision);
+
+assert.equal(registeredBuilds, 3, "registered callback reads must build once per semantic revision");
 console.log("verify-webmcp-evidence-store: ok");

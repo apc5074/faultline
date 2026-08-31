@@ -48,15 +48,42 @@ export function architectureSimulationKey(architecture: Architecture): string {
   });
 }
 
+/** Allocates `prefix-1`, `prefix-2`, … skipping any IDs already on the canvas. */
+export function nextSequentialId(prefix: string, existingIds: Iterable<string>): string {
+  const taken = new Set(existingIds);
+  let index = 1;
+  while (taken.has(`${prefix}-${index}`)) index += 1;
+  return `${prefix}-${index}`;
+}
+
+/** Player-facing label for a component; never exposes the internal id. */
+export function componentDisplayLabel(
+  architecture: Architecture,
+  componentId: string,
+): string {
+  const component = architecture.components.find((candidate) => candidate.id === componentId);
+  if (!component || !componentRegistry.has(component.type)) return "Unknown component";
+  const definition = componentRegistry.get(component.type);
+  if (component.type === "traffic-source") {
+    const label = (component.config as { label?: string }).label?.trim();
+    if (label) return label;
+  }
+  const siblings = architecture.components.filter((candidate) => candidate.type === component.type);
+  if (siblings.length <= 1) return definition.label;
+  const ordinal = siblings.findIndex((candidate) => candidate.id === componentId) + 1;
+  return `${definition.label} ${ordinal}`;
+}
+
 export function createComponentInstance(
   definition: ComponentDefinition,
   position: { x: number; y: number },
+  existingIds: Iterable<string> = [],
 ): ComponentInstance {
   const parsedConfig = definition.configSchema.safeParse(structuredClone(definition.defaultConfig));
   if (!parsedConfig.success) throw new Error(`Default configuration for ${definition.type} is invalid.`);
 
   return {
-    id: `${definition.type}-${crypto.randomUUID()}`,
+    id: nextSequentialId(definition.type, existingIds),
     type: definition.type,
     config: parsedConfig.data,
     deployments: [],
@@ -68,6 +95,7 @@ export function createComponentInstance(
 export function createDroppedComponentInstance(
   definition: ComponentDefinition,
   position: { x: number; y: number },
+  existingIds: Iterable<string> = [],
 ): ComponentInstance {
   const config = {
     ...structuredClone(definition.defaultConfig),
@@ -89,7 +117,7 @@ export function createDroppedComponentInstance(
   if (!parsedConfig.success) throw new Error(`Default configuration for ${definition.type} is invalid.`);
 
   return {
-    id: `${definition.type}-${crypto.randomUUID()}`,
+    id: nextSequentialId(definition.type, existingIds),
     type: definition.type,
     config: parsedConfig.data,
     deployments: [],
@@ -105,7 +133,11 @@ export function connectionCreateResult(
   connection: FlowConnectionLike,
   architecture: Architecture,
 ): ConnectionCreateResult {
-  const canonicalConnection = connectionFromFlow(connection, architecture.components);
+  const canonicalConnection = connectionFromFlow(
+    connection,
+    architecture.components,
+    architecture.connections.map((entry) => entry.id),
+  );
   if (!canonicalConnection) {
     return {
       ok: false,
@@ -131,6 +163,7 @@ export function connectionCreateResult(
 export function connectionFromFlow(
   connection: FlowConnectionLike,
   components: readonly ComponentInstance[],
+  existingConnectionIds: Iterable<string> = [],
 ): ArchitectureConnection | null {
   if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return null;
   const source = components.find((component) => component.id === connection.source);
@@ -145,7 +178,7 @@ export function connectionFromFlow(
   if (!type || !checkConnectionCompatibility(sourcePort, targetPort, type).valid) return null;
 
   return {
-    id: `connection-${crypto.randomUUID()}`,
+    id: nextSequentialId("connection", existingConnectionIds),
     sourceComponentId: source.id,
     sourcePortId: sourcePort.id,
     targetComponentId: target.id,
@@ -174,6 +207,7 @@ export function reconnectAroundComponent(
     ),
   );
   const replacements: ArchitectureConnection[] = [];
+  const usedConnectionIds = new Set(architecture.connections.map((connection) => connection.id));
 
   for (const inbound of incoming) {
     for (const outbound of outgoing) {
@@ -186,12 +220,14 @@ export function reconnectAroundComponent(
           targetHandle: outbound.targetPortId,
         },
         components,
+        usedConnectionIds,
       );
       if (!replacement) continue;
 
       const key = `${replacement.sourceComponentId}:${replacement.sourcePortId}->${replacement.targetComponentId}:${replacement.targetPortId}:${replacement.type}`;
       if (existingKeys.has(key)) continue;
       existingKeys.add(key);
+      usedConnectionIds.add(replacement.id);
       replacements.push(replacement);
     }
   }

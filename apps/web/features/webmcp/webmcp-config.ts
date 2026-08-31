@@ -1,3 +1,5 @@
+import { safeWebMcpRevision } from "@faultline/webmcp";
+
 export type WebMcpFeatureState = "enabled" | "disabled";
 
 /** Public registration-only kill switch; gameplay never depends on this flag. */
@@ -21,14 +23,23 @@ export type WebMcpTelemetryEvent = {
   readonly errorClass?: "registration" | "timeout";
   readonly traceName?: string;
   readonly group?: string;
+  readonly generation?: number;
   readonly inputShape?: readonly string[];
   readonly cueKind?: "spotlight" | "path" | "set";
   readonly targetCount?: number;
   readonly evidenceRevision?: string;
   readonly reason?: string;
+  readonly selectorScope?: "all" | "topmost";
+  readonly matchedCount?: number;
+  readonly retried?: boolean;
 };
 
 /** Emits only allowlisted lifecycle diagnostics; no prompts, architecture, accounts, or payloads. */
 export function emitWebMcpTelemetry(event: WebMcpTelemetryEvent): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("faultline:webmcp", { detail: event }));
+  if (typeof window !== "undefined") {
+    const safeEvent = event.evidenceRevision
+      ? { ...event, evidenceRevision: safeWebMcpRevision(event.evidenceRevision) }
+      : event;
+    window.dispatchEvent(new CustomEvent("faultline:webmcp", { detail: safeEvent }));
+  }
 }

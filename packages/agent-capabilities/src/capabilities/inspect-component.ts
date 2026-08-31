@@ -31,6 +31,7 @@ export function inspectComponent(
       selection: {
         type: input.selector.type,
         scope: input.selector.scope,
+        matchedCount: matches.length,
         resolvedComponentIds: matches.map((component) => component.id),
       },
       components: matches.map((component) => buildOutput(component, context)),
@@ -74,7 +75,7 @@ export const inspectComponentCapability: AgentCapability<
 > = {
   name: "inspect_component",
   description:
-    "Inspect one infrastructure component by exact componentId, or select an exact catalog type with selector { type, scope: \"all\" | \"topmost\" }. Returns a collection for selectors and NOT_FOUND for unknown IDs or unmatched types.",
+    "Read the current invocation revision: inspect one component by exact componentId, or select a catalog type with { selector: { type, scope: \"all\" | \"topmost\" } }. For an unqualified type-wide/count/existence question, use scope all; use topmost only for positional requests. Do not reuse after a board edit.",
   inputSchema: inspectComponentInputSchema,
   mode: "read",
   availableWhen: () => true,

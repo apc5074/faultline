@@ -26,8 +26,6 @@ import { activeChallenge, challengeRedirectRps } from "@/features/architecture-c
 import {
   architectureSimulationKey,
   connectionCreateResult,
-  connectionFromFlow,
-  createComponentInstance,
   createDroppedComponentInstance,
   formatCost,
   reconnectAroundComponent,
@@ -509,13 +507,20 @@ export function usePlaygroundWorkspace() {
       const type = event.dataTransfer.getData("application/faultline-component-type");
       if (!activeChallenge.allowedComponentTypes.includes(type) || !componentRegistry.has(type)) return;
 
-      const component = createDroppedComponentInstance(
-        componentRegistry.get(type),
-        clampToPlaygroundBoard(screenToFlowPosition({ x: event.clientX, y: event.clientY })),
+      const position = clampToPlaygroundBoard(
+        screenToFlowPosition({ x: event.clientX, y: event.clientY }),
       );
+      let created: ComponentInstance | null = null;
       setArchitecture((current) => {
-        return { ...current, components: [...current.components, component] };
+        created = createDroppedComponentInstance(
+          componentRegistry.get(type),
+          position,
+          current.components.map((component) => component.id),
+        );
+        return { ...current, components: [...current.components, created] };
       });
+      if (!created) return;
+      const component = created;
       setSelectedComponentId(component.id);
       setWorldSelection(null);
       setSettlingNodeIds((current) => new Set(current).add(component.id));

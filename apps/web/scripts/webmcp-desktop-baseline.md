@@ -1,11 +1,25 @@
-# WebMCP desktop baseline
+# WebMCP desktop freshness matrix
 
-Manual ChatGPT desktop timing is intentionally recorded separately from deterministic browser callback timings. Run the five prompts below against the Level 1 fixture and fill in the run table without recording prompts, tool payloads, architecture identifiers, account data, or full errors in telemetry.
+Manual acceptance record for CTX-007. Use one deployed Preview and the fixed
+Level 1 fixture. Record the host/model and browser build before running the
+matrix; do not paste board payloads or response prose into this report.
 
-Prompts: challenge overview; selected component review; failed requirement; cost review; approved simulated experiment.
+| Case | Tool called | Selector | Expected fact | Actual fact | Revision | Pass/fail |
+| --- | --- | --- | --- | --- | --- | --- |
+| One Postgres | `inspect_component` | `postgres`, `all` | 1 component | — | — | Pending manual Preview |
+| Add Postgres without Run | `inspect_component` | `postgres`, `all` | 2 components | — | — | Pending manual Preview |
+| Change Service instances | `inspect_component` | `service`, `all` | Same Service-box count | — | — | Pending manual Preview |
+| Remove component | `inspect_component` | exact ID | Removed component is absent | — | — | Pending manual Preview |
+| Disconnect edge | `inspect_design_entity` | connection endpoints | Relationship is absent | — | — | Pending manual Preview |
+| Repeat without edit | `inspect_component` | same as prior case | Stable current fact | — | — | Pending manual Preview |
 
-| Run | Model label | Desktop version | Browser/WebMCP build | Time to first tool (ms) | Time to first useful prose (ms) | Tool calls | Correctness notes |
-| --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| 1 | pending | pending | pending | pending | pending | pending | pending |
-| 2 | pending | pending | pending | pending | pending | pending | pending |
-| 3 | pending | pending | pending | pending | pending | pending | pending |
+## Run metadata
+
+- Host/model version: pending manual Preview
+- Browser/WebMCP build: pending manual Preview
+- Timestamp: pending manual Preview
+- Privacy check: automated trace verification confirms no component IDs,
+  labels, configuration values, prompts, or response prose are retained.
+- Automated proxy: `verify-webmcp-evidence-store` covers the registered
+  production callback one-Postgres → two-Postgres → survivor flow and revision
+  changes. It is not a substitute for this manual host run.

@@ -33,9 +33,22 @@ export interface CompactConnection {
   readonly type: Connection["type"];
 }
 
+export interface ArchitectureInventoryGroup {
+  readonly type: string;
+  readonly count: number;
+  readonly componentIds: readonly string[];
+}
+
+export interface ArchitectureInventory {
+  readonly totalComponents: number;
+  readonly totalConnections: number;
+  readonly componentsByType: readonly ArchitectureInventoryGroup[];
+}
+
 export interface GetArchitectureOutput {
   readonly components: readonly CompactComponent[];
   readonly connections: readonly CompactConnection[];
+  readonly inventory: ArchitectureInventory;
 }
 
 function byId<T extends { id: string }>(left: T, right: T): number {
@@ -73,11 +86,25 @@ function compactConnection(connection: Connection): CompactConnection {
  * Omits UI-only noise; preserves config, deployments, and connections.
  */
 export function buildGetArchitectureOutput(architecture: Architecture): GetArchitectureOutput {
+  const components = [...architecture.components].sort(byId).map(compactComponent);
+  const connections = [...architecture.connections].sort(byId).map(compactConnection);
+  const componentsByType = new Map<string, string[]>();
+  for (const component of components) {
+    const componentIds = componentsByType.get(component.type) ?? [];
+    componentIds.push(component.id);
+    componentsByType.set(component.type, componentIds);
+  }
+
   return {
-    components: [...architecture.components].sort(byId).map(compactComponent),
-    connections: [...architecture.connections]
-      .sort(byId)
-      .map(compactConnection),
+    inventory: {
+      totalComponents: components.length,
+      totalConnections: connections.length,
+      componentsByType: [...componentsByType.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([type, componentIds]) => ({ type, count: componentIds.length, componentIds })),
+    },
+    components,
+    connections,
   };
 }
 

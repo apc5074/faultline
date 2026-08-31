@@ -35,9 +35,13 @@ export interface WebMcpTraceEvent {
   readonly name: WebMcpTraceName;
   readonly capability?: string;
   readonly group?: string;
+  readonly generation?: number;
   readonly inputShape?: readonly string[];
   readonly evidenceRevision?: string;
   readonly outcome?: "success" | "error" | "cancelled" | "superseded";
+  readonly selectorScope?: "all" | "topmost";
+  readonly matchedCount?: number;
+  readonly retried?: boolean;
   readonly errorCode?: string;
   readonly cueKind?: "spotlight" | "path" | "set";
   readonly targetCount?: number;
@@ -49,9 +53,22 @@ export interface WebMcpTraceEvent {
 
 export type WebMcpTraceSink = (event: WebMcpTraceEvent) => void;
 
+/** Bounded diagnostic identity; never exposes the exact semantic cache key. */
+export function safeWebMcpRevision(revision: string): string {
+  const digest = (value: string): string => {
+    let hash = 2166136261;
+    for (const character of value) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  };
+  return `rev-${digest(revision)}-${digest([...revision].reverse().join(""))}`;
+}
+
 export function recordWebMcpTrace(sink: WebMcpTraceSink | undefined, event: Omit<WebMcpTraceEvent, "kind">): void {
   try {
-    sink?.({ kind: "trace", ...event });
+    sink?.({ kind: "trace", ...event, ...(event.evidenceRevision ? { evidenceRevision: safeWebMcpRevision(event.evidenceRevision) } : {}) });
   } catch {
     // Diagnostics must never affect gameplay or tool results.
   }

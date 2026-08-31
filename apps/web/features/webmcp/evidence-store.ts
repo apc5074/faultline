@@ -52,16 +52,25 @@ function stable(value: unknown): string {
 function semanticArchitecture(architecture: Architecture): unknown {
   return {
     version: architecture.version,
-    components: architecture.components.map(({ ui: _ui, ...component }) => component),
-    connections: architecture.connections,
+    components: [...architecture.components]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map(({ ui: _ui, deployments, ...component }) => ({
+        ...component,
+        deployments: [...deployments].sort((left, right) => left.id.localeCompare(right.id)),
+      })),
+    connections: [...architecture.connections].sort((left, right) => left.id.localeCompare(right.id)),
   };
 }
 
-export function webMcpEvidenceKey(architecture: Architecture, challenge: ChallengeDefinition): string {
+/** Exact UI-free identity shared by prepared-evidence lookup and lease freshness. */
+export function buildWebMcpEvidenceKey(architecture: Architecture, challenge: ChallengeDefinition): string {
   // Keep the canonical serialized identity exact. A short 32-bit digest can
   // collide and silently return another architecture's prepared evidence.
   return `wmp2-${stable({ architecture: semanticArchitecture(architecture), challenge, simulatorVersion: SIMULATOR_VERSION, contract: "wmp2" })}`;
 }
+
+/** @deprecated Use buildWebMcpEvidenceKey for the shared semantic identity. */
+export const webMcpEvidenceKey = buildWebMcpEvidenceKey;
 
 function buildIndexes(context: AgentContext): WebMcpEvidenceIndexes {
   const components = new Map<string, AgentComponentEvidence>();
@@ -151,7 +160,7 @@ export function createWebMcpEvidenceSource(options: {
   function currentInputs() {
     const architecture = options.getArchitecture();
     const challenge = options.getChallenge();
-    return { architecture, challenge, key: webMcpEvidenceKey(architecture, challenge) };
+    return { architecture, challenge, key: buildWebMcpEvidenceKey(architecture, challenge) };
   }
 
   function start(key: string, architecture: Architecture, challenge: ChallengeDefinition): Promise<PreparedWebMcpEvidence> {
@@ -206,7 +215,7 @@ export function createWebMcpEvidenceSource(options: {
   return {
     activate: () => { disposed = false; },
     getEvidence,
-    getEvidenceRevision: () => architectureEvidenceFingerprint(currentInputs().architecture),
+    getEvidenceRevision: () => currentInputs().key,
     getSnapshot: async (signal) => ({ context: (await getEvidence(signal)).context, session: options.getSession() }),
     getSession: options.getSession,
     recordPlayerRun,

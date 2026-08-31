@@ -24,9 +24,18 @@ assert.ok(trace.events.some((event) => event.name === "cue_derived"));
 assert.ok(trace.events.some((event) => event.name === "cue_published"));
 assert.ok(result.ok && result.data.subjects);
 assert.ok(JSON.stringify(trace.events).length < 16_000);
+assert.ok(trace.events.every((event) => !event.evidenceRevision || /^rev-[0-9a-f]{8}-[0-9a-f]{8}$/.test(event.evidenceRevision)));
 assert.equal(JSON.stringify(trace.events).includes("service-1"), false);
 assert.equal(JSON.stringify(trace.events).includes("Private player label"), false);
 assert.equal(JSON.stringify(trace.events).includes("architecture"), false);
+
+trace.clear();
+const selected = await tool.execute({ selector: { type: "postgres", scope: "all" } }, {});
+assert.equal(selected.ok, true);
+const selectedTrace = trace.events.find((event) => event.name === "capability_completed" && event.matchedCount !== undefined);
+assert.equal(selectedTrace?.selectorScope, "all");
+assert.equal(selectedTrace?.matchedCount, 1);
+assert.equal(selectedTrace?.retried, false);
 
 const registrations = [];
 const registrationTrace = createWebMcpTrace(64);

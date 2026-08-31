@@ -35,7 +35,7 @@ import {
   withPendingHelpRequest,
   withSessionFocus,
 } from "./session-mutations";
-import { createWebMcpEvidenceSource, type WebMcpEvidenceSource } from "../webmcp/evidence-store";
+import { buildWebMcpEvidenceKey, createWebMcpEvidenceSource, type WebMcpEvidenceSource } from "../webmcp/evidence-store";
 
 export interface AgentSessionStore {
   getSession(): AgentSessionState;
@@ -77,6 +77,10 @@ export function AgentSessionProvider({
   const architectureFingerprint = useMemo(
     () => architectureAvailabilityFingerprint(architecture),
     [architecture],
+  );
+  const semanticEvidenceKey = useMemo(
+    () => buildWebMcpEvidenceKey(architecture, challenge),
+    [architecture, challenge],
   );
 
   useEffect(() => {
@@ -136,6 +140,10 @@ export function AgentSessionProvider({
   );
 
   useEffect(() => () => webMcpEvidenceSource.dispose(), [webMcpEvidenceSource]);
+
+  useEffect(() => {
+    webMcpEvidenceSource.prewarm();
+  }, [webMcpEvidenceSource, semanticEvidenceKey]);
 
   const getAgentContext = useCallback(() => {
     return {

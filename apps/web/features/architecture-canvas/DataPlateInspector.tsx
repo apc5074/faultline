@@ -437,9 +437,6 @@ function AdvancedSection({ component }: { component: ComponentInstance }) {
         Advanced
       </summary>
       <div className="data-plate-inspector__advanced-body">
-        <SpecList>
-          <SpecRow label="Component ID" value={component.id} />
-        </SpecList>
         <label className="data-plate-inspector__checkbox">
           <input
             type="checkbox"

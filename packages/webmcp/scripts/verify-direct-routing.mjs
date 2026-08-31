@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { createWebMcpTrace, toWebMcpTool } from "../dist/index.js";
+import { buildAgentReadSurface, createWebMcpTrace, toWebMcpTool } from "../dist/index.js";
 
 const context = {
   challenge: {
@@ -37,13 +37,16 @@ const trace = createWebMcpTrace(64);
 
 async function invokeDirect(name, input) {
   trace.clear();
-  const tool = toWebMcpTool(registry.get(name), {
+  const surface = await buildAgentReadSurface({
     registry,
     getContext: () => context,
+    profile: "production",
+    development: true,
     trace: trace.sink,
-    traceGroup: "stable-review",
     onPresentationCue: () => {},
   });
+  const tool = surface.tools.find((candidate) => candidate.name === name);
+  assert.ok(tool, `${name} must be discoverable on the production read surface`);
   const result = await tool.execute(input, {});
   assert.equal(result.ok, true, `${name} should resolve directly: ${JSON.stringify(result)}`);
   const invoked = trace.events.filter((event) => event.name === "tool_invoked");
@@ -57,8 +60,15 @@ const component = await invokeDirect("inspect_component", { componentId: "servic
 assert.match(component.tool.description, /componentId/);
 const selection = await invokeDirect("inspect_component", { selector: { type: "postgres", scope: "all" } });
 assert.match(selection.tool.description, /scope: "all" \| "topmost"/);
+assert.match(selection.tool.description, /current invocation revision/);
+assert.match(selection.tool.description, /count\/existence/);
+assert.equal(selection.result.data.data.selection.matchedCount, selection.result.data.data.selection.resolvedComponentIds.length);
 const metrics = await invokeDirect("get_metrics", undefined);
 assert.match(metrics.tool.description, /first for health/);
+const architecture = await invokeDirect("get_architecture", undefined);
+assert.match(architecture.tool.description, /current architecture and inventory/);
+assert.match(architecture.tool.description, /board-wide contents/);
+assert.ok(architecture.result.data.data.facts.inventory);
 
 const reviewTool = toWebMcpTool(registry.get("review_current_design"), { registry, getContext: () => context });
 assert.match(reviewTool.description, /overview/);

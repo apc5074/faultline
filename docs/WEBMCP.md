@@ -48,8 +48,8 @@ Read tools are idempotent and read-only. They return facts; they do not decide c
 | `get_session_focus` | Returns the human's selection and pending help request. |
 | `get_challenge` | Returns the active problem, workload, scenarios, and budget. |
 | `get_requirements` | Returns the configured success criteria. |
-| `get_architecture` | Returns canonical architecture state, without UI-only data. |
-| `inspect_component` | Inspects `{ componentId }`, or an exact type selector such as `{ selector: { type: "postgres", scope: "all" | "topmost" } }`; related simulator/cost evidence is framed automatically. |
+| `get_architecture` | Returns canonical architecture state, without UI-only data, plus `inventory` with logical totals and deterministic counts/IDs by type. |
+| `inspect_component` | Reads the current invocation revision for `{ componentId }`, or an exact type selector such as `{ selector: { type: "postgres", scope: "all" | "topmost" } }`; `all` is the default for unqualified type-wide/count/existence questions, while `topmost` is positional only. |
 | `inspect_component_option` | Explains one challenge-unlocked catalog option, including configuration, modeled behavior, constraints, and learning themes. Omit `type` only for the bounded current-option list. |
 | `estimate_capacity` | Reports capacity, load, headroom, and bottleneck evidence. |
 | `get_metrics` | Returns compact simulator outcomes and scenario evidence; call first for health questions. |
@@ -58,7 +58,9 @@ Read tools are idempotent and read-only. They return facts; they do not decide c
 | `inspect_replication` | Available only when the current architecture contains replication-relevant structure. |
 | `inspect_regional_traffic` | Available only when the current architecture contains geographic traffic structure. |
 
-The first nine are baseline tools. The final three are dynamically registered only when their structural predicate is true.
+The production WebMCP read profile is the stable set `review_current_design`, `expand_design_evidence`, `inspect_design_entity`, `inspect_component_option`, `compare_design_evidence`, `get_architecture`, `inspect_component`, `estimate_capacity`, `get_metrics`, and `get_cost_breakdown`. The specialist tools `inspect_cache`, `inspect_replication`, and `inspect_regional_traffic` are dynamically registered only when their structural predicate is true. `get_coaching_policy`, `get_session_focus`, `get_challenge`, and `get_requirements` remain available to complete semantic/embedded adapters but are not silently implied to be production WebMCP tools.
+
+Current-board facts are volatile. A production host must perform the direct read during the answer; it must not answer inventory, type counts, configuration, deployments, placement, or connections from chat history or an earlier evidence revision. Use `get_architecture.inventory` for board-wide contents and `inspect_component` with `scope: "all"` for an exact type count.
 
 ### Visual surface
 
@@ -91,7 +93,7 @@ ChatGPT (or another compatible agent host) owns the written response. Faultlineâ
 
 ## Registration and lifecycle
 
-`registerAgentWebMcpSurface()` supports independently owned registration groups: stable review reads, stable visuals, architecture-dependent specialists, and consent-gated experiments. The browser registration mounts each group with its own abort signal, generation, and reconciliation key, so adding or removing a Redis, replica, or region only reconciles the affected specialist/experiment group. Stable tools retain their identities and read the newest evidence through the evidence source. Successful WebMCP visual tools pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. Unmount aborts all groups cleanly. Optional WebMCP failures are contained so they never break gameplay.
+`registerAgentWebMcpSurface()` supports independently owned registration groups: stable review reads, stable visuals, architecture-dependent specialists, and consent-gated experiments. The browser registration mounts each group with its own abort signal, generation, and reconciliation key, so adding or removing a Redis, replica, or region only reconciles the affected specialist/experiment group. Stable tools retain their identities and read the newest evidence through the evidence source. The evidence source uses one UI-free semantic revision covering architecture, challenge, simulator, and evidence-contract inputs; canonical edits prewarm one coalesced build, while UI/session changes do not. A read whose lease is superseded retries once and never publishes the old revision. Successful WebMCP visual tools pass through the client visual-command publisher, which applies validated coaching intents to the same `AgentSessionStore`. Unmount aborts all groups cleanly. Optional WebMCP failures are contained so they never break gameplay.
 
 The publisher owns coaching marks only. It does not mutate Architecture or rerun the simulator. Observation and focus commands are routed to the presentation controller from this same publisher boundary; coaching notes remain in the annotation layer and are kept across baseline/experiment runs, while ephemeral focus ticks are cleared when a run starts.
 
@@ -101,7 +103,7 @@ Presentation-cue acceptance cases are: targeted component explanation (primary f
 
 An explicit `focus_component` visual request performs the same bounded logical-canvas `fitView` as a player focusing that component, including switching back from the world map. It remains separate from temporary read-result framing because it is an explicit coaching visual action.
 
-For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and is available in any local development build. The production surface is available whenever the browser supports WebMCP.
+For local diagnostics, `/dev/webmcp` uses the same capability builders and visual-intent bridge as the production surface. It is development-only and is available in any local development build. Its in-memory trace exposes only allowlisted capability/group/generation, bounded revision digest, selector scope, matched count, outcome, and retry fields; it never retains IDs, labels, configuration, prompts, payloads, or prose. The production surface is available whenever the browser supports WebMCP; an unsupported host leaves gameplay fully functional.
 
 ## Safety boundary
 

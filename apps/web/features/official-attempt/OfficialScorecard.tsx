@@ -38,7 +38,6 @@ export function OfficialScorecard({ result, stale }: { result: VerifiedSubmissio
           })}
         </ul>
       </div>
-      <p className="official-scorecard__id">Submission {result.submissionId}</p>
       {result.dailyBest ? <p className="official-scorecard__best">Daily best · {formatSolveTime(result.dailyBest.fastestSolveMs)} fastest · {formatLeaderboardCost(result.dailyBest.cheapestCost)} cheapest</p> : null}
       <ShareResultActions submissionId={result.submissionId} enabled={passed && !stale} />
       <p className="official-scorecard__hint">You can keep editing the architecture and run it again.</p>

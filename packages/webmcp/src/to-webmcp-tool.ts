@@ -62,8 +62,9 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
     review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
+    get_architecture: "Read the current architecture and inventory for board-wide contents, logical component counts, and connections. Use this for unqualified board questions; do not reuse after a board edit.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
-    inspect_component: "Use first for a named component with { componentId }, or a type with { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }. Current evidence frames the result.",
+    inspect_component: "Read the current invocation revision. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all by default for type-wide/count/existence, topmost only when positional. Do not reuse after a board edit.",
     get_metrics: "Use first for health/metrics questions. Returns current simulator outcomes; targeted results frame valid evidence.",
     inspect_component_option: "When: explain an unlocked catalog option. Returns: factual configuration and modeled behavior. Side effect: none. Recovery: unavailable types are rejected.",
     compare_design_evidence: "When: compare retained evidence. Returns: deterministic changes and provenance. Side effect: none. Recovery: retry when a baseline is unavailable.",
@@ -99,6 +100,7 @@ export interface ToWebMcpToolOptions {
   readonly timing?: WebMcpTimingSink;
   readonly trace?: WebMcpTraceSink;
   readonly traceGroup?: string;
+  readonly traceGeneration?: number;
 }
 
 /**
@@ -106,7 +108,7 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, traceGroup } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, traceGroup, traceGeneration } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
   const publishedExperimentDigests = new Set<string>();
 
@@ -142,7 +144,8 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
         let experimentCanPublish = false;
         while (true) {
           const lease = await acquireLease(executionContext.signal);
-          recordWebMcpTrace(trace, { name: "tool_invoked", capability: capability.name, ...(traceGroup ? { group: traceGroup } : {}), inputShape, evidenceRevision: lease.evidenceRevision });
+          const selectorScope = isRecord(input) && isRecord(input.selector) && (input.selector.scope === "all" || input.selector.scope === "topmost") ? input.selector.scope : undefined;
+          recordWebMcpTrace(trace, { name: "tool_invoked", capability: capability.name, ...(traceGroup ? { group: traceGroup } : {}), inputShape, ...(selectorScope ? { selectorScope } : {}), evidenceRevision: lease.evidenceRevision, ...(attempt > 0 ? { retried: true } : {}) });
           recordWebMcpTrace(trace, { name: "lease_acquired", capability: capability.name, evidenceRevision: lease.evidenceRevision });
           const { context, session } = lease.snapshot;
           if (isCapabilityCancelled(executionContext.signal)) {
@@ -169,6 +172,12 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           const resultData = sanitized.ok && sanitized.data && typeof sanitized.data === "object"
             ? sanitized.data as Record<string, unknown>
             : undefined;
+          const matchedCount = resultData && isRecord(resultData.selection) && typeof resultData.selection.matchedCount === "number"
+            ? resultData.selection.matchedCount
+            : undefined;
+          if (matchedCount !== undefined) {
+            recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, evidenceRevision: lease.evidenceRevision, ...(selectorScope ? { selectorScope } : {}), matchedCount, retried: attempt > 0, outcome: sanitized.ok ? "success" : "error" });
+          }
           if (resultData && availableToolNames && Array.isArray(resultData.suggestedNextTools)) {
             sanitized = {
               ok: true,

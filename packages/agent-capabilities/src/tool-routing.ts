@@ -1,9 +1,10 @@
-import type { ResolvedCapabilityName } from "./capability-names.js";
+import { PRODUCTION_CAPABILITY_MANIFEST, productionCapabilityGroup, type ResolvedCapabilityName } from "./capability-names.js";
 
 /** Closed set of user intents understood by the shared routing policy. */
 export type ToolRoutingIntent =
   | "component"
   | "component_position"
+  | "board_inventory"
   | "relationship"
   | "workload_path"
   | "system_health"
@@ -39,7 +40,7 @@ export interface ToolRoutingRule {
 
 /** Compact routing guidance shared by policy and adapter-facing descriptions. */
 export const TOOL_ROUTING_GUIDANCE =
-  "Routing: use review_current_design for overview, current UI focus, retained-revision delta, or genuine ambiguity; inspect_component for a named component; inspect_component with { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } } for component types; inspect_design_entity for relationships/workload paths; get_metrics for health; targeted reads frame automatically; use visual tools only for explicit persistent marks or focus gestures.";
+  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity; targeted reads frame automatically; use visual tools only for explicit persistent marks or focus gestures.";
 
 /**
  * Shared routing policy for embedded and external agents. This is metadata,
@@ -63,6 +64,15 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     requiresCurrentTarget: false,
     resultFrame: "component",
     selectionGuidance: "For a component type, use inspect_component with an exact catalog type; use scope all unless the player says topmost.",
+  },
+  {
+    intent: "board_inventory",
+    target: "none",
+    preferredCapabilityName: "get_architecture",
+    allowedFallbackCapabilityNames: [],
+    requiresCurrentTarget: false,
+    resultFrame: "set",
+    selectionGuidance: "For board-wide inventory or current contents, call get_architecture and use its inventory; do not infer counts from prior evidence or chat history.",
   },
   {
     intent: "relationship",
@@ -144,4 +154,39 @@ const toolRoutingRuleByIntent = new Map<ToolRoutingIntent, ToolRoutingRule>(
 
 export function getToolRoutingRule(intent: ToolRoutingIntent): ToolRoutingRule {
   return toolRoutingRuleByIntent.get(intent)!;
+}
+
+export interface ToolRoutingValidationIssue {
+  readonly intent: ToolRoutingIntent;
+  readonly capabilityName: string;
+  readonly role: "preferred" | "fallback";
+  readonly reason: "missing" | "not_production" | "invalid_group";
+}
+
+/** Validate that model-facing routing can only name production capabilities. */
+export function validateToolRoutingAgainstProduction(
+  rules: readonly ToolRoutingRule[] = TOOL_ROUTING_RULES,
+): readonly ToolRoutingValidationIssue[] {
+  const expectedGroups: Readonly<Record<string, string>> = {
+    inspect_component: "stable-review",
+    inspect_design_entity: "stable-review",
+    get_architecture: "stable-review",
+    review_current_design: "stable-review",
+    get_metrics: "stable-review",
+    estimate_capacity: "stable-review",
+    get_cost_breakdown: "stable-review",
+    inspect_cache: "specialists",
+    inspect_replication: "specialists",
+  };
+  const issues: ToolRoutingValidationIssue[] = [];
+  for (const rule of rules) {
+    for (const [role, capabilityName] of [["preferred", rule.preferredCapabilityName], ...rule.allowedFallbackCapabilityNames.map((name) => ["fallback", name] as const)] as const) {
+      const manifest = PRODUCTION_CAPABILITY_MANIFEST.find((entry) => entry.name === capabilityName);
+      const issue = (reason: ToolRoutingValidationIssue["reason"]) => issues.push({ intent: rule.intent, capabilityName, role, reason });
+      if (!manifest) issue("missing");
+      else if (!manifest.production) issue("not_production");
+      else if (productionCapabilityGroup(capabilityName) !== expectedGroups[capabilityName]) issue("invalid_group");
+    }
+  }
+  return issues;
 }

@@ -36,6 +36,7 @@ export interface RegisterAgentWebMcpSurfaceOptions {
   readonly onPresentationCue?: (cue: PresentationCue) => void;
   readonly timing?: WebMcpTimingSink;
   readonly trace?: WebMcpTraceSink;
+  readonly traceGeneration?: number;
   /** Limit this registration generation to one independently reconciled group. */
   readonly group?: WebMcpRegistrationGroup;
 }
@@ -61,8 +62,8 @@ function fingerprintManifest(tools: readonly WebMcpTool[]): string {
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
 export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, group = "all" } = options;
-  recordWebMcpTrace(trace, { name: "registration_started", group });
+  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, traceGeneration, group = "all" } = options;
+  recordWebMcpTrace(trace, { name: "registration_started", group, ...(traceGeneration !== undefined ? { generation: traceGeneration } : {}) });
   const startedAt = performance.now();
   if (signal.aborted) return abortedResult(group);
   const context = resolveLiveAgentSnapshot(await getContext()).context;
@@ -89,7 +90,7 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   const namesByMode = { read: readTools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name) } as const;
   const manifest: WebMcpRegistrationManifest = {
     contractVersion: PRODUCTION_CAPABILITY_MANIFEST_VERSION,
-    revision: context.evidenceMeta?.architectureRevision ?? "unversioned",
+    revision: getCurrentEvidenceRevision?.() ?? context.evidenceMeta?.architectureRevision ?? "unversioned",
     tools,
     namesByMode,
     skipped: [...read.skipped.map(({ name }) => name), ...visual.skipped.map(({ name }) => name), ...experiment.skipped.map(({ name }) => name)],
@@ -109,7 +110,7 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   for (const result of registrationResults.sort((a, b) => a.index - b.index)) {
     const name = tools[result.index]!.name;
     if (result.status === "registered") registeredToolNames.push(name);
-    if (result.status === "registered") recordWebMcpTrace(trace, { name: "tool_registered", group, capability: name });
+    if (result.status === "registered") recordWebMcpTrace(trace, { name: "tool_registered", group, ...(traceGeneration !== undefined ? { generation: traceGeneration } : {}), capability: name });
     if (result.status === "failed") failedToolNames.push(name);
   }
   timing?.({ kind: "timing", name: "registration_total_ms", durationMs: performance.now() - startedAt });

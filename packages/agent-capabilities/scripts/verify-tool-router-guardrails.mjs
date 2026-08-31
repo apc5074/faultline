@@ -49,7 +49,7 @@ assert.equal(JSON.stringify(context.architecture), before);
 
 const setCue = presentationCueForCapability(
   "inspect_component",
-  { selection: { type: "postgres", scope: "all", resolvedComponentIds: ["postgres-a", "postgres-b"] }, components: [] },
+  { selection: { type: "postgres", scope: "all", matchedCount: 2, resolvedComponentIds: ["postgres-a", "postgres-b"] }, components: [] },
   context,
 );
 assert.equal(setCue?.kind, "set");

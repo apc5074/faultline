@@ -206,6 +206,7 @@ function ArchitectureWorkspace() {
             {publishedExperiment ? (
               <ExperimentResultPanel
                 result={publishedExperiment.result}
+                architecture={workspace.architecture}
                 architectureKey={JSON.stringify(workspace.architecture)}
                 resultArchitectureKey={publishedExperimentArchitectureKey ?? ""}
                 baselineEvents={workspace.simulationResult?.events}

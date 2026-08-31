@@ -2,10 +2,12 @@
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import { urlShortenerChallenge } from "@faultline/challenges";
+import { componentRegistry } from "@faultline/component-catalog";
 import { validateArchitecture, type Architecture } from "@faultline/core";
 import {
   buildPhase6InspectorSnapshot,
   invokePhase6InspectorTool,
+  safeWebMcpRevision,
   type Phase6InspectorSnapshot,
 } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,6 +17,7 @@ import {
   useAgentContextFactory,
   useAgentSessionState,
   useAgentSessionStore,
+  useWebMcpEvidenceSource,
 } from "@/features/agent-session/AgentSessionProvider";
 import { AGENT_HELP_CHIPS, buildPendingHelpRequest } from "@/features/agent-session/agent-help-templates";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
@@ -100,6 +103,7 @@ function WebMcpInspectorWorkspace({
 }) {
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const getContext = useAgentContextFactory();
+  const evidenceSource = useWebMcpEvidenceSource();
   const sessionStore = useAgentSessionStore();
   const session = useAgentSessionState();
   const onVisualIntent = useMemo(
@@ -191,6 +195,8 @@ function WebMcpInspectorWorkspace({
   const readEntries = snapshot?.entries.filter((entry) => entry.mode === "read") ?? [];
   const visualEntries = snapshot?.entries.filter((entry) => entry.mode === "visual") ?? [];
   const experimentEntries = snapshot?.entries.filter((entry) => entry.mode === "experiment") ?? [];
+  const currentEvidenceRevision = safeWebMcpRevision(evidenceSource.getEvidenceRevision());
+  const latestInvocation = [...traceEvents].reverse().find((event) => event.traceName === "tool_invoked");
   const renderToolList = (entries: readonly Phase6InspectorSnapshot["entries"][number][]) => (
     <div className="webmcp-inspector__tool-list">
       {entries.map((entry) => (
@@ -279,8 +285,22 @@ function WebMcpInspectorWorkspace({
       <section className="webmcp-inspector__panel" aria-label="Safe lifecycle trace">
         <h2>Safe lifecycle trace</h2>
         <p>Development-only stage events. Inputs and evidence payloads are never retained.</p>
+        <dl className="webmcp-inspector__meta">
+          <div>
+            <dt>current evidence revision</dt>
+            <dd>{currentEvidenceRevision}</dd>
+          </div>
+          <div>
+            <dt>latest invoked capability</dt>
+            <dd>{latestInvocation?.capability ?? "none"}</dd>
+          </div>
+          <div>
+            <dt>latest invoked revision</dt>
+            <dd>{latestInvocation?.evidenceRevision ?? "none"}</dd>
+          </div>
+        </dl>
         {traceEvents.length === 0 ? <p>No WebMCP lifecycle traces recorded yet.</p> : (
-          <pre>{traceEvents.map((event, index) => `${index + 1}. ${event.traceName ?? "trace"}${event.capability ? ` · ${event.capability}` : ""}${event.targetCount !== undefined ? ` · targets:${event.targetCount}` : ""}${event.reason ? ` · ${event.reason}` : ""}`).join("\n")}</pre>
+          <pre>{traceEvents.map((event, index) => `${index + 1}. ${event.traceName ?? "trace"}${event.capability ? ` · ${event.capability}` : ""}${event.generation !== undefined ? ` · generation:${event.generation}` : ""}${event.selectorScope ? ` · scope:${event.selectorScope}` : ""}${event.matchedCount !== undefined ? ` · matched:${event.matchedCount}` : ""}${event.retried ? " · retried" : ""}${event.evidenceRevision ? ` · ${event.evidenceRevision}` : ""}${event.targetCount !== undefined ? ` · targets:${event.targetCount}` : ""}${event.reason ? ` · ${event.reason}` : ""}`).join("\n")}</pre>
         )}
       </section>
 
@@ -299,7 +319,9 @@ function WebMcpInspectorWorkspace({
               type="button"
               onClick={() => sessionStore.setFocus({ kind: "component", componentId: component.id, source: "selection" })}
             >
-              {component.id}
+              {componentRegistry.has(component.type)
+                ? componentRegistry.get(component.type).label
+                : component.type}
             </button>
           ))}
           <button type="button" onClick={() => sessionStore.setFocus({ kind: "none" })}>Clear focus</button>

@@ -193,9 +193,18 @@ export function DevExperimentControls({
               <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
                 <option value="">choose…</option>
                 {targets.map((target) => {
-                  const value = typeof target === "string" ? target : target.id;
-                  const label = typeof target === "string" ? target : `${componentRegistry.get(target.type).label} · ${target.id}`;
-                  return <option key={value} value={value}>{label}</option>;
+                  if (typeof target === "string") {
+                    return <option key={target} value={target}>{target}</option>;
+                  }
+                  const sameType = targets.filter(
+                    (candidate): candidate is typeof target =>
+                      typeof candidate !== "string" && candidate.type === target.type,
+                  );
+                  const label = componentRegistry.get(target.type).label;
+                  const suffix = sameType.length > 1
+                    ? ` ${sameType.findIndex((candidate) => candidate.id === target.id) + 1}`
+                    : "";
+                  return <option key={target.id} value={target.id}>{`${label}${suffix}`}</option>;
                 })}
               </select>
             </label>

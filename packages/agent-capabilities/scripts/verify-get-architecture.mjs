@@ -72,6 +72,16 @@ assert.equal(getArchitectureCapability.annotations?.readOnlyHint, true);
 
 const output = buildGetArchitectureOutput(architecture);
 
+assert.deepEqual(output.inventory, {
+  totalComponents: 3,
+  totalConnections: 2,
+  componentsByType: [
+    { type: "cdn", count: 1, componentIds: ["cdn-1"] },
+    { type: "redis", count: 1, componentIds: ["redis-1"] },
+    { type: "service", count: 1, componentIds: ["service-1"] },
+  ],
+});
+
 assert.deepEqual(output.components.map((component) => component.id), ["cdn-1", "redis-1", "service-1"]);
 assert.deepEqual(output.components[0], {
   id: "cdn-1",
@@ -105,6 +115,22 @@ assert.ok(!serialized.includes('"ui"'));
 assert.ok(!serialized.includes('"x"'));
 assert.ok(!serialized.includes("sourcePortId"));
 assert.ok(!serialized.includes("React"));
+
+const logicalCapacityArchitecture = {
+  ...architecture,
+  components: [
+    { ...architecture.components[0], id: "service-5", config: { instances: 5 } },
+    { ...architecture.components[2], id: "postgres-1", type: "postgres", deployments: [{ id: "pg-replica", regionId: "us-east", config: { role: "replica" } }] },
+  ],
+  connections: [],
+};
+const logicalCapacity = buildGetArchitectureOutput(logicalCapacityArchitecture);
+assert.equal(logicalCapacity.inventory.totalComponents, 2);
+assert.deepEqual(logicalCapacity.inventory.componentsByType, [
+  { type: "postgres", count: 1, componentIds: ["postgres-1"] },
+  { type: "service", count: 1, componentIds: ["service-5"] },
+]);
+assert.equal(logicalCapacity.inventory.totalConnections, 0);
 
 const registry = createDefaultCapabilityRegistry();
 assert.ok(registry.has("get_architecture"));

@@ -61,6 +61,8 @@ export type {
   CompactComponent,
   CompactConnection,
   CompactDeployment,
+  ArchitectureInventory,
+  ArchitectureInventoryGroup,
   GetArchitectureOutput,
 } from "./get-architecture.js";
 

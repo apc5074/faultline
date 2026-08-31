@@ -135,6 +135,9 @@ script name; don’t invent a command from an older phase.
   failover, or promotion.
 - Stale results must remain visibly stale after an architecture edit. Do not
   silently reuse them as current evidence.
+- Any routing capability named in production guidance must be present in the
+  production manifest and tested through the registered production surface;
+  capability unit tests cannot substitute for a registered-surface regression.
 - Keep timers in one playback/controller layer. Cards, edges, map arcs, and
   chat should consume derived state rather than each scheduling animation.
 - Do not add Level 2/3 components or infrastructure unless the active ticket

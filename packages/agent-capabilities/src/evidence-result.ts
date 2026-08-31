@@ -337,6 +337,7 @@ export function separatePlayerAuthored(
   if (capabilityName === "get_architecture" && Array.isArray(data.components)) {
     return {
       facts: {
+        inventory: data.inventory,
         components: data.components,
         connections: data.connections ?? [],
       },

@@ -175,6 +175,7 @@ if (allPostgres.ok) {
   assert.deepEqual(allPostgres.data.selection, {
     type: "postgres",
     scope: "all",
+    matchedCount: 4,
     resolvedComponentIds: ["postgres-1", "postgres-a", "postgres-b", "postgres-z"],
   });
   assert.deepEqual(allPostgres.data.components.map((component) => component.id), [
@@ -186,7 +187,30 @@ if (allPostgres.ok) {
 }
 const topmostPostgres = inspectComponent(selectorContext, { selector: { type: "postgres", scope: "topmost" } });
 assert.equal(topmostPostgres.ok, true);
-if (topmostPostgres.ok) assert.deepEqual(topmostPostgres.data.selection.resolvedComponentIds, ["postgres-1"]);
+if (topmostPostgres.ok) {
+  assert.equal(topmostPostgres.data.selection.matchedCount, 1);
+  assert.deepEqual(topmostPostgres.data.selection.resolvedComponentIds, ["postgres-1"]);
+}
+
+const onePostgres = inspectComponent(context, { selector: { type: "postgres", scope: "all" } });
+assert.equal(onePostgres.ok, true);
+if (onePostgres.ok) assert.equal(onePostgres.data.selection.matchedCount, 1);
+const twoPostgres = inspectComponent(
+  { ...context, architecture: { ...architecture, components: [...architecture.components, { ...architecture.components[1], id: "postgres-2" }] } },
+  { selector: { type: "postgres", scope: "all" } },
+);
+assert.equal(twoPostgres.ok, true);
+if (twoPostgres.ok) assert.deepEqual([twoPostgres.data.selection.matchedCount, twoPostgres.data.selection.resolvedComponentIds], [2, ["postgres-1", "postgres-2"]]);
+const removedPostgres = inspectComponent(context, { selector: { type: "postgres", scope: "all" } });
+assert.equal(removedPostgres.ok, true);
+if (removedPostgres.ok) assert.deepEqual([removedPostgres.data.selection.matchedCount, removedPostgres.data.selection.resolvedComponentIds], [1, ["postgres-1"]]);
+
+const noCurrentPostgres = inspectComponent(
+  { ...context, architecture: { ...architecture, components: [architecture.components[0]] } },
+  { selector: { type: "postgres", scope: "all" } },
+);
+assert.equal(noCurrentPostgres.ok, false);
+if (!noCurrentPostgres.ok) assert.equal(noCurrentPostgres.code, "NOT_FOUND");
 
 const noMatchingType = inspectComponent(context, { selector: { type: "redis", scope: "all" } });
 assert.equal(noMatchingType.ok, false);

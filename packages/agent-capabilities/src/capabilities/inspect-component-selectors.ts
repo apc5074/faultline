@@ -33,6 +33,7 @@ export interface InspectComponentSelectionOutput {
   readonly selection: {
     readonly type: ComponentType;
     readonly scope: ComponentSelector["scope"];
+    readonly matchedCount: number;
     readonly resolvedComponentIds: readonly string[];
   };
   readonly components: readonly InspectComponentOutput[];
