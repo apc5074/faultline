@@ -62,6 +62,7 @@ import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptC
 export function usePlaygroundWorkspace() {
   const {
     session: officialSession,
+    completion,
     setSession,
     setCompletion,
     bumpRankRefresh,
@@ -101,6 +102,12 @@ export function usePlaygroundWorkspace() {
   const rejectedNodeDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
   const { screenToFlowPosition, fitView } = useReactFlow();
+
+  useEffect(() => {
+    if (!completion?.submission) return;
+    setOfficialVerification(completion.submission);
+    setOfficialSummary(null);
+  }, [completion]);
 
   useEffect(() => {
     const persisted = loadPersistedArchitecture();
@@ -964,7 +971,7 @@ export function usePlaygroundWorkspace() {
           } catch {
             // The verified completion still stops the timer if streak loading fails.
           }
-          setCompletion({ streak });
+          setCompletion({ streak, submission: body });
         }
         bumpRankRefresh();
       } catch {

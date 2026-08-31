@@ -1,6 +1,11 @@
 import { getProfileAlias } from "@/lib/auth/profile";
 import { getCurrentOfficialAttempt, OfficialAttemptError } from "@/lib/attempts/official";
 import {
+  getLatestEligibleSubmission,
+  SubmissionPersistError,
+  type RestoredVerifiedSubmission,
+} from "@/lib/submissions/persist";
+import {
   createSupabaseServerClient,
   getCurrentAuthUser,
   getSupabasePublicConfig,
@@ -19,6 +24,7 @@ export type CurrentAttemptResponse =
       dailyChallengeId: string;
       challengeVersion: number;
       challengeSlug: string;
+      lastSubmission: RestoredVerifiedSubmission | null;
     }
   | {
       ok: true;
@@ -79,6 +85,25 @@ export async function GET(): Promise<Response> {
       } satisfies CurrentAttemptResponse);
     }
 
+    let lastSubmission: RestoredVerifiedSubmission | null = null;
+    try {
+      lastSubmission = await getLatestEligibleSubmission({
+        userId: user.id,
+        attemptId: attempt.id,
+        dailyChallengeId: active.dailyChallengeId,
+        challengeSlug: active.challengeVersion.slug,
+        firstValidAt: attempt.firstValidAt,
+      });
+    } catch (error) {
+      if (error instanceof SubmissionPersistError) {
+        return Response.json(
+          { ok: false, error: error.message, code: error.code === "misconfigured" ? "misconfigured" : "persist_failed" } satisfies CurrentAttemptResponse,
+          { status: error.code === "misconfigured" ? 503 : 502 },
+        );
+      }
+      throw error;
+    }
+
     return Response.json({
       ok: true,
       active: true,
@@ -89,6 +114,7 @@ export async function GET(): Promise<Response> {
       dailyChallengeId: active.dailyChallengeId,
       challengeVersion: active.challengeVersion.version,
       challengeSlug: active.challengeVersion.slug,
+      lastSubmission,
     } satisfies CurrentAttemptResponse);
   } catch (error) {
     if (error instanceof OfficialAttemptError) {

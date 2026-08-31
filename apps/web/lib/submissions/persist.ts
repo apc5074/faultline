@@ -39,6 +39,29 @@ export type StoredSubmission = {
   createdAt: string;
 };
 
+export type RestoredVerifiedSubmission = {
+  ok: true;
+  submissionId: string;
+  eligible: boolean;
+  allRequirementsPass: boolean;
+  withinBudget: boolean;
+  officialSolveMs: number | null;
+  firstValidAt: string | null;
+  architectureHash: string;
+  challengeVersion: number;
+  challengeSlug: string;
+  simulatorVersion: string;
+  metrics: VerifiedCompetitionMetrics;
+  cost: CostResult;
+  requirements: readonly RequirementResult[];
+  dailyBest: {
+    fastestSolveMs: number;
+    costAtFastest: number;
+    cheapestCost: number;
+    solveTimeAtCheapest: number;
+  } | null;
+};
+
 export type DailyBestProjection = {
   id: string;
   userId: string;
@@ -257,6 +280,86 @@ export async function getDailyBest(input: {
     throw new SubmissionPersistError(result.error.message, "persist_failed");
   }
   return result.data ? asDailyBest(result.data as DailyBestRow) : null;
+}
+
+/** Loads the latest eligible submission so an anonymous browser can restore a win. */
+export async function getLatestEligibleSubmission(input: {
+  userId: string;
+  attemptId: string;
+  dailyChallengeId: string;
+  challengeSlug: string;
+  firstValidAt: string | null;
+}): Promise<RestoredVerifiedSubmission | null> {
+  let service;
+  try {
+    service = createSupabaseServiceClient();
+  } catch (error) {
+    throw new SubmissionPersistError(
+      error instanceof Error ? error.message : "Service role is not configured.",
+      "misconfigured",
+    );
+  }
+
+  const result = await service
+    .from("submissions")
+    .select(
+      "id, architecture_hash, challenge_version, simulator_version, verified_metrics, verified_cost, verified_requirements, all_requirements_pass, within_budget, official_solve_ms",
+    )
+    .eq("user_id", input.userId)
+    .eq("attempt_id", input.attemptId)
+    .eq("daily_challenge_id", input.dailyChallengeId)
+    .eq("all_requirements_pass", true)
+    .eq("within_budget", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (result.error) {
+    throw new SubmissionPersistError(result.error.message, "persist_failed");
+  }
+  if (!result.data) return null;
+
+  const row = result.data as {
+    id: string;
+    architecture_hash: string;
+    challenge_version: number;
+    simulator_version: string;
+    verified_metrics: VerifiedCompetitionMetrics;
+    verified_cost: CostResult;
+    verified_requirements: readonly RequirementResult[];
+    all_requirements_pass: boolean;
+    within_budget: boolean;
+    official_solve_ms: number | null;
+  };
+  const dailyBest = await getDailyBest({
+    userId: input.userId,
+    dailyChallengeId: input.dailyChallengeId,
+  });
+
+  return {
+    ok: true,
+    submissionId: row.id,
+    eligible: row.all_requirements_pass && row.within_budget,
+    allRequirementsPass: row.all_requirements_pass,
+    withinBudget: row.within_budget,
+    officialSolveMs: row.official_solve_ms,
+    firstValidAt: input.firstValidAt,
+    architectureHash: row.architecture_hash,
+    challengeVersion: row.challenge_version,
+    challengeSlug: input.challengeSlug,
+    simulatorVersion: row.simulator_version,
+    metrics: row.verified_metrics,
+    cost: row.verified_cost,
+    requirements: row.verified_requirements,
+    dailyBest: dailyBest
+      ? {
+          fastestSolveMs: dailyBest.fastestSolveMs,
+          costAtFastest: dailyBest.costAtFastest,
+          cheapestCost: dailyBest.cheapestCost,
+          solveTimeAtCheapest: dailyBest.solveTimeAtCheapest,
+        }
+      : null,
+  };
 }
 
 /** Re-export for server verification callers (API-003). */

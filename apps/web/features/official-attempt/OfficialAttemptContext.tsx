@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
+import type { RestoredVerifiedSubmission } from "@/lib/submissions/persist";
+
 export type OfficialAttemptSession = {
   attemptId: string;
   challengeVersion: number;
@@ -9,7 +11,10 @@ export type OfficialAttemptSession = {
   startedAt: string;
 };
 
-export type OfficialAttemptCompletion = { streak: number | null };
+export type OfficialAttemptCompletion = {
+  streak: number | null;
+  submission?: RestoredVerifiedSubmission;
+};
 
 type OfficialAttemptContextValue = {
   session: OfficialAttemptSession | null;

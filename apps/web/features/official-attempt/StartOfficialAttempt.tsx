@@ -50,7 +50,7 @@ export function StartOfficialAttempt({
   variant?: "plate" | "inline";
   label?: string;
 }) {
-  const { completion, session, setSession } = useOfficialAttempt();
+  const { completion, session, setCompletion, setSession } = useOfficialAttempt();
   const [state, setState] = useState<PanelState>({ status: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
@@ -91,6 +91,7 @@ export function StartOfficialAttempt({
       }
       if (!body.active) {
         setSession(null);
+        setCompletion(null);
         if (body.reason === "no_active_challenge") {
           setState({ status: "error", message: "No active daily challenge." });
           return;
@@ -107,8 +108,10 @@ export function StartOfficialAttempt({
         startedAt: body.startedAt,
         challengeVersion: body.challengeVersion,
       });
+      setCompletion(body.lastSubmission ? { streak: null, submission: body.lastSubmission } : null);
     } catch {
       setSession(null);
+      setCompletion(null);
       setState({ status: "idle", alias: null });
     }
   }, [applyActive, setSession]);
@@ -148,6 +151,7 @@ export function StartOfficialAttempt({
         const body = (await response.json()) as StartAttemptResponse;
         if (!body.ok) {
           setSession(null);
+          setCompletion(null);
           if (body.code === "misconfigured") {
             setState({ status: "misconfigured" });
           } else if (body.code === "no_active_challenge") {
@@ -166,6 +170,7 @@ export function StartOfficialAttempt({
           startedAt: body.startedAt,
           challengeVersion: body.challengeVersion,
         });
+        setCompletion(null);
       } catch {
         setSession(null);
         setState({
