@@ -21,7 +21,7 @@ function formatExperimentParameters(
   architecture: Architecture,
   result: ExperimentResult,
 ): string {
-  const parameters = result.parameters as Readonly<Record<string, unknown>>;
+  const parameters = result.parameters as unknown as Readonly<Record<string, unknown>>;
   if (result.type === "traffic_multiplier" && typeof parameters.multiplier === "number") {
     return `×${parameters.multiplier}`;
   }

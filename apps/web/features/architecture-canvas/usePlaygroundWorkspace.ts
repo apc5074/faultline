@@ -519,8 +519,10 @@ export function usePlaygroundWorkspace() {
         );
         return { ...current, components: [...current.components, created] };
       });
-      if (!created) return;
-      const component = created;
+      // TypeScript cannot observe assignments made inside the state updater;
+      // the assertion reflects the runtime guarantee of the updater above.
+      const component = created as ComponentInstance | null;
+      if (!component) return;
       setSelectedComponentId(component.id);
       setWorldSelection(null);
       setSettlingNodeIds((current) => new Set(current).add(component.id));
