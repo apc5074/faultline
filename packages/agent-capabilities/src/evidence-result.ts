@@ -377,7 +377,7 @@ function validateNormalizedSubjects(value: unknown, evidenceRevision: string): v
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   if (typeof record.evidenceRevision !== "string" || record.evidenceRevision !== evidenceRevision ||
-    !["component", "path", "failure", "comparison"].includes(record.relation as string) ||
+    !["component", "path", "set", "failure", "comparison"].includes(record.relation as string) ||
     !Array.isArray(record.supporting) || !Array.isArray(record.connections)) return false;
   const entries = [record.primary, ...record.supporting, ...record.connections].filter((entry) => entry !== undefined);
   const refs = new Set<string>();
@@ -393,6 +393,7 @@ function validateNormalizedSubjects(value: unknown, evidenceRevision: string): v
     refs.add(target.ref);
   }
   if (record.relation === "path" && (componentCount > 5 || record.connections.length > 5)) return false;
+  if (record.relation === "set" && (record.connections.length > 0 || entries.some((entry) => (entry as Record<string, unknown>).kind !== "component"))) return false;
   return record.primary !== undefined && (record.primary as Record<string, unknown>).emphasis === "primary";
 }
 

@@ -64,6 +64,7 @@ function webMcpDescription(capability: RegisteredCapability): string {
     review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
     inspect_component: "Use first for a named component with { componentId }, or a type with { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }. Current evidence frames the result.",
+    get_metrics: "Use first for health/metrics questions. Returns current simulator outcomes; targeted results frame valid evidence.",
     inspect_component_option: "When: explain an unlocked catalog option. Returns: factual configuration and modeled behavior. Side effect: none. Recovery: unavailable types are rejected.",
     compare_design_evidence: "When: compare retained evidence. Returns: deterministic changes and provenance. Side effect: none. Recovery: retry when a baseline is unavailable.",
     expand_design_evidence: "When: deeper evidence is requested. Returns: up to two named evidence sections. Side effect: none. Recovery: refresh an expired review reference.",
