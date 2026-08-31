@@ -235,13 +235,15 @@ function ArchitectureWorkspace() {
               </div>
             ) : (
               <div className="playground-sidebar-challenge">
-                <RequirementsHud
-                  key={`requirements-review-${workspace.requirementsReviewKey}`}
-                  result={workspace.simulationResult}
-                  runState={workspace.runState}
-                  resultIsStale={workspace.resultIsStale}
-                  reviewKey={workspace.requirementsReviewKey}
-                />
+                {!workspace.officialVerification?.eligible || workspace.resultIsStale ? (
+                  <RequirementsHud
+                    key={`requirements-review-${workspace.requirementsReviewKey}`}
+                    result={workspace.simulationResult}
+                    runState={workspace.runState}
+                    resultIsStale={workspace.resultIsStale}
+                    reviewKey={workspace.requirementsReviewKey}
+                  />
+                ) : null}
                 <PlayerRankHud />
               </div>
             )}

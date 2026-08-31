@@ -192,8 +192,8 @@ export function StartOfficialAttempt({
           role="status"
         >
           {state.streak === null
-            ? "Level complete"
-            : `${state.streak} day streak · Level complete`}
+            ? "Level passed"
+            : `${state.streak} day streak · Level passed`}
         </p>
       ) : (
         <button

@@ -40,10 +40,6 @@ function formatMoney(value: number) {
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatPercent(value: number) {
-  return `${(value * 100).toFixed(0)}%`;
-}
-
 export default async function SharePage({ params }: SharePageProps) {
   const share = await loadShare(params);
   const underBudget = share.budgetUsd - share.monthlyCostUsd;
@@ -68,11 +64,6 @@ export default async function SharePage({ params }: SharePageProps) {
           <div><dt>Fastest rank</dt><dd>#{share.fastestRank ?? "—"}</dd></div>
           <div><dt>Cheapest rank</dt><dd>#{share.cheapestRank ?? "—"}</dd></div>
         </dl>
-        <details className="share-card__evidence">
-          <summary>Verified margins</summary>
-          <p>p95 latency: {share.latencyP95Ms === undefined ? "—" : `${share.latencyP95Ms} ms`} / target {share.latencyTargetMs === undefined ? "—" : `${share.latencyTargetMs} ms`}</p>
-          <p>Headroom: {share.headroom === undefined ? "—" : formatPercent(share.headroom)} / target {share.headroomTarget === undefined ? "—" : formatPercent(share.headroomTarget)}</p>
-        </details>
         <footer className="share-card__footer">
           <span>Server-verified. Architecture stays private.</span>
           <Link href="/">Play today&apos;s Faultline <span aria-hidden="true">→</span></Link>

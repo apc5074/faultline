@@ -1070,6 +1070,11 @@ main {
   line-height: 1.3;
 }
 
+.player-streak-hud--hint {
+  justify-content: center;
+  text-align: center;
+}
+
 .account-streak {
   width: min(100%, 720px);
   margin: 0 auto 1.25rem;
@@ -4074,6 +4079,50 @@ h1 {
   margin: 0;
   font-size: 0.68rem;
   color: var(--color-ink);
+}
+
+@media (width <= 900px) {
+  .sim-bar {
+    padding-inline: clamp(0.4rem, 2vw, 1rem);
+  }
+
+  .sim-bar__button {
+    padding-inline: clamp(0.35rem, 1.5vw, 0.85rem);
+    font-size: clamp(0.45rem, 1.2vw, 0.55rem);
+    letter-spacing: clamp(0.04em, 0.35vw, 0.1em);
+  }
+
+  .sim-bar__divider {
+    margin-inline: clamp(0.35rem, 1.5vw, 0.75rem);
+  }
+}
+
+@media (width <= 640px) {
+  .sim-bar {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 40px;
+    padding-block: 0.35rem;
+    row-gap: 0.35rem;
+  }
+
+  .sim-bar__cluster--start {
+    display: none;
+  }
+
+  .sim-bar__cluster--center,
+  .sim-bar__cluster--end {
+    justify-self: center;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .sim-bar__run-clock {
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .world-map {

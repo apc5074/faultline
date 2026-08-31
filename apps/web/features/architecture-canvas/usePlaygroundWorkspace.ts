@@ -951,7 +951,7 @@ export function usePlaygroundWorkspace() {
         const best = body.dailyBest
           ? ` · best ${Math.round(body.dailyBest.fastestSolveMs / 1000)}s / ${formatCost(body.dailyBest.cheapestCost)}`
           : "";
-        setOfficialSummary(`Server verified · ${rank}${best}`);
+        setOfficialSummary(body.eligible ? null : `Server verified · ${rank}${best}`);
         if (body.eligible) {
           // Stop the solve timer at server verification, before the optional
           // account streak lookup completes.
