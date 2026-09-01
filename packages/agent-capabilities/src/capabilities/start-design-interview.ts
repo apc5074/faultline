@@ -18,6 +18,8 @@ export interface DesignInterviewQuestion {
   readonly question: string;
   readonly grouped: boolean;
   readonly phase: "opening" | "component";
+  readonly focus?: string;
+  readonly contextSignals?: readonly string[];
 }
 
 export interface StartDesignInterviewOutput {
@@ -31,6 +33,8 @@ export interface StartDesignInterviewOutput {
   readonly agenda: readonly DesignInterviewQuestion[];
   readonly componentIds: readonly string[];
   readonly grouped: boolean;
+  readonly focus?: string;
+  readonly contextSignals?: readonly string[];
   readonly presentationCue?: PresentationCue;
   readonly suggestedNextTools: readonly { readonly name: string; readonly reason: string }[];
 }
@@ -90,6 +94,23 @@ const openingQuestions: readonly DesignInterviewQuestion[] = [
   },
 ] as const;
 
+function openingQuestionsFor(context: AgentContext): readonly DesignInterviewQuestion[] {
+  const components = context.architecture.components;
+  const connections = context.architecture.connections;
+  const workload = context.challenge.workload ?? { requestsPerSecond: 0, readRatio: 0 };
+  const requirementSignals = (context.challenge.requirements ?? []).map((requirement) => requirement.label).slice(0, 4);
+  const workloadSignals = [
+    `${workload.requestsPerSecond} requests/sec`,
+    `${Math.round(workload.readRatio * 100)}% reads`,
+    ...(workload.hotKeyReadFraction !== undefined ? [`${Math.round(workload.hotKeyReadFraction * 100)}% hot-key reads`] : []),
+  ];
+  return [
+    { ...openingQuestions[0]!, focus: "Trace one representative request through the current architecture and probe the highest-impact boundary or dependency.", contextSignals: [`${components.length} components`, `${connections.length} connections`, ...workloadSignals] },
+    { ...openingQuestions[1]!, focus: "Probe the most important scaling, failure, or dependency-isolation decision suggested by this workload and architecture.", contextSignals: [...workloadSignals, `${components.filter((component) => component.type === "service").length} services`, `${components.filter((component) => component.type === "postgres").length} databases`] },
+    { ...openingQuestions[2]!, focus: "Probe one concrete performance, reliability, operational-complexity, or cost tradeoff that matters for this challenge.", contextSignals: [...requirementSignals, ...(context.challenge.monthlyBudget !== undefined ? [`monthly budget $${context.challenge.monthlyBudget}`] : []), ...workloadSignals] },
+  ];
+}
+
 function componentLabel(type: string, count: number): string {
   if (type === "service" && count > 1) return String(count) + " stateless services";
   return count > 1 ? String(count) + " " + type + " components" : type;
@@ -143,7 +164,7 @@ export function buildStartDesignInterviewOutput(
   input: BuildStartDesignInterviewInput,
 ): CapabilityResult<StartDesignInterviewOutput> {
   const agenda = buildAgenda(context);
-  const questions = [...openingQuestions, ...agenda];
+  const questions = [...openingQuestionsFor(context), ...agenda];
   const totalQuestions = questions.length;
   if (input.step >= totalQuestions) {
     return capabilityError("INVALID_INPUT", "Interview step must be between 0 and " + String(totalQuestions - 1) + ".");
@@ -174,6 +195,8 @@ export function buildStartDesignInterviewOutput(
     agenda,
     componentIds: item.componentIds,
     grouped: item.grouped,
+    ...(item.focus ? { focus: item.focus } : {}),
+    ...(item.contextSignals ? { contextSignals: item.contextSignals } : {}),
     ...(presentationCue ? { presentationCue } : {}),
     suggestedNextTools:
       input.step < totalQuestions - 1

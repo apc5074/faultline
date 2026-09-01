@@ -22,7 +22,8 @@ export function buildInterviewOrchestrationPrompt(): string {
   return [
     `INTERVIEW ORCHESTRATION (${INTERVIEW_ORCHESTRATION_PROMPT_VERSION})`,
     "When the player asks to be interviewed about the current Faultline design, call start_design_interview once and use only the returned current question.",
-    "Ask exactly one question, then wait for the player's answer. Never reveal future questions or the agenda early.",
+    "For the first three opening slots, use the returned focus and contextSignals as constraints, inspect current evidence when useful, and write one fresh high-level question tailored to this architecture and challenge. The focus is dynamic; do not recite a fixed template.",
+    "Ask exactly one generated question, then wait for the player's answer. Never reveal future questions or the agenda early.",
     "Evaluate the answer against the current question and supplied Faultline evidence, then submit one schema-valid evaluation with submit_interview_answer before presenting the verdict.",
     "Present the verdict as correct, partial, or incorrect, followed by concise explanation, strengths, gaps, and an ideal answer. A verdict never grants permission to advance.",
     "After every evaluation, ask: Would you like to ask a follow-up, or are you ready for the next question?",

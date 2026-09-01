@@ -44,11 +44,15 @@ import { isLevel1LoadAnswerEnabled } from "@/features/architecture-canvas/level1
 import { usePlaygroundWorkspace } from "@/features/architecture-canvas/usePlaygroundWorkspace";
 import { HomeHelp } from "@/features/home/HomeHelp";
 
+function InterviewStatusPanelBridge() {
+  const interviewSnapshot = useInterviewSnapshot();
+  const currentArchitectureRevision = useCurrentArchitectureRevision();
+  return <InterviewStatusPanel snapshot={interviewSnapshot} currentArchitectureRevision={currentArchitectureRevision} />;
+}
+
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
-  const interviewSnapshot = useInterviewSnapshot();
-  const currentArchitectureRevision = useCurrentArchitectureRevision();
   const [publishedExperiment, setPublishedExperiment] = useState<PublishedExperimentResult | null>(null);
   const [publishedExperimentArchitectureKey, setPublishedExperimentArchitectureKey] = useState<string | null>(null);
   const publishResult = useCallback((result: ExperimentResult) => {
@@ -204,7 +208,7 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
-            <InterviewStatusPanel snapshot={interviewSnapshot} currentArchitectureRevision={currentArchitectureRevision} />
+            <InterviewStatusPanelBridge />
             <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
             {publishedExperiment ? (
               <ExperimentResultPanel

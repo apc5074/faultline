@@ -48,14 +48,9 @@ export type CurrentAttemptResponse =
 
 /** Restores the caller's official attempt for the active daily challenge after refresh. */
 export async function GET(): Promise<Response> {
-  const configured = getSupabasePublicConfig() !== null;
-  if (!configured) {
-    return Response.json(
-      { ok: false, error: "Supabase is not configured.", code: "misconfigured" } satisfies CurrentAttemptResponse,
-      { status: 503 },
-    );
-  }
-
+  // Guest gameplay is intentionally independent of Supabase. Check auth
+  // first because getCurrentAuthUser safely returns null when the optional
+  // account backend is not configured.
   const user = await getCurrentAuthUser();
   if (!user) {
     return Response.json({
@@ -64,6 +59,29 @@ export async function GET(): Promise<Response> {
       authenticated: false,
       reason: "guest",
     } satisfies CurrentAttemptResponse);
+  }
+
+  // Anonymous auth is an implementation detail used to preserve a player's
+  // same-browser progress. It should not turn a guest page load into an
+  // account/backend error when the optional official-attempt persistence is
+  // unavailable. Keep trying the restore below so anonymous attempts still
+  // work whenever the backend is healthy.
+  const isAnonymous = user.is_anonymous === true;
+  const guestResponse = () =>
+    Response.json({
+      ok: true,
+      active: false,
+      authenticated: false,
+      reason: "guest",
+    } satisfies CurrentAttemptResponse);
+
+  const configured = getSupabasePublicConfig() !== null;
+  if (!configured) {
+    if (isAnonymous) return guestResponse();
+    return Response.json(
+      { ok: false, error: "Supabase is not configured.", code: "misconfigured" } satisfies CurrentAttemptResponse,
+      { status: 503 },
+    );
   }
 
   const supabase = await createSupabaseServerClient();
@@ -97,6 +115,7 @@ export async function GET(): Promise<Response> {
       });
     } catch (error) {
       if (error instanceof SubmissionPersistError) {
+        if (error.code === "misconfigured" && isAnonymous) return guestResponse();
         return Response.json(
           { ok: false, error: error.message, code: error.code === "misconfigured" ? "misconfigured" : "persist_failed" } satisfies CurrentAttemptResponse,
           { status: error.code === "misconfigured" ? 503 : 502 },
@@ -140,6 +159,7 @@ export async function GET(): Promise<Response> {
         } satisfies CurrentAttemptResponse);
       }
       if (error.code === "misconfigured") {
+        if (isAnonymous) return guestResponse();
         return Response.json(
           { ok: false, error: error.message, code: "misconfigured" } satisfies CurrentAttemptResponse,
           { status: 503 },

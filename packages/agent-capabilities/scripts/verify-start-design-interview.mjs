@@ -36,6 +36,9 @@ assert.equal(opening.data.phase, "opening");
 assert.equal(opening.data.questionId, "opening-1");
 assert.equal(opening.data.totalQuestions, 6);
 assert.equal(opening.data.architectureRevision, "interview-revision");
+assert.match(opening.data.focus, /request/i);
+assert.ok(opening.data.contextSignals.includes("4 components"));
+assert.ok(opening.data.contextSignals.includes("0 requests\/sec"));
 assert.equal(opening.data.agenda.length, 3);
 assert.equal(opening.data.agenda[0].questionId, "component-router");
 assert.equal(opening.data.agenda[0].ordinal, 4);
@@ -52,6 +55,7 @@ assert.equal(secondOpening.data.presentationCue, undefined);
 const thirdOpening = buildStartDesignInterviewOutput(context, { step: 2 });
 assert.equal(thirdOpening.ok, true);
 assert.equal(thirdOpening.data.questionId, "opening-3");
+assert.match(thirdOpening.data.focus, /tradeoff/i);
 
 const component = buildStartDesignInterviewOutput(context, { step: 4 });
 assert.equal(component.ok, true);

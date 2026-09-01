@@ -30,7 +30,7 @@ The page registers three kinds of tools through `document.modelContext`:
 
 If the browser doesn't support WebMCP, the game still plays. The top bar says **Unsupported browser** and you keep designing.
 
-Tool catalog and competitor prompt: [`docs/WEBMCP.md`](docs/WEBMCP.md), [`docs/WEBMCP_COMPETITION.md`](docs/WEBMCP_COMPETITION.md).
+Tool catalog and competitor prompt: [`docs/WEBMCP.md`](docs/TOOL_CATALOG.md), [`docs/WEBMCP_COMPETITION.md`](docs/WEBMCP_COMPETITION.md).
 
 ---
 

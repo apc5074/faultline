@@ -85,6 +85,9 @@ assert.ok(existsSync(join(web, "scripts/verify-competition-config.mjs")), "missi
 const start = assertFile("apps/web/app/api/attempts/start/route.ts");
 assert.match(start, /Start Official|startOfficial|attempts\/start|idempotent|ensure/i);
 
+const currentAttempt = assertFile("apps/web/app/api/attempts/current/route.ts");
+assert.ok(currentAttempt.indexOf("const user = await getCurrentAuthUser()") < currentAttempt.indexOf("const configured = getSupabasePublicConfig()"), "guest current-attempt restore must not require Supabase configuration");
+
 const dailyBest = assertFile("supabase/migrations/20260826162000_daily_best.sql");
 assert.match(dailyBest, /commit_verified_submission/);
 assert.match(dailyBest, /fastest\* stay locked|fastest_solve_ms/i);

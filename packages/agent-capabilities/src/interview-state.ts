@@ -24,6 +24,9 @@ export type InterviewQuestion = {
   readonly prompt: string;
   readonly componentIds: readonly string[];
   readonly grouped: boolean;
+  /** Model-facing focus; the external host writes the final question wording. */
+  readonly focus?: string;
+  readonly contextSignals?: readonly string[];
 };
 
 export type InterviewEvaluation = {

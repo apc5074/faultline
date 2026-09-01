@@ -80,7 +80,9 @@ function questionsFor(context: AgentContext): readonly InterviewQuestion[] {
       phase: output.data.phase,
       prompt: output.data.question,
       componentIds: output.data.componentIds,
-      grouped: output.data.grouped,
+        grouped: output.data.grouped,
+        ...(output.data.focus ? { focus: output.data.focus } : {}),
+        ...(output.data.contextSignals ? { contextSignals: output.data.contextSignals } : {}),
     });
   }
   return questions;

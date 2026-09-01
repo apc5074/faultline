@@ -79,7 +79,12 @@ export function AgentSessionProvider({
 
   const sessionRef = useRef<AgentSessionState>(createEmptyAgentSessionState());
   const [sessionVersion, setSessionVersion] = useState(0);
-  const interviewService = useMemo(() => createDesignInterviewService(), []);
+  // The provider renders on the server too; never resolve the browser owner
+  // key or touch localStorage until the client has mounted.
+  const interviewService = useMemo(
+    () => createDesignInterviewService(typeof window === "undefined" ? "ssr-placeholder" : undefined),
+    [],
+  );
   const [interviewSnapshot, setInterviewSnapshot] = useState<InterviewServiceSnapshot | null>(null);
 
   const architectureFingerprint = useMemo(

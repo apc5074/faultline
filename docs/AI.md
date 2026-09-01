@@ -37,6 +37,13 @@ readiness advances the state. `classifyInterviewReadiness` is intentionally
 conservative: a new technical question is a follow-up and ambiguous language
 does not advance.
 
+The first three opening slots are dynamically contextualized from the active
+challenge, workload, requirements, architecture inventory, and available
+simulator evidence. The external LLM writes fresh wording for the returned
+focus instead of repeating a fixed question template. Faultline persists the
+stable slot and context signals, so this scales to new levels while the
+reducer still controls order and transitions.
+
 The shared coaching policy includes the versioned orchestration contract
 `design-interview-orchestration-1`. It tells an external host when to call the
 start, answer, follow-up, and advance tools, how to recover from retries or

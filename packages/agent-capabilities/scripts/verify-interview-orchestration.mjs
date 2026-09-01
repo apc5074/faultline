@@ -11,7 +11,7 @@ assert.match(prompt, new RegExp(INTERVIEW_ORCHESTRATION_PROMPT_VERSION));
 for (const tool of ["start_design_interview", "submit_interview_answer", "follow_up_design_interview", "advance_design_interview"]) {
   assert.match(prompt, new RegExp(tool));
 }
-assert.match(prompt, /exactly one question/);
+assert.match(prompt, /exactly one generated question/);
 assert.match(prompt, /never reveal future questions/i);
 assert.match(prompt, /verdict never grants permission/i);
 assert.match(prompt, /tool retry/i);
