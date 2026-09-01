@@ -1528,56 +1528,70 @@ main {
   line-height: 1.55;
 }
 
-.webmcp-guide__prompt-list {
+.webmcp-guide__prompt-playbook {
+  display: grid;
+  gap: 0;
+  max-width: 46rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-ink-hairline);
+}
+
+.webmcp-guide__prompt-move {
   display: grid;
   gap: 0.65rem;
-  max-width: 46rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--color-ink-hairline);
 }
 
-.webmcp-guide__prompt-list code {
-  display: block;
-  padding: 0.8rem 1rem;
-  border: 1px solid var(--color-ink-hairline);
-  background: var(--color-paper-dark);
-  font-size: 0.68rem;
-  line-height: 1.55;
-  white-space: normal;
-}
-
-.webmcp-guide__prompt-showcase {
+.webmcp-guide__prompt-move-head {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  max-width: 54rem;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.65rem;
+  align-items: start;
 }
 
-.webmcp-guide__prompt-card {
-  display: grid;
-  gap: 0.8rem;
-  padding: 1rem;
-  border: 1px solid var(--color-ink-hairline);
-  background: var(--color-paper-dark);
+.webmcp-guide__prompt-move-index {
+  color: var(--color-ink-faint);
+  font: 0.62rem var(--font-mono), monospace;
+  letter-spacing: 0.06em;
+  padding-top: 0.2rem;
 }
 
-.webmcp-guide__prompt-card h3 {
-  margin: 0.55rem 0 0;
-  font-size: 0.9rem;
+.webmcp-guide__prompt-move-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  align-items: baseline;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
   text-transform: uppercase;
 }
 
-.webmcp-guide__prompt-card code {
-  display: block;
-  padding: 0.75rem;
-  font-size: 0.68rem;
-  line-height: 1.55;
-  white-space: normal;
+.webmcp-guide__prompt-move-title .webmcp-guide__ability-label {
+  flex-shrink: 0;
 }
 
-.webmcp-guide__prompt-card p {
-  margin: 0;
+.webmcp-guide__prompt-copy {
+  margin: 0 0 0 2.65rem;
+  color: var(--color-ink-faint);
+  font-size: 0.68rem;
+  line-height: 1.65;
+}
+
+.webmcp-guide__prompt-outcome {
+  margin: 0 0 0 2.65rem;
   color: var(--color-ink-faint);
   font-size: 0.65rem;
   line-height: 1.55;
+}
+
+.webmcp-guide__prompt-outcome::before {
+  content: "→ ";
+  color: var(--color-signal-red);
 }
 
 .webmcp-guide__footer {
@@ -1604,8 +1618,9 @@ main {
     grid-template-columns: 1fr;
   }
 
-  .webmcp-guide__prompt-showcase {
-    grid-template-columns: 1fr;
+  .webmcp-guide__prompt-copy,
+  .webmcp-guide__prompt-outcome {
+    margin-left: 0;
   }
 }
 

@@ -128,8 +128,8 @@ an audit submission but never becomes ranking-eligible.
 - Attempt identity (`user_id`, daily challenge, start time) is immutable.
   `first_valid_at` can change only once from null to a timestamp.
 - Submissions reject update/delete. An operator-only reset RPC is the explicit
-  exceptional path for removing one user's one daily run; it is not normal
-  product behavior.
+  exceptional path for removing one user's persisted competition history across
+  all daily challenges; it is not normal product behavior.
 - `daily_best` is derived exclusively by the atomic commit RPC. Fastest uses
   the first eligible result; cheapest chooses the lowest verified cost and then
   lower solve time on ties.

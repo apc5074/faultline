@@ -67,6 +67,12 @@ Every app response carries a baseline Content Security Policy plus anti-framing,
 
 Supabase provides Postgres for competition identity and persistence. Official submissions are re-simulated server-side before they can be ranked. External agents connect through the browser's WebMCP implementation; the app does not embed or call a model gateway.
 
+For local competition testing, `pnpm --filter @faultline/web reset:all-runs`
+performs a dry run for the GitHub-linked operator account `@apc5074`. Add
+`-- --confirm` to remove that user's persisted attempts, submissions,
+leaderboard projections, and related share cards across all daily challenges.
+The account, profile alias, agent usage, and other users' data are preserved.
+
 ## Phase 1 vertical-slice verification
 
 **Verification — 2026-08-25:** `pnpm verify:phase-1` and `pnpm build` succeeded for the Tiny API vertical slice (canonical architecture, simulation outcomes, package boundaries). Vercel production gameplay (PHASE-1-VERIFY V14) still requires pushing the current `main` (ahead of `origin/main`) and an operator pass of the Build → Run → Fail → Modify → Run → Pass loop on the deployed site.

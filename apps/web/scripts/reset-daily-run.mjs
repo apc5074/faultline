@@ -1,13 +1,13 @@
 /**
- * Reset one player's official run for the currently active UTC challenge.
+ * Reset one player's persisted official competition history.
  *
  * This is intentionally a narrow operator tool for local competition testing.
- * It does not delete the account, profile/alias, agent usage, or data from
- * other challenge days. Without --confirm it only reports what would change.
+ * It does not delete the account, profile/alias, agent usage, or any other
+ * user's data. Without --confirm it only reports what would change.
  *
  * Usage (from apps/web):
- *   pnpm reset:daily-run
- *   pnpm reset:daily-run -- --confirm
+ *   pnpm reset:all-runs
+ *   pnpm reset:all-runs -- --confirm
  */
 
 import { readFileSync } from "node:fs";
@@ -98,50 +98,29 @@ if (!matchedUser) {
   process.exit(1);
 }
 
-const now = new Date().toISOString();
-const active = await supabase
-  .from("daily_challenges")
-  .select("id, starts_at, ends_at, challenge_version_id")
-  .lte("starts_at", now)
-  .gt("ends_at", now)
-  .maybeSingle();
-
-if (active.error) {
-  console.error(`Could not find active challenge: ${active.error.message}`);
-  process.exit(1);
-}
-if (!active.data) {
-  console.error("There is no active daily challenge right now.");
-  process.exit(1);
-}
-
-const challengeId = active.data.id;
 const attempts = await supabase
   .from("attempts")
-  .select("id, started_at, first_valid_at")
-  .eq("user_id", matchedUser.id)
-  .eq("daily_challenge_id", challengeId);
+  .select("id, daily_challenge_id, started_at, first_valid_at")
+  .eq("user_id", matchedUser.id);
 if (attempts.error) {
   console.error(`Could not inspect attempts: ${attempts.error.message}`);
   process.exit(1);
 }
 
 const attemptIds = attempts.data.map((attempt) => attempt.id);
-const submissions = attemptIds.length
-  ? await supabase
-      .from("submissions")
-      .select("id, all_requirements_pass, within_budget")
-      .in("attempt_id", attemptIds)
-  : { data: [], error: null };
+const submissions = await supabase
+  .from("submissions")
+  .select("id, daily_challenge_id, all_requirements_pass, within_budget")
+  .eq("user_id", matchedUser.id);
 if (submissions.error) {
   console.error(`Could not inspect submissions: ${submissions.error.message}`);
   process.exit(1);
 }
 
 const submissionIds = submissions.data.map((submission) => submission.id);
-const summary = `${attemptIds.length} attempt(s), ${submissionIds.length} submission(s), and at most ${attemptIds.length} daily-best row(s)`;
+const summary = `${attemptIds.length} attempt(s), ${submissionIds.length} submission(s), and daily-best rows for every challenge`;
 console.log(
-  `${confirmed ? "Resetting" : "Would reset"} @${username} for challenge ${challengeId}: ${summary}.`
+  `${confirmed ? "Resetting" : "Would reset"} all persisted official data for @${username}: ${summary}.`
 );
 
 if (!confirmed) {
@@ -151,14 +130,13 @@ if (!confirmed) {
 
 const reset = await supabase.rpc("reset_player_daily_run", {
   p_user_id: matchedUser.id,
-  p_daily_challenge_id: challengeId,
 });
 if (reset.error) {
   throw new Error(
-    `Could not reset daily run: ${reset.error.message}. Apply the latest Supabase migration first.`
+    `Could not reset player data: ${reset.error.message}. Apply the latest Supabase migration first.`
   );
 }
 
 console.log(
-  `Reset complete for @${username}: ${reset.data.attempts} attempt(s), ${reset.data.submissions} submission(s), and ${reset.data.daily_best} daily-best row(s) removed. Account and alias were preserved.`
+  `Reset complete for @${username}: ${reset.data.attempts} attempt(s), ${reset.data.submissions} submission(s), ${reset.data.daily_best} daily-best row(s), and ${reset.data.share_cards} share card(s) removed. Account and alias were preserved.`
 );
