@@ -1292,7 +1292,7 @@ main {
   border: 1px solid var(--color-ink-hairline);
   background: var(--color-paper);
   color: var(--color-ink-faint);
-  font-size: 0.48rem;
+  font-size: 0.54rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   line-height: 1;
@@ -2742,6 +2742,74 @@ main {
   word-break: break-all;
 }
 
+.data-plate-inspector__type {
+  font-size: 0.54rem;
+}
+
+.data-plate-inspector__rename {
+  font-size: 0.68rem;
+}
+
+.data-plate-inspector__section-title,
+.inspector-plate__row-label,
+.inspector-plate__stepper-label,
+.inspector-plate__seg-label,
+.data-plate-inspector__field-label {
+  font-size: 0.6rem;
+}
+
+.inspector-plate__row-value,
+.inspector-plate__stepper-btn,
+.inspector-plate__stepper-value,
+.data-plate-inspector__field input,
+.data-plate-inspector__field select,
+.data-plate-inspector__origin-row,
+.data-plate-inspector__bullet,
+.data-plate-inspector__checkbox {
+  font-size: 0.72rem;
+}
+
+.inspector-plate__seg-btn {
+  font-size: 0.54rem;
+}
+
+.data-plate-inspector__hint,
+.data-plate-inspector__origin-meta,
+.data-plate-inspector__live-empty {
+  font-size: 0.66rem;
+}
+
+.data-plate-inspector__region-title {
+  font-size: 0.64rem;
+}
+
+.data-plate-inspector__role-col-title,
+.data-plate-inspector__teaching-label {
+  font-size: 0.54rem;
+}
+
+.data-plate-inspector__teaching-summary,
+.data-plate-inspector__advanced-summary {
+  font-size: 0.6rem;
+}
+
+.data-plate-inspector__teaching-why {
+  font-size: 0.76rem;
+}
+
+.data-plate-inspector__teaching-intent,
+.data-plate-inspector__teaching-cost {
+  font-size: 0.72rem;
+}
+
+.data-plate-inspector__teaching-lists ul {
+  font-size: 0.69rem;
+}
+
+.data-plate-inspector__json {
+  font-size: 0.62rem;
+}
+
 .official-attempt__button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -3500,6 +3568,34 @@ h1 {
   line-height: 1.4;
 }
 
+.hud-plate--requirements .hud-plate__title {
+  font-size: 0.68rem;
+}
+
+.hud-plate--requirements .hud-plate__meta {
+  font-size: 0.68rem;
+}
+
+.hud-plate--requirements .hud-plate__details-summary {
+  font-size: 0.61rem;
+}
+
+.hud-plate--requirements .hud-plate__summary {
+  font-size: 0.74rem;
+}
+
+.hud-plate--requirements .hud-plate__row-header {
+  font-size: 0.74rem;
+}
+
+.hud-plate--requirements .hud-plate__values {
+  font-size: 0.7rem;
+}
+
+.hud-plate--requirements .hud-plate__explanation {
+  font-size: 0.66rem;
+}
+
 .hud-plate__segmented {
   display: inline-flex;
   margin-top: 0.55rem;
@@ -3970,14 +4066,14 @@ h1 {
 }
 
 .sim-bar__button {
-  height: 26px;
+  height: 29px;
   margin: 0;
-  padding: 0 0.85rem;
+  padding: 0 0.95rem;
   border: 1px solid var(--color-ink);
   background: var(--color-paper);
   color: var(--color-ink);
   font: inherit;
-  font-size: 0.55rem;
+  font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;

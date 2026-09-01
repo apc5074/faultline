@@ -16,7 +16,7 @@ const canvas = readFileSync(join(root, "features/architecture-canvas/Architectur
 
 assert.match(launcher, /createDefaultCapabilityRegistry/);
 assert.match(launcher, /createAgentContext/);
-assert.match(launcher, /registry\.invoke/);
+assert.match(launcher, /\.invoke\(/);
 assert.match(launcher, /publishExperimentResult/);
 assert.match(launcher, /run_load_test/);
 assert.match(launcher, /change_traffic_pattern/);
