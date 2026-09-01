@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-paper: #f5f0e8;
+  --color-ink: #1a1612;
+  --color-ink-light: #3d3530;
+  --color-ink-faint: #8a7f74;
+  --color-ink-hairline: #c8bfb0;
+  --color-signal-red: #c0392b;
+  --color-paper-dark: #ede7d9;
+  --font-mono: 'Space Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+}
+
+/* Hide scrollbars by default */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+*:hover {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-hairline) transparent;
+}
+
+/* Dot grid pattern for canvas */
+.dot-grid {
+  background-image: radial-gradient(circle, #b8ae9e 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* SVG animations for packets */
+@keyframes packet-move {
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
+}
+
+@keyframes mechanism-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes core-fill {
+  0% { fill: transparent; }
+  100% { fill: var(--color-ink); }
+}
+
+@keyframes arm-swing {
+  0% { transform: rotate(-30deg); }
+  100% { transform: rotate(30deg); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Failed components: the red hatch breathes — failure is never a still drawing */
+@keyframes hatch-pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.25; }
+}
+.failed-hatch {
+  animation: hatch-pulse 1.4s ease-in-out infinite;
+}
+
+/* Cache cells flicker — near-zero dwell, the fastest transaction in the system */
+@keyframes cell-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+.cell-flicker {
+  animation: cell-flicker 0.6s ease-in-out infinite;
+}
+
+/* Pub/Sub ring flashes once per broadcast */
+@keyframes pubsub-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0.25; }
+}
+.pubsub-flash {
+  animation: pubsub-flash 0.5s ease-out infinite;
+}
+
+/* CDN edge nodes: the pulse travels through in order (staggered by animation-delay).
+   Plays once — the glyph remounts the node group on each inbound pass to retrigger it. */
+@keyframes node-pass {
+  0%, 100% { fill: #f5f0e8; }
+  40% { fill: #1a1612; }
+}
+.node-pass {
+  animation: node-pass 0.5s ease-in-out;
+}
+
+/* Tabular numerals for live metrics */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
