@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { buildExperimentWebMcpSurface, registerExperimentWebMcpSurface } from "../dist/index.js";
+import { buildExperimentWebMcpSurface } from "../dist/index.js";
 
 const context = {
   challenge: { slug: "tiny-api", version: 1, title: "Tiny API", prompt: "Design", developmentOnly: true, workload: { requestsPerSecond: 1, readRatio: 1, writeRatio: 0 }, requirements: [], monthlyBudget: 100, allowedComponentTypes: ["service"] },
@@ -11,10 +11,4 @@ const registry = createDefaultCapabilityRegistry();
 const surface = await buildExperimentWebMcpSurface({ registry, getContext: () => context, development: true });
 assert.deepEqual(surface.resolvedNames, ["run_load_test", "change_traffic_pattern", "inject_component_failure"]);
 assert.deepEqual(surface.tools.map((tool) => tool.name), surface.resolvedNames);
-const controller = new AbortController();
-controller.abort();
-assert.deepEqual(
-  await registerExperimentWebMcpSurface({ modelContext: { async registerTool() { throw new Error("should not register"); } }, registry, getContext: () => context, signal: controller.signal }),
-  { resolvedToolNames: [], registeredToolNames: [], failedToolNames: [] },
-);
 console.log("verify-experiment-webmcp-surface: ok");

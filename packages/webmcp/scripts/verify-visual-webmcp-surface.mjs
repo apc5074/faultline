@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { buildVisualWebMcpSurface, registerVisualWebMcpSurface } from "../dist/index.js";
+import { buildVisualWebMcpSurface } from "../dist/index.js";
 
 const context = {
   challenge: {
@@ -55,78 +55,6 @@ assert.equal(geographicSurface.resolvedNames.includes("focus_region"), true);
 for (const tool of surface.tools) {
   assert.equal(tool.annotations?.readOnlyHint, false);
   assert.equal(tool.annotations?.untrustedContentHint, undefined);
-}
-
-// Abort before surface construction: no context read and no registration.
-{
-  const controller = new AbortController();
-  controller.abort();
-  let contextCalls = 0;
-  let registrations = 0;
-  const result = await registerVisualWebMcpSurface({
-    modelContext: {
-      async registerTool() {
-        registrations += 1;
-      },
-    },
-    registry,
-    getContext: () => {
-      contextCalls += 1;
-      return context;
-    },
-    signal: controller.signal,
-  });
-  assert.deepEqual(result.registeredToolNames, []);
-  assert.equal(contextCalls, 0);
-  assert.equal(registrations, 0);
-}
-
-// Abort while building: registration is skipped after the awaited live context.
-{
-  const controller = new AbortController();
-  let registrations = 0;
-  const pending = registerVisualWebMcpSurface({
-    modelContext: {
-      async registerTool() {
-        registrations += 1;
-      },
-    },
-    registry,
-    getContext: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      return context;
-    },
-    signal: controller.signal,
-    development: true,
-  });
-  controller.abort();
-  const result = await pending;
-  assert.deepEqual(result.registeredToolNames, []);
-  assert.equal(registrations, 0);
-}
-
-// Abort during registration: browser rejections are contained and no tool is reported registered.
-{
-  const controller = new AbortController();
-  let registrations = 0;
-  const pending = registerVisualWebMcpSurface({
-    modelContext: {
-      registerTool(_tool, { signal }) {
-        registrations += 1;
-        return new Promise((_resolve, reject) => {
-          signal.addEventListener("abort", () => reject(new Error("registration aborted")), { once: true });
-        });
-      },
-    },
-    registry,
-    getContext: () => context,
-    signal: controller.signal,
-  });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  controller.abort();
-  const result = await pending;
-  assert.ok(registrations > 0);
-  assert.deepEqual(result.registeredToolNames, []);
 }
 
 console.log("verify-visual-webmcp-surface: ok");

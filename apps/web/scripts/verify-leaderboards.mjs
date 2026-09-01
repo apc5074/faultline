@@ -47,6 +47,9 @@ assert.match(ui, /\/api\/leaderboards\/cheapest/);
 assert.match(ui, /Fastest/);
 assert.match(ui, /Cheapest/);
 assert.match(ui, /formatSolveTime/);
+assert.match(ui, /const PODIUM_RANKS = \[1, 2, 3\]/);
+assert.match(ui, /Math\.max\(3, maxEntries/);
+assert.match(ui, /Open — awaiting a verified solve/);
 assert.doesNotMatch(ui, /\buserId\b|\buser_id\b|auth\.users/);
 
 for (const [kind, migrationName, functionName, ordering] of [

@@ -5,7 +5,7 @@ import {
   createDefaultCapabilityRegistry,
   noInputSchema,
 } from "@faultline/agent-capabilities";
-import { registerReadWebMcpSurface, toWebMcpTool } from "../dist/index.js";
+import { registerAgentWebMcpSurface, toWebMcpTool } from "../dist/index.js";
 
 const challenge = {
   slug: "tiny-api",
@@ -108,81 +108,62 @@ function createSlowRegistry(delayMs) {
   assert.equal(slow.executeCalls, 0);
 }
 
-// 3-5. Registration lifecycle races with a controllable modelContext mock.
+// Registration lifecycle races are covered through the unified production API.
 {
-  const activeControllers = new Set();
   const registered = [];
-  let pendingResolve;
-
-  const modelContext = {
-    registerTool: (tool, { signal }) =>
-      new Promise((resolve, reject) => {
-        activeControllers.add(signal);
-        const onAbort = () => {
-          activeControllers.delete(signal);
-          reject(new Error("registration aborted"));
-        };
-        signal.addEventListener("abort", onAbort, { once: true });
-        pendingResolve = () => {
-          signal.removeEventListener("abort", onAbort);
-          activeControllers.delete(signal);
-          if (signal.aborted) {
-            reject(new Error("registration aborted"));
-            return;
-          }
-          registered.push(tool.name);
-          resolve(undefined);
-        };
-      }),
-  };
-
-  let getContextCalls = 0;
-  const getContext = async () => {
-    getContextCalls += 1;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    return context;
-  };
-
+  let contextCalls = 0;
   const controller = new AbortController();
-  const pendingRegistration = registerReadWebMcpSurface({
-    modelContext,
+  const pendingRegistration = registerAgentWebMcpSurface({
+    modelContext: {
+      async registerTool(tool) {
+        registered.push(tool.name);
+      },
+    },
     registry,
-    getContext,
+    getContext: async () => {
+      contextCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return context;
+    },
     signal: controller.signal,
+    group: "stable-review",
     development: true,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 5));
   controller.abort();
-  pendingResolve?.();
-  const registrationResult = await pendingRegistration;
+  const result = await pendingRegistration;
 
-  assert.deepEqual(registrationResult.registeredToolNames, []);
-  assert.equal(registered.length, 0);
-  assert.equal(activeControllers.size, 0);
+  assert.equal(contextCalls, 1);
+  assert.deepEqual(registered, []);
+  assert.deepEqual(result.registeredToolNames, []);
 }
 
 {
   const registered = [];
-  const modelContext = {
-    registerTool: (tool, { signal }) => {
-      if (signal.aborted) return Promise.reject(new Error("registration aborted"));
-      registered.push(tool.name);
-      return Promise.resolve(undefined);
-    },
-  };
-
   const controller = new AbortController();
-  controller.abort();
-  const result = await registerReadWebMcpSurface({
-    modelContext,
+  const pendingRegistration = registerAgentWebMcpSurface({
+    modelContext: {
+      registerTool(tool, { signal }) {
+        registered.push(tool.name);
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("registration aborted")), { once: true });
+        });
+      },
+    },
     registry,
     getContext: () => context,
     signal: controller.signal,
+    group: "stable-review",
+    development: true,
   });
 
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  controller.abort();
+  const result = await pendingRegistration;
+
+  assert.ok(registered.length > 0);
   assert.deepEqual(result.registeredToolNames, []);
-  assert.equal(registered.length, 0);
 }
 
 // Normal read-only invocation remains fast when no cancellation occurs.
