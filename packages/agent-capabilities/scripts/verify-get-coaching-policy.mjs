@@ -82,14 +82,14 @@ assert.equal(output.agentRole, "systems_reviewer");
 assert.equal(output.visualBudget.maxGesturesPerAnswer, 2);
 assert.equal(output.visualBudget.defaultBehavior, "non_disruptive_emphasis");
 assert.equal(output.visualBudget.selectionOrViewport, "only_on_explicit_human_request");
-assert.equal(output.turnProtocol.length, 5);
+assert.equal(output.turnProtocol.length, 4);
 assert.ok(output.turnProtocol[0].includes("review_current_design"));
 assert.ok(output.policyText.includes("Never assume a CDN"));
 assert.ok(output.prohibitedActions.some((action) => action.includes("Mutate architecture")));
 assert.ok(output.prohibitedActions.some((action) => action.includes("labels, notes")));
 assert.deepEqual(
   output.toolRecipes.map((recipe) => recipe.id),
-  ["component_review", "requirement_failure", "workload_trace", "cost_review", "experiment_proposal"],
+  ["component_review", "requirement_failure", "workload_trace", "cost_review"],
 );
 assert.deepEqual(output.toolRecipes[0].capabilityNames.slice(0, 3), [
   "inspect_component",
@@ -99,7 +99,6 @@ assert.deepEqual(output.toolRecipes[0].capabilityNames.slice(0, 3), [
 assert.equal(output.toolRecipes[2].capabilityNames[0], "inspect_design_entity");
 assert.equal(output.toolRecipes[3].capabilityNames[0], "get_cost_breakdown");
 assert.ok(output.toolRecipes[2].capabilityNames.includes("get_architecture"));
-assert.ok(output.toolRecipes[4].steps.some((step) => step.includes("explicit approval")));
 
 const noPolicyContext = { challenge: tinyLike, architecture: emptyArchitecture };
 const noPolicyOutput = buildGetCoachingPolicyOutput(noPolicyContext);

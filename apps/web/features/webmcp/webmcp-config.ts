@@ -13,12 +13,11 @@ export type WebMcpTelemetryEvent = {
   readonly state?: "unsupported" | "registering" | "ready" | "partial" | "failed" | "disabled";
   readonly readToolCount?: number;
   readonly visualToolCount?: number;
-  readonly experimentToolCount?: number;
   readonly failedToolCount?: number;
   readonly name?: string;
   readonly durationMs?: number;
   readonly bytes?: number;
-  readonly mode?: "read" | "visual" | "experiment" | "session";
+  readonly mode?: "read" | "visual" | "session";
   readonly capability?: string;
   readonly errorClass?: "registration" | "timeout";
   readonly traceName?: string;

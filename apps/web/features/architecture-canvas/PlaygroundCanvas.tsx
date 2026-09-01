@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import type { Dispatch, DragEvent, SetStateAction } from "react";
 
-import type { Architecture, ChallengeDefinition, ExperimentResult, RegionId } from "@faultline/core";
+import type { Architecture, ChallengeDefinition, RegionId } from "@faultline/core";
 import type { GeographicRoute } from "@faultline/simulator";
 
 import { AgentAnnotationLayer } from "@/features/agent-annotations";
@@ -54,7 +54,6 @@ export type PlaygroundCanvasProps = {
   /** Motion belongs only to live playback; completed runs are static evidence. */
   worldRoutesAnimating: boolean;
   worldRoutesStale: boolean;
-  experimentPresentation: ExperimentResult | null;
   playbackVisualsActive: boolean;
   playbackFrame: PlaybackFrame;
   enclosureRegions: readonly RegionId[];
@@ -89,7 +88,6 @@ export function PlaygroundCanvas({
   geographicRoutes,
   worldRoutesAnimating,
   worldRoutesStale,
-  experimentPresentation,
   playbackVisualsActive,
   playbackFrame,
   enclosureRegions,
@@ -206,7 +204,7 @@ export function PlaygroundCanvas({
           routesActive={showSimulationVisuals}
           routesAnimating={worldRoutesAnimating && showSimulationVisuals && !resultIsStale}
           routesStale={worldRoutesStale && showSimulationVisuals}
-          regionFailure={regionFailurePresentationFromEvents(experimentPresentation?.events)}
+          regionFailure={regionFailurePresentationFromEvents(undefined)}
           onSelectComponent={onSelectComponent}
           onSelectRegion={onSelectRegion}
           onClearSelection={onClearWorldSelection}

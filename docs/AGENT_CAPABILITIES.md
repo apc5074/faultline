@@ -18,7 +18,7 @@ Each `AgentCapability` has:
 | `name` | Stable semantic operation name. |
 | `description` | Adapter-neutral intent. Host-facing descriptions may be a compact adaptation, not a separate behavior definition. |
 | `inputSchema` | Shared JSON Schema subset plus `safeParse`. Adapters pass this schema through; they do not rebuild validation per host. |
-| `mode` | `read`, `visual`, `experiment`, or browser-owned `session`. |
+| `mode` | `read`, `visual`, or browser-owned `session`. |
 | `availableWhen` | Pure context predicate that decides whether the operation is relevant now. |
 | `execute` | Shared implementation operating on the supplied context and validated input. |
 | `annotations` | Safe-invocation metadata used by surfaces, such as read-only/idempotent or destructive hints. |
@@ -58,30 +58,16 @@ or retries when the evidence revision is superseded.
 | --- | --- | --- |
 | `read` | Return current architecture, challenge, simulator, cost, or derived review facts. | Change architecture, session state, official attempts, or leaderboard data. |
 | `visual` | Return a validated focus, annotation, highlight, clear, region-focus, or observation intent for the host to apply to presentation state. | Mutate the canonical architecture or make visual state evidence of simulator truth. |
-| `session` | Read or transition host-owned interview session state through an injected session port. | Edit architecture, submit official attempts, affect leaderboards, or run experiments. |
-| `experiment` | Return a temporary simulated baseline/outcome/delta/event result. | Persist an overlay, alter Architecture/ChallengeDefinition/catalog config, or submit an official result. |
+| `session` | Read or transition host-owned interview session state through an injected session port. | Edit architecture, submit official attempts, or affect leaderboards. |
 
 The registry validates inputs before executing. Its controlled error result is
-one of `NOT_FOUND`, `SIMULATION_UNAVAILABLE`, `INVALID_INPUT`,
-`CONSENT_REQUIRED`, or `CANCELLED`; adapters must preserve the error shape and
-avoid leaking implementation stack traces.
+one of `NOT_FOUND`, `SIMULATION_UNAVAILABLE`, `INVALID_INPUT`, or `CANCELLED`;
+adapters must preserve the error shape and avoid leaking implementation stack
+traces.
 
 Visual references are checked against current component/connection IDs. Notes
 are bounded, annotations are pruned when their targets disappear, and the
 session focus/help target is likewise pruned after architecture edits.
-
-## Human consent for experiments
-
-Live-session experiments require page-owned consent for the exact capability
-name. Consent is tied to the semantic architecture revision, expires after five
-minutes, and becomes invalid as soon as that architecture changes. A tool call
-cannot grant its own consent.
-
-The registry enforces this when a live `AgentSessionState` accompanies an
-experiment invocation. On missing/expired/mismatched consent it returns
-`CONSENT_REQUIRED` with `approve_exact_experiment`. Experiment-result caching
-is scoped to the exact capability, architecture revision, input, and consent
-window; it does not make a result persistent.
 
 ## Capability surfaces
 
@@ -131,27 +117,11 @@ The current production manifest exposes the first four. `focus_region` and
 `pin_observation` remain shared capabilities but are not production WebMCP
 tools unless the manifest changes intentionally.
 
-### Experiment capabilities
-
-The production experiment resolver selects these operations when their own
-availability predicates pass:
-
-```text
-run_load_test             change_traffic_pattern
-flush_cache               inject_component_failure
-inject_region_failure     slow_consumers
-```
-
-They are registered on a separate surface from reads. They model temporary
-simulated conditions and require explicit human intent/consent in a live
-session.
-
 ## Production manifest and adapter behavior
 
 `PRODUCTION_CAPABILITY_MANIFEST` is the source of truth for the current
 production WebMCP exposure. It groups exposed capability names as
-`stable-review`, `specialists`, `stable-visual`, `experiments`, or
-`stable-interview` and has the
+`stable-review`, `specialists`, `stable-visual`, or `stable-interview` and has the
 contract version `wmp-production-1`.
 
 The WebMCP adapter:
@@ -162,8 +132,8 @@ The WebMCP adapter:
 4. invokes the registry with current evidence/session state;
 5. envelopes successful results with provenance and filters follow-up hints to
    the currently registered tools; and
-6. publishes only validated visual intents, presentation cues, or simulated
-   experiment results to page-owned handlers.
+6. publishes only validated visual intents and presentation cues to page-owned
+   handlers.
 
 Registration is a host integration concern. It must not change capability
 availability, shared result semantics, or simulator truth. Keep registry and
@@ -219,7 +189,7 @@ include answer text or hidden model reasoning.
 
 ## Adding or changing a capability
 
-1. Identify whether the behavior is read, visual, or experiment. Do not use a
+1. Identify whether the behavior is read or visual. Do not use a
    visual tool as an architecture-edit backdoor.
 2. Define a narrow input schema and a controlled output/error shape in the
    shared package.
@@ -232,12 +202,10 @@ include answer text or hidden model reasoning.
 6. Add it to the production manifest only with an intentional group, appropriate
    annotations, and adapter-surface coverage. Being registered does not imply
    production exposure.
-7. For experiments, ensure the simulator result is temporary and the live
-   consent path remains exact, expiring, and revision-bound.
 
 ## Verification
 
-- Shared schemas, execution, resolver behavior, session/consent, and capability
+- Shared schemas, execution, resolver behavior, session, and capability
   coverage: `pnpm --filter @faultline/agent-capabilities verify`
 - WebMCP conversion, registered surfaces, lifecycle, and adapter parity:
   `pnpm --filter @faultline/webmcp verify`
@@ -245,5 +213,5 @@ include answer text or hidden model reasoning.
 - Cross-package public-contract changes: `pnpm typecheck`
 
 Use the nearest existing capability verifier for a focused regression first;
-extend it when a new input, availability condition, evidence field, consent
+extend it when a new input, availability condition, or evidence field
 rule, or production exposure is introduced.

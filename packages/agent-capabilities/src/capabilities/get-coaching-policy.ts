@@ -25,7 +25,7 @@ export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoaching
   return {
     policyVersion: "wmp-1",
     policyDigest: "faultline-reviewer-wmp-1",
-    summary: "Use simulator evidence as truth; give one grounded finding and one focused question; preserve human ownership and request consent before simulated experiments.",
+    summary: "Use simulator evidence as truth; give one grounded finding and one focused question; preserve human ownership.",
     policyText: buildCoachingPolicy(context),
     focusThemes: policy?.focusThemes ?? [],
     prohibitedRevealCategories: policy?.prohibitedRevealCategories ?? [],

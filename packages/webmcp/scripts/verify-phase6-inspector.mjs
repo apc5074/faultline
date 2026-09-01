@@ -26,8 +26,6 @@ const snapshot = await buildPhase6InspectorSnapshot({
 assert.equal(snapshot.browserSupported, false);
 assert.ok(snapshot.entries.some((entry) => entry.name === "get_coaching_policy"));
 assert.ok(snapshot.entries.some((entry) => entry.name === "focus_component"));
-assert.ok(snapshot.entries.some((entry) => entry.name === "run_load_test" && entry.mode === "experiment"));
-assert.ok(snapshot.entries.some((entry) => entry.name === "flush_cache" && entry.registrationState === "skipped"));
 assert.ok(snapshot.entries.every((entry) => entry.inputSchema.type === "object"));
 
 console.log("verify-phase6-inspector: ok");

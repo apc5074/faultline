@@ -12,19 +12,18 @@ import {
   useWebMcpEvidenceSource,
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
-import type { ExperimentResult, RegionId } from "@faultline/core";
+import type { RegionId } from "@faultline/core";
 import type { PinnedObservation } from "@faultline/agent-capabilities";
 import type { WebMcpStatus } from "./WebMcpStatusPlate";
 import { emitWebMcpTelemetry, webMcpFeatureState } from "./webmcp-config";
 
-type GroupStatus = Pick<WebMcpStatus, "state" | "readToolCount" | "visualToolCount" | "experimentToolCount" | "failedToolCount"> & { generation: number };
+type GroupStatus = Pick<WebMcpStatus, "state" | "readToolCount" | "visualToolCount" | "failedToolCount"> & { generation: number };
 
 function groupStatusFingerprint(status: GroupStatus): string {
   return JSON.stringify([
     status.state,
     status.readToolCount,
     status.visualToolCount,
-    status.experimentToolCount,
     status.failedToolCount,
     status.generation,
   ]);
@@ -37,7 +36,6 @@ function useWebMcpGroupRegistration({
   registry,
   retryToken,
   onVisualIntent,
-  onExperimentResult,
   onPresentationCue,
   onStatus,
   interviewService,
@@ -48,29 +46,26 @@ function useWebMcpGroupRegistration({
   registry: ReturnType<typeof createDefaultCapabilityRegistry>;
   retryToken: number;
   onVisualIntent?: (intent: Parameters<ReturnType<typeof createVisualCommandPublisher>>[0]) => void;
-  onExperimentResult?: (result: ExperimentResult) => void;
   onPresentationCue?: (cue: PresentationCue) => void;
   onStatus: (group: WebMcpRegistrationGroup, status: GroupStatus) => void;
   interviewService?: InterviewService;
 }) {
   const generationRef = useRef(0);
   const visualRef = useRef(onVisualIntent);
-  const experimentRef = useRef(onExperimentResult);
   const presentationRef = useRef(onPresentationCue);
   const statusRef = useRef(onStatus);
   visualRef.current = onVisualIntent;
-  experimentRef.current = onExperimentResult;
   presentationRef.current = onPresentationCue;
   statusRef.current = onStatus;
 
   useEffect(() => {
     if (webMcpFeatureState() === "disabled") {
-      statusRef.current(group, { state: "disabled", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation: 0 });
+      statusRef.current(group, { state: "disabled", readToolCount: 0, visualToolCount: 0, failedToolCount: 0, generation: 0 });
       return;
     }
     const modelContext = getWebMcpModelContext();
     if (!modelContext) {
-      statusRef.current(group, { state: "unsupported", readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0, generation: 0 });
+      statusRef.current(group, { state: "unsupported", readToolCount: 0, visualToolCount: 0, failedToolCount: 0, generation: 0 });
       return;
     }
     const controller = new AbortController();
@@ -78,7 +73,7 @@ function useWebMcpGroupRegistration({
     evidenceSource.prewarm();
     const generation = ++generationRef.current;
     let active = true;
-    const empty = { readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0 };
+    const empty = { readToolCount: 0, visualToolCount: 0, failedToolCount: 0 };
     const timeout = window.setTimeout(() => {
       if (active && generationRef.current === generation) statusRef.current(group, { state: "partial", ...empty, generation });
     }, WEBMCP_REGISTRATION_DEADLINE_MS);
@@ -91,7 +86,6 @@ function useWebMcpGroupRegistration({
       development: process.env.NODE_ENV === "development", group, timing, trace,
       onVisualIntent: (intent) => visualRef.current?.(intent),
       ...(interviewService ? { interviewService } : {}),
-      ...(experimentRef.current ? { onExperimentResult: (result: ExperimentResult) => experimentRef.current?.(result) } : {}),
       traceGeneration: generation,
       onPresentationCue: (cue) => {
         presentationRef.current?.(cue);
@@ -107,7 +101,7 @@ function useWebMcpGroupRegistration({
           : result.registeredToolNames.length === 0
             ? "failed"
             : "partial";
-      statusRef.current(group, { state, readToolCount: result.readToolNames.length, visualToolCount: result.visualToolNames.length, experimentToolCount: result.experimentToolNames.length, failedToolCount: result.failedToolNames.length, generation });
+      statusRef.current(group, { state, readToolCount: result.readToolNames.length, visualToolCount: result.visualToolNames.length, failedToolCount: result.failedToolNames.length, generation });
     }).catch((error) => {
       window.clearTimeout(timeout);
       if (active && generationRef.current === generation) statusRef.current(group, { state: "failed", ...empty, generation });
@@ -128,7 +122,6 @@ export function WebMcpRegistration({
   onFocusConnection,
   onFocusRegion,
   onPinObservation,
-  onExperimentResult,
   onPresentationCue,
 }: {
   reconciliationKey: string;
@@ -137,7 +130,6 @@ export function WebMcpRegistration({
   onFocusConnection?: (connectionId: string) => void;
   onFocusRegion?: (regionId: RegionId) => void;
   onPinObservation?: (observation: PinnedObservation) => void;
-  onExperimentResult?: (result: ExperimentResult) => void;
   onPresentationCue?: (cue: PresentationCue) => void;
 }) {
   const evidenceSource = useWebMcpEvidenceSource();
@@ -175,7 +167,6 @@ export function WebMcpRegistration({
   useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
   useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onStatus: onGroupStatus });
   useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "experiments", reconciliationKey, evidenceSource, registry, retryToken, onExperimentResult, onPresentationCue, onStatus: onGroupStatus });
   useWebMcpGroupRegistration({ group: "stable-interview", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus, interviewService });
 
   useEffect(() => {
@@ -184,9 +175,8 @@ export function WebMcpRegistration({
     const counts = statuses.reduce((total, status) => ({
       readToolCount: total.readToolCount + status.readToolCount,
       visualToolCount: total.visualToolCount + status.visualToolCount,
-      experimentToolCount: total.experimentToolCount + status.experimentToolCount,
       failedToolCount: total.failedToolCount + status.failedToolCount,
-    }), { readToolCount: 0, visualToolCount: 0, experimentToolCount: 0, failedToolCount: 0 });
+    }), { readToolCount: 0, visualToolCount: 0, failedToolCount: 0 });
     const state: WebMcpStatus["state"] = statuses.some((status) => status.state === "failed") ? "partial" : statuses.every((status) => status.state === "ready") ? "ready" : statuses.some((status) => status.state === "registering") ? "registering" : "partial";
     const nextStatus = { ...counts, state, generation: Math.max(...statuses.map((status) => status.generation)) };
     const previousStatus = publishedStatusRef.current;
@@ -195,7 +185,6 @@ export function WebMcpRegistration({
       previousStatus.state === nextStatus.state &&
       previousStatus.readToolCount === nextStatus.readToolCount &&
       previousStatus.visualToolCount === nextStatus.visualToolCount &&
-      previousStatus.experimentToolCount === nextStatus.experimentToolCount &&
       previousStatus.failedToolCount === nextStatus.failedToolCount &&
       previousStatus.generation === nextStatus.generation
     ) return;

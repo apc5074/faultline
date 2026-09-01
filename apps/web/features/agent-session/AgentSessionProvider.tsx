@@ -7,7 +7,6 @@ import {
   type AgentPendingHelpRequest,
   type AgentSessionFocus,
   type AgentSessionState,
-  type ExperimentConsent,
   type InterviewService,
   type InterviewServiceSnapshot,
 } from "@faultline/agent-capabilities";
@@ -48,7 +47,6 @@ export interface AgentSessionStore {
   clearAnnotations(scope?: "all" | "component", componentId?: string): void;
   /** Drop ephemeral focus ticks; keep notes/paths (Run lifecycle). */
   clearFocusOnRun(): void;
-  setExperimentConsent(consent: ExperimentConsent | null): void;
 }
 
 interface AgentSessionContextValue {
@@ -99,9 +97,8 @@ export function AgentSessionProvider({
   useEffect(() => {
     const previous = sessionRef.current;
     const pruned = pruneSessionForArchitecture(previous, architectureRef.current);
-    const consentMatchesRevision = !previous.experimentConsent || previous.experimentConsent.architectureRevision === architectureAvailabilityFingerprint(architectureRef.current);
-    const nextSession = consentMatchesRevision ? pruned : { ...pruned, experimentConsent: null };
-    if (!sessionChangedByPrune(previous, nextSession) && consentMatchesRevision) return;
+    const nextSession = pruned;
+    if (!sessionChangedByPrune(previous, nextSession)) return;
     sessionRef.current = {
       ...nextSession,
       revision: previous.revision,
@@ -135,9 +132,6 @@ export function AgentSessionProvider({
       },
       clearFocusOnRun: () => {
         commitSession(clearFocusAnnotationsOnRun(sessionRef.current));
-      },
-      setExperimentConsent: (experimentConsent) => {
-        commitSession({ ...sessionRef.current, experimentConsent, revision: sessionRef.current.revision + 1 });
       },
     }),
     [commitSession],

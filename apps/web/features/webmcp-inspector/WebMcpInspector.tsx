@@ -194,7 +194,6 @@ function WebMcpInspectorWorkspace({
   const selectedEntry = snapshot?.entries.find((entry) => entry.name === selectedToolName);
   const readEntries = snapshot?.entries.filter((entry) => entry.mode === "read") ?? [];
   const visualEntries = snapshot?.entries.filter((entry) => entry.mode === "visual") ?? [];
-  const experimentEntries = snapshot?.entries.filter((entry) => entry.mode === "experiment") ?? [];
   const currentEvidenceRevision = safeWebMcpRevision(evidenceSource.getEvidenceRevision());
   const latestInvocation = [...traceEvents].reverse().find((event) => event.traceName === "tool_invoked");
   const renderToolList = (entries: readonly Phase6InspectorSnapshot["entries"][number][]) => (
@@ -358,11 +357,6 @@ function WebMcpInspectorWorkspace({
           <section className="webmcp-inspector__panel" aria-label="Visual tools">
             <h2>Visual tools ({visualEntries.length})</h2>
             {renderToolList(visualEntries)}
-          </section>
-
-          <section className="webmcp-inspector__panel" aria-label="Simulated experiment tools">
-            <h2>Simulated experiment tools ({experimentEntries.length})</h2>
-            {renderToolList(experimentEntries)}
           </section>
 
           {selectedEntry ? (

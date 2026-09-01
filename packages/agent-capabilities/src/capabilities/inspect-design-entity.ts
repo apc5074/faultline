@@ -24,7 +24,6 @@ import {
   type InspectDesignEntityKind,
 } from "../schemas.js";
 import { buildOutput as buildComponentOutput, selectComponentsBySelector } from "./inspect-component-selectors.js";
-import { experimentReadiness } from "../experiment-readiness.js";
 import { createEmptyAgentSessionState, type AgentSessionState } from "../session.js";
 
 const NEIGHBOR_CAP = 3;
@@ -50,7 +49,6 @@ export interface InspectDesignEntityComponentOutput {
   readonly workloadFit?: unknown;
   readonly neighbors: readonly string[];
   readonly relatedRequirements: readonly RequirementResult[];
-  readonly experimentReadiness: ReturnType<typeof experimentReadiness>;
 }
 
 export interface InspectDesignEntityConnectionOutput {
@@ -113,7 +111,6 @@ export interface InspectDesignEntityRegionOutput {
   readonly redirectP95Ms?: number;
   readonly crossRegionCosts: readonly unknown[];
   readonly regionFailureExperimentAvailable: boolean;
-  readonly experimentReadiness: ReturnType<typeof experimentReadiness>;
 }
 
 function normalizeLabel(value: string): string {
@@ -248,7 +245,6 @@ function inspectComponentEntity(context: AgentContext, entityId: string, session
     ...(base.workloadFit ? { workloadFit: base.workloadFit } : {}),
     neighbors: packet?.neighbors ?? componentNeighbors(context, entityId),
     relatedRequirements: packet?.relatedRequirements ?? (context.requirementResults ?? []).filter((requirement) => requirement.explanation.includes(entityId)).slice(0, NEIGHBOR_CAP),
-    experimentReadiness: experimentReadiness(context, session),
   };
 }
 
@@ -378,7 +374,6 @@ function inspectRegionEntity(context: AgentContext, entityId: string, session: A
     ...(simulation?.system?.redirectP95Ms !== undefined ? { redirectP95Ms: simulation.system.redirectP95Ms } : {}),
     crossRegionCosts,
     regionFailureExperimentAvailable: inventory.regions.includes(entityId),
-    experimentReadiness: experimentReadiness(context, session),
   };
 }
 

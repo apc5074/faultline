@@ -376,10 +376,19 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
         if (record.state.interviewId !== input.interviewId || record.state.currentQuestion?.questionId !== input.questionId) throw new DesignInterviewServiceError("Interview or question ID does not match the active simulation.", "INVALID_INPUT");
         ensureCurrentOrMark(context, record);
         const current = load();
+        const question = current.state.currentQuestion;
+        if (!question || question.kind !== "simulation") throw new DesignInterviewServiceError("The simulation question is no longer active.", "INVALID_INPUT");
+        const comparison = compareArchitectureScenario({
+          originalArchitecture: current.baselineArchitecture,
+          candidateArchitecture: context.architecture,
+          challenge: context.challenge,
+          registry: componentRegistry,
+          scenario: question.scenario,
+        });
         const event: InterviewEvent = { type: "simulation_critique", questionId: input.questionId, candidateArchitectureRevision: input.candidateArchitectureRevision, reviewDigest: input.reviewDigest, critique: input.critique, completedAt: now() };
         const next = transitionInterview(current.state, event);
         if (!next.ok) throw new DesignInterviewServiceError(next.message, "INVALID_INPUT");
-        return commit(context, repository, current, event, next.state);
+        return { ...commit(context, repository, current, event, next.state), simulationReview: reviewPacket(comparison, input.reviewDigest) };
       } catch (error) {
         throw serviceError(error);
       }

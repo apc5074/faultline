@@ -62,12 +62,11 @@ function projectCapabilityData(
 
 export interface WrapWebMcpEnvelopeOptions {
   readonly capabilityName: string;
-  readonly mode: "read" | "visual" | "experiment" | "session";
+  readonly mode: "read" | "visual" | "session";
   /** Validated by the capability registry before a successful result is returned. */
   readonly input?: unknown;
   readonly lease: WebMcpEvidenceLease;
   readonly availableToolNames?: ReadonlySet<string>;
-  readonly simulated?: boolean;
 }
 
 /** Wrap a successful capability payload in the WMP-2 evidence envelope. */
@@ -134,7 +133,7 @@ export function wrapWebMcpEnvelope(
       resultDigest,
     }),
   };
-  const provenance = provenanceFromContext(context, options.mode, options.simulated === true);
+  const provenance = provenanceFromContext(context, options.mode);
   const envelope = buildAgentEvidenceResult(projected, state, provenance, next, truncated, presentation, resultDigest, subjects);
   if (!validateAgentEvidenceResult(envelope)) {
     return capabilityError("INVALID_INPUT", `Capability "${options.capabilityName}" produced an invalid envelope.`);

@@ -6,7 +6,6 @@ export * from "./envelope.js";
 export * from "./model-context.js";
 export * from "./phase6-inspector.js";
 export * from "./register-agent-surface.js";
-export * from "./experiment-webmcp-surface.js";
 export * from "./compatibility.js";
 export * from "./phase6-read-surface.js";
 export * from "./interview-webmcp-surface.js";

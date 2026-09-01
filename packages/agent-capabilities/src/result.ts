@@ -10,7 +10,6 @@ export type CapabilityRecovery = {
   readonly code: CapabilityErrorCode;
   readonly retryable: boolean;
   readonly currentEvidenceRevision?: string;
-  readonly requiresUserAction?: "approve_exact_experiment";
   readonly recoveryTool?: string;
   readonly choices?: readonly string[];
 };

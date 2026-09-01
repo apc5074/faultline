@@ -75,7 +75,6 @@ for (const capability of registry.list()) {
   assert.equal(tool.name, capability.name);
   assert.ok(tool.title.length > 0);
   assert.ok(tool.description.length > 0);
-  if (capability.mode === "experiment") assert.match(tool.description, /explicit human consent/);
   assert.deepEqual(tool.inputSchema, capability.inputSchema.jsonSchema);
   assert.equal(tool.annotations?.readOnlyHint, capability.annotations?.readOnlyHint);
   assert.equal(tool.annotations?.untrustedContentHint, ["get_session_focus", "review_current_design", "inspect_design_entity", "inspect_component", "get_architecture", "get_cost_breakdown"].includes(capability.name) || undefined);

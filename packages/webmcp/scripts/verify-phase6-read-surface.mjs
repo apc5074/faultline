@@ -81,17 +81,6 @@ const redisSurface = await buildAgentReadSurface({
 });
 assert.deepEqual(redisSurface.resolvedNames, [...BASELINE_READ_CAPABILITY_NAMES, "inspect_cache"]);
 
-const experimentRegistry = createAgentCapabilityRegistry(
-  registry.list().map((capability) =>
-    capability.name === "get_challenge" ? { ...getChallengeCapability, mode: "experiment" } : capability,
-  ),
-);
-
-await assert.rejects(
-  () => buildAgentReadSurface({ registry: experimentRegistry, getContext, development: true }),
-  (error) => error instanceof Phase6SurfaceConfigurationError && /ineligible_mode/.test(error.message),
-);
-
 const missingRegistry = createAgentCapabilityRegistry(
   registry.list().filter((capability) => capability.name !== "get_metrics"),
 );

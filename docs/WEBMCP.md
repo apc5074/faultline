@@ -21,21 +21,20 @@ WebMCP is a progressive enhancement of the Level 1 canvas. It is enabled unless
 unavailable when the browser does not expose `document.modelContext.registerTool`.
 In either case, gameplay and local simulation continue without it.
 
-The web app registers five independent production groups:
+The web app registers four independent production groups:
 
 | Group | Purpose | Reconciles when |
 | --- | --- | --- |
 | `stable-review` | Core current-design reads. | Challenge identity changes or registration retry. |
 | `stable-visual` | Persistent coaching marks/focus intents. | Challenge identity changes or registration retry. |
 | `specialists` | Architecture-dependent read tools. | The challenge or architecture availability fingerprint changes. |
-| `experiments` | Explicitly consented, temporary simulated scenarios. | The challenge or architecture availability fingerprint changes. |
 | `stable-interview` | Browser-owned, one-question-at-a-time design interview session. | Challenge identity changes or registration retry. |
 
 The shared production manifest (`wmp-production-1`) presently permits:
 
 ```text
 stable-review:
-  review_current_design, expand_design_evidence, inspect_design_entity,
+  review_current_design, get_coaching_policy, expand_design_evidence, inspect_design_entity,
   inspect_component_option, compare_design_evidence, get_architecture,
   inspect_component, estimate_capacity, get_metrics, get_cost_breakdown
 
@@ -46,21 +45,19 @@ specialists:
 stable-visual:
   focus_component, annotate_component, highlight_connection, clear_annotations
 
-experiments:
-  run_load_test, change_traffic_pattern, flush_cache,
-  inject_component_failure, inject_region_failure, slow_consumers
-
 stable-interview:
   start_design_interview, get_design_interview, submit_interview_answer,
   follow_up_design_interview, advance_design_interview, end_design_interview,
-  restart_design_interview
+  restart_design_interview, prepare_interview_simulation_review,
+  submit_interview_simulation_critique
 ```
 
 Registration is not exposure. A tool must be registered in the shared registry,
 belong to the production manifest, have the required mode/safety annotations,
-and be available for the current `AgentContext`. Specialist and experiment
-availability is determined by shared architecture predicates and capability
-logic, not by model choice or UI heuristics.
+and be available for the current `AgentContext`. Specialist availability is
+determined by shared architecture predicates and capability logic, not by model
+choice or UI heuristics. The interview owns the supported simulation scenario
+and review evidence.
 
 ## Runtime flow
 
@@ -76,11 +73,11 @@ WebMCP adapter resolves production group → document.modelContext.registerTool
                   ▼                                      ▼
            tool invocation                    shared registry invocation
                                                        │
-                                    read evidence / visual intent / simulated experiment
+                                    read evidence / visual intent / interview simulation review
                                                        │
                   ┌────────────────────────────────────┴──────────────────────────────────┐
                   ▼                                                                       ▼
-          validated evidence envelope                                 page-owned visual/experiment bridge
+          validated evidence envelope                                 page-owned visual bridge
 ```
 
 `WebMcpRegistration` creates the default shared registry and passes a live
@@ -111,8 +108,8 @@ new simulator truth.
 Each tool execution acquires a `WebMcpEvidenceLease` containing a
 `LiveAgentSnapshot`, evidence revision, surface revision, and session revision.
 Before an invocation it checks current availability; every capability call goes
-through `AgentCapabilityRegistry.invoke`, which validates input and enforces
-live experiment consent. After execution, the adapter checks whether the lease
+through `AgentCapabilityRegistry.invoke`, which validates input. After
+execution, the adapter checks whether the lease
 is still current. A superseded read is retried once on a fresh lease; otherwise
 the caller receives a controlled stale/superseded error response rather than a
 claim about the newer board.
@@ -134,7 +131,7 @@ shape:
 Some tools that can return player-authored material are marked with
 `untrustedContentHint`. Only `readOnlyHint` and `untrustedContentHint` are
 mapped to browser tool annotations. The read surface requires both
-`readOnlyHint` and `idempotentHint`; visual and experiment builders reject a
+`readOnlyHint` and `idempotentHint`; visual builders reject a
 positive `destructiveHint`.
 
 Successful object results are wrapped in the shared evidence envelope. The
@@ -156,7 +153,7 @@ capability errors are sanitized to `NOT_FOUND`, `SIMULATION_UNAVAILABLE`,
 only. Unexpected failures return a generic error; development diagnostics may
 log locally, but stack traces are not exposed to agents.
 
-## Visual and experiment effects
+## Visual effects
 
 WebMCP tools do not receive architecture-edit powers.
 
@@ -167,14 +164,10 @@ WebMCP tools do not receive architecture-edit powers.
 - A presentation cue derived from a read result is advisory. It is validated
   against the evidence revision before its callback runs; a callback error does
   not prevent the evidence response.
-- Experiment capabilities remain on a separate surface. The shared registry
-  requires exact, revision-bound, five-minute human consent for a live session.
-  The adapter publishes only successful results marked `simulated: true`,
-  deduplicated by result digest for the lifetime of that tool instance.
-
-Visual marks, viewport focus, playback, and experiment panels are not
+Visual marks, viewport focus, and playback are not
 architecture state, simulator input, official-submission input, or persistent
-competition evidence. Experiments do not modify the player’s design.
+competition evidence. The final interview simulation question owns scenario
+comparison and critique.
 
 ## Registration lifecycle and observability
 
@@ -200,11 +193,11 @@ production capability profile.
 
 | Change | Start with | Required follow-through |
 | --- | --- | --- |
-| Semantic tool, input/output, availability, consent | `@faultline/agent-capabilities` | Registry/resolver verifier first; adapt here only after shared behavior exists. |
+| Semantic tool, input/output, availability | `@faultline/agent-capabilities` | Registry/resolver verifier first; adapt here only after shared behavior exists. |
 | Production tool exposure/group | `capability-names.ts` in agent capabilities | WebMCP surface, tool-routing, and adapter-parity checks. |
 | Browser API adaptation, envelope, safety, registration | `packages/webmcp/src` | Preserve shared schemas/results, cancellation, revision leases, and error sanitization. |
 | Live context/evidence cache | `apps/web/lib/agent-context/`, `features/webmcp/evidence-store.ts` | Preserve UI-free identity and fresh simulator-grounded evidence. |
-| Visual bridge or experiment presentation | `features/agent-session/visual-intent-bridge.ts`, workspace callbacks | Keep effects page-owned and unable to mutate canonical architecture. |
+| Visual bridge | `features/agent-session/visual-intent-bridge.ts`, workspace callbacks | Keep effects page-owned and unable to mutate canonical architecture. |
 | Feature switch/status/telemetry | `features/webmcp/webmcp-config.ts`, `WebMcpRegistration.tsx` | Keep diagnostics allowlisted and WebMCP optional. |
 
 Never implement a domain capability solely in `packages/webmcp` or

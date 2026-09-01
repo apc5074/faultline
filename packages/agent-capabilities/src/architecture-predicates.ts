@@ -74,7 +74,7 @@ export function architectureAvailabilityFingerprint(architecture: Architecture):
   });
 }
 
-/** Full UI-free semantic revision used for evidence freshness and consent. */
+/** Full UI-free semantic revision used for evidence freshness. */
 export function architectureEvidenceFingerprint(architecture: Architecture): string {
   return JSON.stringify({
     version: architecture.version,

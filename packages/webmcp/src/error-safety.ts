@@ -40,7 +40,6 @@ export function sanitizeWebMcpCapabilityResult(
         code,
         retryable: result.recovery.retryable,
         ...(typeof result.recovery.currentEvidenceRevision === "string" ? { currentEvidenceRevision: result.recovery.currentEvidenceRevision } : {}),
-        ...(result.recovery.requiresUserAction === "approve_exact_experiment" ? { requiresUserAction: result.recovery.requiresUserAction } : {}),
         ...(typeof result.recovery.recoveryTool === "string" ? { recoveryTool: result.recovery.recoveryTool } : {}),
         ...(Array.isArray(result.recovery.choices) && result.recovery.choices.every((choice) => typeof choice === "string") ? { choices: result.recovery.choices } : {}),
       }

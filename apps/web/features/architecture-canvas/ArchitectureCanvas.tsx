@@ -4,16 +4,12 @@ import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import type { ExperimentResult } from "@faultline/core";
 
 import { StartOfficialAttempt } from "@/features/official-attempt/StartOfficialAttempt";
 import { OfficialScorecard } from "@/features/official-attempt/OfficialScorecard";
 import { AccountAuthPlate } from "@/features/account/AccountAuthPlate";
 import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
 import { PlayerStreakHud } from "@/features/account/PlayerStreakHud";
-import { DevExperimentControls } from "@/features/experiments/DevExperimentControls";
-import { ExperimentResultPanel } from "@/features/experiments/ExperimentResultPanel";
-import { publishExperimentResult, type PublishedExperimentResult } from "@/lib/experiments/experiment-result-publisher";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AgentSessionProvider, useCurrentArchitectureRevision, useInterviewSnapshot } from "@/features/agent-session/AgentSessionProvider";
 import { InterviewStatusPanel } from "@/features/agent-session/InterviewStatusPanel";
@@ -53,15 +49,6 @@ function InterviewStatusPanelBridge() {
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
-  const [publishedExperiment, setPublishedExperiment] = useState<PublishedExperimentResult | null>(null);
-  const [publishedExperimentArchitectureKey, setPublishedExperimentArchitectureKey] = useState<string | null>(null);
-  const publishResult = useCallback((result: ExperimentResult) => {
-    publishExperimentResult(result, (published) => {
-      setPublishedExperiment(published);
-      setPublishedExperimentArchitectureKey(JSON.stringify(workspace.architecture));
-      workspace.presentExperiment(published.result);
-    });
-  }, [workspace.architecture, workspace.playback]);
   const loadAnswerEnabled = isLevel1LoadAnswerEnabled();
   const verdictRevealed = workspace.simulationResult !== null && workspace.runState === "complete";
   const verdict = useMemo(
@@ -72,7 +59,6 @@ function ArchitectureWorkspace() {
     state: "unsupported",
     readToolCount: 0,
     visualToolCount: 0,
-    experimentToolCount: 0,
     failedToolCount: 0,
   });
   const handleWebMcpStatus = useCallback(
@@ -92,7 +78,6 @@ function ArchitectureWorkspace() {
         onPresentationCue={workspace.spotlightPresentationCue}
         onFocusRegion={workspace.focusRegionInPresentation}
         onPinObservation={workspace.pinObservation}
-        onExperimentResult={publishResult}
       />
       <LevelBriefing
         open={briefing.open}
@@ -128,8 +113,6 @@ function ArchitectureWorkspace() {
         <Suspense fallback={null}>
           <AuthCallbackNotice />
         </Suspense>
-        <DevExperimentControls architecture={workspace.architecture} challenge={activeChallenge} onExperimentResult={publishResult} />
-
         <div className="playground-body">
           <ComponentRail definitions={workspace.paletteDefinitions} />
 
@@ -152,7 +135,6 @@ function ArchitectureWorkspace() {
               }
               worldRoutesAnimating={workspace.playback.phase === "playing"}
               worldRoutesStale={workspace.resultIsStale}
-              experimentPresentation={workspace.experimentPresentation}
               playbackVisualsActive={workspace.playbackVisualsActive}
               playbackFrame={workspace.playback.frame}
               enclosureRegions={workspace.enclosureRegions}
@@ -214,21 +196,6 @@ function ArchitectureWorkspace() {
           <aside className="playground-inspector-column">
             <InterviewStatusPanelBridge />
             <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
-            {publishedExperiment ? (
-              <ExperimentResultPanel
-                result={publishedExperiment.result}
-                architecture={workspace.architecture}
-                architectureKey={JSON.stringify(workspace.architecture)}
-                resultArchitectureKey={publishedExperimentArchitectureKey ?? ""}
-                baselineEvents={workspace.simulationResult?.events}
-                onDismiss={() => {
-                  workspace.playback.reset();
-                  workspace.clearExperimentPresentation();
-                  setPublishedExperiment(null);
-                  setPublishedExperimentArchitectureKey(null);
-                }}
-              />
-            ) : null}
             {workspace.officialVerification ? (
               <OfficialScorecard result={workspace.officialVerification} stale={workspace.resultIsStale} />
             ) : null}

@@ -9,7 +9,6 @@ import type {
   PresentationCue,
   VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
-import type { ExperimentResult } from "@faultline/core";
 import {
   capabilityCancelled,
   capabilityError,
@@ -124,7 +123,6 @@ function webMcpDescription(capability: RegisteredCapability): string {
   };
   if (metadata[capability.name]) return metadata[capability.name]!;
   if (capability.mode === "visual") return "Apply one validated visual coaching action using current IDs. Does not change the architecture.";
-  if (capability.mode === "experiment") return "When: run one approved experiment. Requires: explicit human consent for this exact name. Returns: baseline, outcome, delta, and simulator events. Side effect: temporary simulation only. Recovery: approve this exact named experiment or retry current evidence.";
   if (capability.mode === "session") return "Session operation for the current browser-owned interview. Does not edit architecture, submit attempts, or affect leaderboard state.";
   return `Current simulator facts; targeted results frame valid subjects. Retry stale evidence.`;
 }
@@ -143,7 +141,6 @@ export interface ToWebMcpToolOptions {
   readonly development?: boolean;
   /** Apply visual coaching intents to the client session store before returning to the agent. */
   readonly onVisualIntent?: VisualIntentHandler;
-  readonly onExperimentResult?: (result: ExperimentResult) => void;
   /** Apply a grounded read-result presentation cue without changing selection or viewport. */
   readonly onPresentationCue?: (cue: PresentationCue) => void;
   /** Browser-owned interview session port, available only on the interview surface. */
@@ -159,9 +156,8 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, interviewService, timing, trace, traceGroup, traceGeneration } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onPresentationCue, interviewService, timing, trace, traceGroup, traceGeneration } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
-  const publishedExperimentDigests = new Set<string>();
 
   const acquireLease = async (signal?: AbortSignal): Promise<WebMcpEvidenceLease> => {
     const snapshot = resolveLiveAgentSnapshot(await measureWebMcpTiming(timing, "context_snapshot_ms", () => getContext(signal)));
@@ -192,7 +188,6 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
         let attempt = 0;
         let sanitized: CapabilityResult<unknown>;
         let capabilityResult: CapabilityResult<unknown> = capabilityError("CANCELLED", "Not executed.");
-        let experimentCanPublish = false;
         while (true) {
           const lease = await acquireLease(executionContext.signal);
           const selectorScope = isRecord(input) && isRecord(input.selector) && (input.selector.scope === "all" || input.selector.scope === "topmost") ? input.selector.scope : undefined;
@@ -249,9 +244,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               input,
               lease,
               availableToolNames,
-              simulated: capabilityResult.ok && capability.mode === "experiment" && isRecord(capabilityResult.data) && capabilityResult.data.simulated === true,
             });
-            experimentCanPublish = capability.mode === "experiment" && capabilityResult.ok && sanitized.ok;
           }
           if (!lease.isCurrent()) {
             if ((capability.mode === "read" || capability.mode === "session") && attempt === 0) {
@@ -291,14 +284,6 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           break;
         }
         recordWebMcpTiming(timing, { name: "result_bytes", bytes: serializedWebMcpBytes(sanitized), capability: capability.name });
-        if (experimentCanPublish && capabilityResult.ok && onExperimentResult) {
-          const data = capabilityResult.data as { simulated?: boolean };
-          const digest = computeResultDigest(capabilityResult.data);
-          if (data.simulated === true && !publishedExperimentDigests.has(digest)) {
-            publishedExperimentDigests.add(digest);
-            onExperimentResult(capabilityResult.data as ExperimentResult);
-          }
-        }
         if (capability.mode === "visual" && capabilityResult.ok && onVisualIntent) {
           publishVisualIntent(
             capability.name,

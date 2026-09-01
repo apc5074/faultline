@@ -30,6 +30,7 @@ export interface InterviewService {
   followUp(context: AgentContext, input: { readonly questionId: string; readonly followUpId?: string; readonly question: string; readonly answer: string }): InterviewServiceSnapshot | Promise<InterviewServiceSnapshot>;
   advance(context: AgentContext, input: { readonly questionId: string; readonly ready: true }): InterviewServiceSnapshot | Promise<InterviewServiceSnapshot>;
   end(context: AgentContext): InterviewServiceSnapshot | Promise<InterviewServiceSnapshot>;
+  clear?(): void | Promise<void>;
   syncArchitecture?(context: AgentContext): InterviewServiceSnapshot | Promise<InterviewServiceSnapshot>;
   prepareSimulationReview?(context: AgentContext, input: { readonly interviewId: string; readonly questionId: string }): InterviewServiceSnapshot | Promise<InterviewServiceSnapshot>;
   submitSimulationCritique?(context: AgentContext, input: { readonly interviewId: string; readonly questionId: string; readonly reviewDigest: string; readonly candidateArchitectureRevision: string; readonly critique: InterviewSimulationCritique }): InterviewServiceSnapshot | Promise<InterviewServiceSnapshot>;

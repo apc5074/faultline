@@ -1,5 +1,5 @@
 /** Adapter-neutral modes that describe how a capability affects a challenge. */
-export type AgentCapabilityMode = "read" | "experiment" | "visual" | "session";
+export type AgentCapabilityMode = "read" | "visual" | "session";
 
 export type CapabilityInputValidationResult<TInput> =
   | { success: true; data: TInput }
@@ -31,7 +31,7 @@ export interface CapabilityInputSchema<TInput> {
 import type { AgentSessionState } from "./session.js";
 import type { InterviewService } from "./interview-service-port.js";
 
-export type ProductionCapabilityGroup = "stable-review" | "stable-visual" | "specialists" | "experiments" | "stable-interview";
+export type ProductionCapabilityGroup = "stable-review" | "stable-visual" | "specialists" | "stable-interview";
 
 export interface ProductionCapabilityExposure {
   readonly production: boolean;

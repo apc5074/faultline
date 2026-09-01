@@ -42,15 +42,6 @@ export const PHASE_7_DYNAMIC_CAPABILITY_NAMES = [
   "inspect_playback_origin",
 ] as const;
 
-/** Phase 8 experiment capabilities; resolved on their own non-read surface. */
-export const PHASE_8_EXPERIMENT_CAPABILITY_NAMES = [
-  "run_load_test",
-  "change_traffic_pattern",
-  "flush_cache",
-  "inject_component_failure",
-  "inject_region_failure",
-  "slow_consumers",
-] as const;
 export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 
 export type ResolvedCapabilityName = BaselineReadCapabilityName | Phase7DynamicCapabilityName;
@@ -59,6 +50,7 @@ export const PRODUCTION_CAPABILITY_MANIFEST_VERSION = "wmp-production-1" as cons
 
 export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "review_current_design", production: true, group: "stable-review" },
+  { name: "get_coaching_policy", production: true, group: "stable-review" },
   { name: "start_design_interview", production: true, group: "stable-interview" },
   { name: "get_design_interview", production: true, group: "stable-interview" },
   { name: "submit_interview_answer", production: true, group: "stable-interview" },
@@ -88,12 +80,6 @@ export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "annotate_component", production: true, group: "stable-visual" },
   { name: "highlight_connection", production: true, group: "stable-visual" },
   { name: "clear_annotations", production: true, group: "stable-visual" },
-  { name: "run_load_test", production: true, group: "experiments" },
-  { name: "change_traffic_pattern", production: true, group: "experiments" },
-  { name: "flush_cache", production: true, group: "experiments" },
-  { name: "inject_component_failure", production: true, group: "experiments" },
-  { name: "inject_region_failure", production: true, group: "experiments" },
-  { name: "slow_consumers", production: true, group: "experiments" },
 ] as const;
 
 export type ProductionCapabilityName = (typeof PRODUCTION_CAPABILITY_MANIFEST)[number]["name"];
@@ -116,11 +102,9 @@ export const WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES = [
   ...productionNames("specialists"),
 ] as const;
 export const WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES = [...productionNames("stable-visual")] as const;
-export const WEBMCP_PRODUCTION_EXPERIMENT_CAPABILITY_NAMES = [...productionNames("experiments")] as const;
 
 export type BaselineReadCapabilityName = (typeof BASELINE_READ_CAPABILITY_NAMES)[number];
 export type Phase7DynamicCapabilityName = (typeof PHASE_7_DYNAMIC_CAPABILITY_NAMES)[number];
-export type Phase8ExperimentCapabilityName = (typeof PHASE_8_EXPERIMENT_CAPABILITY_NAMES)[number];
 export type Phase8ReadCapabilityName = (typeof PHASE_8_READ_CAPABILITY_NAMES)[number];
 /** Baseline visual coaching capabilities available on every Level 1 canvas. */
 export const BASELINE_VISUAL_CAPABILITY_NAMES = [

@@ -14,14 +14,8 @@ import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
 import { inspectDesignEntityCapability } from "./inspect-design-entity.js";
 import { BASELINE_VISUAL_CAPABILITIES } from "./visual-capabilities.js";
-import { runLoadTestCapability } from "./run-load-test.js";
-import { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
-import { flushCacheCapability } from "./flush-cache.js";
-import { injectComponentFailureCapability } from "./inject-component-failure.js";
-import { injectRegionFailureCapability } from "./inject-region-failure.js";
 import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 import { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
-import { slowConsumersCapability } from "./slow-consumers.js";
 import { reviewCurrentDesignCapability } from "./review-current-design.js";
 import { compareDesignEvidenceCapability } from "./compare-design-evidence.js";
 import { expandDesignEvidenceCapability } from "./expand-design-evidence.js";
@@ -171,14 +165,8 @@ export {
 } from "./visual-capabilities.js";
 export type { ClearAnnotationsIntent, FocusRegionIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
 export type { PinObservationIntent, PinnedObservation } from "../pin-observation.js";
-export { runLoadTestCapability } from "./run-load-test.js";
-export { changeTrafficPatternCapability } from "./change-traffic-pattern.js";
-export { flushCacheCapability } from "./flush-cache.js";
-export { injectComponentFailureCapability } from "./inject-component-failure.js";
-export { injectRegionFailureCapability } from "./inject-region-failure.js";
 export { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 export { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
-export { slowConsumersCapability } from "./slow-consumers.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
 export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
@@ -203,16 +191,10 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     inspectReplicationCapability,
     inspectRegionalTrafficCapability,
     ...BASELINE_VISUAL_CAPABILITIES,
-    runLoadTestCapability,
-    changeTrafficPatternCapability,
-    flushCacheCapability,
-    injectComponentFailureCapability,
-    injectRegionFailureCapability,
     inspectBottlenecksCapability,
     inspectQueueCapability,
     inspectProcessingCapability,
     inspectObjectStorageCapability,
     inspectPlaybackOriginCapability,
-    slowConsumersCapability,
   ]);
 }

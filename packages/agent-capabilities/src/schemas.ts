@@ -202,12 +202,12 @@ export const reviewCurrentDesignInputSchema: CapabilityInputSchema<ReviewCurrent
   },
 };
 
-export type ReviewEvidenceSection = "causal_chain" | "topology_neighborhood" | "requirement_evidence" | "workload_hops" | "cost_contributors" | "comparison_baseline" | "experiment_readiness";
+export type ReviewEvidenceSection = "causal_chain" | "topology_neighborhood" | "requirement_evidence" | "workload_hops" | "cost_contributors" | "comparison_baseline";
 export interface ExpandDesignEvidenceInput { readonly reviewRef: string; readonly sections: readonly ReviewEvidenceSection[]; }
 export const expandDesignEvidenceInputSchema: CapabilityInputSchema<ExpandDesignEvidenceInput> = {
-  jsonSchema: { type: "object", properties: { reviewRef: { type: "string", minLength: 1 }, sections: { type: "array", minItems: 1, maxItems: 2, items: { type: "string", enum: ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline", "experiment_readiness"] } } as never }, required: ["reviewRef", "sections"], additionalProperties: false },
+  jsonSchema: { type: "object", properties: { reviewRef: { type: "string", minLength: 1 }, sections: { type: "array", minItems: 1, maxItems: 2, items: { type: "string", enum: ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline"] } } as never }, required: ["reviewRef", "sections"], additionalProperties: false },
   safeParse(input) {
-    const allowed = ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline", "experiment_readiness"];
+    const allowed = ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline"];
     if (!isRecord(input) || !hasOnlyKeys(input, ["reviewRef", "sections"]) || typeof input.reviewRef !== "string" || input.reviewRef.length === 0 || !Array.isArray(input.sections) || input.sections.length < 1 || input.sections.length > 2 || input.sections.some((section) => typeof section !== "string" || !allowed.includes(section))) return { success: false as const, errors: ["expand_design_evidence requires a reference and one or two supported sections."] };
     return { success: true as const, data: { reviewRef: input.reviewRef, sections: [...new Set(input.sections)] as ReviewEvidenceSection[] } };
   },

@@ -7,7 +7,7 @@ import { architectureAvailabilityFingerprint, type PinnedObservation, type Prese
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
 import { componentRegistry } from "@faultline/component-catalog";
-import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type ExperimentResult, type RegionDeployment, type RegionId } from "@faultline/core";
+import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type RegionDeployment, type RegionId } from "@faultline/core";
 import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
 
 import { clampToPlaygroundBoard } from "@/features/architecture-canvas/canvas-grid";
@@ -95,7 +95,6 @@ export function usePlaygroundWorkspace() {
   const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [semanticZoomOut, setSemanticZoomOut] = useState(false);
-  const [experimentPresentation, setExperimentPresentation] = useState<ExperimentResult | null>(null);
   const [requirementsReviewKey, setRequirementsReviewKey] = useState(0);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const rejectedNodeDeleteIdsRef = useRef<Set<string>>(new Set());
@@ -137,7 +136,7 @@ export function usePlaygroundWorkspace() {
   // Keep retained run evidence visible on the board after an edit. The stale
   // marker belongs to the status surfaces, not to the editable canvas styling.
   const boardEvidenceIsStale = false;
-  const presentationEvents = experimentPresentation?.events ?? simulationResult?.events;
+  const presentationEvents = simulationResult?.events;
   const activeConnectionIds = useMemo(() => {
     if (!presentationEvents) return new Set<string>();
     return new Set(
@@ -202,7 +201,6 @@ export function usePlaygroundWorkspace() {
   }, [
     playbackVisualsActive,
     simulationResult,
-    experimentPresentation,
     playback.frame.tick,
     architecture,
     lastRunKey,
@@ -779,7 +777,7 @@ export function usePlaygroundWorkspace() {
       componentActivityRates.set(componentId, 0);
     }
     playback.setAuthoritativeTraffic({
-      rates: edgeRatesFromTrafficEvents(experimentPresentation?.events ?? simulationResult.events),
+      rates: edgeRatesFromTrafficEvents(simulationResult.events),
       redirectRps: challengeRedirectRps,
       componentActivityRates,
     });
@@ -789,29 +787,9 @@ export function usePlaygroundWorkspace() {
     playback.setVolumeShares,
     playback.setAuthoritativeTraffic,
     resultIsStale,
-    experimentPresentation,
   ]);
 
-  useEffect(() => {
-    if (!experimentPresentation || !playback.playbackRunning) return;
-    for (const event of experimentPresentation.events) {
-      if (event.type === "component_failed" && event.componentId) {
-        playback.markComponentFailed(event.componentId);
-      }
-    }
-  }, [experimentPresentation, playback.markComponentFailed, playback.playbackRunning]);
-
-  const presentExperiment = useCallback((result: ExperimentResult) => {
-    setExperimentPresentation(result);
-    playback.start(architecture);
-  }, [architecture, playback.start]);
-
-  const clearExperimentPresentation = useCallback(() => {
-    setExperimentPresentation(null);
-  }, []);
-
   const handleSimBarRun = useCallback(() => {
-    setExperimentPresentation(null);
     if (playback.playbackPaused) {
       playback.resume();
       return;
@@ -819,18 +797,17 @@ export function usePlaygroundWorkspace() {
     if (runState !== "running") {
       onRunSimulation();
     }
-  }, [architecture, clearExperimentPresentation, onRunSimulation, playback, runState]);
+  }, [onRunSimulation, playback, runState]);
 
   const handleSimBarReset = useCallback(() => {
     playback.reset();
-    clearExperimentPresentation();
     setSimulationResult(null);
     setSimulationErrors([]);
     setUnexpectedError(null);
     setOfficialSummary(null);
     setOfficialVerification(null);
     setRunState("idle");
-  }, [clearExperimentPresentation, playback]);
+  }, [playback]);
 
   const handleSimBarStep = useCallback(() => {
     playback.step(architecture);
@@ -1196,7 +1173,6 @@ export function usePlaygroundWorkspace() {
     runState,
     lastRunKey,
     simulationResult,
-    experimentPresentation,
     simulationErrors,
     unexpectedError,
     resultIsStale,
@@ -1216,8 +1192,6 @@ export function usePlaygroundWorkspace() {
     playback,
     playbackVisualsActive,
     culpritComponentId,
-    presentExperiment,
-    clearExperimentPresentation,
     onNodesChange,
     onConnect,
     onConnectStart,

@@ -2,11 +2,9 @@ import type {
   AgentCapabilityMode,
   AgentCapabilityRegistry,
   BaselineVisualCapabilityName,
-  Phase8ExperimentCapabilityName,
   CapabilityJsonSchema,
 } from "@faultline/agent-capabilities";
 import {
-  PHASE_8_EXPERIMENT_CAPABILITY_NAMES,
   isPhase7DynamicCapabilityName,
   phase7DynamicCapabilityPredicate,
   resolveLiveAgentSnapshot,
@@ -17,7 +15,6 @@ import {
 import type { Architecture } from "@faultline/core";
 
 import { buildVisualWebMcpSurface, type AgentVisualSurfaceSkipReason } from "./agent-visual-surface.js";
-import { buildExperimentWebMcpSurface } from "./experiment-webmcp-surface.js";
 import { getWebMcpModelContext } from "./model-context.js";
 import {
   buildAgentReadSurface,
@@ -27,7 +24,7 @@ import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
 import type { WebMcpTool, WebMcpToolAnnotations } from "./types.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
 
-export type InspectorCapabilityName = ResolvedCapabilityName | BaselineVisualCapabilityName | Phase8ExperimentCapabilityName;
+export type InspectorCapabilityName = ResolvedCapabilityName | BaselineVisualCapabilityName;
 export type InspectorSkipReason = Phase6ReadSurfaceSkipReason | AgentVisualSurfaceSkipReason;
 
 export type WebMcpRegistrationState = "unsupported" | "registered" | "rejected";
@@ -97,20 +94,17 @@ export async function buildPhase6InspectorSnapshot(
     development,
     ...(onVisualIntent ? { onVisualIntent } : {}),
   });
-  const experimentSurface = await buildExperimentWebMcpSurface({ registry, getContext, development });
   const toolsByName = new Map(
-    [...readSurface.tools, ...visualSurface.tools, ...experimentSurface.tools].map((tool) => [tool.name, tool]),
+    [...readSurface.tools, ...visualSurface.tools].map((tool) => [tool.name, tool]),
   );
   const skippedByName = new Map<InspectorCapabilityName, InspectorSkipReason | "missing" | "unavailable">([
     ...readSurface.skipped.map((skip) => [skip.name, skip.reason] as const),
     ...visualSurface.skipped.map((skip) => [skip.name, skip.reason] as const),
-    ...experimentSurface.skipped.map((skip) => [skip.name as Phase8ExperimentCapabilityName, skip.reason] as const),
   ]);
   const entries: Phase6InspectorEntry[] = [];
   const orderedNames: InspectorCapabilityName[] = [
     ...RESOLVED_CAPABILITY_NAME_ORDER,
     ...RESOLVED_VISUAL_CAPABILITY_NAME_ORDER,
-    ...PHASE_8_EXPERIMENT_CAPABILITY_NAMES,
   ];
 
   for (const name of orderedNames) {
@@ -160,11 +154,10 @@ export async function buildPhase6InspectorSnapshot(
     browserSupported,
     surfaceProfile: "complete",
     entries,
-    tools: [...readSurface.tools, ...visualSurface.tools, ...experimentSurface.tools],
+    tools: [...readSurface.tools, ...visualSurface.tools],
     resolvedNames: [
       ...readSurface.resolvedNames,
       ...visualSurface.resolvedNames,
-      ...experimentSurface.resolvedNames as readonly Phase8ExperimentCapabilityName[],
     ],
   };
 }

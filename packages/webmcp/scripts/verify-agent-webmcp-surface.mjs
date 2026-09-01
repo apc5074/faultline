@@ -66,12 +66,12 @@ const result = await registerAgentWebMcpSurface({
   onPresentationCue: (cue) => presentationCues.push(cue),
 });
 
-assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].filter((name) => ["review_current_design", "start_design_interview", "expand_design_evidence", "inspect_design_entity", "inspect_component_option", "compare_design_evidence", "get_architecture", "inspect_component", "estimate_capacity", "get_metrics", "get_cost_breakdown"].includes(name)));
+assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].filter((name) => ["review_current_design", "start_design_interview", "get_coaching_policy", "expand_design_evidence", "inspect_design_entity", "inspect_component_option", "compare_design_evidence", "get_architecture", "inspect_component", "estimate_capacity", "get_metrics", "get_cost_breakdown"].includes(name)));
 assert.deepEqual(result.visualToolNames, [...WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES]);
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
 assert.deepEqual(result.resolvedToolNames, result.registeredToolNames);
 assert.deepEqual(result.failedToolNames, []);
-assert.equal(registered.length, 14);
+assert.equal(registered.length, 15);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
 assert.ok(focusTool);
@@ -122,7 +122,7 @@ const aborted = await registerAgentWebMcpSurface({
 });
 assert.deepEqual(aborted, {
   resolvedToolNames: [], registeredToolNames: [], failedToolNames: [],
-  readToolNames: [], visualToolNames: [], experimentToolNames: [],
+  readToolNames: [], visualToolNames: [],
   sessionToolNames: [],
 });
 

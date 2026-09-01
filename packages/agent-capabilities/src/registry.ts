@@ -1,8 +1,6 @@
 import type { AgentCapability, CapabilityExecutionOptions } from "./capability.js";
 import type { AgentContext } from "./context.js";
 import { capabilityCancelled, capabilityError, isCapabilityCancelled, type CapabilityResult } from "./result.js";
-import { hasCurrentExperimentConsent } from "./experiment-consent.js";
-import { architectureEvidenceFingerprint } from "./architecture-predicates.js";
 import { productionCapabilityExposure } from "./capability-names.js";
 
 export class DuplicateCapabilityError extends Error {
@@ -21,7 +19,6 @@ type AnyCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unk
  */
 export class AgentCapabilityRegistry {
   readonly #capabilities = new Map<string, AnyCapability>();
-  readonly #experimentResults = new Map<string, CapabilityResult<unknown>>();
 
   register<TInput, TData>(
     capability: AgentCapability<AgentContext, TInput, CapabilityResult<TData>>,
@@ -79,37 +76,8 @@ export class AgentCapabilityRegistry {
       return capabilityCancelled();
     }
 
-    // A supplied live session means an adapter is asking to run an experiment
-    // on behalf of a player. Only the page's human-controlled consent state can
-    // authorize it; tool calls themselves cannot create consent.
-    if (
-      capability.mode === "experiment" &&
-      options?.session !== undefined &&
-      !hasCurrentExperimentConsent(options.session.experimentConsent, context, capability.name)
-    ) {
-      return capabilityError("CONSENT_REQUIRED", `Human approval is required for the named simulated experiment "${capability.name}".`, {
-        retryable: false,
-        currentEvidenceRevision: architectureEvidenceFingerprint(context.architecture),
-        requiresUserAction: "approve_exact_experiment",
-        recoveryTool: capability.name,
-      });
-    }
-
-    const experimentKey = capability.mode === "experiment" && options?.session?.experimentConsent
-      ? `${capability.name}|${architectureEvidenceFingerprint(context.architecture)}|${JSON.stringify(input)}|${options.session.experimentConsent.grantedAt}|${options.session.experimentConsent.expiresAt}`
-      : undefined;
-    if (experimentKey) {
-      const cached = this.#experimentResults.get(experimentKey);
-      if (cached) return cached;
-    }
-
     try {
       const result = await capability.execute(context, parsed.data, options);
-      if (experimentKey && result.ok) {
-        this.#experimentResults.delete(experimentKey);
-        this.#experimentResults.set(experimentKey, result);
-        while (this.#experimentResults.size > 64) this.#experimentResults.delete(this.#experimentResults.keys().next().value!);
-      }
       if (isCapabilityCancelled(options?.signal)) {
         return capabilityCancelled();
       }

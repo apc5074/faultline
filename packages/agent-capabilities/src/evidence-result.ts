@@ -277,12 +277,12 @@ export function resolveEntityTarget(
 
 export function provenanceFromContext(
   context: AgentContext,
-  mode: "read" | "visual" | "experiment" | "session",
+  mode: "read" | "visual" | "session",
   simulated = false,
 ): AgentEvidenceProvenance {
   const meta = context.evidenceMeta;
   const source: EvidenceProvenanceSource = simulated
-    ? "simulated_experiment"
+    ? "player_run"
     : meta?.simulationRunId.startsWith("live-") === true
       ? "live_draft_projection"
       : "player_run";

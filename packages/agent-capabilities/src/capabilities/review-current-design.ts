@@ -11,7 +11,6 @@ import { REVIEWER_CONTRACT } from "../coaching-policy.js";
 import { reviewCurrentDesignInputSchema, type ReviewCurrentDesignInput } from "../schemas.js";
 import { createEmptyAgentSessionState, type AgentSessionFocus, type AgentSessionState, type PromptIntent } from "../session.js";
 import { phase7DynamicCapabilityPredicate } from "../architecture-predicates.js";
-import { experimentReadiness } from "../experiment-readiness.js";
 import { PHASE_7_DYNAMIC_CAPABILITY_NAMES } from "../capability-names.js";
 import {
   computeResultDigest,
@@ -35,7 +34,6 @@ export interface ReviewCurrentDesignOutput {
   readonly focus: ReturnType<typeof buildGetSessionFocusOutput>;
   readonly evidence: EvidenceMeta & { readonly source: "live_draft_projection" | "player_run"; readonly updating: false; readonly available: boolean };
   readonly challenge: { readonly slug: string; readonly title: string; readonly budgetMonthly: number; readonly learningThemes: readonly string[] };
-  readonly experimentReadiness: ReturnType<typeof experimentReadiness>;
   readonly component?: unknown;
   readonly requirement?: unknown;
   readonly workload?: unknown;
@@ -220,7 +218,7 @@ export function buildReviewCurrentDesignOutput(context: AgentContext, input: Rev
   const evidenceMeta = context.evidenceMeta ?? { architectureRevision: "unversioned", simulationRunId: "unversioned", simulatorVersion: "unknown", isStale: true, generatedAt: "unknown" };
   const evidence = { ...evidenceMeta, source: evidenceMeta.simulationRunId.startsWith("live-") ? "live_draft_projection" as const : "player_run" as const, updating: false as const, available: context.simulation?.available === true };
   const failed = (context.requirementResults ?? []).filter((requirement) => !requirement.passed).slice(0, 3);
-  const common = { policy: { version: "wmp-1" as const, digest: digest(REVIEWER_CONTRACT.prohibitedActions.join("|")), contract: ["Use simulator evidence as truth.", "Give one finding and one focused question.", "Do not mutate architecture or invent metrics."] }, focus, evidence, challenge: { slug: context.challenge.slug, title: context.challenge.title, budgetMonthly: context.challenge.monthlyBudget, learningThemes: context.challenge.coachingPolicy?.focusThemes ?? [] }, experimentReadiness: experimentReadiness(context, session), reviewRef: reviewReference(context, intent, input.targetId), availableSections: ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline", "experiment_readiness"], truncated: false, ...(context.reviewDelta && !deltaUnavailable ? { changeSummary: context.reviewDelta } : {}), ...(deltaUnavailable ? { deltaUnavailable } : {}) };
+  const common = { policy: { version: "wmp-1" as const, digest: digest(REVIEWER_CONTRACT.prohibitedActions.join("|")), contract: ["Use simulator evidence as truth.", "Give one finding and one focused question.", "Do not mutate architecture or invent metrics."] }, focus, evidence, challenge: { slug: context.challenge.slug, title: context.challenge.title, budgetMonthly: context.challenge.monthlyBudget, learningThemes: context.challenge.coachingPolicy?.focusThemes ?? [] }, reviewRef: reviewReference(context, intent, input.targetId), availableSections: ["causal_chain", "topology_neighborhood", "requirement_evidence", "workload_hops", "cost_contributors", "comparison_baseline"], truncated: false, ...(context.reviewDelta && !deltaUnavailable ? { changeSummary: context.reviewDelta } : {}), ...(deltaUnavailable ? { deltaUnavailable } : {}) };
   if (intent === "component_review") {
     const id = input.targetId ?? (focus.focus.kind === "component" ? focus.focus.componentId : session.pendingHelpRequest?.componentId);
     if (!id || !context.architecture.components.some((component) => component.id === id)) return capabilityError("INVALID_INPUT", "component_review targetId must name a current component.");

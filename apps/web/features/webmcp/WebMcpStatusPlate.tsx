@@ -10,7 +10,6 @@ export interface WebMcpStatus {
   readonly state: WebMcpSurfaceStatus;
   readonly readToolCount: number;
   readonly visualToolCount: number;
-  readonly experimentToolCount: number;
   readonly failedToolCount: number;
   readonly generation?: number;
 }

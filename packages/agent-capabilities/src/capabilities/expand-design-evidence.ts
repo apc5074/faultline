@@ -45,7 +45,6 @@ export function expandDesignEvidence(context: AgentContext, input: ExpandDesignE
     if (section === "workload_hops") sections[section] = { workloads: packets.workload };
     if (section === "cost_contributors") sections[section] = { cost: packets.cost };
     if (section === "comparison_baseline") sections[section] = context.reviewDelta ? { delta: context.reviewDelta } : { note: "No prior revision was retained for this reference; use a delta-aware review for comparison." };
-    if (section === "experiment_readiness") sections[section] = { revision: context.evidenceMeta?.architectureRevision, consentRequired: true, ran: false, contract: WMP_EVIDENCE_CONTRACT_VERSION };
   }
   return capabilityOk({
     reviewRef: input.reviewRef,

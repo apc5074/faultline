@@ -193,7 +193,6 @@ function assertToolMetadataParity(tool) {
   const capability = registry.get(tool.name);
   assert.equal(tool.name, capability.name);
   assert.ok(tool.description.length <= capability.description.length + 45);
-  if (capability.mode === "experiment") assert.match(tool.description, /explicit human consent/);
   assert.deepEqual(tool.inputSchema, capability.inputSchema.jsonSchema);
   assert.equal(tool.annotations?.readOnlyHint, capability.annotations?.readOnlyHint);
   assert.equal(tool.annotations?.untrustedContentHint, ["get_session_focus", "review_current_design", "inspect_design_entity", "inspect_component", "get_architecture", "get_cost_breakdown"].includes(capability.name) || undefined);

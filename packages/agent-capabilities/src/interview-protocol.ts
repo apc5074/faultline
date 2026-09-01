@@ -17,7 +17,7 @@ export type InterviewEvaluationResult = InterviewEvaluation & {
 
 export type InterviewReadiness = "ready" | "follow_up" | "ambiguous";
 
-export const INTERVIEW_ORCHESTRATION_PROMPT_VERSION = "design-interview-orchestration-1" as const;
+export const INTERVIEW_ORCHESTRATION_PROMPT_VERSION = "design-interview-orchestration-2" as const;
 
 /** Host-facing lifecycle instructions; the reducer remains the enforcement boundary. */
 export function buildInterviewOrchestrationPrompt(): string {
@@ -32,8 +32,12 @@ export function buildInterviewOrchestrationPrompt(): string {
     "A technical question, no, not yet, or ambiguous language stays on the current question. Use follow_up_design_interview and answer it without evaluating a new answer or advancing.",
     "Call advance_design_interview only after an explicit readiness signal such as yes, next or I am ready for the next question, and send ready: true with the current IDs.",
     "After advancing, ask only the newly returned question. If a tool retry returns the same IDs, continue the existing turn and do not duplicate the question, answer, or evaluation.",
+    "When the current question has phase simulation, present that canvas redesign prompt once and wait while the player edits the real architecture. Do not answer it, prescribe components or topology, run a standalone experiment, or advance with a next acknowledgement.",
+    "Treat Review my redesign, I'm done—review it, and similarly explicit wording as review intent. Ordinary edit commentary is not review intent. On review intent, call prepare_interview_simulation_review first, then write a critique only from its bounded packet and call submit_interview_simulation_critique with the exact returned reviewDigest.",
+    "For the simulation critique, use only the returned scenario outcomes, metric/requirement deltas, architecture delta, and validation evidence. State one observed strength, one limiting gap, and one next investigation; distinguish simulator facts from general systems reasoning and never prescribe a canonical stack.",
+    "If preparation reports no semantic change, an invalid candidate, or a stale digest, explain the recoverable condition and ask the player to edit or retry preparation. Chat prose alone can never complete the interview.",
     "If a tool reports a stale, invalid, or unavailable session, explain the recoverable state and ask the player to restart or clarify; never bypass the tool or infer a transition.",
-    "The interview is coaching only: do not edit architecture, submit official attempts, affect leaderboards, run experiments, invent simulator facts, or claim official pass/fail.",
+    "The interview is coaching only: do not edit architecture, submit official attempts, affect leaderboards, run standalone agent-triggered experiments, invent simulator facts, or claim official pass/fail.",
   ].join(" ");
 }
 
@@ -47,6 +51,11 @@ export type InterviewFollowUpPromptInput = {
   readonly question: string;
   readonly evaluation: InterviewEvaluationResult;
   readonly followUp: string;
+};
+
+export type InterviewSimulationCritiquePromptInput = {
+  readonly question: string;
+  readonly reviewEvidence: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -176,5 +185,16 @@ export function buildInterviewFollowUpPrompt(input: InterviewFollowUpPromptInput
     `PRIOR EVALUATION:\n${input.evaluation.explanation}`,
     `PLAYER FOLLOW-UP:\n${input.followUp}`,
     "End by asking whether the player has another follow-up or is ready for the next question.",
+  ].join("\n\n");
+}
+
+export function buildInterviewSimulationCritiquePrompt(input: InterviewSimulationCritiquePromptInput): string {
+  return [
+    "Critique the player's canvas redesign using only the returned Faultline simulation review packet.",
+    "Return only the validated InterviewSimulationCritique shape with verdict satisfies, partially_satisfies, or does_not_satisfy.",
+    "Cite observed scenario metrics, requirement outcomes, cost/tradeoff, architecture delta, or validation errors from the packet. Identify one strength, one limiting gap, and one next investigation. Label general systems reasoning as inference, do not invent simulator facts, prescribe a canonical stack, or claim official pass/fail.",
+    "The critique is coaching evidence only and must be submitted with the packet's exact reviewDigest. Do not complete from the player's prose or from an earlier packet.",
+    `CURRENT SIMULATION QUESTION:\n${input.question}`,
+    `RETURNED REVIEW PACKET:\n${input.reviewEvidence}`,
   ].join("\n\n");
 }
