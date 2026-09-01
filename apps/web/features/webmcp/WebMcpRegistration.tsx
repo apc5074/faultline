@@ -1,13 +1,14 @@
 "use client";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import type { PresentationCue } from "@faultline/agent-capabilities";
-import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type WebMcpRegistrationGroup, type WebMcpTraceEvent } from "@faultline/webmcp";
+import type { InterviewService, PresentationCue } from "@faultline/agent-capabilities";
+import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type WebMcpRegistrationGroup, type WebMcpTraceEvent, type WebMcpTimingEvent } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useAgentSessionStore,
   useAgentSessionState,
+  useInterviewService,
   useWebMcpEvidenceSource,
 } from "@/features/agent-session/AgentSessionProvider";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
@@ -39,6 +40,7 @@ function useWebMcpGroupRegistration({
   onExperimentResult,
   onPresentationCue,
   onStatus,
+  interviewService,
 }: {
   group: WebMcpRegistrationGroup;
   reconciliationKey: string;
@@ -49,6 +51,7 @@ function useWebMcpGroupRegistration({
   onExperimentResult?: (result: ExperimentResult) => void;
   onPresentationCue?: (cue: PresentationCue) => void;
   onStatus: (group: WebMcpRegistrationGroup, status: GroupStatus) => void;
+  interviewService?: InterviewService;
 }) {
   const generationRef = useRef(0);
   const visualRef = useRef(onVisualIntent);
@@ -80,13 +83,14 @@ function useWebMcpGroupRegistration({
       if (active && generationRef.current === generation) statusRef.current(group, { state: "partial", ...empty, generation });
     }, WEBMCP_REGISTRATION_DEADLINE_MS);
     statusRef.current(group, { state: "registering", ...empty, generation });
-    const timing = (event: Parameters<typeof emitWebMcpTelemetry>[0]) => emitWebMcpTelemetry(event);
-    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, generation: event.generation, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason, selectorScope: event.selectorScope, matchedCount: event.matchedCount, retried: event.retried });
+    const timing = (event: WebMcpTimingEvent) => emitWebMcpTelemetry(event);
+    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, generation: event.generation, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason, selectorScope: event.selectorScope, matchedCount: event.matchedCount, retried: event.retried, interviewId: event.interviewId, questionId: event.questionId, interviewTransition: event.interviewTransition, evaluationVerdict: event.evaluationVerdict });
     void registerAgentWebMcpSurface({
       modelContext, registry, getContext: (signal) => evidenceSource.getSnapshot(signal),
       getCurrentEvidenceRevision: () => evidenceSource.getEvidenceRevision(), signal: controller.signal,
       development: process.env.NODE_ENV === "development", group, timing, trace,
       onVisualIntent: (intent) => visualRef.current?.(intent),
+      ...(interviewService ? { interviewService } : {}),
       ...(experimentRef.current ? { onExperimentResult: (result: ExperimentResult) => experimentRef.current?.(result) } : {}),
       traceGeneration: generation,
       onPresentationCue: (cue) => {
@@ -110,7 +114,7 @@ function useWebMcpGroupRegistration({
       if (process.env.NODE_ENV === "development" && !(error instanceof DOMException && error.name === "AbortError")) console.error("[WebMCP] group registration failed.", error);
     });
     return () => { active = false; window.clearTimeout(timeout); controller.abort(); };
-  }, [evidenceSource, group, reconciliationKey, registry, retryToken]);
+  }, [evidenceSource, group, reconciliationKey, registry, retryToken, interviewService]);
 }
 
 /**
@@ -140,6 +144,7 @@ export function WebMcpRegistration({
   const sessionStore = useAgentSessionStore();
   const session = useAgentSessionState();
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
+  const interviewService = useInterviewService();
   const onVisualIntent = useMemo(
     () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusConnection, onFocusRegion, onPinObservation }),
     [onFocusComponent, onFocusConnection, onFocusRegion, onPinObservation, sessionStore],
@@ -171,6 +176,7 @@ export function WebMcpRegistration({
   useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onStatus: onGroupStatus });
   useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
   useWebMcpGroupRegistration({ group: "experiments", reconciliationKey, evidenceSource, registry, retryToken, onExperimentResult, onPresentationCue, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "stable-interview", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus, interviewService });
 
   useEffect(() => {
     const statuses = Object.values(groupStatuses);

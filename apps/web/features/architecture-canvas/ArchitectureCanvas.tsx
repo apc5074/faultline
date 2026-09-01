@@ -15,7 +15,8 @@ import { DevExperimentControls } from "@/features/experiments/DevExperimentContr
 import { ExperimentResultPanel } from "@/features/experiments/ExperimentResultPanel";
 import { publishExperimentResult, type PublishedExperimentResult } from "@/lib/experiments/experiment-result-publisher";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
-import { AgentSessionProvider } from "@/features/agent-session/AgentSessionProvider";
+import { AgentSessionProvider, useCurrentArchitectureRevision, useInterviewSnapshot } from "@/features/agent-session/AgentSessionProvider";
+import { InterviewStatusPanel } from "@/features/agent-session/InterviewStatusPanel";
 import { AnnotationRunLifecycle } from "@/features/agent-session/AnnotationRunLifecycle";
 import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionSync";
 import { ObservationPins } from "@/features/agent-session/ObservationPins";
@@ -46,6 +47,8 @@ import { HomeHelp } from "@/features/home/HomeHelp";
 function ArchitectureWorkspace() {
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
+  const interviewSnapshot = useInterviewSnapshot();
+  const currentArchitectureRevision = useCurrentArchitectureRevision();
   const [publishedExperiment, setPublishedExperiment] = useState<PublishedExperimentResult | null>(null);
   const [publishedExperimentArchitectureKey, setPublishedExperimentArchitectureKey] = useState<string | null>(null);
   const publishResult = useCallback((result: ExperimentResult) => {
@@ -201,6 +204,7 @@ function ArchitectureWorkspace() {
           </div>
 
           <aside className="playground-inspector-column">
+            <InterviewStatusPanel snapshot={interviewSnapshot} currentArchitectureRevision={currentArchitectureRevision} />
             <ObservationPins observations={workspace.pinnedObservations} stale={workspace.resultIsStale} onClear={workspace.clearPinnedObservations} />
             {publishedExperiment ? (
               <ExperimentResultPanel

@@ -8,6 +8,8 @@ import {
   type AgentSessionFocus,
   type AgentSessionState,
   type ExperimentConsent,
+  type InterviewService,
+  type InterviewServiceSnapshot,
 } from "@faultline/agent-capabilities";
 import type { Architecture, ChallengeDefinition } from "@faultline/core";
 import {
@@ -36,6 +38,7 @@ import {
   withSessionFocus,
 } from "./session-mutations";
 import { buildWebMcpEvidenceKey, createWebMcpEvidenceSource, type WebMcpEvidenceSource } from "../webmcp/evidence-store";
+import { createDesignInterviewService } from "./interview-service";
 
 export interface AgentSessionStore {
   getSession(): AgentSessionState;
@@ -52,6 +55,9 @@ interface AgentSessionContextValue {
   store: AgentSessionStore;
   getAgentContext: LiveAgentContextFactory;
   webMcpEvidenceSource: WebMcpEvidenceSource;
+  interviewService: InterviewService;
+  interviewSnapshot: InterviewServiceSnapshot | null;
+  currentArchitectureRevision: string;
   sessionVersion: number;
 }
 
@@ -73,6 +79,8 @@ export function AgentSessionProvider({
 
   const sessionRef = useRef<AgentSessionState>(createEmptyAgentSessionState());
   const [sessionVersion, setSessionVersion] = useState(0);
+  const interviewService = useMemo(() => createDesignInterviewService(), []);
+  const [interviewSnapshot, setInterviewSnapshot] = useState<InterviewServiceSnapshot | null>(null);
 
   const architectureFingerprint = useMemo(
     () => architectureAvailabilityFingerprint(architecture),
@@ -152,14 +160,34 @@ export function AgentSessionProvider({
     };
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = interviewService.subscribe?.((snapshot) => setInterviewSnapshot(snapshot));
+    try {
+      const loaded = interviewService.get(createAgentContext(architectureRef.current, challengeRef.current));
+      if (loaded instanceof Promise) void loaded.then(setInterviewSnapshot).catch(() => setInterviewSnapshot(null));
+      else setInterviewSnapshot(loaded);
+    } catch {
+      setInterviewSnapshot(null);
+    }
+    return unsubscribe;
+  }, [interviewService]);
+
+  const currentArchitectureRevision = useMemo(
+    () => createAgentContext(architecture, challenge).evidenceMeta?.architectureRevision ?? "unversioned",
+    [architecture, challenge],
+  );
+
   const value = useMemo(
     () => ({
       store,
       getAgentContext,
       webMcpEvidenceSource,
+      interviewService,
+      interviewSnapshot,
+      currentArchitectureRevision,
       sessionVersion,
     }),
-    [store, getAgentContext, webMcpEvidenceSource, sessionVersion],
+    [store, getAgentContext, webMcpEvidenceSource, interviewService, interviewSnapshot, currentArchitectureRevision, sessionVersion],
   );
 
   return <AgentSessionContext.Provider value={value}>{children}</AgentSessionContext.Provider>;
@@ -195,6 +223,25 @@ export function useWebMcpEvidenceSource(): WebMcpEvidenceSource {
   const value = useContext(AgentSessionContext);
   if (!value) throw new Error("useWebMcpEvidenceSource must be used within AgentSessionProvider.");
   return value.webMcpEvidenceSource;
+}
+
+export function useInterviewSnapshot(): InterviewServiceSnapshot | null {
+  const value = useContext(AgentSessionContext);
+  if (!value) throw new Error("useInterviewSnapshot must be used within AgentSessionProvider.");
+  void value.sessionVersion;
+  return value.interviewSnapshot;
+}
+
+export function useInterviewService(): InterviewService {
+  const value = useContext(AgentSessionContext);
+  if (!value) throw new Error("useInterviewService must be used within AgentSessionProvider.");
+  return value.interviewService;
+}
+
+export function useCurrentArchitectureRevision(): string {
+  const value = useContext(AgentSessionContext);
+  if (!value) throw new Error("useCurrentArchitectureRevision must be used within AgentSessionProvider.");
+  return value.currentArchitectureRevision;
 }
 
 export function useOptionalAgentContextFactory(): LiveAgentContextFactory | null {

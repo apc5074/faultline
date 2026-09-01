@@ -21,7 +21,7 @@ WebMCP is a progressive enhancement of the Level 1 canvas. It is enabled unless
 unavailable when the browser does not expose `document.modelContext.registerTool`.
 In either case, gameplay and local simulation continue without it.
 
-The web app registers four independent production groups:
+The web app registers five independent production groups:
 
 | Group | Purpose | Reconciles when |
 | --- | --- | --- |
@@ -29,12 +29,13 @@ The web app registers four independent production groups:
 | `stable-visual` | Persistent coaching marks/focus intents. | Challenge identity changes or registration retry. |
 | `specialists` | Architecture-dependent read tools. | The challenge or architecture availability fingerprint changes. |
 | `experiments` | Explicitly consented, temporary simulated scenarios. | The challenge or architecture availability fingerprint changes. |
+| `stable-interview` | Browser-owned, one-question-at-a-time design interview session. | Challenge identity changes or registration retry. |
 
 The shared production manifest (`wmp-production-1`) presently permits:
 
 ```text
 stable-review:
-  review_current_design, start_design_interview, expand_design_evidence, inspect_design_entity,
+  review_current_design, expand_design_evidence, inspect_design_entity,
   inspect_component_option, compare_design_evidence, get_architecture,
   inspect_component, estimate_capacity, get_metrics, get_cost_breakdown
 
@@ -48,6 +49,11 @@ stable-visual:
 experiments:
   run_load_test, change_traffic_pattern, flush_cache,
   inject_component_failure, inject_region_failure, slow_consumers
+
+stable-interview:
+  start_design_interview, get_design_interview, submit_interview_answer,
+  follow_up_design_interview, advance_design_interview, end_design_interview,
+  restart_design_interview
 ```
 
 Registration is not exposure. A tool must be registered in the shared registry,

@@ -18,7 +18,7 @@ export type WebMcpTelemetryEvent = {
   readonly name?: string;
   readonly durationMs?: number;
   readonly bytes?: number;
-  readonly mode?: "read" | "visual" | "experiment";
+  readonly mode?: "read" | "visual" | "experiment" | "session";
   readonly capability?: string;
   readonly errorClass?: "registration" | "timeout";
   readonly traceName?: string;
@@ -32,6 +32,10 @@ export type WebMcpTelemetryEvent = {
   readonly selectorScope?: "all" | "topmost";
   readonly matchedCount?: number;
   readonly retried?: boolean;
+  readonly interviewId?: string;
+  readonly questionId?: string;
+  readonly interviewTransition?: "start" | "get" | "answer" | "follow_up" | "advance" | "end" | "restart";
+  readonly evaluationVerdict?: "correct" | "partial" | "incorrect";
 };
 
 /** Emits only allowlisted lifecycle diagnostics; no prompts, architecture, accounts, or payloads. */

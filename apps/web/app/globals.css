@@ -2164,6 +2164,58 @@ main {
   background: var(--color-paper);
 }
 
+.interview-status-panel {
+  flex: 0 0 auto;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-ink-hairline);
+  background: var(--color-paper);
+}
+
+.interview-status-panel--stale {
+  border-left: 3px solid var(--color-signal-red);
+}
+
+.interview-status-panel__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.interview-status-panel__eyebrow,
+.interview-status-panel__status,
+.interview-status-panel__progress,
+.interview-status-panel__meta {
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.interview-status-panel__eyebrow {
+  font-weight: 700;
+}
+
+.interview-status-panel__status {
+  color: var(--color-ink-muted);
+  text-align: right;
+}
+
+.interview-status-panel--stale .interview-status-panel__status {
+  color: var(--color-signal-red);
+}
+
+.interview-status-panel__progress,
+.interview-status-panel__meta {
+  margin: 0.45rem 0 0;
+  color: var(--color-ink-muted);
+}
+
+.interview-status-panel__question {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .playground-sidebar-challenge {
   display: flex;
   flex: 1;

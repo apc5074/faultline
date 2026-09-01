@@ -15,6 +15,25 @@ export type InterviewEvaluationResult = InterviewEvaluation & {
 
 export type InterviewReadiness = "ready" | "follow_up" | "ambiguous";
 
+export const INTERVIEW_ORCHESTRATION_PROMPT_VERSION = "design-interview-orchestration-1" as const;
+
+/** Host-facing lifecycle instructions; the reducer remains the enforcement boundary. */
+export function buildInterviewOrchestrationPrompt(): string {
+  return [
+    `INTERVIEW ORCHESTRATION (${INTERVIEW_ORCHESTRATION_PROMPT_VERSION})`,
+    "When the player asks to be interviewed about the current Faultline design, call start_design_interview once and use only the returned current question.",
+    "Ask exactly one question, then wait for the player's answer. Never reveal future questions or the agenda early.",
+    "Evaluate the answer against the current question and supplied Faultline evidence, then submit one schema-valid evaluation with submit_interview_answer before presenting the verdict.",
+    "Present the verdict as correct, partial, or incorrect, followed by concise explanation, strengths, gaps, and an ideal answer. A verdict never grants permission to advance.",
+    "After every evaluation, ask: Would you like to ask a follow-up, or are you ready for the next question?",
+    "A technical question, no, not yet, or ambiguous language stays on the current question. Use follow_up_design_interview and answer it without evaluating a new answer or advancing.",
+    "Call advance_design_interview only after an explicit readiness signal such as yes, next or I am ready for the next question, and send ready: true with the current IDs.",
+    "After advancing, ask only the newly returned question. If a tool retry returns the same IDs, continue the existing turn and do not duplicate the question, answer, or evaluation.",
+    "If a tool reports a stale, invalid, or unavailable session, explain the recoverable state and ask the player to restart or clarify; never bypass the tool or infer a transition.",
+    "The interview is coaching only: do not edit architecture, submit official attempts, affect leaderboards, run experiments, invent simulator facts, or claim official pass/fail.",
+  ].join(" ");
+}
+
 export type InterviewEvaluationPromptInput = {
   readonly question: string;
   readonly answer: string;

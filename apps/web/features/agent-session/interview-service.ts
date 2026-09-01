@@ -93,12 +93,12 @@ function questionOutput(context: AgentContext, state: InterviewState) {
   return output.data;
 }
 
-function snapshot(context: AgentContext, record: BrowserInterviewRecord): InterviewServiceSnapshot {
+function snapshot(context: AgentContext, record: BrowserInterviewRecord, includePresentationCue = true): InterviewServiceSnapshot {
   const output = questionOutput(context, record.state);
   return {
     state: record.state,
     question: record.state.currentQuestion,
-    ...(output?.presentationCue ? { presentationCue: output.presentationCue } : {}),
+    ...(includePresentationCue && output?.presentationCue ? { presentationCue: output.presentationCue } : {}),
     storageRevision: record.revision,
   };
 }
@@ -123,6 +123,14 @@ function ensureCurrent(context: AgentContext, record: BrowserInterviewRecord): v
   }
 }
 
+function markStale(context: AgentContext, repository: ReturnType<typeof createBrowserInterviewRepository>, record: BrowserInterviewRecord): InterviewServiceSnapshot {
+  if (record.state.status === "stale") return snapshot(context, record);
+  const event: InterviewEvent = { type: "stale", staleAt: now() };
+  const next = transitionInterview(record.state, event);
+  if (!next.ok) throw new DesignInterviewServiceError(next.message, "STALE_ARCHITECTURE");
+  return commit(context, repository, record, event, next.state);
+}
+
 function commit(
   context: AgentContext,
   repository: ReturnType<typeof createBrowserInterviewRepository>,
@@ -135,8 +143,10 @@ function commit(
     : event.type === "follow_up"
       ? event.followUpId
       : event.type === "advance"
-        ? event.type + "-" + event.advancedAt
-        : event.type;
+        ? event.type + "-" + String(record.revision + 1)
+        : event.type === "stale"
+          ? event.type + "-" + String(record.revision + 1)
+          : event.type;
   const next = repository.commit({
     expectedRevision: record.revision,
     eventId,
@@ -149,6 +159,12 @@ function commit(
 /** Browser-scoped interview lifecycle. The external model supplies evaluation prose; this service enforces transitions. */
 export function createDesignInterviewService(ownerKey = getBrowserInterviewOwnerKey()) {
   const repository = createBrowserInterviewRepository(ownerKey);
+  const listeners = new Set<(snapshot: InterviewServiceSnapshot) => void>();
+
+  function publish(value: InterviewServiceSnapshot): InterviewServiceSnapshot {
+    listeners.forEach((listener) => listener(value));
+    return value;
+  }
 
   function load(): BrowserInterviewRecord {
     const record = repository.load();
@@ -156,11 +172,22 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
     return record;
   }
 
+  function ensureCurrentOrMark(context: AgentContext, record: BrowserInterviewRecord): void {
+    try {
+      ensureCurrent(context, record);
+    } catch (error) {
+      if (error instanceof DesignInterviewServiceError && error.code === "STALE_ARCHITECTURE") {
+        publish(markStale(context, repository, record));
+      }
+      throw error;
+    }
+  }
+
   return {
     start(context: AgentContext): InterviewServiceSnapshot {
       try {
         const existing = repository.load();
-        if (existing) return snapshot(context, existing);
+        if (existing) return publish(snapshot(context, existing));
         const questions = questionsFor(context);
         const started = createInterviewState({
           type: "start",
@@ -179,7 +206,34 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
           questions,
           startedAt: started.state.startedAt,
         };
-        return snapshot(context, repository.saveStarted(started.state, event));
+        return publish(snapshot(context, repository.saveStarted(started.state, event)));
+      } catch (error) {
+        throw serviceError(error);
+      }
+    },
+
+    restart(context: AgentContext): InterviewServiceSnapshot {
+      try {
+        const previous = load();
+        const questions = questionsFor(context);
+        const started = createInterviewState({
+          type: "start",
+          interviewId: id("interview"),
+          architectureRevision: currentRevision(context),
+          challengeId: context.challenge.slug,
+          questions,
+          startedAt: now(),
+        });
+        if (!started.ok) throw new DesignInterviewServiceError(started.message, "INVALID_INPUT");
+        const event: InterviewEvent = {
+          type: "start",
+          interviewId: started.state.interviewId,
+          architectureRevision: started.state.architectureRevision,
+          ...(started.state.challengeId ? { challengeId: started.state.challengeId } : {}),
+          questions,
+          startedAt: started.state.startedAt,
+        };
+        return publish(snapshot(context, repository.saveRestarted(previous, started.state, event)));
       } catch (error) {
         throw serviceError(error);
       }
@@ -197,7 +251,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
     submitAnswer(context: AgentContext, input: { questionId: string; answerId?: string; answer: string; evaluation: InterviewEvaluation }): InterviewServiceSnapshot {
       try {
         const record = load();
-        ensureCurrent(context, record);
+        ensureCurrentOrMark(context, record);
         const event: InterviewEvent = {
           type: "answer",
           questionId: input.questionId,
@@ -208,7 +262,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
         };
         const next = transitionInterview(record.state, event);
         if (!next.ok) throw new DesignInterviewServiceError(next.message, next.code === "WRONG_QUESTION" ? "INVALID_INPUT" : next.code === "INTERVIEW_STALE" ? "STALE_ARCHITECTURE" : "INVALID_INPUT");
-        return commit(context, repository, record, event, next.state);
+        return publish({ ...commit(context, repository, record, event, next.state), presentationCue: undefined });
       } catch (error) {
         throw serviceError(error);
       }
@@ -217,7 +271,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
     followUp(context: AgentContext, input: { questionId: string; followUpId?: string; question: string; answer: string }): InterviewServiceSnapshot {
       try {
         const record = load();
-        ensureCurrent(context, record);
+        ensureCurrentOrMark(context, record);
         const event: InterviewEvent = {
           type: "follow_up",
           questionId: input.questionId,
@@ -228,7 +282,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
         };
         const next = transitionInterview(record.state, event);
         if (!next.ok) throw new DesignInterviewServiceError(next.message, next.code === "INTERVIEW_STALE" ? "STALE_ARCHITECTURE" : "INVALID_INPUT");
-        return commit(context, repository, record, event, next.state);
+        return publish({ ...commit(context, repository, record, event, next.state), presentationCue: undefined });
       } catch (error) {
         throw serviceError(error);
       }
@@ -237,7 +291,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
     advance(context: AgentContext, input: { questionId: string; ready: true }): InterviewServiceSnapshot {
       try {
         const record = load();
-        ensureCurrent(context, record);
+        ensureCurrentOrMark(context, record);
         const event: InterviewEvent = {
           type: "advance",
           questionId: input.questionId,
@@ -246,7 +300,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
         };
         const next = transitionInterview(record.state, event);
         if (!next.ok) throw new DesignInterviewServiceError(next.message, next.code === "INTERVIEW_STALE" ? "STALE_ARCHITECTURE" : next.code === "WRONG_QUESTION" || next.code === "ANSWER_REQUIRED" || next.code === "NOT_READY" ? "INVALID_INPUT" : "INVALID_INPUT");
-        return commit(context, repository, record, event, next.state);
+        return publish(commit(context, repository, record, event, next.state));
       } catch (error) {
         throw serviceError(error);
       }
@@ -258,7 +312,7 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
         const event: InterviewEvent = { type: "abandon" };
         const next = transitionInterview(record.state, event);
         if (!next.ok) throw new DesignInterviewServiceError(next.message, "INVALID_INPUT");
-        return commit(context, repository, record, event, next.state);
+        return publish(commit(context, repository, record, event, next.state));
       } catch (error) {
         throw serviceError(error);
       }
@@ -270,6 +324,10 @@ export function createDesignInterviewService(ownerKey = getBrowserInterviewOwner
       } catch (error) {
         throw serviceError(error);
       }
+    },
+    subscribe(listener: (value: InterviewServiceSnapshot) => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
   };
 }

@@ -6,7 +6,7 @@ Neither interface decides whether a design passes. The deterministic simulator i
 
 ## Shared semantic layer
 
-`packages/agent-capabilities` defines adapter-neutral capability contracts. A capability has a validated input boundary, mode (`read`, `visual`, or reserved `experiment`), availability predicate, execution contract, and safety annotations.
+`packages/agent-capabilities` defines adapter-neutral capability contracts. A capability has a validated input boundary, mode (`read`, `visual`, `session`, or reserved `experiment`), availability predicate, execution contract, and safety annotations.
 
 Domain logic lives below the adapter. WebMCP delegates to this shared registry rather than duplicating architecture, simulator, or cost rules.
 
@@ -36,6 +36,15 @@ or the next question. Follow-ups remain on the same question; only explicit
 readiness advances the state. `classifyInterviewReadiness` is intentionally
 conservative: a new technical question is a follow-up and ambiguous language
 does not advance.
+
+The shared coaching policy includes the versioned orchestration contract
+`design-interview-orchestration-1`. It tells an external host when to call the
+start, answer, follow-up, and advance tools, how to recover from retries or
+stale sessions, and how to avoid revealing future questions. This is guidance;
+the interview reducer and browser service remain the authority for transitions.
+If the architecture changes, the service marks the active interview stale;
+restart_design_interview is the explicit recovery path and preserves the prior
+browser-scoped record in local history.
 
 Evaluation output is validated before persistence or presentation. Its
 `grounding` field distinguishes current architecture evidence, general system

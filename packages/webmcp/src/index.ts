@@ -12,6 +12,7 @@ export * from "./experiment-webmcp-surface.js";
 export * from "./compatibility.js";
 export * from "./register-experiment-surface.js";
 export * from "./phase6-read-surface.js";
+export * from "./interview-webmcp-surface.js";
 export * from "./to-webmcp-tool.js";
 export * from "./types.js";
 export * from "./timing.js";

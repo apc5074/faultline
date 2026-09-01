@@ -26,6 +26,7 @@ export const INTERVIEW_CAPABILITY_NAMES = [
   "follow_up_design_interview",
   "advance_design_interview",
   "end_design_interview",
+  "restart_design_interview",
 ] as const;
 
 /** Phase 7 semantic read capabilities gated by canonical architecture structure. */
@@ -62,6 +63,7 @@ export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "follow_up_design_interview", production: true, group: "stable-interview" },
   { name: "advance_design_interview", production: true, group: "stable-interview" },
   { name: "end_design_interview", production: true, group: "stable-interview" },
+  { name: "restart_design_interview", production: true, group: "stable-interview" },
   { name: "expand_design_evidence", production: true, group: "stable-review" },
   { name: "inspect_design_entity", production: true, group: "stable-review" },
   { name: "inspect_component_option", production: true, group: "stable-review" },

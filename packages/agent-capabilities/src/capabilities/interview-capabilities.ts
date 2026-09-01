@@ -144,10 +144,24 @@ export const endDesignInterviewCapability: SessionCapability<EndInterviewInput> 
   }),
 };
 
+export const restartDesignInterviewCapability: SessionCapability<Record<string, never>> = {
+  name: "restart_design_interview",
+  description: "Explicitly start a new design interview on the current architecture while preserving the prior browser-scoped interview in history.",
+  inputSchema: sessionSchema("restart_design_interview", {}, [], (value) => {
+    if (value !== undefined && value !== null && (!isRecord(value) || Object.keys(value).length > 0)) return "restart_design_interview input must be an empty object.";
+    return {};
+  }),
+  mode: "session",
+  availableWhen: () => true,
+  annotations: { idempotentHint: false },
+  execute: executeWithService(async (context, _input, interview) => interview.restart(context)),
+};
+
 export const DESIGN_INTERVIEW_CAPABILITIES = [
   getDesignInterviewCapability,
   submitInterviewAnswerCapability,
   followUpDesignInterviewCapability,
   advanceDesignInterviewCapability,
   endDesignInterviewCapability,
+  restartDesignInterviewCapability,
 ] as const;

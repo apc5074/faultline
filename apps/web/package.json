@@ -48,6 +48,7 @@
     "verify:agent-session": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-session.mjs",
     "verify:interview-storage": "node --experimental-strip-types scripts/verify-interview-storage.mjs",
     "verify:interview-service": "node --experimental-strip-types scripts/verify-interview-service.mjs",
+    "verify:interview-e2e": "node --experimental-strip-types scripts/verify-interview-e2e.mjs",
     "verify:agent-help-chips": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-help-chips.mjs",
     "verify:agent-annotations": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-annotations.mjs",
     "verify:submission": "pnpm run build:deps && node --experimental-strip-types scripts/verify-submission.mjs",

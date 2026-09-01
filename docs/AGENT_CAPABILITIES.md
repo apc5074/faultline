@@ -150,7 +150,8 @@ session.
 
 `PRODUCTION_CAPABILITY_MANIFEST` is the source of truth for the current
 production WebMCP exposure. It groups exposed capability names as
-`stable-review`, `specialists`, `stable-visual`, or `experiments` and has the
+`stable-review`, `specialists`, `stable-visual`, `experiments`, or
+`stable-interview` and has the
 contract version `wmp-production-1`.
 
 The WebMCP adapter:
@@ -167,6 +168,23 @@ The WebMCP adapter:
 Registration is a host integration concern. It must not change capability
 availability, shared result semantics, or simulator truth. Keep registry and
 adapter parity checks green whenever a shared capability or manifest changes.
+
+### Interview session lifecycle
+
+The dedicated `stable-interview` surface exposes `start_design_interview`,
+`get_design_interview`, `submit_interview_answer`,
+`follow_up_design_interview`, `advance_design_interview`,
+`end_design_interview`, and `restart_design_interview`. Start returns or
+resumes one current stable-ID question. Answers are stored without advancing;
+follow-ups remain on that question; advance requires explicit readiness; and
+restart creates a new agenda while retaining bounded browser-local history.
+Architecture edits mark the active interview stale before mutation attempts are
+accepted. These operations cannot edit architecture, submit official attempts,
+affect leaderboards, or run experiments.
+
+Interview diagnostics may include hashed evidence revisions, interview ID,
+question ID, transition, verdict, latency, and bounded error codes. They never
+include answer text or hidden model reasoning.
 
 ## Adding or changing a capability
 

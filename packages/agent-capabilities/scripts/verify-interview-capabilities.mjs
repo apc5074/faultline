@@ -13,6 +13,7 @@ const expected = [
   "follow_up_design_interview",
   "advance_design_interview",
   "end_design_interview",
+  "restart_design_interview",
 ];
 assert.deepEqual(DESIGN_INTERVIEW_CAPABILITIES.map((capability) => capability.name), expected.slice(1));
 assert.equal(startDesignInterviewCapability.mode, "session");
@@ -45,6 +46,7 @@ const service = {
   followUp: () => snapshot,
   advance: () => snapshot,
   end: () => snapshot,
+  restart: () => snapshot,
 };
 const context = { challenge: { requirements: [] }, architecture: { version: 1, components: [], connections: [] } };
 const started = await registry.invoke("start_design_interview", context, {}, { interviewService: service });

@@ -13,7 +13,10 @@ export type BrowserInterviewRecord = {
   readonly state: InterviewState;
   readonly events: readonly BrowserInterviewEventRecord[];
   readonly updatedAt: string;
+  readonly history?: readonly BrowserInterviewArchive[];
 };
+
+export type BrowserInterviewArchive = Pick<BrowserInterviewRecord, "version" | "revision" | "state" | "events" | "updatedAt">;
 
 export type BrowserInterviewEventRecord = {
   readonly eventId: string;
@@ -67,7 +70,8 @@ function isStoredRecord(value: unknown): value is BrowserInterviewRecord {
     && isRecord(value.state)
     && Array.isArray(value.events)
     && value.events.length <= MAX_EVENTS
-    && typeof value.updatedAt === "string";
+    && typeof value.updatedAt === "string"
+    && (value.history === undefined || (Array.isArray(value.history) && value.history.length <= MAX_EVENTS));
 }
 
 function encode(record: BrowserInterviewRecord): string {
@@ -115,6 +119,29 @@ export function createBrowserInterviewRepository(ownerKey: string) {
         state,
         events: [{ eventId: event.interviewId, event }],
         updatedAt: event.startedAt,
+      };
+      storage().setItem(key, encode(record));
+      return record;
+    },
+
+    saveRestarted(previous: BrowserInterviewRecord, state: InterviewState, event: InterviewEvent): BrowserInterviewRecord {
+      if (event.type !== "start" || event.interviewId !== state.interviewId) {
+        throw new BrowserInterviewStorageError("A restart event must match the interview state.", "malformed");
+      }
+      const history = [...(previous.history ?? []), {
+        version: previous.version,
+        revision: previous.revision,
+        state: previous.state,
+        events: previous.events,
+        updatedAt: previous.updatedAt,
+      }];
+      const record: BrowserInterviewRecord = {
+        version: STORAGE_VERSION,
+        revision: 0,
+        state,
+        events: [{ eventId: event.interviewId, event }],
+        updatedAt: event.startedAt,
+        history: history.slice(-MAX_EVENTS),
       };
       storage().setItem(key, encode(record));
       return record;

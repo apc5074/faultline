@@ -4,6 +4,7 @@ import type {
   AgentContext,
   CapabilityResult,
   ClearAnnotationsIntent,
+  InterviewService,
   LiveAgentSnapshot,
   PresentationCue,
   VisualAnnotationIntent,
@@ -28,6 +29,33 @@ import { measureWebMcpTiming, recordWebMcpTiming, recordWebMcpTrace, serializedW
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
 
+function interviewTraceFields(value: unknown): Pick<import("./timing.js").WebMcpTraceEvent, "interviewId" | "questionId" | "evaluationVerdict"> {
+  if (!isRecord(value)) return {};
+  const envelope = isRecord(value.data) ? value.data : undefined;
+  const data = envelope && isRecord(envelope.data) ? envelope.data : envelope;
+  if (!isRecord(data) || !isRecord(data.state)) return {};
+  const state = data.state;
+  const question = isRecord(state.currentQuestion) ? state.currentQuestion : undefined;
+  const answers = Array.isArray(state.answers) ? state.answers : [];
+  const answer = isRecord(answers[answers.length - 1]) ? answers[answers.length - 1] : undefined;
+  return {
+    ...(typeof state.interviewId === "string" ? { interviewId: state.interviewId } : {}),
+    ...(typeof question?.questionId === "string" ? { questionId: question.questionId } : {}),
+    ...(answer?.verdict === "correct" || answer?.verdict === "partial" || answer?.verdict === "incorrect" ? { evaluationVerdict: answer.verdict } : {}),
+  };
+}
+
+function interviewTransition(name: string): "start" | "get" | "answer" | "follow_up" | "advance" | "end" | "restart" | undefined {
+  if (name === "start_design_interview") return "start";
+  if (name === "get_design_interview") return "get";
+  if (name === "submit_interview_answer") return "answer";
+  if (name === "follow_up_design_interview") return "follow_up";
+  if (name === "advance_design_interview") return "advance";
+  if (name === "end_design_interview") return "end";
+  if (name === "restart_design_interview") return "restart";
+  return undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -39,6 +67,12 @@ function computeSurfaceRevisionFromTools(names: ReadonlySet<string>): string {
 const TOOL_TITLES: Readonly<Record<string, string>> = {
   review_current_design: "Review current design",
   start_design_interview: "Start design interview",
+  get_design_interview: "Get design interview",
+  submit_interview_answer: "Submit interview answer",
+  follow_up_design_interview: "Ask interview follow-up",
+  advance_design_interview: "Advance design interview",
+  end_design_interview: "End design interview",
+  restart_design_interview: "Restart design interview",
   expand_design_evidence: "Expand design evidence",
   inspect_design_entity: "Inspect design entity",
   inspect_component_option: "Inspect component option",
@@ -63,7 +97,13 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
     review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
-    start_design_interview: "Call when the player asks to be interviewed. Returns three high-level questions, then one component question per step; visually focuses the current component and groups stateless services.",
+    start_design_interview: "Call when the player asks to be interviewed. Starts or resumes the browser-owned session and returns one stable-ID question at a time; visually focuses the current component and groups stateless services.",
+    get_design_interview: "Read the active browser-owned interview for its exact interview and question IDs. Does not advance or mutate the session.",
+    submit_interview_answer: "Submit one evaluated answer for the current question. The session remains on this question so the player can ask follow-ups before advancing.",
+    follow_up_design_interview: "Ask and answer a follow-up about the current question. Keeps the interview on the same question.",
+    advance_design_interview: "Advance exactly one question after the player explicitly says they are ready. Requires ready: true and the current question ID.",
+    end_design_interview: "End the active browser-owned interview. Does not change the architecture, official attempts, or leaderboard.",
+    restart_design_interview: "Start a new interview on the current architecture while preserving the prior browser-scoped interview in history. Use only after the player explicitly asks to restart.",
     get_architecture: "Read the current architecture and inventory for board-wide contents, logical component counts, and connections. Use this for unqualified board questions; do not reuse after a board edit.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
     inspect_component: "Read the current invocation revision. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all by default for type-wide/count/existence, topmost only when positional. Do not reuse after a board edit.",
@@ -100,6 +140,8 @@ export interface ToWebMcpToolOptions {
   readonly onExperimentResult?: (result: ExperimentResult) => void;
   /** Apply a grounded read-result presentation cue without changing selection or viewport. */
   readonly onPresentationCue?: (cue: PresentationCue) => void;
+  /** Browser-owned interview session port, available only on the interview surface. */
+  readonly interviewService?: InterviewService;
   readonly timing?: WebMcpTimingSink;
   readonly trace?: WebMcpTraceSink;
   readonly traceGroup?: string;
@@ -111,7 +153,7 @@ export interface ToWebMcpToolOptions {
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, timing, trace, traceGroup, traceGeneration } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onExperimentResult, onPresentationCue, interviewService, timing, trace, traceGroup, traceGeneration } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
   const publishedExperimentDigests = new Set<string>();
 
@@ -168,10 +210,11 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           const result = await measureWebMcpTiming(timing, "capability_execution_ms", () => registry.invoke(capability.name, context, input, {
             signal: executionContext.signal,
             session,
+            interviewService,
             surfaceRevision: availableToolNames ? computeSurfaceRevisionFromTools(availableToolNames) : surfaceRevision,
           }), { capability: capability.name, mode: capability.mode });
           sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
-          recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, evidenceRevision: lease.evidenceRevision, outcome: sanitized.ok ? "success" : sanitized.code === "CANCELLED" ? "cancelled" : "error", ...(sanitized.ok ? {} : { errorCode: sanitized.code }) });
+          recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, evidenceRevision: lease.evidenceRevision, ...(capability.mode === "session" ? { interviewTransition: interviewTransition(capability.name) } : {}), outcome: sanitized.ok ? "success" : sanitized.code === "CANCELLED" ? "cancelled" : "error", ...(sanitized.ok ? interviewTraceFields(sanitized) : {}), ...(sanitized.ok ? {} : { errorCode: sanitized.code }) });
           const resultData = sanitized.ok && sanitized.data && typeof sanitized.data === "object"
             ? sanitized.data as Record<string, unknown>
             : undefined;
