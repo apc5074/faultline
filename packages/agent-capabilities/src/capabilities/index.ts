@@ -27,6 +27,14 @@ import { compareDesignEvidenceCapability } from "./compare-design-evidence.js";
 import { expandDesignEvidenceCapability } from "./expand-design-evidence.js";
 import { inspectComponentOptionCapability } from "./inspect-component-option.js";
 import { startDesignInterviewCapability } from "./start-design-interview.js";
+import {
+  DESIGN_INTERVIEW_CAPABILITIES,
+  getDesignInterviewCapability,
+  submitInterviewAnswerCapability,
+  followUpDesignInterviewCapability,
+  advanceDesignInterviewCapability,
+  endDesignInterviewCapability,
+} from "./interview-capabilities.js";
 
 export {
   getSessionFocusCapability,
@@ -124,11 +132,20 @@ export type {
 } from "./compare-design-evidence.js";
 export type { ReviewCurrentDesignOutput } from "./review-current-design.js";
 export {
+  DESIGN_INTERVIEW_CAPABILITIES,
+  getDesignInterviewCapability,
+  submitInterviewAnswerCapability,
+  followUpDesignInterviewCapability,
+  advanceDesignInterviewCapability,
+  endDesignInterviewCapability,
+} from "./interview-capabilities.js";
+export {
   startDesignInterviewCapability,
   buildStartDesignInterviewOutput,
 } from "./start-design-interview.js";
 export type {
   DesignInterviewQuestion,
+  BuildStartDesignInterviewInput,
   StartDesignInterviewInput,
   StartDesignInterviewOutput,
 } from "./start-design-interview.js";
@@ -164,6 +181,7 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
   return createAgentCapabilityRegistry([
     getCoachingPolicyCapability,
     startDesignInterviewCapability,
+    ...DESIGN_INTERVIEW_CAPABILITIES,
     reviewCurrentDesignCapability,
     expandDesignEvidenceCapability,
     compareDesignEvidenceCapability,

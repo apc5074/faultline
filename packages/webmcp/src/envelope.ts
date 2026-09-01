@@ -62,7 +62,7 @@ function projectCapabilityData(
 
 export interface WrapWebMcpEnvelopeOptions {
   readonly capabilityName: string;
-  readonly mode: "read" | "visual" | "experiment";
+  readonly mode: "read" | "visual" | "experiment" | "session";
   /** Validated by the capability registry before a successful result is returned. */
   readonly input?: unknown;
   readonly lease: WebMcpEvidenceLease;

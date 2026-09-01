@@ -13,7 +13,7 @@ export interface WebMcpTimingEvent {
   readonly name: WebMcpTimingName;
   readonly durationMs?: number;
   readonly bytes?: number;
-  readonly mode?: "read" | "visual" | "experiment";
+  readonly mode?: "read" | "visual" | "experiment" | "session";
   readonly capability?: string;
 }
 

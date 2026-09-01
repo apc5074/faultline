@@ -1,11 +1,14 @@
-import type { AgentCapability } from "../capability.js";
+import type { AgentCapability, CapabilityExecutionOptions } from "../capability.js";
 import type { AgentContext } from "../context.js";
+import type { InterviewServiceSnapshot } from "../interview-service-port.js";
 import { createPresentationCue, type PresentationCue } from "../presentation-cue.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 
-export interface StartDesignInterviewInput {
+export interface BuildStartDesignInterviewInput {
   readonly step: number;
 }
+
+export type StartDesignInterviewInput = Record<string, never>;
 
 export interface DesignInterviewQuestion {
   readonly questionId: string;
@@ -39,27 +42,21 @@ export const startDesignInterviewInputSchema: AgentCapability<
 >["inputSchema"] = {
   jsonSchema: {
     type: "object",
-    properties: { step: { type: "number", minimum: 0, maximum: 100 } },
+    properties: {},
     additionalProperties: false,
   },
   safeParse(input) {
     if (input === undefined || input === null) {
-      return { success: true as const, data: { step: 0 } };
+      return { success: true as const, data: {} };
     }
     if (typeof input !== "object" || input === null || Array.isArray(input)) {
       return { success: false as const, errors: ["start_design_interview input must be an object."] };
     }
     const record = input as Record<string, unknown>;
-    if (Object.keys(record).some((key) => key !== "step")) {
+    if (Object.keys(record).length > 0) {
       return { success: false as const, errors: ["start_design_interview input contains unknown properties."] };
     }
-    if (record.step === undefined) {
-      return { success: true as const, data: { step: 0 } };
-    }
-    if (typeof record.step !== "number" || !Number.isInteger(record.step) || record.step < 0 || record.step > 100) {
-      return { success: false as const, errors: ["step must be an integer between 0 and 100."] };
-    }
-    return { success: true as const, data: { step: record.step } };
+    return { success: true as const, data: {} };
   },
 };
 
@@ -143,7 +140,7 @@ function buildAgenda(context: AgentContext): readonly DesignInterviewQuestion[] 
 
 export function buildStartDesignInterviewOutput(
   context: AgentContext,
-  input: StartDesignInterviewInput,
+  input: BuildStartDesignInterviewInput,
 ): CapabilityResult<StartDesignInterviewOutput> {
   const agenda = buildAgenda(context);
   const questions = [...openingQuestions, ...agenda];
@@ -188,19 +185,20 @@ export function buildStartDesignInterviewOutput(
 export const startDesignInterviewCapability: AgentCapability<
   AgentContext,
   StartDesignInterviewInput,
-  CapabilityResult<StartDesignInterviewOutput>
+  CapabilityResult<InterviewServiceSnapshot>
 > = {
   name: "start_design_interview",
   description:
     "Call when the player asks to be interviewed on their design. Returns one stable-ID question at a time: three high-level questions followed by one question per component while visually focusing that component; stateless service instances are grouped.",
   inputSchema: startDesignInterviewInputSchema,
-  mode: "read",
+  mode: "session",
   availableWhen: () => true,
   annotations: {
-    readOnlyHint: true,
     idempotentHint: true,
   },
-  execute(context, input) {
-    return buildStartDesignInterviewOutput(context, input);
+  async execute(context, _input, options?: CapabilityExecutionOptions) {
+    if (!options?.interviewService) return capabilityError("NOT_FOUND", "Interview session is unavailable in this host.");
+    const snapshot = await options.interviewService.start(context);
+    return capabilityOk(snapshot);
   },
 };

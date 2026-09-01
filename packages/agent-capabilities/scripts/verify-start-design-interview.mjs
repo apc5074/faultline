@@ -28,7 +28,7 @@ const context = {
 };
 
 assert.equal(startDesignInterviewCapability.name, "start_design_interview");
-assert.equal(startDesignInterviewCapability.mode, "read");
+assert.equal(startDesignInterviewCapability.mode, "session");
 
 const opening = buildStartDesignInterviewOutput(context, { step: 0 });
 assert.equal(opening.ok, true);

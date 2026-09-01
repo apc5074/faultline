@@ -277,7 +277,7 @@ export function resolveEntityTarget(
 
 export function provenanceFromContext(
   context: AgentContext,
-  mode: "read" | "visual" | "experiment",
+  mode: "read" | "visual" | "experiment" | "session",
   simulated = false,
 ): AgentEvidenceProvenance {
   const meta = context.evidenceMeta;

@@ -1,5 +1,5 @@
 /** Adapter-neutral modes that describe how a capability affects a challenge. */
-export type AgentCapabilityMode = "read" | "experiment" | "visual";
+export type AgentCapabilityMode = "read" | "experiment" | "visual" | "session";
 
 export type CapabilityInputValidationResult<TInput> =
   | { success: true; data: TInput }
@@ -29,8 +29,9 @@ export interface CapabilityInputSchema<TInput> {
 }
 
 import type { AgentSessionState } from "./session.js";
+import type { InterviewService } from "./interview-service-port.js";
 
-export type ProductionCapabilityGroup = "stable-review" | "stable-visual" | "specialists" | "experiments";
+export type ProductionCapabilityGroup = "stable-review" | "stable-visual" | "specialists" | "experiments" | "stable-interview";
 
 export interface ProductionCapabilityExposure {
   readonly production: boolean;
@@ -44,6 +45,8 @@ export interface CapabilityExecutionOptions {
   readonly session?: AgentSessionState;
   /** Current WebMCP surface revision for knownState comparisons. */
   readonly surfaceRevision?: string;
+  /** Host-owned interview service; absent outside an interview-capable host. */
+  readonly interviewService?: InterviewService;
 }
 
 /** Optional metadata for an adapter to communicate safe invocation semantics. */

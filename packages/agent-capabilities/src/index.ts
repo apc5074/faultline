@@ -26,4 +26,6 @@ export * from "./visual-executors.js";
 export * from "./visual-schemas.js";
 export * from "./pin-observation.js";
 export * from "./interview-state.js";
+export * from "./interview-protocol.js";
+export * from "./interview-service-port.js";
 export * from "./capabilities/index.js";

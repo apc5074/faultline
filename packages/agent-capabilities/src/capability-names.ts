@@ -8,7 +8,6 @@ export const BASELINE_READ_CAPABILITY_NAMES = [
   "inspect_design_entity",
   "inspect_component_option",
   "get_coaching_policy",
-  "start_design_interview",
   "get_session_focus",
   "get_challenge",
   "get_requirements",
@@ -17,6 +16,16 @@ export const BASELINE_READ_CAPABILITY_NAMES = [
   "estimate_capacity",
   "get_metrics",
   "get_cost_breakdown",
+] as const;
+
+/** Browser/session interview capabilities; registered separately from read tools. */
+export const INTERVIEW_CAPABILITY_NAMES = [
+  "start_design_interview",
+  "get_design_interview",
+  "submit_interview_answer",
+  "follow_up_design_interview",
+  "advance_design_interview",
+  "end_design_interview",
 ] as const;
 
 /** Phase 7 semantic read capabilities gated by canonical architecture structure. */
@@ -47,7 +56,12 @@ export const PRODUCTION_CAPABILITY_MANIFEST_VERSION = "wmp-production-1" as cons
 
 export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "review_current_design", production: true, group: "stable-review" },
-  { name: "start_design_interview", production: true, group: "stable-review" },
+  { name: "start_design_interview", production: true, group: "stable-interview" },
+  { name: "get_design_interview", production: true, group: "stable-interview" },
+  { name: "submit_interview_answer", production: true, group: "stable-interview" },
+  { name: "follow_up_design_interview", production: true, group: "stable-interview" },
+  { name: "advance_design_interview", production: true, group: "stable-interview" },
+  { name: "end_design_interview", production: true, group: "stable-interview" },
   { name: "expand_design_evidence", production: true, group: "stable-review" },
   { name: "inspect_design_entity", production: true, group: "stable-review" },
   { name: "inspect_component_option", production: true, group: "stable-review" },

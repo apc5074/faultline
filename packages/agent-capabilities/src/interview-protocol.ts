@@ -1,0 +1,132 @@
+import type { CapabilityInputSchema, CapabilityInputValidationResult } from "./capability.js";
+import type { InterviewEvaluation } from "./interview-state.js";
+
+export const INTERVIEW_EVALUATION_MAX_TEXT_LENGTH = 4_000;
+export const INTERVIEW_EVALUATION_MAX_ITEMS = 8;
+
+export type InterviewEvaluationGrounding =
+  | "architecture_evidence"
+  | "general_system_design"
+  | "insufficient_evidence";
+
+export type InterviewEvaluationResult = InterviewEvaluation & {
+  readonly grounding: InterviewEvaluationGrounding;
+};
+
+export type InterviewReadiness = "ready" | "follow_up" | "ambiguous";
+
+export type InterviewEvaluationPromptInput = {
+  readonly question: string;
+  readonly answer: string;
+  readonly evidenceSummary?: string;
+};
+
+export type InterviewFollowUpPromptInput = {
+  readonly question: string;
+  readonly evaluation: InterviewEvaluationResult;
+  readonly followUp: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function boundedText(value: unknown, name: string): { value?: string; error?: string } {
+  if (typeof value !== "string" || value.trim().length === 0) return { error: `${name} must be a non-empty string.` };
+  if (value.length > INTERVIEW_EVALUATION_MAX_TEXT_LENGTH) return { error: `${name} must be at most ${INTERVIEW_EVALUATION_MAX_TEXT_LENGTH} characters.` };
+  return { value };
+}
+
+function boundedItems(value: unknown, name: string): { value?: readonly string[]; error?: string } {
+  if (!Array.isArray(value) || value.length > INTERVIEW_EVALUATION_MAX_ITEMS) {
+    return { error: `${name} must be an array of at most ${INTERVIEW_EVALUATION_MAX_ITEMS} strings.` };
+  }
+  const items: string[] = [];
+  for (const item of value) {
+    const parsed = boundedText(item, `${name} item`);
+    if (parsed.error) return { error: parsed.error };
+    items.push(parsed.value!);
+  }
+  return { value: items };
+}
+
+/** Validate untrusted model output before it is persisted or shown as a verdict. */
+export function safeParseInterviewEvaluation(value: unknown): CapabilityInputValidationResult<InterviewEvaluationResult> {
+  if (!isRecord(value)) return { success: false, errors: ["Interview evaluation must be an object."] };
+  const allowed = new Set(["verdict", "explanation", "strengths", "gaps", "idealAnswer", "confidence", "grounding"]);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    return { success: false, errors: ["Interview evaluation contains unknown properties."] };
+  }
+  if (value.verdict !== "correct" && value.verdict !== "partial" && value.verdict !== "incorrect") {
+    return { success: false, errors: ["verdict must be correct, partial, or incorrect."] };
+  }
+  if (value.grounding !== "architecture_evidence" && value.grounding !== "general_system_design" && value.grounding !== "insufficient_evidence") {
+    return { success: false, errors: ["grounding must identify the evidence basis."] };
+  }
+  if (value.confidence !== undefined && value.confidence !== "high" && value.confidence !== "medium" && value.confidence !== "low") {
+    return { success: false, errors: ["confidence must be high, medium, or low."] };
+  }
+  const explanation = boundedText(value.explanation, "explanation");
+  const idealAnswer = boundedText(value.idealAnswer, "idealAnswer");
+  const strengths = boundedItems(value.strengths, "strengths");
+  const gaps = boundedItems(value.gaps, "gaps");
+  const errors = [explanation.error, idealAnswer.error, strengths.error, gaps.error].filter((error): error is string => Boolean(error));
+  if (errors.length > 0) return { success: false, errors };
+  return {
+    success: true,
+    data: {
+      verdict: value.verdict,
+      explanation: explanation.value!,
+      strengths: strengths.value!,
+      gaps: gaps.value!,
+      idealAnswer: idealAnswer.value!,
+      grounding: value.grounding,
+      ...(value.confidence !== undefined ? { confidence: value.confidence } : {}),
+    },
+  };
+}
+
+export const interviewEvaluationSchema: CapabilityInputSchema<InterviewEvaluationResult> = {
+  jsonSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  safeParse: safeParseInterviewEvaluation,
+};
+
+/** Conservative readiness classifier: only explicit next-step language advances. */
+export function classifyInterviewReadiness(message: string): InterviewReadiness {
+  const normalized = message.trim().toLowerCase().replace(/[.!]+$/g, "");
+  if (normalized.length === 0) return "ambiguous";
+  const explicitReady = /^(yes|yeah|yep|i am ready|i'm ready|ready|next|continue|move on|go ahead)(,?\s*(next|to the next question|please))?$/;
+  if (explicitReady.test(normalized) || /^(yes|yeah|yep),?\s+(i am |i'm )?ready\s+(for )?(the )?next/.test(normalized) || /^(i am |i'm )ready\s+(for )?(the )?next/.test(normalized)) return "ready";
+  if (/[?]/.test(normalized) || /^(why|how|what|when|where|which|can|could|should|does|do|is|are|would)\b/.test(normalized)) return "follow_up";
+  return "ambiguous";
+}
+
+export function buildInterviewEvaluationPrompt(input: InterviewEvaluationPromptInput): string {
+  return [
+    "Evaluate the player's answer to exactly the current design-interview question.",
+    "Return only the validated InterviewEvaluationResult shape.",
+    "Use correct when the essential behavior and tradeoffs are covered, partial when the direction is right but an important detail is missing, and incorrect when the answer contradicts the architecture or system behavior.",
+    "Separate factual gaps from optional improvements. Do not prescribe a single technology stack.",
+    "Use architecture_evidence only for claims supported by the supplied current evidence. Use general_system_design for general reasoning and insufficient_evidence when the supplied evidence cannot establish the claim.",
+    "Do not reveal future interview questions, advance the interview, edit the architecture, submit an attempt, or claim official pass/fail.",
+    `CURRENT QUESTION:\n${input.question}`,
+    `PLAYER ANSWER:\n${input.answer}`,
+    input.evidenceSummary ? `CURRENT EVIDENCE:\n${input.evidenceSummary}` : "CURRENT EVIDENCE:\nNo simulator evidence was supplied.",
+  ].join("\n\n");
+}
+
+export function buildInterviewFollowUpPrompt(input: InterviewFollowUpPromptInput): string {
+  return [
+    "Answer the player's follow-up about the current design-interview question.",
+    "Remain on this question. Do not evaluate a new answer, reveal future questions, or advance the interview.",
+    "Use the prior evaluation as context, distinguish current architecture evidence from general reasoning, and say when evidence is insufficient.",
+    `CURRENT QUESTION:\n${input.question}`,
+    `PRIOR EVALUATION:\n${input.evaluation.explanation}`,
+    `PLAYER FOLLOW-UP:\n${input.followUp}`,
+    "End by asking whether the player has another follow-up or is ready for the next question.",
+  ].join("\n\n");
+}

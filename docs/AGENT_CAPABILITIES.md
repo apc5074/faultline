@@ -18,7 +18,7 @@ Each `AgentCapability` has:
 | `name` | Stable semantic operation name. |
 | `description` | Adapter-neutral intent. Host-facing descriptions may be a compact adaptation, not a separate behavior definition. |
 | `inputSchema` | Shared JSON Schema subset plus `safeParse`. Adapters pass this schema through; they do not rebuild validation per host. |
-| `mode` | `read`, `visual`, or `experiment`. |
+| `mode` | `read`, `visual`, `experiment`, or browser-owned `session`. |
 | `availableWhen` | Pure context predicate that decides whether the operation is relevant now. |
 | `execute` | Shared implementation operating on the supplied context and validated input. |
 | `annotations` | Safe-invocation metadata used by surfaces, such as read-only/idempotent or destructive hints. |
@@ -58,6 +58,7 @@ or retries when the evidence revision is superseded.
 | --- | --- | --- |
 | `read` | Return current architecture, challenge, simulator, cost, or derived review facts. | Change architecture, session state, official attempts, or leaderboard data. |
 | `visual` | Return a validated focus, annotation, highlight, clear, region-focus, or observation intent for the host to apply to presentation state. | Mutate the canonical architecture or make visual state evidence of simulator truth. |
+| `session` | Read or transition host-owned interview session state through an injected session port. | Edit architecture, submit official attempts, affect leaderboards, or run experiments. |
 | `experiment` | Return a temporary simulated baseline/outcome/delta/event result. | Persist an overlay, alter Architecture/ChallengeDefinition/catalog config, or submit an official result. |
 
 The registry validates inputs before executing. Its controlled error result is

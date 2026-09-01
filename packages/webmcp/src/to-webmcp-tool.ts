@@ -79,6 +79,7 @@ function webMcpDescription(capability: RegisteredCapability): string {
   if (metadata[capability.name]) return metadata[capability.name]!;
   if (capability.mode === "visual") return "Apply one validated visual coaching action using current IDs. Does not change the architecture.";
   if (capability.mode === "experiment") return "When: run one approved experiment. Requires: explicit human consent for this exact name. Returns: baseline, outcome, delta, and simulator events. Side effect: temporary simulation only. Recovery: approve this exact named experiment or retry current evidence.";
+  if (capability.mode === "session") return "Session operation for the current browser-owned interview. Does not edit architecture, submit attempts, or affect leaderboard state.";
   return `Current simulator facts; targeted results frame valid subjects. Retry stale evidence.`;
 }
 
@@ -204,7 +205,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
             experimentCanPublish = capability.mode === "experiment" && capabilityResult.ok && sanitized.ok;
           }
           if (!lease.isCurrent()) {
-            if (capability.mode === "read" && attempt === 0) {
+            if ((capability.mode === "read" || capability.mode === "session") && attempt === 0) {
               attempt += 1;
               continue;
             }
@@ -213,7 +214,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
                 "NOT_FOUND",
                 "Current evidence was superseded by a newer architecture revision; retry the read.",
                 {
-                  retryable: capability.mode === "read",
+                  retryable: capability.mode === "read" || capability.mode === "session",
                   currentEvidenceRevision: getCurrentEvidenceRevision?.(),
                 },
               ),

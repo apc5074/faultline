@@ -87,7 +87,7 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
     ? read.tools.filter((tool) => productionCapabilityGroup(tool.name) === group)
     : read.tools;
   const tools = [...readTools, ...visual.tools, ...experiment.tools];
-  const namesByMode = { read: readTools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name) } as const;
+  const namesByMode = { read: readTools.map(({ name }) => name), visual: visual.tools.map(({ name }) => name), experiment: experiment.tools.map(({ name }) => name), session: [] } as const;
   const manifest: WebMcpRegistrationManifest = {
     contractVersion: PRODUCTION_CAPABILITY_MANIFEST_VERSION,
     revision: getCurrentEvidenceRevision?.() ?? context.evidenceMeta?.architectureRevision ?? "unversioned",

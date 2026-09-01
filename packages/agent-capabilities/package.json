@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify:design-interview": "pnpm run build && node scripts/verify-start-design-interview.mjs && node scripts/verify-interview-state.mjs",
+    "verify:design-interview": "pnpm run build && node scripts/verify-start-design-interview.mjs && node scripts/verify-interview-state.mjs && node scripts/verify-interview-protocol.mjs && node scripts/verify-interview-capabilities.mjs",
     "verify:review-current-design": "pnpm --filter @faultline/core build && pnpm --filter @faultline/challenges build && pnpm run build && node scripts/verify-review-current-design.mjs",
     "verify:tool-routing": "pnpm run build && node scripts/verify-tool-routing.mjs && node scripts/verify-tool-router-guardrails.mjs",
     "verify:compare-design-evidence": "pnpm --filter @faultline/core build && pnpm --filter @faultline/challenges build && pnpm run build && node scripts/verify-compare-design-evidence.mjs",
