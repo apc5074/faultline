@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { ChallengeDefinition, Architecture, ExperimentResult } from "@faultline/core";
+import type { ChallengeDefinition, Architecture, ExperimentDefinition, ExperimentResult } from "@faultline/core";
 import { componentRegistry } from "@faultline/component-catalog";
-import { evaluateExperiment, type ExperimentEvaluationResult } from "@faultline/simulator";
 
 import {
   DEV_EXPERIMENTS_UI_STORAGE_KEY,
   isDevExperimentHarnessEnabled,
 } from "@/lib/experiments/dev-harness-flag";
+import { launchExperiment, type LaunchExperimentResult } from "@/lib/experiments/launch-experiment";
 
 type ExperimentChoice = "traffic_multiplier" | "hot_key" | "cache_flush" | "component_failure" | "region_failure";
 
@@ -57,7 +57,7 @@ export function DevExperimentControls({
   const [panelOpen, setPanelOpen] = useState(true);
   const [choice, setChoice] = useState<ExperimentChoice>("traffic_multiplier");
   const [targetId, setTargetId] = useState("");
-  const [result, setResult] = useState<ExperimentEvaluationResult | null>(null);
+  const [result, setResult] = useState<LaunchExperimentResult | null>(null);
   const [running, setRunning] = useState(false);
   const runTokenRef = useRef(0);
   const [resultArchitectureKey, setResultArchitectureKey] = useState<string | null>(null);
@@ -116,7 +116,7 @@ export function DevExperimentControls({
 
   const runExperiment = () => {
     if (unavailableReason || (targetRequired && !targetId)) return;
-    const experiment = choice === "traffic_multiplier"
+    const experiment: ExperimentDefinition = choice === "traffic_multiplier"
       ? { type: choice, parameters: { multiplier: 2 as const } }
       : choice === "hot_key"
         ? { type: choice, parameters: { hotKeyReadFraction: hotKeyFraction } }
@@ -128,14 +128,14 @@ export function DevExperimentControls({
 
     const token = ++runTokenRef.current;
     setRunning(true);
-    window.setTimeout(() => {
+    void (async () => {
+      const nextResult = await launchExperiment({ architecture, challenge, experiment });
       if (token !== runTokenRef.current) return;
-      const nextResult = evaluateExperiment({ architecture, challenge, registry: componentRegistry, experiment });
       setResult(nextResult);
-      if (nextResult.ok) onExperimentResult?.(nextResult.data);
+      if (nextResult.ok) onExperimentResult?.(nextResult.result);
       setResultArchitectureKey(architectureKey);
       setRunning(false);
-    }, 0);
+    })();
   };
 
   const cancelExperiment = () => {
@@ -224,12 +224,12 @@ export function DevExperimentControls({
               {resultArchitectureKey !== architectureKey ? <span>stale — architecture changed; rerun</span> : null}
               {result.ok ? (
                 <>
-                  <strong>simulated {result.data.type}</strong>
+                  <strong>simulated {result.result.type}</strong>
                   <span>
-                    {result.data.baseline.allRequirementsPass ? "pass" : "fail"} → {result.data.outcome.allRequirementsPass ? "pass" : "fail"}
-                    {" · "}p95 {formatMetric(result.data.baseline.p95LatencyMs)} → {formatMetric(result.data.outcome.p95LatencyMs)} ms
+                    {result.result.baseline.allRequirementsPass ? "pass" : "fail"} → {result.result.outcome.allRequirementsPass ? "pass" : "fail"}
+                    {" · "}p95 {formatMetric(result.result.baseline.p95LatencyMs)} → {formatMetric(result.result.outcome.p95LatencyMs)} ms
                   </span>
-                  <span>{result.data.events.length} authoritative experiment events</span>
+                  <span>{result.result.events.length} authoritative experiment events</span>
                 </>
               ) : (
                 <span role="alert">{result.code}: {result.message}</span>

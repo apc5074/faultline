@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import type { CurrentAttemptResponse } from "@/app/api/attempts/current/route";
 import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
@@ -54,6 +54,11 @@ export function StartOfficialAttempt({
   const [state, setState] = useState<PanelState>({ status: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
+  const sessionRef = useRef(session);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   const applyActive = useCallback(
     (input: {
@@ -73,6 +78,44 @@ export function StartOfficialAttempt({
     [setSession]
   );
 
+  const startAttempt = useCallback(async () => {
+    try {
+      const response = await fetch("/api/attempts/start", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const body = (await response.json()) as StartAttemptResponse;
+      if (!body.ok) {
+        setSession(null);
+        setCompletion(null);
+        if (body.code === "misconfigured") {
+          setState({ status: "misconfigured" });
+        } else if (body.code === "no_active_challenge") {
+          setState({
+            status: "error",
+            message: "No active daily challenge.",
+          });
+        } else {
+          setState({ status: "error", message: body.error });
+        }
+        return;
+      }
+      applyActive({
+        alias: body.alias,
+        attemptId: body.attemptId,
+        startedAt: body.startedAt,
+        challengeVersion: body.challengeVersion,
+      });
+      setCompletion(null);
+    } catch {
+      setSession(null);
+      setState({
+        status: "error",
+        message: "Could not start official attempt.",
+      });
+    }
+  }, [applyActive, setCompletion, setSession]);
+
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/attempts/current", {
@@ -81,6 +124,9 @@ export function StartOfficialAttempt({
       });
       const body = (await response.json()) as CurrentAttemptResponse;
       if (!body.ok) {
+        // A restore request can finish after the level-entry start request.
+        // Do not let that stale response erase the newly active timer.
+        if (sessionRef.current) return;
         setSession(null);
         setState(
           body.code === "misconfigured"
@@ -90,16 +136,19 @@ export function StartOfficialAttempt({
         return;
       }
       if (!body.active) {
+        // The initial restore and automatic start may race. Preserve the
+        // active session if it was established while restore was in flight.
+        if (sessionRef.current) return;
         setSession(null);
         setCompletion(null);
         if (body.reason === "no_active_challenge") {
           setState({ status: "error", message: "No active daily challenge." });
           return;
         }
-        setState({
-          status: "idle",
-          alias: body.authenticated ? body.alias : null,
-        });
+        // A fresh level starts its official attempt on load. The server
+        // authors startedAt, so the visible timer begins at the real start
+        // of the attempt rather than at a browser render.
+        await startAttempt();
         return;
       }
       applyActive({
@@ -114,7 +163,7 @@ export function StartOfficialAttempt({
       setCompletion(null);
       setState({ status: "idle", alias: null });
     }
-  }, [applyActive, setSession]);
+  }, [applyActive, setSession, startAttempt]);
 
   useEffect(() => {
     void refresh();
@@ -142,42 +191,8 @@ export function StartOfficialAttempt({
   }, [completion]);
 
   const startOfficialAttempt = () => {
-    startTransition(async () => {
-      try {
-        const response = await fetch("/api/attempts/start", {
-          method: "POST",
-          cache: "no-store",
-        });
-        const body = (await response.json()) as StartAttemptResponse;
-        if (!body.ok) {
-          setSession(null);
-          setCompletion(null);
-          if (body.code === "misconfigured") {
-            setState({ status: "misconfigured" });
-          } else if (body.code === "no_active_challenge") {
-            setState({
-              status: "error",
-              message: "No active daily challenge.",
-            });
-          } else {
-            setState({ status: "error", message: body.error });
-          }
-          return;
-        }
-        applyActive({
-          alias: body.alias,
-          attemptId: body.attemptId,
-          startedAt: body.startedAt,
-          challengeVersion: body.challengeVersion,
-        });
-        setCompletion(null);
-      } catch {
-        setSession(null);
-        setState({
-          status: "error",
-          message: "Could not start official attempt.",
-        });
-      }
+    startTransition(() => {
+      void startAttempt();
     });
   };
 

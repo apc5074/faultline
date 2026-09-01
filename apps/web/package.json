@@ -40,6 +40,7 @@
     "verify:glyph-families": "node --experimental-strip-types scripts/verify-glyph-families.mjs",
     "verify:component-vertical-slices": "pnpm run build:deps && node --experimental-strip-types scripts/verify-component-vertical-slices.mjs",
     "verify:dev-experiment-flag": "node --experimental-strip-types scripts/verify-dev-experiment-flag.mjs",
+    "verify:launch-experiment": "pnpm run build:deps && node --experimental-strip-types scripts/verify-launch-experiment.mjs",
     "verify:leaderboards": "node --experimental-strip-types scripts/verify-leaderboards.mjs",
     "verify:my-rank": "node --experimental-strip-types scripts/verify-my-rank.mjs",
     "verify:phase-4": "node --experimental-strip-types scripts/verify-phase-4.mjs",

@@ -19,8 +19,9 @@ assert.match(panel, /no automatic repair/);
 assert.match(panel, /authoritative surviving routes/);
 assert.match(panel, /stale — architecture changed; rerun/);
 assert.match(controls, /simulated only/);
-assert.match(controls, /evaluateExperiment/);
+assert.match(controls, /launchExperiment/);
 assert.match(controls, /unavailableReason/);
+assert.doesNotMatch(controls, /evaluateExperiment/);
 assert.doesNotMatch(panel, /must use|canonical topology|auto.?fix/i);
 
 console.log("attack quality verified");
