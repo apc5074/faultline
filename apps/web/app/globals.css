@@ -1064,6 +1064,15 @@ main {
   color: var(--color-ink-faint);
 }
 
+.player-streak-hud--compact {
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-ink-hairline);
+  text-align: center;
+}
+
 .player-streak-hud--unavailable,
 .player-streak-hud--hint {
   max-width: 10rem;

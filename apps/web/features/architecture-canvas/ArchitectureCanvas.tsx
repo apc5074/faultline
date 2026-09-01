@@ -101,14 +101,7 @@ function ArchitectureWorkspace() {
       />
       <HomeHelp
         initialOpen={briefing.helpOpen}
-        onContinue={() => {
-          // The intro cards are the player's entry into the timed attempt.
-          // Start it before opening the level briefing so time includes the
-          // transition into designing, while the server still owns the start
-          // timestamp.
-          workspace.startOfficialAttemptFromBriefing();
-          briefing.closeHelp();
-        }}
+        onContinue={briefing.closeHelp}
         showTrigger={false}
       />
       <section className="playground-shell" aria-label="Architecture workspace">
