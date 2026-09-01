@@ -125,7 +125,7 @@ const forbidden = [
   "GitHub OAuth",
   "account linking",
   "AI usage accounting",
-  "attack mode",
+  "retired standalone scenario mode",
   "complex anti-cheat",
 ];
 const scanRoots = [

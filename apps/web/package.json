@@ -28,7 +28,7 @@
     "verify:webmcp-polish": "node --experimental-strip-types scripts/verify-webmcp-polish.mjs",
     "verify:webmcp-performance": "pnpm run build:deps && pnpm --filter @faultline/webmcp build && node --experimental-strip-types scripts/verify-webmcp-performance.mjs",
     "verify:webmcp-evidence-store": "pnpm run build:deps && node --experimental-strip-types scripts/verify-webmcp-evidence-store.mjs",
-    "verify:attack-quality": "node --experimental-strip-types scripts/verify-attack-quality.mjs",
+    "verify:scenario-quality": "node --experimental-strip-types scripts/verify-scenario-quality.mjs",
     "verify:leaderboard-polish": "node --experimental-strip-types scripts/verify-leaderboard-polish.mjs",
     "verify:scorecard": "node --experimental-strip-types scripts/verify-scorecard.mjs",
     "verify:sharing": "node --experimental-strip-types scripts/verify-sharing.mjs",

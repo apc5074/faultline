@@ -34,17 +34,12 @@ const opening = buildStartDesignInterviewOutput(context, { step: 0 });
 assert.equal(opening.ok, true);
 assert.equal(opening.data.phase, "opening");
 assert.equal(opening.data.questionId, "opening-1");
-assert.equal(opening.data.totalQuestions, 6);
+assert.equal(opening.data.totalQuestions, 7);
 assert.equal(opening.data.architectureRevision, "interview-revision");
 assert.match(opening.data.focus, /request/i);
 assert.ok(opening.data.contextSignals.includes("4 components"));
 assert.ok(opening.data.contextSignals.includes("0 requests\/sec"));
-assert.equal(opening.data.agenda.length, 3);
-assert.equal(opening.data.agenda[0].questionId, "component-router");
-assert.equal(opening.data.agenda[0].ordinal, 4);
-assert.equal(opening.data.agenda[1].questionId, "component-services");
-assert.equal(opening.data.agenda[1].grouped, true);
-assert.deepEqual(opening.data.agenda[1].componentIds, ["service-a", "service-b"]);
+assert.equal("agenda" in opening.data, false);
 
 const secondOpening = buildStartDesignInterviewOutput(context, { step: 1 });
 assert.equal(secondOpening.ok, true);
@@ -64,6 +59,14 @@ assert.equal(component.data.questionId, "component-services");
 assert.equal(component.data.grouped, true);
 assert.equal(component.data.presentationCue.kind, "set");
 assert.deepEqual(component.data.presentationCue.targets.map((target) => target.entityId), ["service-a", "service-b"]);
+
+const simulation = buildStartDesignInterviewOutput(context, { step: 6, baselineArchitectureRevision: "baseline-revision" });
+assert.equal(simulation.ok, true);
+assert.equal(simulation.data.phase, "simulation");
+assert.equal(simulation.data.questionId, "simulation-traffic-double-v1");
+assert.deepEqual(simulation.data.scenario, { type: "traffic_multiplier", parameters: { multiplier: 2 } });
+assert.equal(simulation.data.baselineArchitectureRevision, "baseline-revision");
+assert.match(simulation.data.question, /doubled from 0 to 0/);
 
 const registry = createDefaultCapabilityRegistry();
 assert.ok(registry.has("start_design_interview"));

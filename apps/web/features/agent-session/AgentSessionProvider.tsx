@@ -158,6 +158,15 @@ export function AgentSessionProvider({
     webMcpEvidenceSource.prewarm();
   }, [webMcpEvidenceSource, semanticEvidenceKey]);
 
+  useEffect(() => {
+    try {
+      const synced = interviewService.syncArchitecture?.(createAgentContext(architectureRef.current, challengeRef.current));
+      if (synced instanceof Promise) void synced.catch(() => undefined);
+    } catch {
+      // No active interview is the normal state before the player starts one.
+    }
+  }, [interviewService, semanticEvidenceKey]);
+
   const getAgentContext = useCallback(() => {
     return {
       context: createAgentContext(architectureRef.current, challengeRef.current),

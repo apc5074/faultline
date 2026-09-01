@@ -1,42 +1,50 @@
 import type { AgentCapability, CapabilityExecutionOptions } from "../capability.js";
 import type { AgentContext } from "../context.js";
+import type { ExperimentDefinition } from "@faultline/core";
 import type { InterviewServiceSnapshot } from "../interview-service-port.js";
 import { createPresentationCue, type PresentationCue } from "../presentation-cue.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 
 export interface BuildStartDesignInterviewInput {
   readonly step: number;
+  readonly baselineArchitectureRevision?: string;
 }
 
 export type StartDesignInterviewInput = Record<string, never>;
 
 export interface DesignInterviewQuestion {
+  readonly kind: "discussion" | "component" | "simulation";
   readonly questionId: string;
   readonly ordinal: number;
   readonly label: string;
   readonly componentIds: readonly string[];
   readonly question: string;
   readonly grouped: boolean;
-  readonly phase: "opening" | "component";
+  readonly phase: "opening" | "component" | "simulation";
   readonly focus?: string;
   readonly contextSignals?: readonly string[];
+  readonly scenario?: ExperimentDefinition;
+  readonly sourceChallengeId?: string;
+  readonly baselineArchitectureRevision?: string;
 }
 
 export interface StartDesignInterviewOutput {
-  readonly interviewVersion: "design-interview-2";
-  readonly phase: "opening" | "component";
+  readonly interviewVersion: "design-interview-3";
+  readonly phase: "opening" | "component" | "simulation";
   readonly step: number;
   readonly totalQuestions: number;
   readonly questionId: string;
   readonly architectureRevision: string;
   readonly question: string;
-  readonly agenda: readonly DesignInterviewQuestion[];
   readonly componentIds: readonly string[];
   readonly grouped: boolean;
   readonly focus?: string;
   readonly contextSignals?: readonly string[];
   readonly presentationCue?: PresentationCue;
   readonly suggestedNextTools: readonly { readonly name: string; readonly reason: string }[];
+  readonly scenario?: ExperimentDefinition;
+  readonly sourceChallengeId?: string;
+  readonly baselineArchitectureRevision?: string;
 }
 
 export const startDesignInterviewInputSchema: AgentCapability<
@@ -66,6 +74,7 @@ export const startDesignInterviewInputSchema: AgentCapability<
 
 const openingQuestions: readonly DesignInterviewQuestion[] = [
   {
+    kind: "discussion",
     questionId: "opening-1",
     ordinal: 1,
     phase: "opening",
@@ -75,6 +84,7 @@ const openingQuestions: readonly DesignInterviewQuestion[] = [
     question: "Walk me through the request path from the user to the system and explain the main design decisions.",
   },
   {
+    kind: "discussion",
     questionId: "opening-2",
     ordinal: 2,
     phase: "opening",
@@ -84,6 +94,7 @@ const openingQuestions: readonly DesignInterviewQuestion[] = [
     question: "What are the first components or dependencies you would investigate under a traffic spike or partial failure, and why?",
   },
   {
+    kind: "discussion",
     questionId: "opening-3",
     ordinal: 3,
     phase: "opening",
@@ -136,6 +147,7 @@ function buildAgenda(context: AgentContext): readonly DesignInterviewQuestion[] 
       if (emittedServiceGroup) continue;
       emittedServiceGroup = true;
       agenda.push({
+        kind: "component",
         questionId: "component-services",
         ordinal: openingQuestions.length + agenda.length + 1,
         phase: "component",
@@ -147,6 +159,7 @@ function buildAgenda(context: AgentContext): readonly DesignInterviewQuestion[] 
       continue;
     }
     agenda.push({
+      kind: "component",
       questionId: "component-" + component.id,
       ordinal: openingQuestions.length + agenda.length + 1,
       phase: "component",
@@ -159,12 +172,36 @@ function buildAgenda(context: AgentContext): readonly DesignInterviewQuestion[] 
   return agenda;
 }
 
+export function buildSimulationInterviewQuestion(
+  context: AgentContext,
+  baselineArchitectureRevision = context.evidenceMeta?.architectureRevision ?? "unversioned",
+): DesignInterviewQuestion {
+  const originalRps = context.challenge.workload?.requestsPerSecond ?? 0;
+  const doubledRps = originalRps * 2;
+  const requirementLabels = (context.challenge.requirements ?? []).map((requirement) => requirement.label).slice(0, 6);
+  const requirementText = requirementLabels.length > 0 ? ` Active requirements: ${requirementLabels.join(", ")}.` : "";
+  return {
+    kind: "simulation",
+    questionId: "simulation-traffic-double-v1",
+    ordinal: 0,
+    phase: "simulation",
+    label: "Doubled demand redesign",
+    componentIds: [],
+    grouped: false,
+    question: `Demand has doubled from ${originalRps} to ${doubledRps} requests/sec while the original latency, reliability, and budget requirements still apply. Change the actual design on the canvas to handle the new condition. You may add, remove, connect, deploy, or reconfigure components. When you are satisfied, tell me: “Review my redesign.”${requirementText}`,
+    scenario: { type: "traffic_multiplier", parameters: { multiplier: 2 } },
+    sourceChallengeId: context.challenge.slug,
+    baselineArchitectureRevision,
+  };
+}
+
 export function buildStartDesignInterviewOutput(
   context: AgentContext,
   input: BuildStartDesignInterviewInput,
 ): CapabilityResult<StartDesignInterviewOutput> {
   const agenda = buildAgenda(context);
-  const questions = [...openingQuestionsFor(context), ...agenda];
+  const simulationQuestion = buildSimulationInterviewQuestion(context, input.baselineArchitectureRevision);
+  const questions = [...openingQuestionsFor(context), ...agenda, { ...simulationQuestion, ordinal: openingQuestions.length + agenda.length + 1 }];
   const totalQuestions = questions.length;
   if (input.step >= totalQuestions) {
     return capabilityError("INVALID_INPUT", "Interview step must be between 0 and " + String(totalQuestions - 1) + ".");
@@ -185,14 +222,13 @@ export function buildStartDesignInterviewOutput(
   ) : undefined;
 
   return capabilityOk({
-    interviewVersion: "design-interview-2",
+    interviewVersion: "design-interview-3",
     phase: item.phase,
     step: input.step,
     totalQuestions,
     questionId: item.questionId,
     architectureRevision: evidenceRevision,
     question: item.question,
-    agenda,
     componentIds: item.componentIds,
     grouped: item.grouped,
     ...(item.focus ? { focus: item.focus } : {}),
@@ -202,6 +238,9 @@ export function buildStartDesignInterviewOutput(
       input.step < totalQuestions - 1
         ? [{ name: "start_design_interview", reason: "Advance to the next interview question after the player is ready." }]
         : [{ name: "get_metrics", reason: "Ground the closing discussion in current simulator evidence." }],
+    ...(item.scenario ? { scenario: item.scenario } : {}),
+    ...(item.sourceChallengeId ? { sourceChallengeId: item.sourceChallengeId } : {}),
+    ...(item.baselineArchitectureRevision ? { baselineArchitectureRevision: item.baselineArchitectureRevision } : {}),
   });
 }
 

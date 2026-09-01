@@ -53,7 +53,7 @@ The player’s job is to **evolve** this MVP: add layers, scale out, place capac
 Alternative modes (future product flags):
 
 - **Blank canvas** — for experienced players; same requirements.
-- **Broken prod** — same starter but pre-saturated with red metrics and a narrative incident ticket (attack mode companion).
+- **Broken prod** — same starter but pre-saturated with red metrics and a narrative incident ticket (future companion mode).
 
 Level 1 default is **inherited MVP** because it gives immediate context, visible failure, and a satisfying before/after arc without prescribing a solution.
 
@@ -390,7 +390,9 @@ All requirements are evaluated from simulator + cost outcomes. **No component na
 |---|---|---|---|
 | `availability` | Availability | 99.99% | Deferred until truthful failure/failover semantics exist. Shown in briefing; not pass/fail. |
 
-Future attack mode (agent experiment): cache flush, component failure, region failure — players respond with spare capacity, replication, and multi-region structure already built for scale.
+Future scenario variants may explore cache pressure, component availability, or
+regional availability; players respond with spare capacity, replication, and
+multi-region structure already built for scale.
 
 ---
 
@@ -430,7 +432,7 @@ Players who earn the cheapest valid lock on the leaderboard must optimize **cost
 - Async ingestion (Queue, Worker, Event Stream).
 - Rate limiting and flash-traffic correctness primitives.
 - Prescribed “winning topology” or technology mandates.
-- Fake HA checkboxes — resilience must come from structure the simulator can evaluate when attack mode ships.
+- Fake HA checkboxes — resilience must come from structure the simulator can evaluate when future resilience scenarios ship.
 
 **Difficulty comes from the level, not from hidden rules.** The briefing states workload, geography, budget, and SLOs; the simulator determines truth.
 

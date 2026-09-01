@@ -34,6 +34,8 @@ import {
   followUpDesignInterviewCapability,
   advanceDesignInterviewCapability,
   endDesignInterviewCapability,
+  prepareInterviewSimulationReviewCapability,
+  submitInterviewSimulationCritiqueCapability,
 } from "./interview-capabilities.js";
 
 export {
@@ -138,6 +140,8 @@ export {
   followUpDesignInterviewCapability,
   advanceDesignInterviewCapability,
   endDesignInterviewCapability,
+  prepareInterviewSimulationReviewCapability,
+  submitInterviewSimulationCritiqueCapability,
 } from "./interview-capabilities.js";
 export {
   startDesignInterviewCapability,

@@ -1,7 +1,7 @@
 import type { AgentCapability, CapabilityExecutionOptions, CapabilityInputSchema } from "../capability.js";
 import type { AgentContext } from "../context.js";
 import type { InterviewService, InterviewServiceSnapshot } from "../interview-service-port.js";
-import { safeParseInterviewEvaluation } from "../interview-protocol.js";
+import { safeParseInterviewEvaluation, safeParseInterviewSimulationCritique } from "../interview-protocol.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 
 type SessionCapability<TInput> = AgentCapability<AgentContext, TInput, CapabilityResult<InterviewServiceSnapshot>>;
@@ -10,6 +10,8 @@ export type SubmitInterviewAnswerInput = QuestionInput & { readonly answerId?: s
 export type FollowUpInterviewInput = QuestionInput & { readonly followUpId?: string; readonly question: string; readonly answer: string };
 export type AdvanceInterviewInput = QuestionInput & { readonly ready: true };
 export type EndInterviewInput = { readonly interviewId: string };
+export type PrepareSimulationReviewInput = QuestionInput;
+export type SubmitSimulationCritiqueInput = QuestionInput & { readonly reviewDigest: string; readonly candidateArchitectureRevision: string; readonly critique: unknown };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -157,6 +159,44 @@ export const restartDesignInterviewCapability: SessionCapability<Record<string, 
   execute: executeWithService(async (context, _input, interview) => interview.restart(context)),
 };
 
+export const prepareInterviewSimulationReviewCapability: SessionCapability<PrepareSimulationReviewInput> = {
+  name: "prepare_interview_simulation_review",
+  description: "Evaluate the original and redesigned architectures under the fixed interview simulation scenario and return digest-bound coaching evidence.",
+  inputSchema: sessionSchema("prepare_interview_simulation_review", questionProperties, ["interviewId", "questionId"], (value) => {
+    if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId)) return "interviewId and questionId are required.";
+    return { interviewId: value.interviewId, questionId: value.questionId };
+  }),
+  mode: "session",
+  availableWhen: () => true,
+  annotations: { idempotentHint: true },
+  execute: executeWithService(async (context, input, interview) => {
+    if (!interview.prepareSimulationReview) throw new Error("Simulation review is unavailable in this host.");
+    const snapshot = await interview.prepareSimulationReview(context, input);
+    verifyInterview(snapshot, input.interviewId, input.questionId);
+    return snapshot;
+  }),
+};
+
+export const submitInterviewSimulationCritiqueCapability: SessionCapability<SubmitSimulationCritiqueInput> = {
+  name: "submit_interview_simulation_critique",
+  description: "Save a bounded critique grounded in the current digest-bound simulation review and complete the interview.",
+  inputSchema: sessionSchema("submit_interview_simulation_critique", { ...questionProperties, reviewDigest: { type: "string", minLength: 1 }, candidateArchitectureRevision: { type: "string", minLength: 1 }, critique: { type: "object" } }, ["interviewId", "questionId", "reviewDigest", "candidateArchitectureRevision", "critique"], (value) => {
+    if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId) || !text(value.reviewDigest) || !text(value.candidateArchitectureRevision) || value.critique === undefined) return "interviewId, questionId, reviewDigest, candidateArchitectureRevision, and critique are required.";
+    return { interviewId: value.interviewId, questionId: value.questionId, reviewDigest: value.reviewDigest, candidateArchitectureRevision: value.candidateArchitectureRevision, critique: value.critique };
+  }),
+  mode: "session",
+  availableWhen: () => true,
+  annotations: { idempotentHint: true },
+  execute: executeWithService(async (context, input, interview) => {
+    if (!interview.submitSimulationCritique) throw new Error("Simulation critique is unavailable in this host.");
+    const critique = safeParseInterviewSimulationCritique(input.critique);
+    if (!critique.success) throw new Error(critique.errors.join(" "));
+    const snapshot = await interview.submitSimulationCritique(context, { ...input, critique: critique.data });
+    verifyInterview(snapshot, input.interviewId);
+    return snapshot;
+  }),
+};
+
 export const DESIGN_INTERVIEW_CAPABILITIES = [
   getDesignInterviewCapability,
   submitInterviewAnswerCapability,
@@ -164,4 +204,6 @@ export const DESIGN_INTERVIEW_CAPABILITIES = [
   advanceDesignInterviewCapability,
   endDesignInterviewCapability,
   restartDesignInterviewCapability,
+  prepareInterviewSimulationReviewCapability,
+  submitInterviewSimulationCritiqueCapability,
 ] as const;

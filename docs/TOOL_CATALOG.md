@@ -63,19 +63,11 @@ reconfigure architecture.
 | `highlight_connection` | Visually highlight a validated connection between components. |
 | `clear_annotations` | Remove agent coaching annotations from the canvas. |
 
-## Simulated experiments
+## Interview simulation
 
-Experiments are temporary simulator overlays and require explicit human consent
-for the named experiment. They never represent real traffic or outages.
-
-| Tool | Brief description |
-| --- | --- |
-| `run_load_test` | Simulate a bounded load test against the current design. |
-| `change_traffic_pattern` | Simulate a changed traffic mix or workload pattern. |
-| `flush_cache` | Simulate a cache flush and its temporary traffic effects. |
-| `inject_component_failure` | Simulate failure of a selected component. |
-| `inject_region_failure` | Simulate failure of a selected region. |
-| `slow_consumers` | Simulate slower downstream consumers and resulting pressure. |
+The design interview owns the supported simulation scenario. It evaluates the
+player's redesigned architecture under a bounded changed condition and returns
+coaching evidence; it does not expose standalone agent-triggered scenarios.
 
 ## Safety and usage notes
 

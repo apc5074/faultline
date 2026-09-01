@@ -14,6 +14,8 @@ const expected = [
   "advance_design_interview",
   "end_design_interview",
   "restart_design_interview",
+  "prepare_interview_simulation_review",
+  "submit_interview_simulation_critique",
 ];
 assert.deepEqual(DESIGN_INTERVIEW_CAPABILITIES.map((capability) => capability.name), expected.slice(1));
 assert.equal(startDesignInterviewCapability.mode, "session");

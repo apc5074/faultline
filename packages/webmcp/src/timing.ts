@@ -51,7 +51,7 @@ export interface WebMcpTraceEvent {
   readonly framedTarget?: string;
   readonly interviewId?: string;
   readonly questionId?: string;
-  readonly interviewTransition?: "start" | "get" | "answer" | "follow_up" | "advance" | "end" | "restart";
+  readonly interviewTransition?: "start" | "get" | "answer" | "follow_up" | "advance" | "prepare_review" | "submit_critique" | "end" | "restart";
   readonly evaluationVerdict?: "correct" | "partial" | "incorrect";
 }
 

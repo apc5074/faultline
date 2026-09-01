@@ -45,7 +45,7 @@ function interviewTraceFields(value: unknown): Pick<import("./timing.js").WebMcp
   };
 }
 
-function interviewTransition(name: string): "start" | "get" | "answer" | "follow_up" | "advance" | "end" | "restart" | undefined {
+function interviewTransition(name: string): "start" | "get" | "answer" | "follow_up" | "advance" | "prepare_review" | "submit_critique" | "end" | "restart" | undefined {
   if (name === "start_design_interview") return "start";
   if (name === "get_design_interview") return "get";
   if (name === "submit_interview_answer") return "answer";
@@ -53,6 +53,8 @@ function interviewTransition(name: string): "start" | "get" | "answer" | "follow
   if (name === "advance_design_interview") return "advance";
   if (name === "end_design_interview") return "end";
   if (name === "restart_design_interview") return "restart";
+  if (name === "prepare_interview_simulation_review") return "prepare_review";
+  if (name === "submit_interview_simulation_critique") return "submit_critique";
   return undefined;
 }
 
@@ -73,6 +75,8 @@ const TOOL_TITLES: Readonly<Record<string, string>> = {
   advance_design_interview: "Advance design interview",
   end_design_interview: "End design interview",
   restart_design_interview: "Restart design interview",
+  prepare_interview_simulation_review: "Prepare simulation review",
+  submit_interview_simulation_critique: "Submit simulation critique",
   expand_design_evidence: "Expand design evidence",
   inspect_design_entity: "Inspect design entity",
   inspect_component_option: "Inspect component option",
@@ -104,6 +108,8 @@ function webMcpDescription(capability: RegisteredCapability): string {
     advance_design_interview: "Advance exactly one question after the player explicitly says they are ready. Requires ready: true and the current question ID.",
     end_design_interview: "End the active browser-owned interview. Does not change the architecture, official attempts, or leaderboard.",
     restart_design_interview: "Start a new interview on the current architecture while preserving the prior browser-scoped interview in history. Use only after the player explicitly asks to restart.",
+    prepare_interview_simulation_review: "After the player says Review my redesign, evaluate the baseline and current canvas design under the fixed traffic×2 scenario. Returns bounded simulated evidence and a digest; does not edit the architecture or submit official results.",
+    submit_interview_simulation_critique: "Save a concise critique grounded only in the current simulation review digest. Completes the coaching interview; never claims official pass/fail.",
     get_architecture: "Read the current architecture and inventory for board-wide contents, logical component counts, and connections. Use this for unqualified board questions; do not reuse after a board edit.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
     inspect_component: "Read the current invocation revision. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all by default for type-wide/count/existence, topmost only when positional. Do not reuse after a board edit.",

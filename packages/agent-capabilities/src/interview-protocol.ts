@@ -1,8 +1,10 @@
 import type { CapabilityInputSchema, CapabilityInputValidationResult } from "./capability.js";
-import type { InterviewEvaluation } from "./interview-state.js";
+import type { InterviewEvaluation, InterviewSimulationCritique } from "./interview-state.js";
 
 export const INTERVIEW_EVALUATION_MAX_TEXT_LENGTH = 4_000;
 export const INTERVIEW_EVALUATION_MAX_ITEMS = 8;
+export const INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH = 4_000;
+export const INTERVIEW_SIMULATION_CRITIQUE_MAX_ITEMS = 8;
 
 export type InterviewEvaluationGrounding =
   | "architecture_evidence"
@@ -104,6 +106,32 @@ export function safeParseInterviewEvaluation(value: unknown): CapabilityInputVal
       ...(value.confidence !== undefined ? { confidence: value.confidence } : {}),
     },
   };
+}
+
+export function safeParseInterviewSimulationCritique(value: unknown): CapabilityInputValidationResult<InterviewSimulationCritique> {
+  if (!isRecord(value)) return { success: false, errors: ["Simulation critique must be an object."] };
+  const allowed = new Set(["verdict", "summary", "strengths", "gaps", "nextStep", "grounding"]);
+  if (Object.keys(value).some((key) => !allowed.has(key))) return { success: false, errors: ["Simulation critique contains unknown properties."] };
+  if (value.verdict !== "satisfies" && value.verdict !== "partially_satisfies" && value.verdict !== "does_not_satisfy") return { success: false, errors: ["verdict must be satisfies, partially_satisfies, or does_not_satisfy."] };
+  if (value.grounding !== "simulator_evidence" && value.grounding !== "validation_evidence" && value.grounding !== "insufficient_evidence") return { success: false, errors: ["grounding must identify the evidence basis."] };
+  const textValue = (name: string): { value?: string; error?: string } => {
+    if (typeof value[name] !== "string" || value[name].trim().length === 0) return { error: `${name} must be a non-empty string.` };
+    if ((value[name] as string).length > INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH) return { error: `${name} must be at most ${INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH} characters.` };
+    return { value: value[name] as string };
+  };
+  const items = (name: string): { value?: readonly string[]; error?: string } => {
+    if (!Array.isArray(value[name]) || (value[name] as unknown[]).length > INTERVIEW_SIMULATION_CRITIQUE_MAX_ITEMS) return { error: `${name} must be an array of at most ${INTERVIEW_SIMULATION_CRITIQUE_MAX_ITEMS} strings.` };
+    const parsed = (value[name] as unknown[]).map((item) => typeof item === "string" && item.trim().length > 0 && item.length <= INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH ? item : undefined);
+    if (parsed.some((item) => item === undefined)) return { error: `${name} must contain bounded non-empty strings.` };
+    return { value: parsed as string[] };
+  };
+  const summary = textValue("summary");
+  const nextStep = textValue("nextStep");
+  const strengths = items("strengths");
+  const gaps = items("gaps");
+  const errors = [summary.error, nextStep.error, strengths.error, gaps.error].filter((error): error is string => Boolean(error));
+  if (errors.length > 0) return { success: false, errors };
+  return { success: true, data: { verdict: value.verdict, summary: summary.value!, strengths: strengths.value!, gaps: gaps.value!, nextStep: nextStep.value!, grounding: value.grounding } };
 }
 
 export const interviewEvaluationSchema: CapabilityInputSchema<InterviewEvaluationResult> = {

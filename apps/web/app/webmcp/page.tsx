@@ -163,27 +163,6 @@ export default function WebMcpPage() {
             ))}
           </ol>
         </section>
-
-        <footer className="webmcp-guide__footer">
-          <p>
-            <strong>Building for the OpenAI WebMCP Challenge?</strong> Faultline
-            is designed to show a real human-and-agent workflow, not just a tool
-            demo: a working live project, meaningful WebMCP usage, and a clear
-            explanation of what became possible together.
-          </p>
-          <p className="webmcp-guide__fineprint">
-            This guide is product documentation, not official contest guidance.
-            The{" "}
-            <a
-              href="https://webmcp.devpost.com"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Official Rules
-            </a>{" "}
-            and Hackathon Website control in the event of a conflict.
-          </p>
-        </footer>
       </div>
     </main>
   );

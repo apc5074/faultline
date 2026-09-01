@@ -8,3 +8,4 @@ export * from "./experiment.js";
 export * from "./workload-flow.js";
 export * from "./workload-contract.js";
 export * from "./region.js";
+export * from "./architecture-comparison.js";

@@ -41,10 +41,9 @@ It must never be presented as the result of the changed architecture.
 ## Agent collaboration
 
 When a compatible host is available, an agent can inspect the live design,
-surface grounded findings, add removable visual annotations, and run supported
-temporary experiments after the required human consent. The agent cannot edit
-the player's canonical architecture, submit an official attempt, or create
-leaderboard state.
+surface grounded findings, add removable visual annotations, and conduct the
+structured design interview. The agent cannot edit the player's canonical
+architecture, submit an official attempt, or create leaderboard state.
 
 WebMCP availability is progressive enhancement. The core design-and-simulate
 loop remains available when browser agent tooling is unavailable or disabled.
@@ -73,8 +72,8 @@ simulation.
   catalog, simulator, challenge allowance, and UI consumers.
 - Educational numbers are deterministic product-model assumptions, not cloud
   provider pricing, real outage reports, or external monitoring data.
-- Experiments model temporary scenarios. They are not real failures and do not
-  mutate player architecture or official results.
+- Interview simulation scenarios are temporary evaluations. They do not mutate
+  player architecture or official results.
 
 ## Where to find implementation truth
 

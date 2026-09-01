@@ -1,4 +1,4 @@
-/** P10-012 — supported attacks expose hypotheses and simulator evidence without mutating architecture. */
+/** P10-012 — retired standalone scenario presentation quality checks. */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
@@ -24,4 +24,4 @@ assert.match(controls, /unavailableReason/);
 assert.doesNotMatch(controls, /evaluateExperiment/);
 assert.doesNotMatch(panel, /must use|canonical topology|auto.?fix/i);
 
-console.log("attack quality verified");
+console.log("scenario quality verified");

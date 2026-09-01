@@ -6,6 +6,8 @@ function statusLabel(snapshot: InterviewServiceSnapshot, stale: boolean): string
   if (stale) return "Stale — restart on the current design";
   if (snapshot.state.status === "awaiting_answer") return "Answer requested";
   if (snapshot.state.status === "awaiting_follow_up_or_next") return "Follow-up or next question";
+  if (snapshot.state.status === "awaiting_design_change") return "Redesign the architecture";
+  if (snapshot.state.status === "awaiting_simulation_critique") return "Review ready for critique";
   if (snapshot.state.status === "completed") return "Complete";
   if (snapshot.state.status === "abandoned") return "Ended";
   return snapshot.state.status;
@@ -19,7 +21,7 @@ export function InterviewStatusPanel({
   currentArchitectureRevision: string;
 }) {
   if (!snapshot) return null;
-  const stale = snapshot.state.architectureRevision !== currentArchitectureRevision;
+  const stale = snapshot.state.status === "stale" || (snapshot.state.phase !== "simulation" && snapshot.state.architectureRevision !== currentArchitectureRevision);
   const question = snapshot.question;
   return (
     <section className={`interview-status-panel${stale ? " interview-status-panel--stale" : ""}`} aria-label="Design interview status">

@@ -37,6 +37,63 @@ readiness advances the state. `classifyInterviewReadiness` is intentionally
 conservative: a new technical question is a follow-up and ambiguous language
 does not advance.
 
+### Integrated simulation question contract
+
+The integrated interview contract is frozen as `design-interview-3`, with
+orchestration guidance version `design-interview-orchestration-2`. The browser
+payload now uses version 3 and browser storage uses an explicit v2 key/version;
+records from the previous active version are not coerced into a state that
+does not contain the simulation question. They are discarded or archived by
+the storage migration and the player is offered a restart.
+
+The fixed order is three opening questions, one question per component agenda
+item (with stateless services grouped as today), exactly one simulation
+question, then completion after a valid critique is saved. The simulation
+question is `simulation-traffic-double-v1` and its scenario is always
+`{ type: "traffic_multiplier", parameters: { multiplier: 2 } }`. Faultline
+chooses that scenario; the external model cannot select a multiplier, choose
+among scenarios, or edit the architecture.
+
+The player edits the canonical canvas architecture during the simulation
+question. The prompt is derived from challenge facts and asks the player to
+handle doubled demand while the original latency, reliability, and budget
+requirements still apply. It may expose original and doubled request rates and
+requirement labels, but it must not prescribe a topology, component, threshold,
+or canonical solution. The player explicitly says “Review my redesign” to
+request review.
+
+The interview captures one validated semantic baseline at start, including its
+architecture revision, challenge identity/version, and fixed scenario. Semantic
+architecture identity and deltas include components, connections, config, and
+deployments, while ignoring UI coordinates, selection, annotations, playback,
+view mode, and array ordering. Before the simulation question, a semantic edit
+stales the interview and requires restart. During the simulation question, a
+semantic edit is the candidate answer; UI-only edits never stale it.
+
+The lifecycle and action classification are:
+
+| Player/host action | Faultline transition |
+| --- | --- |
+| Answer a discussion question | Validate and store the bounded evaluation; remain on the question. |
+| Ask a follow-up | Store it against the current discussion question; do not advance. |
+| Explicitly say ready/next | Advance exactly one opening or component question. The final component advances to `awaiting_design_change`. |
+| Redesign the canvas during simulation | Update the candidate architecture; remain `awaiting_design_change`. |
+| Say “Review my redesign” | Prepare a digest-bound simulator review of baseline and candidate. |
+| Submit the structured critique | Require the current digest, store the critique, and complete immediately. |
+| Restart | Archive bounded prior browser state and capture a fresh baseline/scenario. |
+| Abandon/dismiss | End the active interview without official submission or leaderboard writes. |
+
+No answer shortcut advances from a component question into simulation or from
+simulation into completion. Discussion answer/follow-up APIs reject the
+simulation question. A no-edit review request returns bounded `INVALID_INPUT`
+and asks for a semantic redesign. An invalid candidate returns bounded
+validation evidence and may receive a `does_not_satisfy` coaching critique,
+but never fabricated metrics. A repeated review replaces only the prepared
+packet while no critique has been submitted. Editing after preparation makes
+the digest stale and requires fresh preparation. Refresh resumes the same
+baseline, scenario, and phase; restart creates a new baseline. Completion is
+coaching only and never means official pass/fail.
+
 The first three opening slots are dynamically contextualized from the active
 challenge, workload, requirements, architecture inventory, and available
 simulator evidence. The external LLM writes fresh wording for the returned
@@ -44,21 +101,21 @@ focus instead of repeating a fixed question template. Faultline persists the
 stable slot and context signals, so this scales to new levels while the
 reducer still controls order and transitions.
 
-The shared coaching policy includes the versioned orchestration contract
-`design-interview-orchestration-1`. It tells an external host when to call the
-start, answer, follow-up, and advance tools, how to recover from retries or
-stale sessions, and how to avoid revealing future questions. This is guidance;
-the interview reducer and browser service remain the authority for transitions.
-If the architecture changes, the service marks the active interview stale;
-restart_design_interview is the explicit recovery path and preserves the prior
-browser-scoped record in local history.
+The shared coaching policy includes the versioned orchestration contract above.
+It tells an external host when to call the start, answer, follow-up, advance,
+prepare-review, and submit-critique tools, how to recover from retries or stale
+sessions, and how to avoid revealing future questions. This is guidance; the
+interview reducer and browser service remain the authority for transitions.
 
 Evaluation output is validated before persistence or presentation. Its
 `grounding` field distinguishes current architecture evidence, general system
 design reasoning, and insufficient evidence. Model prose cannot edit the
-architecture, submit an attempt, run an experiment, reveal future questions,
-or decide official pass/fail. The browser-scoped interview service owns legal
-transitions, while the external model owns conversational explanations.
+architecture, select an unbounded scenario, submit an attempt, reveal future
+questions, or decide official pass/fail. The
+simulation critique uses a dedicated bounded verdict schema (`satisfies`,
+`partially_satisfies`, or `does_not_satisfy`) and must cite only returned
+simulator or validation evidence. The browser-scoped interview service owns
+legal transitions, while the external model owns conversational explanations.
 
 ## Official competition
 

@@ -14,10 +14,10 @@ const context = {
 const state = {
   interviewId: "interview-1",
   architectureRevision: "rev-1",
-  questions: [{ questionId: "q-opening-1", ordinal: 1, phase: "opening", prompt: "What is the read path?", componentIds: [], grouped: false }],
+  questions: [{ kind: "discussion", questionId: "q-opening-1", ordinal: 1, phase: "opening", prompt: "What is the read path?", componentIds: [], grouped: false }],
   phase: "opening",
   status: "awaiting_answer",
-  currentQuestion: { questionId: "q-opening-1", ordinal: 1, phase: "opening", prompt: "What is the read path?", componentIds: [], grouped: false },
+  currentQuestion: { kind: "discussion", questionId: "q-opening-1", ordinal: 1, phase: "opening", prompt: "What is the read path?", componentIds: [], grouped: false },
   questionOrdinal: 1,
   totalQuestions: 1,
   answers: [],
@@ -32,20 +32,23 @@ const interviewService = {
   followUp: () => snapshot,
   advance: () => snapshot,
   end: () => snapshot,
+  prepareSimulationReview: () => snapshot,
+  submitSimulationCritique: () => snapshot,
 };
 const registry = createDefaultCapabilityRegistry();
 const getContext = () => context;
 
 const unavailable = await buildInterviewWebMcpSurface({ registry, getContext });
 assert.deepEqual(unavailable.tools, []);
-assert.equal(unavailable.skipped.length, 7);
+assert.equal(unavailable.skipped.length, 9);
 
 const surface = await buildInterviewWebMcpSurface({ registry, getContext, interviewService });
 assert.deepEqual(surface.resolvedNames, [
   "start_design_interview", "get_design_interview", "submit_interview_answer",
   "follow_up_design_interview", "advance_design_interview", "end_design_interview", "restart_design_interview",
+  "prepare_interview_simulation_review", "submit_interview_simulation_critique",
 ]);
-assert.equal(surface.tools.length, 7);
+assert.equal(surface.tools.length, 9);
 const start = surface.tools.find((tool) => tool.name === "start_design_interview");
 assert.ok(start);
 const result = await start.execute({}, {});

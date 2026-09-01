@@ -178,9 +178,40 @@ The dedicated `stable-interview` surface exposes `start_design_interview`,
 resumes one current stable-ID question. Answers are stored without advancing;
 follow-ups remain on that question; advance requires explicit readiness; and
 restart creates a new agenda while retaining bounded browser-local history.
-Architecture edits mark the active interview stale before mutation attempts are
-accepted. These operations cannot edit architecture, submit official attempts,
-affect leaderboards, or run experiments.
+The integrated contract adds `simulation` to the phase union and uses payload
+version `design-interview-3` and orchestration version
+`design-interview-orchestration-2`. Browser records use an explicit v2 storage
+key/version; older active records are not coerced into the new state and must
+be discarded or archived before offering restart.
+
+The integrated order is exactly three opening questions, the current component
+agenda, one final `simulation` question, and completion after a digest-bound
+critique. The v1 simulation scenario is fixed by Faultline to traffic demand
+multiplied by two. The model receives only the current question and bounded
+progress; it cannot see or choose a future scenario.
+
+Architecture edits are phase-aware: before simulation, a semantic edit marks
+the interview stale and requires restart; during simulation, semantic edits
+are the candidate answer. UI coordinates, selection, annotations, playback,
+and view mode never affect the semantic revision. A UI-only edit therefore
+never stales the interview. The baseline is the validated semantic architecture
+captured at start, not a later visible simulator run.
+
+The host classifies actions as discussion answer, follow-up, explicit advance,
+simulation redesign, review request, critique submission, restart, or abandon.
+The final component's explicit advance enters `awaiting_design_change`; normal
+answer/follow-up calls are invalid for the simulation question. Review
+preparation evaluates the stored baseline and current candidate under the
+fixed scenario and returns a bounded digest-bound packet. A no-edit request is
+`INVALID_INPUT`; invalid candidates return validation evidence without
+fabricated metrics. A later candidate edit invalidates the prepared digest and
+requires fresh preparation. A valid critique for the current digest completes
+the interview without another next acknowledgement.
+
+These operations cannot edit architecture, select an unbounded scenario,
+submit official attempts, affect leaderboards, or claim official pass/fail.
+Simulation output is explicitly simulated coaching evidence, and a critique
+must distinguish simulator facts from general systems reasoning.
 
 Interview diagnostics may include hashed evidence revisions, interview ID,
 question ID, transition, verdict, latency, and bounded error codes. They never

@@ -1,22 +1,24 @@
 "use client";
 
 import type { InterviewEvent, InterviewState } from "@faultline/agent-capabilities";
+import { validateArchitecture, type Architecture } from "@faultline/core";
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const MAX_EVENTS = 200;
 const MAX_RECORD_BYTES = 500_000;
-const STORAGE_PREFIX = "faultline:design-interview:v1:";
+const STORAGE_PREFIX = "faultline:design-interview:v2:";
 
 export type BrowserInterviewRecord = {
   readonly version: typeof STORAGE_VERSION;
   readonly revision: number;
   readonly state: InterviewState;
+  readonly baselineArchitecture: Architecture;
   readonly events: readonly BrowserInterviewEventRecord[];
   readonly updatedAt: string;
   readonly history?: readonly BrowserInterviewArchive[];
 };
 
-export type BrowserInterviewArchive = Pick<BrowserInterviewRecord, "version" | "revision" | "state" | "events" | "updatedAt">;
+export type BrowserInterviewArchive = Pick<BrowserInterviewRecord, "version" | "revision" | "state" | "baselineArchitecture" | "events" | "updatedAt">;
 
 export type BrowserInterviewEventRecord = {
   readonly eventId: string;
@@ -68,6 +70,7 @@ function isStoredRecord(value: unknown): value is BrowserInterviewRecord {
     && Number.isSafeInteger(value.revision)
     && value.revision >= 0
     && isRecord(value.state)
+    && validateArchitecture(value.baselineArchitecture).success
     && Array.isArray(value.events)
     && value.events.length <= MAX_EVENTS
     && typeof value.updatedAt === "string"
@@ -109,7 +112,7 @@ export function createBrowserInterviewRepository(ownerKey: string) {
       return readRecord(storage(), key);
     },
 
-    saveStarted(state: InterviewState, event: InterviewEvent): BrowserInterviewRecord {
+    saveStarted(state: InterviewState, event: InterviewEvent, baselineArchitecture: Architecture): BrowserInterviewRecord {
       if (event.type !== "start" || event.interviewId !== state.interviewId) {
         throw new BrowserInterviewStorageError("A start event must match the interview state.", "malformed");
       }
@@ -117,6 +120,7 @@ export function createBrowserInterviewRepository(ownerKey: string) {
         version: STORAGE_VERSION,
         revision: 0,
         state,
+        baselineArchitecture,
         events: [{ eventId: event.interviewId, event }],
         updatedAt: event.startedAt,
       };
@@ -124,7 +128,7 @@ export function createBrowserInterviewRepository(ownerKey: string) {
       return record;
     },
 
-    saveRestarted(previous: BrowserInterviewRecord, state: InterviewState, event: InterviewEvent): BrowserInterviewRecord {
+    saveRestarted(previous: BrowserInterviewRecord, state: InterviewState, event: InterviewEvent, baselineArchitecture: Architecture): BrowserInterviewRecord {
       if (event.type !== "start" || event.interviewId !== state.interviewId) {
         throw new BrowserInterviewStorageError("A restart event must match the interview state.", "malformed");
       }
@@ -132,6 +136,7 @@ export function createBrowserInterviewRepository(ownerKey: string) {
         version: previous.version,
         revision: previous.revision,
         state: previous.state,
+        baselineArchitecture: previous.baselineArchitecture,
         events: previous.events,
         updatedAt: previous.updatedAt,
       }];
@@ -139,6 +144,7 @@ export function createBrowserInterviewRepository(ownerKey: string) {
         version: STORAGE_VERSION,
         revision: 0,
         state,
+        baselineArchitecture,
         events: [{ eventId: event.interviewId, event }],
         updatedAt: event.startedAt,
         history: history.slice(-MAX_EVENTS),
@@ -166,6 +172,7 @@ export function createBrowserInterviewRepository(ownerKey: string) {
         version: STORAGE_VERSION,
         revision: current.revision + 1,
         state: input.state,
+        baselineArchitecture: current.baselineArchitecture,
         events: [...current.events, { eventId: input.eventId, event: input.event }],
         updatedAt: new Date().toISOString(),
       };

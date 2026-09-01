@@ -26,7 +26,7 @@ const components = [
 const service = createDesignInterviewService("e2e-owner");
 let current = service.start(context("rev-1", components));
 assert.equal(current.state.currentQuestion?.questionId, "opening-1");
-assert.equal(current.state.totalQuestions, 5);
+assert.equal(current.state.totalQuestions, 6);
 
 current = service.submitAnswer(context("rev-1", components), { questionId: "opening-1", answer: "The request reaches the service.", evaluation: evaluation("correct") });
 for (let count = 0; count < 3; count += 1) {
@@ -49,7 +49,7 @@ const resumed = createDesignInterviewService("e2e-owner").get(context("rev-1", c
 assert.equal(resumed.state.followUps.length, 3);
 assert.equal(resumed.state.answers[0]?.verdict, "correct");
 assert.equal(resumed.state.currentQuestion?.questionId, "opening-2");
-assert.ok(JSON.parse(localStorage.getItem("faultline:design-interview:v1:" + encodeURIComponent("stale-owner"))).history?.length === 1);
+assert.ok(JSON.parse(localStorage.getItem("faultline:design-interview:v2:" + encodeURIComponent("stale-owner"))).history?.length === 1);
 
 const completeService = createDesignInterviewService("complete-owner");
 let complete = completeService.start(context("rev-1"));
@@ -57,10 +57,11 @@ for (let ordinal = 1; ordinal <= 3; ordinal += 1) {
   const questionId = `opening-${ordinal}`;
   complete = completeService.submitAnswer(context("rev-1"), { questionId, answer: "A bounded answer.", evaluation: evaluation(ordinal === 2 ? "partial" : "incorrect") });
   complete = completeService.advance(context("rev-1"), { questionId, ready: true });
-  assert.equal(complete.state.questionOrdinal, ordinal < 3 ? ordinal + 1 : ordinal);
+  assert.equal(complete.state.questionOrdinal, ordinal + 1);
 }
-assert.equal(complete.state.status, "completed");
-assert.equal(complete.state.currentQuestion, null);
+assert.equal(complete.state.phase, "simulation");
+assert.equal(complete.state.status, "awaiting_design_change");
+assert.equal(complete.state.currentQuestion?.questionId, "simulation-traffic-double-v1");
 assert.throws(() => completeService.submitAnswer(context("rev-1"), { questionId: "opening-3", answer: "late", evaluation: evaluation("correct") }));
 
 console.log("verify-interview-e2e: ok");

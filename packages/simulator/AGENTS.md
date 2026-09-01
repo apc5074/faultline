@@ -81,7 +81,7 @@ events and evidence are authoritative presentation inputs.
 | Viral-key semantics | `hot-key.ts` | Cache traffic, Postgres capacity, requirements. |
 | Placement-aware behavior | `workload-affinity.ts` | Catalog mechanism mapping, traffic/events, cost, agent evidence. |
 | Completion/async workload semantics | `workload-paths.ts`, `workload-flow.ts`, `level2.ts` | Challenge contracts and requirement aggregation. |
-| Temporary scenarios | `experiment.ts` | Core experiment validation and agent experiment capabilities. |
+| Temporary scenarios | `experiment.ts` | Core experiment validation and interview scenario evaluation. |
 
 ## Output compatibility
 
