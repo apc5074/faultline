@@ -3964,7 +3964,6 @@ h1 {
 }
 
 .sim-bar__transport,
-.sim-bar__speed,
 .sim-bar__view {
   display: flex;
   align-items: center;
@@ -4018,18 +4017,12 @@ h1 {
   white-space: nowrap;
 }
 
-.sim-bar__button--speed,
 .sim-bar__button--view {
   border-color: var(--color-ink-hairline);
   background: transparent;
   color: var(--color-ink-faint);
 }
 
-.sim-bar__button--speed-first {
-  border-color: var(--color-ink-hairline);
-}
-
-.sim-bar__button--speed-active,
 .sim-bar__button--view-active {
   background: var(--color-ink);
   border-color: var(--color-ink);

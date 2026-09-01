@@ -11,11 +11,12 @@ import { buildSimGraph } from "./architecture-sim-graph";
 import { createRouteLingers, mergeRouteLingers, pruneRouteLingers } from "./route-linger";
 import type { SimComponent, SimConnection, SimPacket } from "./sim-types";
 import { resetTickSimulationState, tickSimulation } from "./tick-simulation";
-import type { PlaybackFrame, PlaybackSpeed, RouteLinger } from "./types";
+import type { PlaybackFrame, RouteLinger } from "./types";
 
 export type PlaybackPhase = "idle" | "playing" | "paused" | "settling" | "settled";
 /** Stillness after the rAF loop stops, before the verdict stamps in. */
 export const SETTLING_MS = 700;
+const PLAYBACK_SPEED = 2;
 
 const EMPTY_FRAME: PlaybackFrame = {
   packets: [],
@@ -27,12 +28,10 @@ const EMPTY_FRAME: PlaybackFrame = {
 
 export function usePlaybackController() {
   const [phase, setPhase] = useState<PlaybackPhase>("idle");
-  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [frame, setFrame] = useState<PlaybackFrame>(EMPTY_FRAME);
   const [timelineDurationMs, setTimelineDurationMs] = useState(0);
 
   const phaseRef = useRef<PlaybackPhase>("idle");
-  const speedRef = useRef<PlaybackSpeed>(1);
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number>(0);
   const tickRef = useRef(0);
@@ -55,8 +54,6 @@ export function usePlaybackController() {
   const authoritativeTrafficRef = useRef<AuthoritativeTrafficPlan | null>(null);
 
   phaseRef.current = phase;
-  speedRef.current = speed;
-
   const stopLoop = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
@@ -73,7 +70,7 @@ export function usePlaybackController() {
       simComponentsRef.current,
       simConnectionsRef.current,
       packetsRef.current,
-      speedRef.current,
+      PLAYBACK_SPEED,
       tickRef.current,
       {
         volumeShareByComponentId: volumeShareRef.current ?? undefined,
@@ -121,7 +118,7 @@ export function usePlaybackController() {
         lastFrameRef.current = now;
         tickRef.current += 1;
         if (remainingTimelineMsRef.current !== null) {
-          remainingTimelineMsRef.current -= elapsed * speedRef.current;
+          remainingTimelineMsRef.current -= elapsed * PLAYBACK_SPEED;
           const elapsedTimelineMs = timelineDurationRef.current - Math.max(0, remainingTimelineMsRef.current);
           timelineRampRef.current = runRamp01(elapsedTimelineMs, timelineDurationRef.current);
           while (timelineEventsRef.current[timelineEventIndexRef.current]?.atMs <= elapsedTimelineMs) {
@@ -338,7 +335,6 @@ export function usePlaybackController() {
 
   return {
     phase,
-    speed,
     frame,
     timelineDurationMs,
     runSeq,
@@ -351,12 +347,9 @@ export function usePlaybackController() {
     resume,
     step,
     reset,
-    setSpeed,
     syncArchitecture,
     markComponentFailed,
     setVolumeShares,
     setAuthoritativeTraffic,
   };
 }
-
-export type { PlaybackSpeed } from "./types";

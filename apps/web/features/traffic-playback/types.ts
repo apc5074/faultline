@@ -1,5 +1,3 @@
-export type PlaybackSpeed = 0.5 | 1 | 2;
-
 export type PacketShape = "request" | "response" | "write" | "event" | "rejected";
 
 export interface PlaybackPacket {

@@ -264,7 +264,6 @@ function ArchitectureWorkspace() {
           playbackRunning={workspace.playback.playbackRunning}
           playbackPaused={workspace.playback.playbackPaused}
           playbackPhase={workspace.playback.phase}
-          playbackSpeed={workspace.playback.speed}
           timelineProgress01={workspace.playback.frame.timelineProgress01}
           timelineDurationMs={workspace.playback.timelineDurationMs}
           runState={workspace.runState}
@@ -281,7 +280,6 @@ function ArchitectureWorkspace() {
           onPause={workspace.playback.pause}
           onStep={workspace.handleSimBarStep}
           onReset={workspace.handleSimBarReset}
-          onSpeedChange={workspace.playback.setSpeed}
           onViewModeChange={workspace.handleViewModeChange}
           onSubmitOfficial={workspace.onSubmitOfficial}
         />

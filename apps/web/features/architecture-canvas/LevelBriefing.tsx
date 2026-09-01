@@ -339,6 +339,10 @@ export function useLevelBriefing() {
 
   useEffect(() => {
     if (forceBrief) {
+      // The query flag is navigation intent, not durable modal state. Remove
+      // it as soon as it has opened the briefing so a browser refresh does
+      // not reopen the overlay.
+      stripBriefParam();
       setHelpOpen(false);
       setOpen(true);
       return;
@@ -346,7 +350,16 @@ export function useLevelBriefing() {
 
     if (introInitializedRef.current) return;
     introInitializedRef.current = true;
-    const shouldShowIntro = forceIntro || consumeLevelIntroPending();
+    // The home link supplies both a query trigger and a session marker. Read
+    // the marker even when the query is present; otherwise `||` short-circuits
+    // and leaves it behind to reopen Help after a refresh.
+    const introPending = consumeLevelIntroPending();
+    const shouldShowIntro = forceIntro || introPending;
+    if (forceIntro) {
+      // As above, consume the URL trigger on entry. The session-storage flag
+      // has already been consumed, so a refresh stays on the playable board.
+      stripIntroParam();
+    }
     if (!shouldShowIntro) {
       setHelpOpen(false);
       setOpen(false);
@@ -355,7 +368,7 @@ export function useLevelBriefing() {
 
     setHelpOpen(true);
     setOpen(false);
-  }, [forceBrief, forceIntro]);
+  }, [forceBrief, forceIntro, stripBriefParam, stripIntroParam]);
 
   const closeBriefing = useCallback(() => {
     setOpen(false);

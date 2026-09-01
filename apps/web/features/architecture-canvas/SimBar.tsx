@@ -4,15 +4,13 @@ import { useId, useState } from "react";
 
 import type { RequirementsEvaluationResult, SimulationValidationError } from "@faultline/simulator";
 
-import type { PlaybackPhase, PlaybackSpeed } from "@/features/traffic-playback";
+import type { PlaybackPhase } from "@/features/traffic-playback";
 
 import { ClearAgentMarksButton } from "@/features/agent-session/ClearAgentMarksButton";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
 
 type SuccessfulSimulation = Extract<RequirementsEvaluationResult, { valid: true }>;
 type SimulationRunState = "idle" | "running" | "complete" | "error";
-
-const SPEEDS: PlaybackSpeed[] = [0.5, 1, 2];
 
 function formatRunTime(milliseconds: number): string {
   return `${(Math.max(0, milliseconds) / 1_000).toFixed(1)}s`;
@@ -127,7 +125,6 @@ export type SimBarProps = {
   playbackRunning: boolean;
   playbackPaused: boolean;
   playbackPhase: PlaybackPhase;
-  playbackSpeed: PlaybackSpeed;
   timelineProgress01?: number;
   timelineDurationMs: number;
   runState: SimulationRunState;
@@ -144,7 +141,6 @@ export type SimBarProps = {
   onPause: () => void;
   onStep: () => void;
   onReset: () => void;
-  onSpeedChange: (speed: PlaybackSpeed) => void;
   onViewModeChange: (mode: "logical" | "world") => void;
   onSubmitOfficial: () => void;
 };
@@ -153,7 +149,6 @@ export function SimBar({
   playbackRunning,
   playbackPaused,
   playbackPhase,
-  playbackSpeed,
   timelineProgress01,
   timelineDurationMs,
   runState,
@@ -170,7 +165,6 @@ export function SimBar({
   onPause,
   onStep,
   onReset,
-  onSpeedChange,
   onViewModeChange,
   onSubmitOfficial,
 }: SimBarProps) {
@@ -235,22 +229,6 @@ export function SimBar({
         </div>
 
         {progressVisible ? <p className="sim-bar__run-clock tabular">running · {formatRunTime(elapsedMs)} / {formatRunTime(timelineDurationMs)}</p> : null}
-
-        <div className="sim-bar__divider" aria-hidden />
-
-        <div className="sim-bar__speed" role="group" aria-label="Playback speed">
-          {SPEEDS.map((speed, index) => (
-            <button
-              key={speed}
-              type="button"
-              className={`sim-bar__button sim-bar__button--speed${playbackSpeed === speed ? " sim-bar__button--speed-active" : ""}${index === 0 ? " sim-bar__button--speed-first" : " sim-bar__button--joined"}`}
-              disabled={transportRetired}
-              onClick={() => onSpeedChange(speed)}
-            >
-              {speed}×
-            </button>
-          ))}
-        </div>
 
         <div className="sim-bar__divider" aria-hidden />
 

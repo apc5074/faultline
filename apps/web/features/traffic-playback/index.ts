@@ -50,7 +50,6 @@ export type {
   PacketShape,
   PlaybackFrame,
   PlaybackPacket,
-  PlaybackSpeed,
   RouteLinger,
 } from "./types";
 export { buildComponentPlaybackVisuals, type PlaybackVisualContext } from "./playback-component-visuals";
