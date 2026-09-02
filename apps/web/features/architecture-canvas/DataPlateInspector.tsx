@@ -51,7 +51,6 @@ import {
   approximateOriginTraffic,
   formatApproxRps,
 } from "@/features/architecture-canvas/approximate-origin-traffic";
-import { seedServiceDeploymentsByOrigin } from "@/features/architecture-canvas/region-enclosures";
 import {
   buildWorkloadEvidencePanel,
   type WorkloadEvidencePanel,
@@ -622,24 +621,6 @@ export function DataPlateInspector({
             <p className="data-plate-inspector__region-title">
               Regional instances {regional ? "" : "(optional)"}
             </p>
-            {!regional ? (
-              <button
-                type="button"
-                className="sim-bar__button"
-                onClick={() =>
-                  onDeploymentsChange(
-                    component.id,
-                    seedServiceDeploymentsByOrigin(
-                      instances,
-                      component.id,
-                      activeChallenge.geographicDistribution
-                    )
-                  )
-                }
-              >
-                Distribute by origin
-              </button>
-            ) : null}
             {regions.map((region) => (
               <InspectorStepper
                 key={region.id}
@@ -653,7 +634,7 @@ export function DataPlateInspector({
             <PlateHint>
               {regional
                 ? "Total is the sum of regional instances. CDN absorbs at the edge; regions handle miss traffic."
-                : "Keep this logical for a single-region design, or distribute capacity by the challenge's origin mix."}
+                : "Keep this logical for a single-region design, or set capacity per region below."}
             </PlateHint>
           </div>
           <SpecList>

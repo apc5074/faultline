@@ -3,7 +3,9 @@
 import {
   buildStartDesignInterviewOutput,
   createInterviewState,
+  resolveInterviewAssessment,
   transitionInterview,
+  type InterviewChatAssessment,
   type InterviewEvaluation,
   type InterviewEvent,
   type InterviewQuestion,
@@ -27,6 +29,7 @@ import {
 export type InterviewServiceSnapshot = {
   readonly state: InterviewState;
   readonly question: InterviewQuestion | null;
+  readonly assessment?: InterviewChatAssessment;
   readonly presentationCue?: PresentationCue;
   readonly storageRevision: number;
   readonly simulationReview?: InterviewSimulationReviewPacket;
@@ -135,9 +138,11 @@ function questionOutput(context: AgentContext, state: InterviewState) {
 
 function snapshot(context: AgentContext, record: BrowserInterviewRecord, includePresentationCue = true): InterviewServiceSnapshot {
   const output = questionOutput(context, record.state);
+  const assessment = resolveInterviewAssessment(context, record.state.currentQuestion);
   return {
     state: record.state,
     question: record.state.currentQuestion,
+    ...(assessment ? { assessment } : {}),
     ...(includePresentationCue && output?.presentationCue ? { presentationCue: output.presentationCue } : {}),
     storageRevision: record.revision,
   };

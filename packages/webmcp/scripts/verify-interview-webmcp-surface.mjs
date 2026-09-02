@@ -40,17 +40,25 @@ const getContext = () => context;
 
 const unavailable = await buildInterviewWebMcpSurface({ registry, getContext });
 assert.deepEqual(unavailable.tools, []);
-assert.equal(unavailable.skipped.length, 9);
+assert.equal(unavailable.skipped.length, 8);
 
 const surface = await buildInterviewWebMcpSurface({ registry, getContext, interviewService });
 assert.deepEqual(surface.resolvedNames, [
   "start_design_interview", "get_design_interview", "submit_interview_answer",
-  "follow_up_design_interview", "advance_design_interview", "end_design_interview", "restart_design_interview",
+  "follow_up_design_interview", "end_design_interview", "restart_design_interview",
   "prepare_interview_simulation_review", "submit_interview_simulation_critique",
 ]);
-assert.equal(surface.tools.length, 9);
+assert.equal(surface.tools.length, 8);
 const start = surface.tools.find((tool) => tool.name === "start_design_interview");
 assert.ok(start);
+assert.match(start.description, /REQUIRED first tool/i);
+assert.match(start.description, /Never invent a freeform/i);
+const submitAnswer = surface.tools.find((tool) => tool.name === "submit_interview_answer");
+assert.match(submitAnswer.description, /Submit exactly once/i);
+assert.match(submitAnswer.description, /evaluation\.\{verdict/);
+const submitCritique = surface.tools.find((tool) => tool.name === "submit_interview_simulation_critique");
+assert.match(submitCritique.description, /Submit exactly one critique/i);
+assert.match(submitCritique.description, /critique\.\{verdict/);
 const result = await start.execute({}, {});
 assert.equal(result.ok, true);
 assert.equal(result.data.data.state.interviewId, "interview-1");

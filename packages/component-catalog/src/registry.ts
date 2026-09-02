@@ -4,6 +4,7 @@ import {
   componentPresentationStates,
   type ComponentDefinition,
   type ComponentAgentFacts,
+  type ComponentInterviewProfile,
   type ComponentPresentationBinding,
   type JsonObject,
   type MetricDefinition,
@@ -122,6 +123,35 @@ function isAgentFacts(value: unknown): value is ComponentAgentFacts {
     .every((key) => Array.isArray(value[key]) && value[key].every(isNonEmptyString));
 }
 
+const failureScopes = new Set(["component", "region"]);
+const recoveryEditClasses = new Set(["scale_capacity", "add_redundancy", "reroute_traffic", "remove_dependency"]);
+
+function isInterviewProfile(value: unknown, definition: Record<string, unknown>): value is ComponentInterviewProfile {
+  if (!isRecord(value)) return false;
+  const validCap = (candidate: unknown): candidate is number => typeof candidate === "number" && Number.isInteger(candidate) && candidate >= 1 && candidate <= 3;
+  if (value.scale !== undefined) {
+    if (!isRecord(value.scale)) return false;
+    const scale = value.scale;
+    if (!isNonEmptyString(scale.configPath) || !Array.isArray(scale.safeValues) || scale.safeValues.length < 2 || scale.safeValues.length > 12 || !validCap(scale.earlyCareerEditCap)) return false;
+    const field = isRecord(definition.agentFacts) && Array.isArray(definition.agentFacts.configFields)
+      ? definition.agentFacts.configFields.find((candidate) => isRecord(candidate) && candidate.key === scale.configPath)
+      : undefined;
+    if (!isRecord(field)) return false;
+    const safeValues = scale.safeValues;
+    if (!safeValues.every((candidate) => typeof candidate === "string" || (typeof candidate === "number" && Number.isFinite(candidate)))) return false;
+    const minimum = typeof field.minimum === "number" ? field.minimum : undefined;
+    const maximum = typeof field.maximum === "number" ? field.maximum : undefined;
+    const options = Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string") : [];
+    if (field.valueType === "number" && !safeValues.every((candidate) => typeof candidate === "number" && (minimum === undefined || candidate >= minimum) && (maximum === undefined || candidate <= maximum))) return false;
+    if (field.valueType === "string" && !safeValues.every((candidate) => typeof candidate === "string" && options.includes(candidate))) return false;
+    if (new Set(safeValues.map(String)).size !== safeValues.length) return false;
+  }
+  if (value.failure !== undefined) {
+    if (!isRecord(value.failure) || !Array.isArray(value.failure.scopes) || value.failure.scopes.length === 0 || value.failure.scopes.length > 2 || !value.failure.scopes.every((scope) => failureScopes.has(scope)) || new Set(value.failure.scopes).size !== value.failure.scopes.length || !Array.isArray(value.failure.recoveryEditClasses) || value.failure.recoveryEditClasses.length === 0 || value.failure.recoveryEditClasses.length > 4 || !value.failure.recoveryEditClasses.every((editClass) => recoveryEditClasses.has(editClass)) || new Set(value.failure.recoveryEditClasses).size !== value.failure.recoveryEditClasses.length || !validCap(value.failure.earlyCareerEditCap)) return false;
+  }
+  return value.scale !== undefined || value.failure !== undefined;
+}
+
 /** Throws a useful error instead of allowing an incomplete definition into the catalog. */
 export function assertComponentDefinition(definition: unknown): asserts definition is ComponentDefinition {
   if (!isRecord(definition)) throw new ComponentDefinitionError("Component definition must be an object.");
@@ -169,6 +199,9 @@ export function assertComponentDefinition(definition: unknown): asserts definiti
   }
   if (definition.agentFacts !== undefined && !isAgentFacts(definition.agentFacts)) {
     throw new ComponentDefinitionError(`Component "${definition.type}" has invalid agent facts metadata.`);
+  }
+  if (definition.interview !== undefined && !isInterviewProfile(definition.interview, definition)) {
+    throw new ComponentDefinitionError(`Component "${definition.type}" has invalid interview metadata.`);
   }
   for (const optionalCharacteristic of ["simulation", "cost"] as const) {
     if (definition[optionalCharacteristic] !== undefined && !isJsonObject(definition[optionalCharacteristic])) {

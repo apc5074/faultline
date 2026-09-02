@@ -19,3 +19,4 @@ export * from "./level2.js";
 export * from "./workload-flow.js";
 export * from "./workload-paths.js";
 export * from "./comparison.js";
+export * from "./interview-scenario.js";

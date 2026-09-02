@@ -258,40 +258,6 @@ export function scaleServiceDeploymentsToTotal(
   ];
 }
 
-/**
- * Seed a logical Service into regional deployments using challenge origin
- * shares. This is a UI convenience only; the simulator remains authoritative.
- */
-export function seedServiceDeploymentsByOrigin(
-  totalInstances: number,
-  componentId: string,
-  distribution: ChallengeDefinition["geographicDistribution"],
-): RegionDeployment[] {
-  const total = Math.min(10, Math.max(1, Math.floor(totalInstances)));
-  const shares = (distribution ?? [])
-    .filter((entry) => isValidRegion(entry.regionId) && entry.fraction > 0)
-    .map((entry) => ({ regionId: entry.regionId as RegionId, exact: total * entry.fraction }));
-  if (shares.length === 0) {
-    return [createRegionDeployment("us-east", { instances: total }, `dep-${componentId}-us-east`)];
-  }
-
-  const counts = shares.map((share) => Math.floor(share.exact));
-  let remaining = total - counts.reduce((sum, count) => sum + count, 0);
-  const ranked = shares
-    .map((share, index) => ({ ...share, index, remainder: share.exact - counts[index] }))
-    .sort((left, right) => right.remainder - left.remainder || left.regionId.localeCompare(right.regionId));
-  for (let index = 0; index < ranked.length && remaining > 0; index += 1) {
-    counts[ranked[index].index] += 1;
-    remaining -= 1;
-  }
-
-  return shares.flatMap((share, index) =>
-    counts[index] > 0
-      ? [createRegionDeployment(share.regionId, { instances: counts[index] }, `dep-${componentId}-${share.regionId}`)]
-      : [],
-  );
-}
-
 export function regionEnclosureLabel(regionId: RegionId): string {
   return getRegion(regionId).label;
 }

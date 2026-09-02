@@ -46,7 +46,7 @@ export interface ToolRoutingRule {
 
 /** Compact routing guidance shared by policy and adapter-facing descriptions. */
 export const TOOL_ROUTING_GUIDANCE =
-  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. For interview or quiz practice, call start_design_interview and do not answer with a one-off review. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity. A single current-component inspect on the browser production surface waits for its matching focus render before evidence is released; visual tools remain optional for other intents.";
+  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. For interview me, quiz me, test me, or any interview/practice intent, call start_design_interview first and ask only its returned question—never invent a freeform system-design interview in chat. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity. A single current-component inspect on the browser production surface waits for its matching focus render before evidence is released; visual tools remain optional for other intents.";
 
 /**
  * Shared routing policy for embedded and external agents. This is metadata,
@@ -161,7 +161,7 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     allowedFallbackCapabilityNames: [],
     requiresCurrentTarget: false,
     resultFrame: "set",
-    selectionGuidance: "For interview, quiz, or system-design practice intent, call start_design_interview once to start or resume the browser-owned five-question session.",
+    selectionGuidance: "Hard rule: for interview me, quiz me, test me, practice with me, or be the interviewer, call start_design_interview exactly once before asking any question. Never invent a freeform whiteboard or URL-shortener interview from memory; ask only the tool-returned current question. If the tool fails or asks for preparation, explain that and stop.",
     positiveExamples: ["interview me", "quiz me on this architecture", "test me on my design", "ask me system-design questions", "practice an interview with me", "challenge me on my choices", "can you be the interviewer", "start the architecture interview"],
     negativeExamples: ["review my design", "inspect this component", "what is a system-design interview?", "run the simulation"],
   },

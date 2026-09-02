@@ -14,8 +14,11 @@ export interface CapabilityJsonSchema {
 }
 
 export interface CapabilityJsonSchemaProperty {
-  readonly type: "string" | "number";
+  readonly type: "string" | "number" | "array" | "object";
   readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly maxItems?: number;
+  readonly items?: CapabilityJsonSchemaProperty;
   readonly enum?: readonly (string | number)[];
   readonly minimum?: number;
   readonly maximum?: number;

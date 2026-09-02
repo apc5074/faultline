@@ -21,6 +21,9 @@ assert.equal(started.state.currentQuestion?.questionId, "opening-1");
 assert.equal(started.state.status, "awaiting_answer");
 assert.equal(started.state.totalQuestions, 5);
 assert.equal(started.state.challengeVersion, 1);
+assert.equal(started.assessment?.slotId, "request-path-v2");
+assert.ok(Array.isArray(started.assessment?.requiredTopics) && started.assessment.requiredTopics.length > 0);
+assert.ok(Array.isArray(started.assessment?.evidenceSummary) && started.assessment.evidenceSummary.length > 0);
 
 const answered = service.submitAnswer(context, {
   questionId: "opening-1",

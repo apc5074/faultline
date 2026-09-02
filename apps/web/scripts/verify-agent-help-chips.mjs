@@ -29,16 +29,18 @@ const challenge = {
 
 const context = { challenge, architecture };
 
-assert.equal(AGENT_HELP_CHIPS.length, 4);
+assert.equal(AGENT_HELP_CHIPS.length, 5);
 const noFocus = { kind: "none" };
 const componentFocus = { kind: "component", componentId: "service-1", source: "selection" };
 assert.equal(AGENT_HELP_CHIPS[0]?.id, "ask-about-selection");
 assert.equal(AGENT_HELP_CHIPS[1]?.id, "trace-workload");
 assert.equal(AGENT_HELP_CHIPS[2]?.id, "review-requirement");
 assert.equal(AGENT_HELP_CHIPS[3]?.id, "review-cost");
+assert.equal(AGENT_HELP_CHIPS[4]?.id, "start-interview");
 assert.equal(isAgentHelpChipEnabled(AGENT_HELP_CHIPS[0], noFocus), false);
 assert.equal(isAgentHelpChipEnabled(AGENT_HELP_CHIPS[0], componentFocus), true);
 assert.equal(isAgentHelpChipEnabled(AGENT_HELP_CHIPS[1], noFocus), true);
+assert.equal(isAgentHelpChipEnabled(AGENT_HELP_CHIPS[4], noFocus), true);
 
 const askChip = AGENT_HELP_CHIPS[0];
 assert.deepEqual(buildPendingHelpRequest(askChip, componentFocus, 7), {
@@ -77,11 +79,18 @@ assert.equal(focusOutput.pendingHelpRequest?.componentId, "service-1");
 assert.equal(focusOutput.revision, 2);
 
 for (const chip of AGENT_HELP_CHIPS) {
+  assert.ok(chip.suggestedCapabilityNames.length > 0);
+  if (chip.id === "start-interview") {
+    assert.equal(chip.routingIntent, "design_interview");
+    assert.deepEqual(chip.suggestedCapabilityNames, ["start_design_interview"]);
+    assert.match(chip.clipboardPrompt, /start_design_interview/);
+    assert.match(chip.clipboardPrompt, /do not invent a freeform/i);
+    continue;
+  }
   assert.ok(chip.clipboardPrompt.includes("Faultline"));
   assert.ok(chip.clipboardPrompt.includes("one"));
   assert.match(chip.clipboardPrompt, /do not modify|without changing/);
   assert.ok(chip.suggestedCapabilityNames.includes("review_current_design"));
-  assert.ok(chip.suggestedCapabilityNames.length > 0);
 }
 
 console.log("verify-agent-help-chips: ok");

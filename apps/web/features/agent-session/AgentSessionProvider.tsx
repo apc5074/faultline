@@ -40,7 +40,7 @@ import {
   withSessionFocus,
 } from "./session-mutations";
 import { buildWebMcpEvidenceKey, createWebMcpEvidenceSource, type WebMcpEvidenceSource } from "../webmcp/evidence-store";
-import { createDesignInterviewService } from "./interview-service";
+import { createDesignInterviewV2HostService } from "./interview-v2-host-service";
 
 export interface AgentSessionStore {
   getSession(): AgentSessionState;
@@ -116,7 +116,7 @@ export function AgentSessionProvider({
   // The provider renders on the server too; never resolve the browser owner
   // key or touch localStorage until the client has mounted.
   const interviewService = useMemo(
-    () => createDesignInterviewService(typeof window === "undefined" ? "ssr-placeholder" : undefined),
+    () => createDesignInterviewV2HostService(typeof window === "undefined" ? "ssr-placeholder" : undefined),
     [],
   );
   const [interviewSnapshot, setInterviewSnapshot] = useState<InterviewServiceSnapshot | null>(null);

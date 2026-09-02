@@ -17,25 +17,29 @@ export type InterviewEvaluationResult = InterviewEvaluation & {
 
 export type InterviewReadiness = "ready" | "follow_up" | "ambiguous";
 
-export const INTERVIEW_ORCHESTRATION_PROMPT_VERSION = "design-interview-orchestration-2" as const;
+export const INTERVIEW_ORCHESTRATION_PROMPT_VERSION = "design-interview-orchestration-4" as const;
 
 /** Host-facing lifecycle instructions; the reducer remains the enforcement boundary. */
 export function buildInterviewOrchestrationPrompt(): string {
   return [
     `INTERVIEW ORCHESTRATION (${INTERVIEW_ORCHESTRATION_PROMPT_VERSION})`,
-    "When the player asks to be interviewed about the current Faultline design, call start_design_interview once and use only the returned current question.",
-    "For the first three opening slots, use the returned focus and contextSignals as constraints, inspect current evidence when useful, and write one fresh high-level question tailored to this architecture and challenge. The focus is dynamic; do not recite a fixed template.",
-    "Ask exactly one generated question, then wait for the player's answer. Never reveal future questions or the agenda early.",
-    "Evaluate the answer against the current question and supplied Faultline evidence, then submit one schema-valid evaluation with submit_interview_answer before presenting the verdict.",
+    "Hard rule: never conduct a freeform system-design interview in chat. Phrases like interview me, quiz me, test me, practice with me, or be the interviewer require calling start_design_interview before asking any interview question.",
+    "Never invent interview questions from general knowledge, challenge prompts, or classic URL-shortener / whiteboard prompts. Ask only the current question returned by Faultline tools.",
+    "When the player asks to be interviewed about the current Faultline design, call start_design_interview exactly once, wait for the tool result, then ask only that returned current question.",
+    "If start_design_interview returns INVALID_INPUT with a preparation message, explain that recoverable condition and stop. Do not substitute a homemade interview. Treat generic tool failures the same way only when no preparation message is present.",
+    "Ask only the returned current question for the active Faultline design interview; do not rewrite it, reveal future cards, witnesses, or the agenda.",
+    "Ask exactly one returned question, then wait for the player's answer. Never reveal future questions or the agenda early.",
+    "Evaluate the answer against the current question's returned assessment.requiredTopics and evidenceSummary, then submit exactly one schema-valid evaluation with submit_interview_answer before presenting the verdict.",
     "Present the verdict as correct, partial, or incorrect, followed by concise explanation, strengths, gaps, and an ideal answer. A verdict never grants permission to advance.",
     "After every evaluation, ask: Would you like to ask a follow-up, or are you ready for the next question?",
     "A technical question, no, not yet, or ambiguous language stays on the current question. Use follow_up_design_interview and answer it without evaluating a new answer or advancing.",
-    "Call advance_design_interview only after an explicit readiness signal such as yes, next or I am ready for the next question, and send ready: true with the current IDs.",
+    "After a discussion critique, use the session's legal transition for the next question; do not expose or invoke a public advance operation.",
     "After advancing, ask only the newly returned question. If a tool retry returns the same IDs, continue the existing turn and do not duplicate the question, answer, or evaluation.",
-    "When the current question has phase simulation, present that canvas redesign prompt once and wait while the player edits the real architecture. Do not answer it, prescribe components or topology, run a standalone experiment, or advance with a next acknowledgement.",
-    "Treat Review my redesign, I'm done—review it, and similarly explicit wording as review intent. Ordinary edit commentary is not review intent. On review intent, call prepare_interview_simulation_review first, then write a critique only from its bounded packet and call submit_interview_simulation_critique with the exact returned reviewDigest.",
+    "Failure slots are chat-graded: spotlight the named target, explain the modeled outage from returned evidence, wait for a chat answer, and submit_interview_answer. Do not ask the player to edit the architecture for failure.",
+    "For live scale slots, present the scenario prompt once and wait while the player edits the real architecture. Never advance from prose; review the current live revision, explain one gap on failure, and submit critique only after a passing review.",
+    "Treat Review my redesign, I'm done—review it, and similarly explicit wording as review intent for live scale only. Ordinary edit commentary is not review intent. On review intent, call prepare_interview_simulation_review first, then write a critique only from its bounded packet and call submit_interview_simulation_critique with the exact returned reviewDigest.",
     "For the simulation critique, use only the returned scenario outcomes, metric/requirement deltas, architecture delta, and validation evidence. State one observed strength, one limiting gap, and one next investigation; distinguish simulator facts from general systems reasoning and never prescribe a canonical stack.",
-    "If preparation reports no semantic change, an invalid candidate, or a stale digest, explain the recoverable condition and ask the player to edit or retry preparation. Chat prose alone can never complete the interview.",
+    "If preparation reports no semantic change, an invalid candidate, or a stale digest, explain the recoverable condition and ask the player to edit or retry preparation. Chat prose alone can never complete a live scale slot.",
     "If a tool reports a stale, invalid, or unavailable session, explain the recoverable state and ask the player to restart or clarify; never bypass the tool or infer a transition.",
     "The interview is coaching only: do not edit architecture, submit official attempts, affect leaderboards, run standalone agent-triggered experiments, invent simulator facts, or claim official pass/fail.",
   ].join(" ");
@@ -146,10 +150,36 @@ export function safeParseInterviewSimulationCritique(value: unknown): Capability
 export const interviewEvaluationSchema: CapabilityInputSchema<InterviewEvaluationResult> = {
   jsonSchema: {
     type: "object",
-    properties: {},
+    properties: {
+      verdict: { type: "string", enum: ["correct", "partial", "incorrect"] },
+      explanation: { type: "string", minLength: 1, maxLength: INTERVIEW_EVALUATION_MAX_TEXT_LENGTH },
+      strengths: { type: "array", maxItems: INTERVIEW_EVALUATION_MAX_ITEMS, items: { type: "string", minLength: 1, maxLength: INTERVIEW_EVALUATION_MAX_TEXT_LENGTH } },
+      gaps: { type: "array", maxItems: INTERVIEW_EVALUATION_MAX_ITEMS, items: { type: "string", minLength: 1, maxLength: INTERVIEW_EVALUATION_MAX_TEXT_LENGTH } },
+      idealAnswer: { type: "string", minLength: 1, maxLength: INTERVIEW_EVALUATION_MAX_TEXT_LENGTH },
+      confidence: { type: "string", enum: ["high", "medium", "low"] },
+      grounding: { type: "string", enum: ["architecture_evidence", "general_system_design", "insufficient_evidence"] },
+    },
+    required: ["verdict", "explanation", "strengths", "gaps", "idealAnswer", "grounding"],
     additionalProperties: false,
   },
   safeParse: safeParseInterviewEvaluation,
+};
+
+export const interviewSimulationCritiqueSchema: CapabilityInputSchema<InterviewSimulationCritique> = {
+  jsonSchema: {
+    type: "object",
+    properties: {
+      verdict: { type: "string", enum: ["satisfies", "partially_satisfies", "does_not_satisfy"] },
+      summary: { type: "string", minLength: 1, maxLength: INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH },
+      strengths: { type: "array", maxItems: INTERVIEW_SIMULATION_CRITIQUE_MAX_ITEMS, items: { type: "string", minLength: 1, maxLength: INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH } },
+      gaps: { type: "array", maxItems: INTERVIEW_SIMULATION_CRITIQUE_MAX_ITEMS, items: { type: "string", minLength: 1, maxLength: INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH } },
+      nextStep: { type: "string", minLength: 1, maxLength: INTERVIEW_SIMULATION_CRITIQUE_MAX_TEXT_LENGTH },
+      grounding: { type: "string", enum: ["simulator_evidence", "validation_evidence", "insufficient_evidence"] },
+    },
+    required: ["verdict", "summary", "strengths", "gaps", "nextStep", "grounding"],
+    additionalProperties: false,
+  },
+  safeParse: safeParseInterviewSimulationCritique,
 };
 
 /** Conservative readiness classifier: only explicit next-step language advances. */

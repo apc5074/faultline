@@ -24,6 +24,7 @@ export {
   startPresentationPlayback,
 } from "./presentation-playback";
 export type { PresentationPlaybackPhase, PresentationPlaybackState } from "./presentation-playback";
+export { prepareInterviewLiveScenario, advanceInterviewLiveScenario, replaceInterviewLiveScenario, cancelInterviewLiveScenario, type InterviewLiveScenarioState, type InterviewLiveScenarioInput, type InterviewLiveScenarioPhase } from "./interview-live-scenario";
 export { catalogTypeToSimType } from "./sim-types";
 export type { SimComponent, SimConnection, SimPacket } from "./sim-types";
 export { resetTickSimulationState, tickSimulation, MAX_VISIBLE_REJECTED_PER_COMPONENT } from "./tick-simulation";

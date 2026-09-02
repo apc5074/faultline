@@ -7,7 +7,7 @@
  * can share it when their result paths are ready.
  */
 
-export type PlaybackEventSource = "baseline" | "experiment";
+export type PlaybackEventSource = "baseline" | "experiment" | "interview-live-scenario";
 
 /** Structural contract shared by SimulationEvent and ExperimentEvent. */
 export interface AuthoritativePlaybackEvent {

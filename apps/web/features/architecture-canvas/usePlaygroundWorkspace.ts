@@ -92,6 +92,7 @@ export function usePlaygroundWorkspace() {
   const [attentionComponentIds, setAttentionComponentIds] = useState<ReadonlySet<string>>(() => new Set());
   const [attentionConnectionIds, setAttentionConnectionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [attentionPrimaryConnectionId, setAttentionPrimaryConnectionId] = useState<string | null>(null);
+  const [interviewModeledFailureComponentId, setInterviewModeledFailureComponentId] = useState<string | null>(null);
   const attentionTimeoutRef = useRef<number | null>(null);
   const canvasInteractionRef = useRef(false);
   const presentationVersionRef = useRef(0);
@@ -281,8 +282,13 @@ export function usePlaygroundWorkspace() {
 
   const nodes = useMemo(
     () =>
-      architecture.components.map((component) =>
-        componentToNode(
+      architecture.components.map((component) => {
+        const modeledFailure = interviewModeledFailureComponentId === component.id;
+        const playbackVisual = modeledFailure
+          ? { componentId: component.id, processingCount: 0, state: "failed" as const }
+          : playbackVisualByComponent.get(component.id) ??
+            (playbackVisualsActive ? idlePlaybackVisual(component.id) : undefined);
+        return componentToNode(
           component,
           architecture.connections,
           selectedComponentId,
@@ -290,11 +296,10 @@ export function usePlaygroundWorkspace() {
           boardEvidenceIsStale,
           attentionComponentIds,
           attentionComponentId,
-          playbackVisualByComponent.get(component.id) ??
-            (playbackVisualsActive ? idlePlaybackVisual(component.id) : undefined),
-          playbackVisualsActive,
+          playbackVisual,
+          playbackVisualsActive || modeledFailure,
           runPulseKey,
-          culpritComponentId === component.id,
+          culpritComponentId === component.id || modeledFailure,
           {
             connectingFrom,
             settlingNodeIds,
@@ -304,8 +309,8 @@ export function usePlaygroundWorkspace() {
             enclosureRegions,
             semanticZoomOut,
           },
-        ),
-      ),
+        );
+      }),
     [
       architecture.components,
       architecture.connections,
@@ -315,6 +320,7 @@ export function usePlaygroundWorkspace() {
       boardEvidenceIsStale,
       attentionComponentIds,
       attentionComponentId,
+      interviewModeledFailureComponentId,
       connectingFrom,
       settlingNodeIds,
       deletingNodeIds,
@@ -402,6 +408,15 @@ export function usePlaygroundWorkspace() {
       setAttentionComponentId(null);
     }
   }, [architecture.components, attentionComponentId]);
+
+  useEffect(() => {
+    if (
+      interviewModeledFailureComponentId
+      && !architecture.components.some((component) => component.id === interviewModeledFailureComponentId)
+    ) {
+      setInterviewModeledFailureComponentId(null);
+    }
+  }, [architecture.components, interviewModeledFailureComponentId]);
 
   useEffect(() => {
     if (selectedConnectionId && !architecture.connections.some((connection) => connection.id === selectedConnectionId)) {
@@ -1018,6 +1033,41 @@ export function usePlaygroundWorkspace() {
     setWorldSelection(null);
   }, []);
 
+  const applyInterviewModeledFailure = useCallback((componentId: string | null) => {
+    if (!componentId) {
+      setInterviewModeledFailureComponentId(null);
+      if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      attentionTimeoutRef.current = null;
+      // Invalidate any in-flight spotlight/camera work from the failure cue.
+      presentationVersionRef.current += 1;
+      pendingCameraRef.current = null;
+      setAttentionComponentId(null);
+      setAttentionComponentIds(new Set());
+      setAttentionConnectionIds(new Set());
+      setAttentionPrimaryConnectionId(null);
+      return;
+    }
+    if (!architecture.components.some((component) => component.id === componentId)) {
+      setInterviewModeledFailureComponentId(null);
+      return;
+    }
+    setInterviewModeledFailureComponentId(componentId);
+    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+    attentionTimeoutRef.current = null;
+    setAttentionComponentIds(new Set([componentId]));
+    setAttentionConnectionIds(new Set());
+    setAttentionPrimaryConnectionId(null);
+    setAttentionComponentId(componentId);
+    if (viewMode !== "logical") setViewMode("logical");
+    if (!canvasInteractionRef.current && viewMode === "logical") {
+      fitView({ nodes: [{ id: componentId }], duration: 350, padding: 0.55, maxZoom: 1.15 });
+    } else {
+      const version = presentationVersionRef.current + 1;
+      presentationVersionRef.current = version;
+      pendingCameraRef.current = { version, componentIds: [componentId] };
+    }
+  }, [architecture.components, fitView, viewMode]);
+
   const spotlightPresentationCue = useCallback((cue: PresentationCue) => {
     // Every cue replaces both the visible mark set and any deferred camera work.
     const version = presentationVersionRef.current + 1;
@@ -1061,6 +1111,10 @@ export function usePlaygroundWorkspace() {
     );
     setAttentionComponentId(primaryComponentId);
 
+    if (cue.reason === "error-location") {
+      setInterviewModeledFailureComponentId(primaryComponentId);
+    }
+
     if (cue.camera === "frame-primary" || cue.camera === "frame-path" || cue.camera === "frame-set") {
       const frameIds = cue.camera === "frame-primary" ? [primaryComponentId] : componentIds;
       pendingCameraRef.current = { version, componentIds: frameIds };
@@ -1069,6 +1123,11 @@ export function usePlaygroundWorkspace() {
         pendingCameraRef.current = null;
         fitView({ nodes: frameIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
       }
+    }
+    // Interview failure marks stay until the failure slot clears; other cues remain brief.
+    if (cue.reason === "error-location") {
+      attentionTimeoutRef.current = null;
+      return;
     }
     attentionTimeoutRef.current = window.setTimeout(() => {
       if (presentationVersionRef.current !== version) return;
@@ -1080,7 +1139,6 @@ export function usePlaygroundWorkspace() {
       attentionTimeoutRef.current = null;
     }, 4500);
   }, [architecture.components, architecture.connections, fitView, viewMode]);
-
   useEffect(() => {
     const componentIds = new Set(architecture.components.map((component) => component.id));
     const connectionIds = new Set(architecture.connections.map((connection) => connection.id));
@@ -1276,6 +1334,7 @@ export function usePlaygroundWorkspace() {
     onSelectRegion,
     clearSelection,
     spotlightPresentationCue,
+    applyInterviewModeledFailure,
     setCanvasInteraction,
     reviewFirstFailure,
     pinObservation: (observation: PinnedObservation) => setPinnedObservations((current) => [...current.filter((entry) => `${entry.target}:${entry.id}:${entry.metricId}` !== `${observation.target}:${observation.id}:${observation.metricId}`), observation].slice(-6)),

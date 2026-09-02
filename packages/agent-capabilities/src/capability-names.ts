@@ -31,6 +31,12 @@ export const INTERVIEW_CAPABILITY_NAMES = [
   "submit_interview_simulation_critique",
 ] as const;
 
+/** v2 production surface: readiness is expressed through the current session, not a public advance tool. */
+export const INTERVIEW_V2_CAPABILITY_NAMES = [
+  "start_design_interview", "get_design_interview", "submit_interview_answer", "follow_up_design_interview",
+  "end_design_interview", "restart_design_interview", "prepare_interview_simulation_review", "submit_interview_simulation_critique",
+] as const;
+
 /** Phase 7 semantic read capabilities gated by canonical architecture structure. */
 export const PHASE_7_DYNAMIC_CAPABILITY_NAMES = [
   "inspect_cache",
@@ -46,7 +52,7 @@ export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
 
 export type ResolvedCapabilityName = BaselineReadCapabilityName | Phase7DynamicCapabilityName;
 
-export const PRODUCTION_CAPABILITY_MANIFEST_VERSION = "wmp-production-1" as const;
+export const PRODUCTION_CAPABILITY_MANIFEST_VERSION = "wmp-production-2" as const;
 
 export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "review_current_design", production: true, group: "stable-review" },
@@ -55,7 +61,6 @@ export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "get_design_interview", production: true, group: "stable-interview" },
   { name: "submit_interview_answer", production: true, group: "stable-interview" },
   { name: "follow_up_design_interview", production: true, group: "stable-interview" },
-  { name: "advance_design_interview", production: true, group: "stable-interview" },
   { name: "end_design_interview", production: true, group: "stable-interview" },
   { name: "restart_design_interview", production: true, group: "stable-interview" },
   { name: "prepare_interview_simulation_review", production: true, group: "stable-interview" },

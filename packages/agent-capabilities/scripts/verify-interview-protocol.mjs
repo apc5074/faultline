@@ -3,6 +3,8 @@ import {
   buildInterviewEvaluationPrompt,
   buildInterviewFollowUpPrompt,
   classifyInterviewReadiness,
+  interviewEvaluationSchema,
+  interviewSimulationCritiqueSchema,
   safeParseInterviewEvaluation,
   buildInterviewSimulationCritiquePrompt,
   safeParseInterviewSimulationCritique,
@@ -26,6 +28,10 @@ const critique = safeParseInterviewSimulationCritique({ verdict: "partially_sati
 assert.equal(critique.success, true);
 assert.equal(safeParseInterviewSimulationCritique({ ...critique.data, verdict: "correct" }).success, false);
 assert.equal(safeParseInterviewSimulationCritique({ ...critique.data, extra: "no" }).success, false);
+assert.deepEqual(interviewEvaluationSchema.jsonSchema.required, ["verdict", "explanation", "strengths", "gaps", "idealAnswer", "grounding"]);
+assert.deepEqual(interviewSimulationCritiqueSchema.jsonSchema.required, ["verdict", "summary", "strengths", "gaps", "nextStep", "grounding"]);
+assert.equal(interviewSimulationCritiqueSchema.safeParse(critique.data).success, true);
+assert.equal(interviewSimulationCritiqueSchema.safeParse({ type: "object" }).success, false);
 
 assert.equal(classifyInterviewReadiness("yes, next"), "ready");
 assert.equal(classifyInterviewReadiness("I'm ready for the next question"), "ready");

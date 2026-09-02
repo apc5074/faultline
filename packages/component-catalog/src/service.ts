@@ -165,5 +165,9 @@ export const serviceDefinition: ComponentDefinition<ServiceConfig> = {
     unmodeledBehaviors: ["application code", "in-process state", "autoscaling"], compatibleConnectionRoles: ["request", "read_write", "object_io", "async_work"],
     placementConstraints: ["Can be deployed in supported regions."], learningThemes: ["horizontal scaling", "stateless request handling"],
   },
+  interview: {
+    scale: { configPath: "instances", safeValues: [1, 2, 3, 4], earlyCareerEditCap: 1 },
+    failure: { scopes: ["component"], recoveryEditClasses: ["scale_capacity", "add_redundancy"], earlyCareerEditCap: 1 },
+  },
   schemaVersion: 1,
 };

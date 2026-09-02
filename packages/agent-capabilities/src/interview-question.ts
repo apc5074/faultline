@@ -98,7 +98,7 @@ export function assertInterviewQuestionCard(value: unknown): asserts value is In
   if (!idPattern.test(value.cardId)) throw new InterviewQuestionContractError("cardId must be a stable lowercase hyphenated identifier.");
   if (typeof value.slotId !== "string" || !(value.slotId in slotKind)) throw new InterviewQuestionContractError("card slotId is not supported.");
   if (value.kind !== slotKind[value.slotId as InterviewV2SlotId]) throw new InterviewQuestionContractError("card kind does not match slotId.");
-  boundedText(value.evidenceRevision, "evidenceRevision", 160);
+  boundedText(value.evidenceRevision, "evidenceRevision", 16_384);
   if (!Array.isArray(value.targetRefs) || value.targetRefs.length > 4) throw new InterviewQuestionContractError("targetRefs must contain at most 4 entries.");
   for (const [index, target] of value.targetRefs.entries()) {
     if (!isRecord(target) || !targetKinds.has(target.kind as InterviewQuestionTarget["kind"])) throw new InterviewQuestionContractError(`targetRefs[${index}] is invalid.`);

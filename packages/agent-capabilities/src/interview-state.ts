@@ -55,8 +55,8 @@ export type SimulationInterviewQuestion = {
   readonly scenario: ExperimentDefinition;
   readonly sourceChallengeId: string;
   readonly baselineArchitectureRevision: string;
-  /** Kept for consumers that render all questions uniformly. */
-  readonly componentIds: readonly [];
+  /** Live-slot targets to spotlight; empty when no canvas focus is required. */
+  readonly componentIds: readonly string[];
   readonly grouped: false;
 };
 

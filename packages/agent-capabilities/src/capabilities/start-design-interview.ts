@@ -1,7 +1,7 @@
 import type { AgentCapability, CapabilityExecutionOptions } from "../capability.js";
 import type { AgentContext } from "../context.js";
 import type { ExperimentDefinition } from "@faultline/core";
-import type { InterviewServiceSnapshot } from "../interview-service-port.js";
+import { interviewHostCapabilityError, type InterviewServiceSnapshot } from "../interview-service-port.js";
 import { createPresentationCue, type PresentationCue } from "../presentation-cue.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 
@@ -251,7 +251,7 @@ export const startDesignInterviewCapability: AgentCapability<
 > = {
   name: "start_design_interview",
   description:
-    "Sole entry point for interview or quiz practice: call when the player says interview me, quiz me, test me on this architecture, or asks for system-design practice. Starts or resumes the browser-owned session and returns only the current stable-ID question. Do not use a one-off review tool for interview intent.",
+    "REQUIRED first tool for interview me, quiz me, test me, or system-design practice. Call exactly once before asking any interview question. Returns only the current Faultline question plus assessment fields when present. Never invent a freeform whiteboard interview, classic URL-shortener prompt, or rubric from memory. On preparation failures the tool returns INVALID_INPUT with the exact preparation message—explain that and stop; do not invent a substitute question.",
   inputSchema: startDesignInterviewInputSchema,
   mode: "session",
   availableWhen: () => true,
@@ -260,7 +260,10 @@ export const startDesignInterviewCapability: AgentCapability<
   },
   async execute(context, _input, options?: CapabilityExecutionOptions) {
     if (!options?.interviewService) return capabilityError("NOT_FOUND", "Interview session is unavailable in this host.");
-    const snapshot = await options.interviewService.start(context);
-    return capabilityOk(snapshot);
+    try {
+      return capabilityOk(await options.interviewService.start(context));
+    } catch (error) {
+      return interviewHostCapabilityError(error);
+    }
   },
 };

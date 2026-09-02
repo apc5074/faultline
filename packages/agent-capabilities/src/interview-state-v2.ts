@@ -1,4 +1,6 @@
+import type { InterviewChatAssessment } from "./interview-assessment.js";
 import type { InterviewV2QuestionKind, InterviewV2SlotId } from "./interview-question.js";
+import { safeParseInterviewEvaluation, type InterviewEvaluationResult } from "./interview-protocol.js";
 
 export type InterviewV2Status =
   | "selecting_question"
@@ -16,16 +18,20 @@ export type InterviewV2Status =
 export type InterviewV2Verdict = "correct" | "partial" | "incorrect";
 
 export interface InterviewV2DiscussionQuestion {
-  readonly kind: Extract<InterviewV2QuestionKind, "request_path" | "component_justification" | "challenge_edge_case">;
+  readonly kind: Extract<InterviewV2QuestionKind, "request_path" | "component_justification" | "challenge_edge_case" | "live_failure">;
   readonly slotId: InterviewV2SlotId;
   readonly questionId: string;
   readonly ordinal: number;
   readonly prompt: string;
   readonly evidenceRevision: string;
+  /** Agent-facing rubric/evidence for evaluating the player's answer. */
+  readonly assessment: InterviewChatAssessment;
+  /** Optional canvas spotlight target for chat-graded failure questions. */
+  readonly targetComponentId?: string;
 }
 
 export interface InterviewV2LiveQuestion {
-  readonly kind: Extract<InterviewV2QuestionKind, "live_scale" | "live_failure">;
+  readonly kind: Extract<InterviewV2QuestionKind, "live_scale">;
   readonly slotId: InterviewV2SlotId;
   readonly questionId: string;
   readonly ordinal: number;
@@ -38,12 +44,8 @@ export interface InterviewV2LiveQuestion {
 
 export type InterviewV2Question = InterviewV2DiscussionQuestion | InterviewV2LiveQuestion;
 
-export interface InterviewV2AnswerEvaluation {
-  readonly verdict: InterviewV2Verdict;
-  readonly strength: string;
-  readonly gap: string;
-  readonly betterExplanation: string;
-}
+/** Canonical chat-slot evaluation; same shape the production submit_interview_answer tool requires. */
+export type InterviewV2AnswerEvaluation = InterviewEvaluationResult;
 
 export interface InterviewV2SlotOutcome {
   readonly slotId: InterviewV2SlotId;
@@ -111,29 +113,55 @@ export type InterviewV2TransitionErrorCode =
   | "REVIEW_STALE"
   | "PREREQUISITE_REQUIRED";
 
-export const INTERVIEW_V2_SLOT_ORDER: readonly InterviewV2SlotId[] = [
-  "request-path-v2", "component-justification-v2", "live-scale-v2", "challenge-edge-case-v2", "live-failure-v2",
-];
+/**
+ * TEMP: drop live-scale until viral-workload calibration is reliable.
+ * Flip to false to restore the five-slot agenda including live-scale-v2.
+ */
+export const INTERVIEW_V2_SKIP_LIVE_SCALE = true;
 
-const discussionKinds = new Set(["request_path", "component_justification", "challenge_edge_case"]);
-const liveKinds = new Set(["live_scale", "live_failure"]);
+export const INTERVIEW_V2_SLOT_ORDER: readonly InterviewV2SlotId[] = INTERVIEW_V2_SKIP_LIVE_SCALE
+  ? ["request-path-v2", "component-justification-v2", "challenge-edge-case-v2", "live-failure-v2"]
+  : ["request-path-v2", "component-justification-v2", "live-scale-v2", "challenge-edge-case-v2", "live-failure-v2"];
+
+const discussionKinds = new Set(["request_path", "component_justification", "challenge_edge_case", "live_failure"]);
+const liveKinds = new Set(["live_scale"]);
 
 function failure(code: InterviewV2TransitionErrorCode, message: string): InterviewV2TransitionResult {
   return { ok: false, code, message };
 }
 
+function validateAssessment(question: InterviewV2DiscussionQuestion): string | undefined {
+  const assessment = question.assessment;
+  if (!assessment || assessment.slotId !== question.slotId) return "Discussion questions require an assessment matching the slot.";
+  if (!Array.isArray(assessment.requiredTopics) || assessment.requiredTopics.length === 0 || assessment.requiredTopics.length > 8) return "Assessment requiredTopics must be bounded.";
+  if (!Array.isArray(assessment.evidenceSummary) || assessment.evidenceSummary.length === 0 || assessment.evidenceSummary.length > 8) return "Assessment evidenceSummary must be bounded.";
+  if (!assessment.evidenceBasis.trim() || !assessment.assessGuidance.trim()) return "Assessment evidenceBasis and assessGuidance are required.";
+  return undefined;
+}
+
 function validateQuestions(questions: readonly InterviewV2Question[]): string | undefined {
-  if (questions.length !== 5) return "Interview v2 requires exactly five questions.";
+  if (questions.length !== INTERVIEW_V2_SLOT_ORDER.length) {
+    return `Interview v2 requires exactly ${INTERVIEW_V2_SLOT_ORDER.length} questions.`;
+  }
   const ids = new Set<string>();
   for (const [index, question] of questions.entries()) {
-    if (question.ordinal !== index + 1 || question.slotId !== INTERVIEW_V2_SLOT_ORDER[index]) return "Questions must use the stable five-slot order.";
+    if (question.ordinal !== index + 1 || question.slotId !== INTERVIEW_V2_SLOT_ORDER[index]) return "Questions must use the stable slot order.";
     if (ids.has(question.questionId) || question.questionId.trim().length === 0) return "Question IDs must be unique and non-empty.";
     ids.add(question.questionId);
     if (question.prompt.trim().length === 0 || question.prompt.length > 240 || question.evidenceRevision.trim().length === 0) return "Question prompts and evidence revisions must be bounded.";
-    if (index < 2 || index === 3) {
-      if (!discussionKinds.has(question.kind)) return "Chat slots must use discussion question kinds.";
+    if (discussionKinds.has(question.kind)) {
+      const assessmentError = validateAssessment(question as InterviewV2DiscussionQuestion);
+      if (assessmentError) return assessmentError;
+      if (question.kind === "live_failure" && (!question.targetComponentId || question.targetComponentId.trim().length === 0)) {
+        return "Failure discussion slots require a targetComponentId for canvas spotlight.";
+      }
+    } else if (liveKinds.has(question.kind)) {
+      const live = question as InterviewV2LiveQuestion;
+      if (live.targetComponentId.trim().length === 0 || live.calibrationId.trim().length === 0 || live.coachingObjective.trim().length === 0) {
+        return "Live slots require a target, calibration, and coaching objective.";
+      }
     } else {
-      if (!liveKinds.has(question.kind) || !("targetComponentId" in question) || question.targetComponentId.trim().length === 0 || question.calibrationId.trim().length === 0 || question.coachingObjective.trim().length === 0) return "Live slots require a target, calibration, and coaching objective.";
+      return "Unknown interview question kind.";
     }
   }
   return undefined;
@@ -152,7 +180,7 @@ function active(state: InterviewV2State): InterviewV2TransitionResult | undefine
 }
 
 function statusFor(question: InterviewV2Question): InterviewV2Status {
-  return question.kind === "live_scale" || question.kind === "live_failure" ? "awaiting_canvas_change" : "awaiting_chat_answer";
+  return question.kind === "live_scale" ? "awaiting_canvas_change" : "awaiting_chat_answer";
 }
 
 function advance(state: InterviewV2State, outcome: InterviewV2SlotOutcome, completedAt?: string): InterviewV2State {
@@ -166,7 +194,6 @@ function advance(state: InterviewV2State, outcome: InterviewV2SlotOutcome, compl
     completedSlots: [...state.completedSlots, outcome],
     ...(next ? {} : { completedAt: completedAt ?? new Date(0).toISOString() }),
     activeReviewDigest: undefined,
-    ...(next?.slotId === "live-failure-v2" ? { acceptedCheckpointRevision: state.architectureRevision } : {}),
   };
 }
 
@@ -203,7 +230,7 @@ export function transitionInterviewV2(state: InterviewV2State, event: InterviewV
   }
   if (event.type === "semantic_edit") {
     if (!event.architectureRevision.trim()) return failure("INVALID_INPUT", "Architecture revision is required.");
-    if (state.currentQuestion?.kind === "request_path" || state.currentQuestion?.kind === "component_justification" || state.currentQuestion?.kind === "challenge_edge_case") return { ok: true, state: { ...state, architectureRevision: event.architectureRevision, status: "refreshing_question" } };
+    if (state.currentQuestion?.kind === "request_path" || state.currentQuestion?.kind === "component_justification" || state.currentQuestion?.kind === "challenge_edge_case" || state.currentQuestion?.kind === "live_failure") return { ok: true, state: { ...state, architectureRevision: event.architectureRevision, status: "refreshing_question" } };
     return { ok: true, state: { ...state, architectureRevision: event.architectureRevision, status: "awaiting_canvas_change", activeReviewDigest: undefined } };
   }
   if (!state.currentQuestion) return failure("ILLEGAL_TRANSITION", "The interview has no current question.");
@@ -213,7 +240,9 @@ export function transitionInterviewV2(state: InterviewV2State, event: InterviewV
     if (!discussionKinds.has(state.currentQuestion.kind)) return failure("ILLEGAL_TRANSITION", "Live slots cannot accept chat answers.");
     if (state.status !== "awaiting_chat_answer" && state.status !== "awaiting_chat_evaluation" && state.status !== "refreshing_question") return failure("ILLEGAL_TRANSITION", "The current chat slot is not accepting an answer.");
     if (!event.answer.trim() || event.answer.length > 20_000) return failure("INVALID_INPUT", "Answer must be between 1 and 20000 characters.");
-    return { ok: true, state: advance(state, { slotId: state.currentQuestion.slotId, questionId: state.currentQuestion.questionId, kind: state.currentQuestion.kind, evidenceRevision: state.currentQuestion.evidenceRevision, evaluation: event.evaluation }) };
+    const evaluation = safeParseInterviewEvaluation(event.evaluation);
+    if (!evaluation.success) return failure("INVALID_INPUT", evaluation.errors.join(" "));
+    return { ok: true, state: advance(state, { slotId: state.currentQuestion.slotId, questionId: state.currentQuestion.questionId, kind: state.currentQuestion.kind, evidenceRevision: state.currentQuestion.evidenceRevision, evaluation: evaluation.data }) };
   }
   if (event.type === "follow_up") {
     if (!event.answer.trim() || event.answer.length > 4_000) return failure("INVALID_INPUT", "Follow-up must be between 1 and 4000 characters.");
@@ -223,7 +252,7 @@ export function transitionInterviewV2(state: InterviewV2State, event: InterviewV
     return { ok: true, state: { ...state, followUps: [...state.followUps, { followUpId: event.followUpId, questionId: event.questionId, answer: event.answer, createdAt: event.createdAt }] } };
   }
   if (event.type === "scenario_review") {
-    if (state.currentQuestion.kind !== "live_scale" && state.currentQuestion.kind !== "live_failure") return failure("ILLEGAL_TRANSITION", "Scenario review is only available for live slots.");
+    if (state.currentQuestion.kind !== "live_scale") return failure("ILLEGAL_TRANSITION", "Scenario review is only available for live scale slots.");
     if (state.status !== "awaiting_canvas_change" && state.status !== "awaiting_scenario_review") return failure("ILLEGAL_TRANSITION", "The live slot is not ready for review.");
     if (!event.architectureRevision.trim()) return failure("INVALID_INPUT", "Architecture revision is required.");
     if (!event.passed) return { ok: true, state: { ...state, status: "awaiting_canvas_change", activeReviewDigest: undefined } };
@@ -231,7 +260,7 @@ export function transitionInterviewV2(state: InterviewV2State, event: InterviewV
     return { ok: true, state: { ...state, status: "awaiting_scenario_critique", activeReviewDigest: event.reviewDigest } };
   }
   if (event.type === "scenario_critique") {
-    if (state.currentQuestion.kind !== "live_scale" && state.currentQuestion.kind !== "live_failure") return failure("ILLEGAL_TRANSITION", "Scenario critique is only available for live slots.");
+    if (state.currentQuestion.kind !== "live_scale") return failure("ILLEGAL_TRANSITION", "Scenario critique is only available for live scale slots.");
     if (state.status !== "awaiting_scenario_critique" || state.activeReviewDigest !== event.reviewDigest) return failure("REVIEW_STALE", "The current simulator review is stale.");
     if (event.architectureRevision !== state.architectureRevision || !event.critique.trim()) return failure("REVIEW_STALE", "Critique must match the current architecture review.");
     return { ok: true, state: advance({ ...state, architectureRevision: event.architectureRevision }, { slotId: state.currentQuestion.slotId, questionId: state.currentQuestion.questionId, kind: state.currentQuestion.kind, evidenceRevision: state.currentQuestion.evidenceRevision, liveCritique: event.critique }, new Date(0).toISOString()) };

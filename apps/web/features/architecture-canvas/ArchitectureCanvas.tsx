@@ -12,7 +12,8 @@ import { AuthCallbackNotice } from "@/features/account/AuthCallbackNotice";
 import { PlayerStreakHud } from "@/features/account/PlayerStreakHud";
 import { OfficialAttemptProvider } from "@/features/official-attempt/OfficialAttemptContext";
 import { AgentSessionProvider, useCurrentArchitectureRevision, useInterviewSnapshot } from "@/features/agent-session/AgentSessionProvider";
-import { InterviewStatusPanel } from "@/features/agent-session/InterviewStatusPanel";
+import { InterviewV2StatusPanel } from "@/features/agent-session/InterviewV2StatusPanel";
+import { InterviewLiveSpotlightBridge } from "@/features/agent-session/InterviewLiveSpotlightBridge";
 import { AnnotationRunLifecycle } from "@/features/agent-session/AnnotationRunLifecycle";
 import { SelectionSessionSync } from "@/features/agent-session/SelectionSessionSync";
 import { ObservationPins } from "@/features/agent-session/ObservationPins";
@@ -43,7 +44,7 @@ import { HomeHelp } from "@/features/home/HomeHelp";
 function InterviewStatusPanelBridge() {
   const interviewSnapshot = useInterviewSnapshot();
   const currentArchitectureRevision = useCurrentArchitectureRevision();
-  return <InterviewStatusPanel snapshot={interviewSnapshot} currentArchitectureRevision={currentArchitectureRevision} />;
+  return <InterviewV2StatusPanel snapshot={interviewSnapshot} currentArchitectureRevision={currentArchitectureRevision} />;
 }
 
 function ArchitectureWorkspace() {
@@ -71,6 +72,10 @@ function ArchitectureWorkspace() {
     <>
       <SelectionSessionSync selectedComponentId={workspace.selectedComponentId} />
       <AnnotationRunLifecycle runState={workspace.runState} runKey={workspace.lastRunKey} />
+      <InterviewLiveSpotlightBridge
+        onPresentationCue={workspace.spotlightPresentationCue}
+        onModeledFailure={workspace.applyInterviewModeledFailure}
+      />
       <WebMcpRegistration
         reconciliationKey={workspace.webMcpReconciliationKey}
         onStatusChange={handleWebMcpStatus}

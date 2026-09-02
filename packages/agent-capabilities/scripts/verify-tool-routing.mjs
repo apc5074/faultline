@@ -64,6 +64,9 @@ for (const rule of TOOL_ROUTING_RULES) {
 
 assert.match(TOOL_ROUTING_GUIDANCE, /current-state read/);
 assert.match(TOOL_ROUTING_GUIDANCE, /earlier evidence revision/);
-assert.match(TOOL_ROUTING_GUIDANCE, /interview or quiz/);
+assert.match(TOOL_ROUTING_GUIDANCE, /interview me/);
+assert.match(TOOL_ROUTING_GUIDANCE, /never invent a freeform/i);
+assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Hard rule/);
+assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Never invent a freeform/);
 
 console.log("verify-tool-routing: ok");

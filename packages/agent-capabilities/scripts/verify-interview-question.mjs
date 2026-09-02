@@ -37,5 +37,7 @@ assert.throws(() => selectInterviewQuestion([{ ...card, evidenceRevision: "old" 
 assert.throws(() => selectInterviewQuestion([card], { ...input, optionalWording: "must use a CDN" }), /prescribe/);
 assert.throws(() => assertInterviewQuestionCard({ ...card, kind: "challenge_edge_case" }), /does not match/);
 assert.throws(() => assertInterviewQuestionCard({ ...card, fallbackPrompt: "x".repeat(241) }), /fallbackPrompt/);
+assert.doesNotThrow(() => assertInterviewQuestionCard({ ...card, evidenceRevision: "r".repeat(500) }));
+assert.throws(() => assertInterviewQuestionCard({ ...card, evidenceRevision: "r".repeat(16_385) }), /evidenceRevision/);
 assert.deepEqual(selectInterviewQuestion([card], input), selectInterviewQuestion([card], input));
 console.log("verify-interview-question: ok");

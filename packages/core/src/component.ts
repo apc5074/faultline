@@ -67,6 +67,23 @@ export interface ComponentAgentFacts {
   learningThemes: readonly string[];
 }
 
+export type InterviewFailureScope = "component" | "region";
+export type InterviewRecoveryEditClass = "scale_capacity" | "add_redundancy" | "reroute_traffic" | "remove_dependency";
+
+/** Optional interview tuning owned by the component registration boundary. */
+export interface ComponentInterviewProfile {
+  readonly scale?: {
+    readonly configPath: string;
+    readonly safeValues: readonly (number | string)[];
+    readonly earlyCareerEditCap: number;
+  };
+  readonly failure?: {
+    readonly scopes: readonly InterviewFailureScope[];
+    readonly recoveryEditClasses: readonly InterviewRecoveryEditClass[];
+    readonly earlyCareerEditCap: number;
+  };
+}
+
 /**
  * Framework-independent metadata describing one infrastructure primitive.
  * Its behavior/configuration is intentionally separate from challenge workload.
@@ -87,5 +104,6 @@ export interface ComponentDefinition<TConfig extends JsonObject = JsonObject> {
   clusteringSupport: boolean;
   agentCapabilities: readonly string[];
   agentFacts?: ComponentAgentFacts;
+  interview?: ComponentInterviewProfile;
   schemaVersion: number;
 }

@@ -57,4 +57,47 @@ const missingService = await registry.invoke("start_design_interview", context, 
 assert.equal(missingService.ok, false);
 if (!missingService.ok) assert.equal(missingService.code, "NOT_FOUND");
 
+class PreparationError extends Error {
+  code = "PREPARATION_REQUIRED";
+  constructor(message) {
+    super(message);
+    this.name = "DesignInterviewV2HostError";
+  }
+}
+const prepService = {
+  ...service,
+  start() {
+    throw new PreparationError("The interview needs a player-added component on the current request path. Add one unlocked component on the request path, then ask to be interviewed again.");
+  },
+};
+const prepBlocked = await registry.invoke("start_design_interview", context, {}, { interviewService: prepService });
+assert.equal(prepBlocked.ok, false);
+if (!prepBlocked.ok) {
+  assert.equal(prepBlocked.code, "INVALID_INPUT");
+  assert.match(prepBlocked.message, /player-added component/);
+  assert.equal(prepBlocked.message.includes("failed unexpectedly"), false);
+  assert.equal(prepBlocked.recovery?.retryable, true);
+  assert.equal(prepBlocked.recovery?.recoveryTool, "start_design_interview");
+}
+
+const submitAnswer = registry.get("submit_interview_answer");
+assert.deepEqual(submitAnswer.inputSchema.jsonSchema.properties.evaluation.required, ["verdict", "explanation", "strengths", "gaps", "idealAnswer", "grounding"]);
+const submitCritique = registry.get("submit_interview_simulation_critique");
+assert.deepEqual(submitCritique.inputSchema.jsonSchema.properties.critique.required, ["verdict", "summary", "strengths", "gaps", "nextStep", "grounding"]);
+assert.equal(submitCritique.inputSchema.jsonSchema.properties.critique.type, "object");
+assert.equal(submitCritique.inputSchema.jsonSchema.properties.critique.additionalProperties, false);
+const rejectedCritique = submitCritique.inputSchema.safeParse({
+  interviewId: "interview-1",
+  questionId: "opening-1",
+  reviewDigest: "digest-1",
+  candidateArchitectureRevision: "rev-1",
+  critique: { verdict: "satisfies" },
+});
+assert.equal(rejectedCritique.success, false);
+assert.match(registry.get("submit_interview_answer").description, /exactly once/i);
+assert.match(registry.get("submit_interview_answer").description, /assessment\.requiredTopics/);
+assert.match(registry.get("submit_interview_simulation_critique").description, /exactly one critique/i);
+assert.match(registry.get("start_design_interview").description, /REQUIRED first tool/);
+assert.match(registry.get("start_design_interview").description, /Never invent a freeform/);
+
 console.log("verify-interview-capabilities: ok");

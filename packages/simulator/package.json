@@ -20,6 +20,7 @@
     "verify:level1-geo-component-integration": "pnpm run build && node scripts/verify-level1-geo-component-integration.mjs",
     "verify:level1-experiment-evidence": "pnpm run build && node scripts/verify-level1-experiment-evidence.mjs",
     "verify:level2-workloads": "pnpm run build && node scripts/verify-level2-workloads.mjs && node scripts/verify-level2-starter.mjs",
+    "verify:interview-scenario": "pnpm --filter @faultline/core build && pnpm --filter @faultline/component-catalog build && pnpm --filter @faultline/challenges build && pnpm run build && node scripts/verify-interview-scenario.mjs",
     "verify:workload-flow": "pnpm run build && node scripts/verify-workload-flow.mjs",
     "verify:workload-paths": "pnpm run build && node scripts/verify-workload-paths.mjs",
     "verify:unconnected-paths": "pnpm run build && node scripts/verify-unconnected-paths.mjs"

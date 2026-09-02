@@ -148,14 +148,15 @@ restart. Start returns or resumes one current stable-ID question. Chat answers
 advance Q1, Q2, and Q4 atomically after a valid critique; live slots advance
 only after a simulator pass and digest-bound critique. There is no readiness
 advance operation. The contract is `design-interview-4` with orchestration
-`design-interview-orchestration-3`; older variable-length active records are
+`design-interview-orchestration-4`; older variable-length active records are
 archived or explicitly restarted rather than coerced.
 
-The integrated order is exactly five stable slots: request path, player-added
-component justification, calibrated live scaling, challenge edge case, and
-calibrated live component failure. The model receives only the current
-question and bounded candidate cards; it cannot see or choose a future slot or
-invent a target or scenario.
+The integrated order is currently four slots while live scaling is temporarily
+skipped (`INTERVIEW_V2_SKIP_LIVE_SCALE`): request path, player-added component
+justification, challenge edge case, and calibrated live component failure. Flip
+that flag to restore live scaling as the third slot. The model receives only the
+current question and bounded candidate cards; it cannot see or choose a future
+slot or invent a target or scenario.
 
 Architecture edits are phase-aware: in discussion slots, a semantic edit
 refreshes the current unanswered evidence/question; in live slots, semantic

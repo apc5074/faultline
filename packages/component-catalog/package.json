@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-registry.mjs"
+    "verify": "pnpm --filter @faultline/core build && pnpm run build && node scripts/verify-registry.mjs && node scripts/verify-interview-metadata.mjs"
   },
   "dependencies": {
     "@faultline/core": "workspace:*"

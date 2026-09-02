@@ -9,3 +9,4 @@ export * from "./workload-flow.js";
 export * from "./workload-contract.js";
 export * from "./region.js";
 export * from "./architecture-comparison.js";
+export * from "./interview-scenario.js";

@@ -63,7 +63,7 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
     id: "start-interview",
     label: "Interview me",
     template: "Start the Faultline design interview.",
-    clipboardPrompt: "Interview me on this architecture.",
+    clipboardPrompt: "Interview me on this architecture. Call start_design_interview first and ask only the returned question—do not invent a freeform interview.",
     requiresSelection: false,
     routingIntent: "design_interview",
     suggestedCapabilityNames: ["start_design_interview"],

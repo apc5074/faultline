@@ -1,7 +1,7 @@
 import type { AgentCapability, CapabilityExecutionOptions, CapabilityInputSchema } from "../capability.js";
 import type { AgentContext } from "../context.js";
-import type { InterviewService, InterviewServiceSnapshot } from "../interview-service-port.js";
-import { safeParseInterviewEvaluation, safeParseInterviewSimulationCritique } from "../interview-protocol.js";
+import { interviewHostCapabilityError, type InterviewService, type InterviewServiceSnapshot } from "../interview-service-port.js";
+import { interviewEvaluationSchema, interviewSimulationCritiqueSchema, safeParseInterviewEvaluation, safeParseInterviewSimulationCritique } from "../interview-protocol.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
 
 type SessionCapability<TInput> = AgentCapability<AgentContext, TInput, CapabilityResult<InterviewServiceSnapshot>>;
@@ -44,7 +44,7 @@ function executeWithService<T>(
     try {
       return capabilityOk(await operation(context, input, interview));
     } catch (error) {
-      return capabilityError("INVALID_INPUT", error instanceof Error ? error.message : "Interview operation failed.");
+      return interviewHostCapabilityError(error);
     }
   };
 }
@@ -61,7 +61,7 @@ const questionProperties = {
 
 export const getDesignInterviewCapability: SessionCapability<QuestionInput> = {
   name: "get_design_interview",
-  description: "Read the current browser-scoped design interview state for the supplied interview and question IDs.",
+  description: "Read the active interview for exact interviewId and questionId. Returns the current question plus assessment.requiredTopics/evidenceSummary when present. Does not advance or mutate. Call once per read.",
   inputSchema: sessionSchema("get_design_interview", questionProperties, ["interviewId", "questionId"], (value) => {
     if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId)) return "interviewId and questionId are required.";
     return { interviewId: value.interviewId, questionId: value.questionId };
@@ -78,10 +78,12 @@ export const getDesignInterviewCapability: SessionCapability<QuestionInput> = {
 
 export const submitInterviewAnswerCapability: SessionCapability<SubmitInterviewAnswerInput> = {
   name: "submit_interview_answer",
-  description: "Submit one evaluated answer for the current interview question without advancing.",
-  inputSchema: sessionSchema("submit_interview_answer", { ...questionProperties, answerId: { type: "string", minLength: 1 }, answer: { type: "string", minLength: 1 }, evaluation: { type: "object" } }, ["interviewId", "questionId", "answer", "evaluation"], (value) => {
+  description: "Submit exactly once per player answer. Required: interviewId, questionId, answer, evaluation.{verdict,explanation,strengths,gaps,idealAnswer,grounding}. Score only against the returned assessment.requiredTopics and evidenceSummary; then present the verdict.",
+  inputSchema: sessionSchema("submit_interview_answer", { ...questionProperties, answerId: { type: "string", minLength: 1 }, answer: { type: "string", minLength: 1 }, evaluation: interviewEvaluationSchema.jsonSchema }, ["interviewId", "questionId", "answer", "evaluation"], (value) => {
     if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId) || !text(value.answer) || value.evaluation === undefined) return "interviewId, questionId, answer, and evaluation are required.";
-    return { interviewId: value.interviewId, questionId: value.questionId, ...(text(value.answerId) ? { answerId: value.answerId } : {}), answer: value.answer, evaluation: value.evaluation };
+    const evaluation = interviewEvaluationSchema.safeParse(value.evaluation);
+    if (!evaluation.success) return evaluation.errors.join(" ");
+    return { interviewId: value.interviewId, questionId: value.questionId, ...(text(value.answerId) ? { answerId: value.answerId } : {}), answer: value.answer, evaluation: evaluation.data };
   }),
   mode: "session",
   availableWhen: () => true,
@@ -97,7 +99,7 @@ export const submitInterviewAnswerCapability: SessionCapability<SubmitInterviewA
 
 export const followUpDesignInterviewCapability: SessionCapability<FollowUpInterviewInput> = {
   name: "follow_up_design_interview",
-  description: "Answer a follow-up about the current question without advancing the interview.",
+  description: "Submit exactly one follow-up exchange. Required: interviewId, questionId, question, answer. Stays on the current question; do not evaluate a new answer or advance.",
   inputSchema: sessionSchema("follow_up_design_interview", { ...questionProperties, followUpId: { type: "string", minLength: 1 }, question: { type: "string", minLength: 1 }, answer: { type: "string", minLength: 1 } }, ["interviewId", "questionId", "question", "answer"], (value) => {
     if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId) || !text(value.question) || !text(value.answer)) return "interviewId, questionId, question, and answer are required.";
     return { interviewId: value.interviewId, questionId: value.questionId, ...(text(value.followUpId) ? { followUpId: value.followUpId } : {}), question: value.question, answer: value.answer };
@@ -114,7 +116,7 @@ export const followUpDesignInterviewCapability: SessionCapability<FollowUpInterv
 
 export const advanceDesignInterviewCapability: SessionCapability<AdvanceInterviewInput> = {
   name: "advance_design_interview",
-  description: "Advance exactly one interview question after the player explicitly says they are ready.",
+  description: "Retired from the v2 production interview surface. Do not call for interview or quiz intent.",
   inputSchema: sessionSchema("advance_design_interview", { ...questionProperties, ready: { type: "boolean" } }, ["interviewId", "questionId", "ready"], (value) => {
     if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId) || value.ready !== true) return "interviewId, questionId, and ready: true are required.";
     return { interviewId: value.interviewId, questionId: value.questionId, ready: true };
@@ -131,7 +133,7 @@ export const advanceDesignInterviewCapability: SessionCapability<AdvanceIntervie
 
 export const endDesignInterviewCapability: SessionCapability<EndInterviewInput> = {
   name: "end_design_interview",
-  description: "End the active browser-scoped interview without changing architecture or official state.",
+  description: "End the active interview exactly once when the player asks to stop. Required: interviewId. Does not edit architecture or official state.",
   inputSchema: sessionSchema("end_design_interview", { interviewId: { type: "string", minLength: 1 } }, ["interviewId"], (value) => {
     if (!isRecord(value) || !text(value.interviewId)) return "interviewId is required.";
     return { interviewId: value.interviewId };
@@ -148,7 +150,7 @@ export const endDesignInterviewCapability: SessionCapability<EndInterviewInput> 
 
 export const restartDesignInterviewCapability: SessionCapability<Record<string, never>> = {
   name: "restart_design_interview",
-  description: "Explicitly start a new design interview on the current architecture while preserving the prior browser-scoped interview in history.",
+  description: "Restart exactly once after the player explicitly asks to restart. Input must be {}. Archives the prior browser-scoped interview and starts a fresh session on the current architecture.",
   inputSchema: sessionSchema("restart_design_interview", {}, [], (value) => {
     if (value !== undefined && value !== null && (!isRecord(value) || Object.keys(value).length > 0)) return "restart_design_interview input must be an empty object.";
     return {};
@@ -161,7 +163,7 @@ export const restartDesignInterviewCapability: SessionCapability<Record<string, 
 
 export const prepareInterviewSimulationReviewCapability: SessionCapability<PrepareSimulationReviewInput> = {
   name: "prepare_interview_simulation_review",
-  description: "Evaluate the original and redesigned architectures under the fixed interview simulation scenario and return digest-bound coaching evidence.",
+  description: "Call exactly once per review intent after the player says Review my redesign. Required: interviewId, questionId. Returns a digest-bound review packet; do not invent metrics or claim official pass/fail.",
   inputSchema: sessionSchema("prepare_interview_simulation_review", questionProperties, ["interviewId", "questionId"], (value) => {
     if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId)) return "interviewId and questionId are required.";
     return { interviewId: value.interviewId, questionId: value.questionId };
@@ -179,10 +181,12 @@ export const prepareInterviewSimulationReviewCapability: SessionCapability<Prepa
 
 export const submitInterviewSimulationCritiqueCapability: SessionCapability<SubmitSimulationCritiqueInput> = {
   name: "submit_interview_simulation_critique",
-  description: "Save a bounded critique grounded in the current digest-bound simulation review and complete the interview.",
-  inputSchema: sessionSchema("submit_interview_simulation_critique", { ...questionProperties, reviewDigest: { type: "string", minLength: 1 }, candidateArchitectureRevision: { type: "string", minLength: 1 }, critique: { type: "object" } }, ["interviewId", "questionId", "reviewDigest", "candidateArchitectureRevision", "critique"], (value) => {
+  description: "Submit exactly one critique after a passing prepare_interview_simulation_review. Required: interviewId, questionId, reviewDigest, candidateArchitectureRevision, critique.{verdict,summary,strengths,gaps,nextStep,grounding}. Use only the returned packet; never claims official pass/fail.",
+  inputSchema: sessionSchema("submit_interview_simulation_critique", { ...questionProperties, reviewDigest: { type: "string", minLength: 1 }, candidateArchitectureRevision: { type: "string", minLength: 1 }, critique: interviewSimulationCritiqueSchema.jsonSchema }, ["interviewId", "questionId", "reviewDigest", "candidateArchitectureRevision", "critique"], (value) => {
     if (!isRecord(value) || !text(value.interviewId) || !text(value.questionId) || !text(value.reviewDigest) || !text(value.candidateArchitectureRevision) || value.critique === undefined) return "interviewId, questionId, reviewDigest, candidateArchitectureRevision, and critique are required.";
-    return { interviewId: value.interviewId, questionId: value.questionId, reviewDigest: value.reviewDigest, candidateArchitectureRevision: value.candidateArchitectureRevision, critique: value.critique };
+    const critique = interviewSimulationCritiqueSchema.safeParse(value.critique);
+    if (!critique.success) return critique.errors.join(" ");
+    return { interviewId: value.interviewId, questionId: value.questionId, reviewDigest: value.reviewDigest, candidateArchitectureRevision: value.candidateArchitectureRevision, critique: critique.data };
   }),
   mode: "session",
   availableWhen: () => true,

@@ -6,7 +6,7 @@ import type {
   InterviewService,
   PresentationCue,
 } from "@faultline/agent-capabilities";
-import { INTERVIEW_CAPABILITY_NAMES, resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
+import { INTERVIEW_V2_CAPABILITY_NAMES, resolveLiveAgentSnapshot } from "@faultline/agent-capabilities";
 
 import { toWebMcpTool } from "./to-webmcp-tool.js";
 import type { WebMcpContextFactory } from "./to-webmcp-tool.js";
@@ -36,11 +36,11 @@ type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityRes
 /** Dedicated browser session surface; never included in read/visual/experiment surfaces. */
 export async function buildInterviewWebMcpSurface(options: BuildInterviewWebMcpSurfaceOptions): Promise<InterviewWebMcpSurface> {
   const context = options.context ?? resolveLiveAgentSnapshot(await options.getContext()).context;
-  if (!options.interviewService) return { tools: [], skipped: [...INTERVIEW_CAPABILITY_NAMES], resolvedNames: [] };
+  if (!options.interviewService) return { tools: [], skipped: [...INTERVIEW_V2_CAPABILITY_NAMES], resolvedNames: [] };
 
   const tools: WebMcpTool[] = [];
   const skipped: string[] = [];
-  for (const name of INTERVIEW_CAPABILITY_NAMES) {
+  for (const name of INTERVIEW_V2_CAPABILITY_NAMES) {
     if (!options.registry.has(name)) {
       skipped.push(name);
       continue;
@@ -54,7 +54,7 @@ export async function buildInterviewWebMcpSurface(options: BuildInterviewWebMcpS
       registry: options.registry,
       getContext: options.getContext,
       getCurrentEvidenceRevision: options.getCurrentEvidenceRevision,
-      availableToolNames: new Set(INTERVIEW_CAPABILITY_NAMES),
+      availableToolNames: new Set(INTERVIEW_V2_CAPABILITY_NAMES),
       interviewService: options.interviewService,
       development: options.development,
       ...(options.onPresentationCue ? { onPresentationCue: options.onPresentationCue } : {}),
