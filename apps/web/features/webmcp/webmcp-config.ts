@@ -2,6 +2,9 @@ import { safeWebMcpRevision } from "@faultline/webmcp";
 
 export type WebMcpFeatureState = "enabled" | "disabled";
 
+const DEV_TRACE_STORAGE_KEY = "faultline:dev:webmcp-trace:v1";
+const DEV_TRACE_MAX_EVENTS = 200;
+
 /** Public registration-only kill switch; gameplay never depends on this flag. */
 export function webMcpFeatureState(): WebMcpFeatureState {
   const value = process.env.NEXT_PUBLIC_FAULTLINE_WEBMCP_ENABLED?.trim().toLowerCase();
@@ -44,5 +47,38 @@ export function emitWebMcpTelemetry(event: WebMcpTelemetryEvent): void {
       ? { ...event, evidenceRevision: safeWebMcpRevision(event.evidenceRevision) }
       : event;
     window.dispatchEvent(new CustomEvent("faultline:webmcp", { detail: safeEvent }));
+    if (process.env.NODE_ENV !== "production" && safeEvent.kind === "trace") {
+      try {
+        const current = readDevWebMcpTrace();
+        window.localStorage.setItem(
+          DEV_TRACE_STORAGE_KEY,
+          JSON.stringify([...current, safeEvent].slice(-DEV_TRACE_MAX_EVENTS)),
+        );
+      } catch {
+        // Diagnostics must never affect gameplay when storage is unavailable.
+      }
+    }
+  }
+}
+
+export function readDevWebMcpTrace(): readonly WebMcpTelemetryEvent[] {
+  if (typeof window === "undefined" || process.env.NODE_ENV === "production") return [];
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(DEV_TRACE_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((event): event is WebMcpTelemetryEvent => Boolean(event && typeof event === "object" && (event as { kind?: unknown }).kind === "trace"))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function clearDevWebMcpTrace(): void {
+  if (typeof window === "undefined" || process.env.NODE_ENV === "production") return;
+  try {
+    window.localStorage.removeItem(DEV_TRACE_STORAGE_KEY);
+    window.dispatchEvent(new CustomEvent("faultline:webmcp-trace-cleared"));
+  } catch {
+    // Diagnostics must never affect gameplay when storage is unavailable.
   }
 }

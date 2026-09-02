@@ -21,7 +21,7 @@ import {
 } from "@/features/agent-session/AgentSessionProvider";
 import { AGENT_HELP_CHIPS, buildPendingHelpRequest } from "@/features/agent-session/agent-help-templates";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
-import type { WebMcpTelemetryEvent } from "@/features/webmcp/webmcp-config";
+import { clearDevWebMcpTrace, readDevWebMcpTrace, type WebMcpTelemetryEvent } from "@/features/webmcp/webmcp-config";
 
 const DEFAULT_ARCHITECTURE: Architecture = {
   version: 1,
@@ -123,13 +123,24 @@ function WebMcpInspectorWorkspace({
   const [traceEvents, setTraceEvents] = useState<readonly WebMcpTelemetryEvent[]>([]);
 
   useEffect(() => {
+    setTraceEvents(readDevWebMcpTrace().slice(-80));
     const onTelemetry = (event: Event) => {
       const detail = (event as CustomEvent<WebMcpTelemetryEvent>).detail;
       if (detail?.kind === "timing") setTimingEvents((current) => [...current, detail].slice(-40));
       if (detail?.kind === "trace") setTraceEvents((current) => [...current, detail].slice(-80));
     };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "faultline:dev:webmcp-trace:v1") setTraceEvents(readDevWebMcpTrace().slice(-80));
+    };
+    const onTraceCleared = () => setTraceEvents([]);
     window.addEventListener("faultline:webmcp", onTelemetry);
-    return () => window.removeEventListener("faultline:webmcp", onTelemetry);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("faultline:webmcp-trace-cleared", onTraceCleared);
+    return () => {
+      window.removeEventListener("faultline:webmcp", onTelemetry);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("faultline:webmcp-trace-cleared", onTraceCleared);
+    };
   }, []);
 
   const refreshSnapshot = useCallback(async () => {
@@ -195,7 +206,21 @@ function WebMcpInspectorWorkspace({
   const readEntries = snapshot?.entries.filter((entry) => entry.mode === "read") ?? [];
   const visualEntries = snapshot?.entries.filter((entry) => entry.mode === "visual") ?? [];
   const currentEvidenceRevision = safeWebMcpRevision(evidenceSource.getEvidenceRevision());
+  const registeredTools = new Set(
+    traceEvents
+      .filter((event) => event.traceName === "tool_registered")
+      .map((event) => event.capability)
+      .filter((capability): capability is string => typeof capability === "string"),
+  );
   const latestInvocation = [...traceEvents].reverse().find((event) => event.traceName === "tool_invoked");
+  const latestInvocationIndex = latestInvocation ? traceEvents.lastIndexOf(latestInvocation) : -1;
+  const latestCompletion = latestInvocation
+    ? traceEvents.slice(latestInvocationIndex + 1).find((event) =>
+        event.traceName === "capability_completed"
+        && event.capability === latestInvocation.capability
+        && event.evidenceRevision === latestInvocation.evidenceRevision,
+      )
+    : undefined;
   const renderToolList = (entries: readonly Phase6InspectorSnapshot["entries"][number][]) => (
     <div className="webmcp-inspector__tool-list">
       {entries.map((entry) => (
@@ -283,8 +308,28 @@ function WebMcpInspectorWorkspace({
 
       <section className="webmcp-inspector__panel" aria-label="Safe lifecycle trace">
         <h2>Safe lifecycle trace</h2>
+        <button type="button" onClick={clearDevWebMcpTrace}>Clear trace</button>
         <p>Development-only stage events. Inputs and evidence payloads are never retained.</p>
+        <p>
+          Registration proves only that this page accepted tool definitions. ChatGPT host discovery is separate and cannot be observed from page JavaScript.
+        </p>
         <dl className="webmcp-inspector__meta">
+          <div>
+            <dt>page registration</dt>
+            <dd>{registeredTools.size > 0 ? `succeeded · ${registeredTools.size} tools observed` : "not observed"}</dd>
+          </div>
+          <div>
+            <dt>host discovery</dt>
+            <dd>{latestInvocation ? "confirmed by invocation" : "unconfirmed · check ChatGPT Site tools"}</dd>
+          </div>
+          <div>
+            <dt>tool invocation</dt>
+            <dd>{latestInvocation ? "observed" : "not observed"}</dd>
+          </div>
+          <div>
+            <dt>WebMCP evidence</dt>
+            <dd>{latestInvocation ? (latestCompletion ? "invocation completed; inspect its outcome below" : "invocation started; completion not observed") : "No WebMCP evidence obtained"}</dd>
+          </div>
           <div>
             <dt>current evidence revision</dt>
             <dd>{currentEvidenceRevision}</dd>
@@ -346,7 +391,7 @@ function WebMcpInspectorWorkspace({
       {snapshot ? (
         <>
           <p className="webmcp-inspector__status">
-            Browser WebMCP: {snapshot.browserSupported ? "supported" : "unsupported"} · surface: complete semantic registry (production uses the smaller WebMCP profile)
+            Page registration API: {snapshot.browserSupported ? "available" : "unavailable"} · host discovery: not exposed to page JavaScript · surface: complete semantic registry (production uses the smaller WebMCP profile)
           </p>
 
           <section className="webmcp-inspector__panel" aria-label="Read tools">

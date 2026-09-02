@@ -37,6 +37,9 @@ const tool = toWebMcpTool(registry.get("inspect_component"), {
       componentId: command.component.entityId,
       evidenceRevision: command.evidenceRevision,
       appliedSessionRevision: command.sessionRevision + 1,
+      annotationStatus: "rendered",
+      cameraStatus: "centered",
+      appliedZoom: 1.5,
       status: "applied",
     };
   },
@@ -72,6 +75,9 @@ const registeredSurface = await buildAgentReadSurface({
     componentId: command.component.entityId,
     evidenceRevision: command.evidenceRevision,
     appliedSessionRevision: command.sessionRevision + 1,
+    annotationStatus: "rendered",
+    cameraStatus: "centered",
+    appliedZoom: 1.5,
     status: "applied",
   }),
 });
@@ -100,6 +106,9 @@ await registerAgentWebMcpSurface({
     componentId: command.component.entityId,
     evidenceRevision: command.evidenceRevision,
     appliedSessionRevision: command.sessionRevision + 1,
+    annotationStatus: "rendered",
+    cameraStatus: "centered",
+    appliedZoom: 1.5,
     status: "applied",
   }),
 });

@@ -89,6 +89,31 @@ reports `unsupported`, `registering`, `ready`, `partial`, `failed`, or
 The package uses a 2-second registration deadline for UI status. It does not
 cancel or make gameplay depend on a slow browser registration.
 
+Registration is page-local acceptance, not proof that an external host has
+discovered or invoked a tool. Faultline never calls `modelContext.getTools()`
+to support ChatGPT discovery: that API is for in-page agents, while browser
+agents use a host-internal discovery mechanism. The player-facing status says
+when page registration succeeded and separately reports whether a real tool
+callback has been observed. When registration succeeds but no callback runs,
+host discovery remains unconfirmed and no WebMCP evidence was obtained.
+
+ChatGPT Site tools must be tested in the desktop app's integrated browser with
+Site tools enabled, the Faultline route open as the top-level page, a currently
+supported model/workspace, and a current desktop build. The address bar's
+Available site tools list is the host-side discovery check; Recently used is
+the invocation check. A host message that tool listing is unsupported cannot
+be repaired by a page-side registration call, and any simulator-looking prose
+returned without `tool_invoked` is unverified fallback output.
+
+The draft API is restricted to secure contexts, so deployed Faultline routes
+must use HTTPS (development localhost can be treated as a trustworthy origin by
+the browser). ChatGPT's current Site tools setup does not require a Faultline
+origin-trial token; the optional token in this repository exists for separate
+Chrome/browser-spike testing. If `registerTool` is present and resolves, the
+page has already passed its API exposure, origin, and registration checks. That
+still says nothing about whether the external host can enumerate the page's
+tools.
+
 ## Current evidence and freshness
 
 `createWebMcpEvidenceSource` builds an exact UI-free evidence key from:
@@ -164,6 +189,10 @@ WebMCP tools do not receive architecture-edit powers.
 - A presentation cue derived from a read result is advisory. It is validated
   against the evidence revision before its callback runs; a callback error does
   not prevent the evidence response.
+- A direct single-component explanation is stricter: the page uses one
+  component-camera command to center the live React Flow node at an explicit
+  zoom, and the adapter withholds evidence until its matching receipt confirms
+  both the rendered focus annotation and completed camera movement.
 Visual marks, viewport focus, and playback are not
 architecture state, simulator input, official-submission input, or persistent
 competition evidence. The final interview simulation question owns scenario

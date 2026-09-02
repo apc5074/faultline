@@ -7,6 +7,7 @@ import {
   type AgentPendingHelpRequest,
   type AgentSessionFocus,
   type AgentSessionState,
+  type ComponentCameraApplication,
   type ComponentExplanationPresentation,
   type VisualApplicationReceipt,
   type InterviewService,
@@ -52,8 +53,34 @@ export interface AgentSessionStore {
 }
 
 export interface ComponentExplanationBarrier {
-  awaitPresentation(command: ComponentExplanationPresentation, options: { readonly signal?: AbortSignal }): Promise<VisualApplicationReceipt>;
-  acknowledgeFocusRendered(annotation: { readonly intentId?: string; readonly componentId: string; readonly architectureRevision?: string }, appliedSessionRevision: number): void;
+  awaitPresentation(command: ComponentExplanationPresentation, options: {
+    readonly signal?: AbortSignal;
+    readonly camera: Promise<ComponentCameraApplication>;
+  }): Promise<VisualApplicationReceipt>;
+  acknowledgeFocusRendered(annotation: { readonly id: string; readonly intentId?: string; readonly componentId: string; readonly architectureRevision?: string }, appliedSessionRevision: number): void;
+}
+
+interface PendingComponentPresentation {
+  readonly command: ComponentExplanationPresentation;
+  readonly resolve: (receipt: VisualApplicationReceipt) => void;
+  readonly reject: (reason: Error) => void;
+  annotationRevision?: number;
+  camera?: ComponentCameraApplication;
+}
+
+function completedPresentationReceipt(pending: PendingComponentPresentation): VisualApplicationReceipt | undefined {
+  if (pending.annotationRevision === undefined || pending.camera === undefined) return undefined;
+  return {
+    contractVersion: pending.command.contractVersion,
+    commandId: pending.command.commandId,
+    componentId: pending.command.component.entityId,
+    evidenceRevision: pending.command.evidenceRevision,
+    appliedSessionRevision: pending.annotationRevision,
+    annotationStatus: "rendered",
+    cameraStatus: "centered",
+    appliedZoom: pending.camera.zoom,
+    status: "applied",
+  };
 }
 
 interface AgentSessionContextValue {
@@ -84,11 +111,7 @@ export function AgentSessionProvider({
   challengeRef.current = challenge;
 
   const sessionRef = useRef<AgentSessionState>(createEmptyAgentSessionState());
-  const pendingPresentationRef = useRef(new Map<string, {
-    command: ComponentExplanationPresentation;
-    resolve: (receipt: VisualApplicationReceipt) => void;
-    reject: (reason: Error) => void;
-  }>());
+  const pendingPresentationRef = useRef(new Map<string, PendingComponentPresentation>());
   const [sessionVersion, setSessionVersion] = useState(0);
   // The provider renders on the server too; never resolve the browser owner
   // key or touch localStorage until the client has mounted.
@@ -157,17 +180,36 @@ export function AgentSessionProvider({
   );
 
   const componentExplanationBarrier = useMemo<ComponentExplanationBarrier>(() => ({
-    awaitPresentation: (command, { signal } = {}) => new Promise((resolve, reject) => {
+    awaitPresentation: (command, { signal, camera }) => new Promise((resolve, reject) => {
       if (signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
       const abort = () => {
         pendingPresentationRef.current.delete(command.commandId);
         reject(new DOMException("Aborted", "AbortError"));
       };
       signal?.addEventListener("abort", abort, { once: true });
-      pendingPresentationRef.current.set(command.commandId, {
+      const pending: PendingComponentPresentation = {
         command,
         resolve: (receipt) => { signal?.removeEventListener("abort", abort); resolve(receipt); },
         reject: (reason) => { signal?.removeEventListener("abort", abort); reject(reason); },
+      };
+      pendingPresentationRef.current.set(command.commandId, pending);
+      camera.then((application) => {
+        const current = pendingPresentationRef.current.get(command.commandId);
+        if (current !== pending) return;
+        if (application.componentId !== command.component.entityId || application.status !== "centered") {
+          pendingPresentationRef.current.delete(command.commandId);
+          pending.reject(new Error("Component camera applied to the wrong target."));
+          return;
+        }
+        pending.camera = application;
+        const receipt = completedPresentationReceipt(pending);
+        if (!receipt) return;
+        pendingPresentationRef.current.delete(command.commandId);
+        pending.resolve(receipt);
+      }, (reason: unknown) => {
+        if (pendingPresentationRef.current.get(command.commandId) !== pending) return;
+        pendingPresentationRef.current.delete(command.commandId);
+        pending.reject(reason instanceof Error ? reason : new Error("Component camera failed."));
       });
     }),
     acknowledgeFocusRendered: (annotation, appliedSessionRevision) => {
@@ -175,19 +217,16 @@ export function AgentSessionProvider({
       if (!commandId) return;
       const pending = pendingPresentationRef.current.get(commandId);
       if (!pending) return;
-      pendingPresentationRef.current.delete(commandId);
       if (annotation.componentId !== pending.command.component.entityId || annotation.architectureRevision !== pending.command.evidenceRevision) {
+        pendingPresentationRef.current.delete(commandId);
         pending.reject(new Error("Focus annotation was superseded."));
         return;
       }
-      pending.resolve({
-        contractVersion: pending.command.contractVersion,
-        commandId,
-        componentId: annotation.componentId,
-        evidenceRevision: pending.command.evidenceRevision,
-        appliedSessionRevision,
-        status: "applied",
-      });
+      pending.annotationRevision = appliedSessionRevision;
+      const receipt = completedPresentationReceipt(pending);
+      if (!receipt) return;
+      pendingPresentationRef.current.delete(commandId);
+      pending.resolve(receipt);
     },
   }), []);
 

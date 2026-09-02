@@ -104,16 +104,29 @@ export default function WebMcpPage() {
           <h2 id="connect-title">Open Faultline in ChatGPT&apos;s browser</h2>
           <ol className="webmcp-guide__steps">
             <li>
-              <strong>Open the ChatGPT desktop app.</strong> Use its in-app
-              browser, where WebMCP is supported by default.
+              <strong>Update and open the ChatGPT desktop app.</strong> Use its
+              integrated browser with ChatGPT Work or Codex and a model that
+              currently supports Site tools.
             </li>
             <li>
-              <strong>Open the live Faultline app</strong> and go to Level 1.
-              Keep the canvas open while you chat.
+              <strong>Enable Site tools.</strong> In ChatGPT, check Settings →
+              Browser → Permissions → Enable site tools.
             </li>
             <li>
-              <strong>Ask ChatGPT to inspect the page.</strong> It can discover
-              Faultline&apos;s WebMCP tools and use them in the conversation.
+              <strong>Open the live Faultline app at Level 1</strong> as the
+              top-level page, not inside an iframe. Keep the canvas open while
+              you chat.
+            </li>
+            <li>
+              <strong>Check Site tools in the address bar.</strong> Confirm
+              Faultline appears under Available site tools before asking the
+              agent to inspect the page. Page registration alone does not prove
+              host discovery or invocation.
+            </li>
+            <li>
+              <strong>Verify the call after the answer.</strong> Recently used
+              Site tools should show the invocation. Without an observed call,
+              treat simulator-looking prose as unverified.
             </li>
           </ol>
         </section>

@@ -1,4 +1,4 @@
-import type { AgentFocusAnnotation, PinnedObservation } from "@faultline/agent-capabilities";
+import type { PinnedObservation } from "@faultline/agent-capabilities";
 import type { RegionId } from "@faultline/core";
 import type { VisualIntent, VisualIntentHandler } from "@faultline/webmcp";
 
@@ -13,8 +13,6 @@ export interface VisualCommandPublisherOptions {
   readonly onFocusConnection?: (connectionId: string) => void;
   readonly onFocusRegion?: (regionId: RegionId) => void;
   readonly onPinObservation?: (observation: PinnedObservation) => void;
-  /** Synchronous barrier ack once a focus annotation is committed to session state. */
-  readonly onFocusAnnotationCommitted?: (annotation: AgentFocusAnnotation, sessionRevision: number) => void;
 }
 
 /**
@@ -39,7 +37,6 @@ export function createVisualCommandPublisher(
     if (intent.kind === "annotation") {
       store.applyAnnotations([intent.annotation]);
       if (intent.annotation.type === "focus") {
-        options.onFocusAnnotationCommitted?.(intent.annotation, store.getSession().revision);
         options.onFocusComponent?.(intent.annotation.componentId);
       }
       if (intent.annotation.type === "path") {

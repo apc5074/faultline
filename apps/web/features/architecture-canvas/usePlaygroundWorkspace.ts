@@ -3,14 +3,14 @@
 import { useReactFlow, type Connection as FlowConnection, type Edge, type EdgeChange, type NodeChange } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
-import { architectureAvailabilityFingerprint, type PinnedObservation, type PresentationCue } from "@faultline/agent-capabilities";
+import { architectureAvailabilityFingerprint, type ComponentCameraApplication, type PinnedObservation, type PresentationCue } from "@faultline/agent-capabilities";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
 import { componentRegistry } from "@faultline/component-catalog";
 import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type RegionDeployment, type RegionId } from "@faultline/core";
 import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
 
-import { clampToPlaygroundBoard } from "@/features/architecture-canvas/canvas-grid";
+import { clampToPlaygroundBoard, PLAYGROUND_MAX_ZOOM } from "@/features/architecture-canvas/canvas-grid";
 import { runDurationMs } from "@/features/architecture-canvas/run-duration";
 import { firstFailureFocus } from "@/features/architecture-canvas/run-failure-focus";
 import { buildRunTimeline, firstFailingComponentId } from "@/features/architecture-canvas/run-timeline";
@@ -59,6 +59,24 @@ import {
 import type { WorldMapSelection } from "@/features/world-map/WorldMap";
 import { useOfficialAttempt } from "@/features/official-attempt/OfficialAttemptContext";
 
+const COMPONENT_FOCUS_ZOOM = Math.min(1.5, PLAYGROUND_MAX_ZOOM);
+const COMPONENT_CAMERA_READY_DEADLINE_MS = 1_000;
+
+function nextAnimationFrame(signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+    const frame = window.requestAnimationFrame(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    });
+    const abort = () => {
+      window.cancelAnimationFrame(frame);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export function usePlaygroundWorkspace() {
   const {
     session: officialSession,
@@ -78,6 +96,10 @@ export function usePlaygroundWorkspace() {
   const canvasInteractionRef = useRef(false);
   const presentationVersionRef = useRef(0);
   const pendingCameraRef = useRef<{ readonly version: number; readonly componentIds: readonly string[] } | null>(null);
+  const componentCameraInFlightRef = useRef<{
+    readonly componentId: string;
+    readonly promise: Promise<ComponentCameraApplication>;
+  } | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
   const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
   const [pinnedObservations, setPinnedObservations] = useState<readonly PinnedObservation[]>([]);
@@ -99,7 +121,7 @@ export function usePlaygroundWorkspace() {
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const rejectedNodeDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, getNode, getViewport } = useReactFlow();
 
   useEffect(() => {
     if (!completion?.submission) return;
@@ -1101,6 +1123,57 @@ export function usePlaygroundWorkspace() {
     if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
   }, []);
 
+  const focusComponentCamera = useCallback(
+    (componentId: string, options: { readonly signal?: AbortSignal } = {}): Promise<ComponentCameraApplication> => {
+      const existing = componentCameraInFlightRef.current;
+      if (existing?.componentId === componentId) return existing.promise;
+
+      const component = architecture.components.find((candidate) => candidate.id === componentId);
+      if (!component) return Promise.reject(new Error(`Unknown component "${componentId}".`));
+
+      const version = presentationVersionRef.current + 1;
+      presentationVersionRef.current = version;
+      pendingCameraRef.current = { version, componentIds: [componentId] };
+      if (viewMode !== "logical") setViewMode("logical");
+
+      const promise: Promise<ComponentCameraApplication> = (async () => {
+        const startedAt = performance.now();
+        while (performance.now() - startedAt < COMPONENT_CAMERA_READY_DEADLINE_MS) {
+          if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (canvasInteractionRef.current || !getNode(componentId)) {
+            await nextAnimationFrame(options.signal);
+            continue;
+          }
+          pendingCameraRef.current = null;
+          const framed = await fitView({
+            nodes: [{ id: componentId }],
+            duration: 250,
+            padding: 0.4,
+            maxZoom: COMPONENT_FOCUS_ZOOM,
+          });
+          if (!framed) {
+            await nextAnimationFrame(options.signal);
+            continue;
+          }
+          if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          const viewport = getViewport();
+          if (viewport.zoom <= 0) {
+            throw new Error("Component camera did not reach a valid zoom.");
+          }
+          return { componentId, status: "centered" as const, zoom: viewport.zoom };
+        }
+        throw new Error("Component camera was unavailable before the presentation deadline.");
+      })();
+
+      componentCameraInFlightRef.current = { componentId, promise };
+      void promise.finally(() => {
+        if (componentCameraInFlightRef.current?.promise === promise) componentCameraInFlightRef.current = null;
+      }).catch(() => undefined);
+      return promise;
+    },
+    [architecture.components, fitView, getNode, getViewport, viewMode],
+  );
+
   const focusComponentInPresentation = useCallback(
     (componentId: string) => {
       const component = architecture.components.find((candidate) => candidate.id === componentId);
@@ -1108,19 +1181,9 @@ export function usePlaygroundWorkspace() {
       setSelectedComponentId(componentId);
       setSelectedConnectionId(null);
       setWorldSelection(worldSelectionForComponent(architecture, componentId));
-      // An explicit focus request should behave like the player clicked the
-      // component: return to the logical board and perform the real fitView.
-      const version = presentationVersionRef.current + 1;
-      presentationVersionRef.current = version;
-      pendingCameraRef.current = { version, componentIds: [componentId] };
-      if (viewMode !== "logical") {
-        setViewMode("logical");
-      } else if (!canvasInteractionRef.current) {
-        pendingCameraRef.current = null;
-        fitView({ nodes: [{ id: componentId }], duration: 250, padding: 0.4 });
-      }
+      void focusComponentCamera(componentId).catch(() => undefined);
     },
-    [architecture, fitView, viewMode],
+    [architecture, focusComponentCamera],
   );
 
   const focusConnectionInPresentation = useCallback((connectionId: string) => {
@@ -1218,6 +1281,7 @@ export function usePlaygroundWorkspace() {
     pinObservation: (observation: PinnedObservation) => setPinnedObservations((current) => [...current.filter((entry) => `${entry.target}:${entry.id}:${entry.metricId}` !== `${observation.target}:${observation.id}:${observation.metricId}`), observation].slice(-6)),
     clearPinnedObservations: () => setPinnedObservations([]),
     focusComponentInPresentation,
+    focusComponentCamera,
     focusConnectionInPresentation,
     focusRegionInPresentation,
   };

@@ -25,7 +25,20 @@ export interface VisualApplicationReceipt {
   readonly componentId: string;
   readonly evidenceRevision: string;
   readonly appliedSessionRevision: number;
+  /** The focus annotation reached the page render layer. */
+  readonly annotationStatus: "rendered";
+  /** The page-owned camera command completed for this exact component. */
+  readonly cameraStatus: "centered";
+  /** Final viewport zoom reported after the camera animation completed. */
+  readonly appliedZoom: number;
   readonly status: "applied" | "rejected";
+}
+
+/** Result of the page-owned single-component camera command. */
+export interface ComponentCameraApplication {
+  readonly componentId: string;
+  readonly status: "centered";
+  readonly zoom: number;
 }
 
 export function createComponentExplanationPresentation(input: {
@@ -57,5 +70,9 @@ export function isMatchingVisualApplicationReceipt(
     receipt.commandId === command.commandId &&
     receipt.componentId === command.component.entityId &&
     receipt.evidenceRevision === command.evidenceRevision &&
-    receipt.appliedSessionRevision >= command.sessionRevision;
+    receipt.appliedSessionRevision >= command.sessionRevision &&
+    receipt.annotationStatus === "rendered" &&
+    receipt.cameraStatus === "centered" &&
+    Number.isFinite(receipt.appliedZoom) &&
+    receipt.appliedZoom > 0;
 }

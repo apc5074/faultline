@@ -11,20 +11,23 @@ export interface WebMcpStatus {
   readonly readToolCount: number;
   readonly visualToolCount: number;
   readonly failedToolCount: number;
+  /** True only after a registered tool callback has actually completed. */
+  readonly invocationObserved: boolean;
   readonly generation?: number;
 }
 
 const STATUS_LABEL: Record<WebMcpSurfaceStatus, string> = {
-  unsupported: "Unsupported browser",
+  unsupported: "Page runtime unsupported",
   registering: "Registering tools",
-  ready: "Ready",
+  ready: "Tools registered",
   partial: "Partial registration",
   failed: "Registration failed",
   disabled: "Agent tools disabled",
 };
 
 const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
-  unsupported: "Optional — your game works without WebMCP",
+  unsupported:
+    "Host discovery is unavailable in this page runtime · Optional — your game works without WebMCP",
   registering: "Setting up optional agent tools…",
   ready: "Help:",
   partial: "Some agent tools unavailable — gameplay unaffected",
@@ -34,7 +37,7 @@ const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
 
 const STARTER_PROMPTS = [
   "Review my current Faultline design with review_current_design. Give me one grounded finding and one question.",
-  "Tell me about all my Postgres components using inspect_component with { selector: { type: \"postgres\", scope: \"all\" } }.",
+  'Tell me about all my Postgres components using inspect_component with { selector: { type: "postgres", scope: "all" } }.',
   "How healthy is my system? Use get_metrics first and give one finding and one question.",
 ] as const;
 
@@ -59,7 +62,12 @@ export function WebMcpStatusPlate({ status }: { status: WebMcpStatus }) {
         </span>
       ) : null}
       {status.state === "failed" || status.state === "partial" ? (
-        <button type="button" onClick={() => window.dispatchEvent(new Event("faultline:webmcp-retry"))}>
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(new Event("faultline:webmcp-retry"))
+          }
+        >
           Retry WebMCP
         </button>
       ) : null}

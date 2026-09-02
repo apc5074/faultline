@@ -215,7 +215,19 @@ export function createWebMcpEvidenceSource(options: {
   return {
     activate: () => { disposed = false; },
     getEvidence,
-    getEvidenceRevision: () => currentInputs().key,
+    // The lease freshness value must use the same semantic architecture
+    // revision that createAgentContext writes into evidenceMeta. The wmp2 key
+    // above is a cache identity and intentionally includes challenge/config
+    // data; comparing it to an architecture revision would mark every read as
+    // superseded even when the board is unchanged.
+    getEvidenceRevision: () => {
+      const current = currentInputs();
+      if (completed?.key === current.key) {
+        return completed.context.evidenceMeta?.architectureRevision
+          ?? architectureEvidenceFingerprint(current.architecture);
+      }
+      return architectureEvidenceFingerprint(current.architecture);
+    },
     getSnapshot: async (signal) => ({ context: (await getEvidence(signal)).context, session: options.getSession() }),
     getSession: options.getSession,
     recordPlayerRun,

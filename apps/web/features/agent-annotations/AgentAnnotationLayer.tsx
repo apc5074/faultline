@@ -184,12 +184,13 @@ export function AgentAnnotationLayer({
   }, [annotations]);
 
   useEffect(() => {
+    if (semanticZoomOut) return;
     for (const annotation of annotations) {
       if (annotation.type !== "focus") continue;
       if (!findComponentBounds(architecture, annotation.componentId)) continue;
       componentExplanationBarrier.acknowledgeFocusRendered(annotation, session.revision);
     }
-  }, [annotations, architecture, componentExplanationBarrier, session.revision]);
+  }, [annotations, architecture, componentExplanationBarrier, semanticZoomOut, session.revision]);
 
   if (semanticZoomOut || annotations.length === 0) return null;
 

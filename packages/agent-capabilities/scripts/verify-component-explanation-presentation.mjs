@@ -25,6 +25,9 @@ const receipt = {
   componentId: "postgres-1",
   evidenceRevision: "architecture-a",
   appliedSessionRevision: 8,
+  annotationStatus: "rendered",
+  cameraStatus: "centered",
+  appliedZoom: 1.5,
   status: "applied",
 };
 assert.equal(isMatchingVisualApplicationReceipt(command, receipt), true);
@@ -32,6 +35,9 @@ assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, commandId
 assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, componentId: "service-1" }), false);
 assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, evidenceRevision: "architecture-b" }), false);
 assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, appliedSessionRevision: 6 }), false);
+assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, annotationStatus: "pending" }), false);
+assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, cameraStatus: "pending" }), false);
+assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, appliedZoom: Number.NaN }), false);
 assert.equal(isMatchingVisualApplicationReceipt(command, { ...receipt, status: "rejected" }), false);
 
 console.log("verify-component-explanation-presentation: ok");

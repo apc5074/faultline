@@ -60,6 +60,7 @@ function ArchitectureWorkspace() {
     readToolCount: 0,
     visualToolCount: 0,
     failedToolCount: 0,
+    invocationObserved: false,
   });
   const handleWebMcpStatus = useCallback(
     (status: WebMcpStatus) => setWebMcpStatus(status),
@@ -74,6 +75,7 @@ function ArchitectureWorkspace() {
         reconciliationKey={workspace.webMcpReconciliationKey}
         onStatusChange={handleWebMcpStatus}
         onFocusComponent={workspace.focusComponentInPresentation}
+        onCenterComponent={workspace.focusComponentCamera}
         onFocusConnection={workspace.focusConnectionInPresentation}
         onPresentationCue={workspace.spotlightPresentationCue}
         onFocusRegion={workspace.focusRegionInPresentation}
