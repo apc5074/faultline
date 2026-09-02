@@ -28,7 +28,12 @@ export type WebMcpTraceName =
   | "cue_derived"
   | "cue_published"
   | "cue_applied"
-  | "cue_rejected";
+  | "cue_rejected"
+  | "component_target_resolved"
+  | "visual_barrier_started"
+  | "focus_component_invoked"
+  | "visual_barrier_rendered"
+  | "evidence_released";
 
 export interface WebMcpTraceEvent {
   readonly kind: "trace";

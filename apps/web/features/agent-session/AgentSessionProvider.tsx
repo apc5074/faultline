@@ -7,6 +7,8 @@ import {
   type AgentPendingHelpRequest,
   type AgentSessionFocus,
   type AgentSessionState,
+  type ComponentExplanationPresentation,
+  type VisualApplicationReceipt,
   type InterviewService,
   type InterviewServiceSnapshot,
 } from "@faultline/agent-capabilities";
@@ -49,6 +51,11 @@ export interface AgentSessionStore {
   clearFocusOnRun(): void;
 }
 
+export interface ComponentExplanationBarrier {
+  awaitPresentation(command: ComponentExplanationPresentation, options: { readonly signal?: AbortSignal }): Promise<VisualApplicationReceipt>;
+  acknowledgeFocusRendered(annotation: { readonly intentId?: string; readonly componentId: string; readonly architectureRevision?: string }, appliedSessionRevision: number): void;
+}
+
 interface AgentSessionContextValue {
   store: AgentSessionStore;
   getAgentContext: LiveAgentContextFactory;
@@ -57,6 +64,7 @@ interface AgentSessionContextValue {
   interviewSnapshot: InterviewServiceSnapshot | null;
   currentArchitectureRevision: string;
   sessionVersion: number;
+  componentExplanationBarrier: ComponentExplanationBarrier;
 }
 
 const AgentSessionContext = createContext<AgentSessionContextValue | null>(null);
@@ -76,6 +84,11 @@ export function AgentSessionProvider({
   challengeRef.current = challenge;
 
   const sessionRef = useRef<AgentSessionState>(createEmptyAgentSessionState());
+  const pendingPresentationRef = useRef(new Map<string, {
+    command: ComponentExplanationPresentation;
+    resolve: (receipt: VisualApplicationReceipt) => void;
+    reject: (reason: Error) => void;
+  }>());
   const [sessionVersion, setSessionVersion] = useState(0);
   // The provider renders on the server too; never resolve the browser owner
   // key or touch localStorage until the client has mounted.
@@ -95,6 +108,12 @@ export function AgentSessionProvider({
   );
 
   useEffect(() => {
+    for (const pending of pendingPresentationRef.current.values()) {
+      if (pending.command.evidenceRevision !== createAgentContext(architectureRef.current, challengeRef.current).evidenceMeta?.architectureRevision) {
+        pending.reject(new Error("Architecture evidence changed."));
+        pendingPresentationRef.current.delete(pending.command.commandId);
+      }
+    }
     const previous = sessionRef.current;
     const pruned = pruneSessionForArchitecture(previous, architectureRef.current);
     const nextSession = pruned;
@@ -136,6 +155,46 @@ export function AgentSessionProvider({
     }),
     [commitSession],
   );
+
+  const componentExplanationBarrier = useMemo<ComponentExplanationBarrier>(() => ({
+    awaitPresentation: (command, { signal } = {}) => new Promise((resolve, reject) => {
+      if (signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+      const abort = () => {
+        pendingPresentationRef.current.delete(command.commandId);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      pendingPresentationRef.current.set(command.commandId, {
+        command,
+        resolve: (receipt) => { signal?.removeEventListener("abort", abort); resolve(receipt); },
+        reject: (reason) => { signal?.removeEventListener("abort", abort); reject(reason); },
+      });
+    }),
+    acknowledgeFocusRendered: (annotation, appliedSessionRevision) => {
+      const commandId = annotation.intentId ?? annotation.id;
+      if (!commandId) return;
+      const pending = pendingPresentationRef.current.get(commandId);
+      if (!pending) return;
+      pendingPresentationRef.current.delete(commandId);
+      if (annotation.componentId !== pending.command.component.entityId || annotation.architectureRevision !== pending.command.evidenceRevision) {
+        pending.reject(new Error("Focus annotation was superseded."));
+        return;
+      }
+      pending.resolve({
+        contractVersion: pending.command.contractVersion,
+        commandId,
+        componentId: annotation.componentId,
+        evidenceRevision: pending.command.evidenceRevision,
+        appliedSessionRevision,
+        status: "applied",
+      });
+    },
+  }), []);
+
+  useEffect(() => () => {
+    for (const pending of pendingPresentationRef.current.values()) pending.reject(new Error("Presentation owner unmounted."));
+    pendingPresentationRef.current.clear();
+  }, []);
 
   const webMcpEvidenceSource = useMemo(
     () => createWebMcpEvidenceSource({
@@ -194,8 +253,9 @@ export function AgentSessionProvider({
       interviewSnapshot,
       currentArchitectureRevision,
       sessionVersion,
+      componentExplanationBarrier,
     }),
-    [store, getAgentContext, webMcpEvidenceSource, interviewService, interviewSnapshot, currentArchitectureRevision, sessionVersion],
+    [store, getAgentContext, webMcpEvidenceSource, interviewService, interviewSnapshot, currentArchitectureRevision, sessionVersion, componentExplanationBarrier],
   );
 
   return <AgentSessionContext.Provider value={value}>{children}</AgentSessionContext.Provider>;
@@ -254,4 +314,10 @@ export function useCurrentArchitectureRevision(): string {
 
 export function useOptionalAgentContextFactory(): LiveAgentContextFactory | null {
   return useContext(AgentSessionContext)?.getAgentContext ?? null;
+}
+
+export function useComponentExplanationBarrier(): ComponentExplanationBarrier {
+  const value = useContext(AgentSessionContext);
+  if (!value) throw new Error("useComponentExplanationBarrier must be used within AgentSessionProvider.");
+  return value.componentExplanationBarrier;
 }

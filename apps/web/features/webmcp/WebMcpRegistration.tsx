@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useAgentSessionStore,
-  useAgentSessionState,
+  useComponentExplanationBarrier,
   useInterviewService,
   useWebMcpEvidenceSource,
 } from "@/features/agent-session/AgentSessionProvider";
@@ -37,6 +37,8 @@ function useWebMcpGroupRegistration({
   retryToken,
   onVisualIntent,
   onPresentationCue,
+  onFocusComponent,
+  onComponentExplanationPresentation,
   onStatus,
   interviewService,
 }: {
@@ -47,15 +49,21 @@ function useWebMcpGroupRegistration({
   retryToken: number;
   onVisualIntent?: (intent: Parameters<ReturnType<typeof createVisualCommandPublisher>>[0]) => void;
   onPresentationCue?: (cue: PresentationCue) => void;
+  onFocusComponent?: (componentId: string) => void;
+  onComponentExplanationPresentation?: import("@faultline/webmcp").ComponentExplanationPresentationHandler;
   onStatus: (group: WebMcpRegistrationGroup, status: GroupStatus) => void;
   interviewService?: InterviewService;
 }) {
   const generationRef = useRef(0);
   const visualRef = useRef(onVisualIntent);
   const presentationRef = useRef(onPresentationCue);
+  const focusComponentRef = useRef(onFocusComponent);
+  const componentExplanationRef = useRef(onComponentExplanationPresentation);
   const statusRef = useRef(onStatus);
   visualRef.current = onVisualIntent;
   presentationRef.current = onPresentationCue;
+  focusComponentRef.current = onFocusComponent;
+  componentExplanationRef.current = onComponentExplanationPresentation;
   statusRef.current = onStatus;
 
   useEffect(() => {
@@ -85,10 +93,22 @@ function useWebMcpGroupRegistration({
       getCurrentEvidenceRevision: () => evidenceSource.getEvidenceRevision(), signal: controller.signal,
       development: process.env.NODE_ENV === "development", group, timing, trace,
       onVisualIntent: (intent) => visualRef.current?.(intent),
+      onFocusComponent: (componentId) => focusComponentRef.current?.(componentId),
+      ...(componentExplanationRef.current ? { onComponentExplanationPresentation: (command, options) => componentExplanationRef.current!(command, options) } : {}),
       ...(interviewService ? { interviewService } : {}),
       traceGeneration: generation,
       onPresentationCue: (cue) => {
         presentationRef.current?.(cue);
+        // A component read's normal presentation cue is also a safe camera
+        // fallback. This covers hosts that invoke the read but retain an older
+        // visual-tool callback while the page is being reconciled.
+        if (cue.camera === "frame-primary" || cue.camera === "frame-set" || cue.camera === "frame-path") {
+          const primary = cue.targets.find((target) => target.kind === "component" && target.emphasis === "primary");
+          const componentId = primary?.kind === "component"
+            ? primary.entityId
+            : cue.targets.find((target) => target.kind === "component")?.entityId;
+          if (componentId) focusComponentRef.current?.(componentId);
+        }
         if (process.env.NODE_ENV !== "production") emitWebMcpTelemetry({ kind: "trace", traceName: "cue_applied", cueKind: cue.kind, targetCount: cue.targets.length, evidenceRevision: cue.targets[0]?.evidenceRevision });
       },
     }).then((result) => {
@@ -134,11 +154,21 @@ export function WebMcpRegistration({
 }) {
   const evidenceSource = useWebMcpEvidenceSource();
   const sessionStore = useAgentSessionStore();
-  const session = useAgentSessionState();
+  const componentExplanationBarrier = useComponentExplanationBarrier();
+  const componentExplanationBarrierRef = useRef(componentExplanationBarrier);
+  componentExplanationBarrierRef.current = componentExplanationBarrier;
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
   const interviewService = useInterviewService();
   const onVisualIntent = useMemo(
-    () => createVisualCommandPublisher(sessionStore, { onFocusComponent, onFocusConnection, onFocusRegion, onPinObservation }),
+    () => createVisualCommandPublisher(sessionStore, {
+      onFocusComponent,
+      onFocusConnection,
+      onFocusRegion,
+      onPinObservation,
+      onFocusAnnotationCommitted: (annotation, sessionRevision) => {
+        componentExplanationBarrierRef.current.acknowledgeFocusRendered(annotation, sessionRevision);
+      },
+    }),
     [onFocusComponent, onFocusConnection, onFocusRegion, onPinObservation, sessionStore],
   );
   // These callbacks are presentation/workspace concerns and may change as
@@ -164,10 +194,10 @@ export function WebMcpRegistration({
   }, []);
 
   const stableKey = reconciliationKey.split(":", 1)[0] ?? reconciliationKey;
-  useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "stable-interview", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onStatus: onGroupStatus, interviewService });
+  useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onComponentExplanationPresentation: componentExplanationBarrier.awaitPresentation, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onStatus: onGroupStatus });
+  useWebMcpGroupRegistration({ group: "stable-interview", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onFocusComponent, onStatus: onGroupStatus, interviewService });
 
   useEffect(() => {
     const statuses = Object.values(groupStatuses);

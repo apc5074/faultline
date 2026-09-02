@@ -61,10 +61,16 @@ state = applySessionAnnotations(state, architecture, [
 assert.equal(state.revision, 3);
 assert.equal(state.annotations.length, 2);
 
-state = clearSessionAnnotations(state, "component", "service-1");
-assert.equal(state.revision, 4);
-assert.equal(state.annotations.length, 1);
-assert.equal(state.annotations[0]?.type, "note");
+state = applySessionAnnotations(state, architecture, [
+  { id: "a4", type: "focus", componentId: "postgres-1" },
+]);
+assert.equal(state.annotations.filter((annotation) => annotation.type === "focus").length, 1);
+assert.equal(state.annotations.find((annotation) => annotation.type === "focus")?.componentId, "postgres-1");
+assert.equal(state.annotations.some((annotation) => annotation.type === "note"), true);
+
+state = clearSessionAnnotations(state, "component", "postgres-1");
+assert.equal(state.revision, 5);
+assert.equal(state.annotations.length, 0);
 
 state = clearSessionAnnotations(state, "all");
 assert.equal(state.revision, 5);

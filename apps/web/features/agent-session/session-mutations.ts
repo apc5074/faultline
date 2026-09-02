@@ -91,7 +91,12 @@ export function applySessionAnnotations(
   );
   if (accepted.length === 0) return state;
 
-  const merged = [...state.annotations, ...accepted].slice(-AGENT_ANNOTATION_MAX_COUNT);
+  // Focus is an ephemeral explanation marker. A new one replaces prior focus
+  // brackets but deliberately leaves player-visible notes and path marks.
+  const retained = accepted.some((annotation) => annotation.type === "focus")
+    ? state.annotations.filter((annotation) => annotation.type !== "focus")
+    : state.annotations;
+  const merged = [...retained, ...accepted].slice(-AGENT_ANNOTATION_MAX_COUNT);
   return {
     ...state,
     annotations: merged,

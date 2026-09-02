@@ -40,7 +40,7 @@ export interface ToolRoutingRule {
 
 /** Compact routing guidance shared by policy and adapter-facing descriptions. */
 export const TOOL_ROUTING_GUIDANCE =
-  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity; targeted reads frame automatically; use visual tools only for explicit persistent marks or focus gestures.";
+  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity. A single current-component inspect on the browser production surface waits for its matching focus render before evidence is released; visual tools remain optional for other intents.";
 
 /**
  * Shared routing policy for embedded and external agents. This is metadata,

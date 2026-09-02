@@ -9,12 +9,15 @@ import type {
   PresentationCue,
   VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
+import type { Architecture } from "@faultline/core";
 import {
   capabilityCancelled,
   capabilityError,
   computeResultDigest,
   computeSurfaceRevision,
+  createComponentExplanationPresentation,
   isCapabilityCancelled,
+  isMatchingVisualApplicationReceipt,
   resolveLiveAgentSnapshot,
   validatePresentationCue,
 } from "@faultline/agent-capabilities";
@@ -24,6 +27,7 @@ import { wrapWebMcpEnvelope } from "./envelope.js";
 import { sanitizeWebMcpCapabilityResult, unexpectedWebMcpCapabilityFailure } from "./error-safety.js";
 import type { WebMcpEvidenceLease, WebMcpTool, WebMcpToolExecutionContext } from "./types.js";
 import { publishVisualIntent, type VisualIntentHandler } from "./visual-intent.js";
+import { COMPONENT_EXPLANATION_RENDER_DEADLINE_MS, type ComponentExplanationPresentationHandler } from "./component-explanation-presentation.js";
 import { measureWebMcpTiming, recordWebMcpTiming, recordWebMcpTrace, serializedWebMcpBytes, type WebMcpTimingSink, type WebMcpTraceSink } from "./timing.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
@@ -111,9 +115,9 @@ function webMcpDescription(capability: RegisteredCapability): string {
     submit_interview_simulation_critique: "Save a concise critique grounded only in the current simulation review digest. Completes the coaching interview; never claims official pass/fail.",
     get_architecture: "Read the current architecture and inventory for board-wide contents, logical component counts, and connections. Use this for unqualified board questions; do not reuse after a board edit.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
-    inspect_component: "Read the current invocation revision. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all by default for type-wide/count/existence, topmost only when positional. Do not reuse after a board edit.",
+    inspect_component: "Read the current invocation revision. A single resolved current component is visibly focused before its evidence returns. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all by default for type-wide/count/existence, topmost only when positional. Do not reuse after a board edit.",
     get_metrics: "Use first for health/metrics questions. Returns current simulator outcomes; targeted results frame valid evidence.",
-    inspect_component_option: "When: explain an unlocked catalog option. Returns: factual configuration and modeled behavior. Side effect: none. Recovery: unavailable types are rejected.",
+    inspect_component_option: "When: explain an unlocked catalog option only. For a component already on the board, use inspect_component instead so the canvas can focus it. Returns: factual configuration and modeled behavior. Side effect: none.",
     compare_design_evidence: "When: compare retained evidence. Returns: deterministic changes and provenance. Side effect: none. Recovery: retry when a baseline is unavailable.",
     expand_design_evidence: "When: deeper evidence is requested. Returns: up to two named evidence sections. Side effect: none. Recovery: refresh an expired review reference.",
     focus_component: "Before answering, use only for an explicit persistent focus gesture; targeted reads already frame current components. Visually zooms to its exact current component ID.",
@@ -143,6 +147,12 @@ export interface ToWebMcpToolOptions {
   readonly onVisualIntent?: VisualIntentHandler;
   /** Apply a grounded read-result presentation cue without changing selection or viewport. */
   readonly onPresentationCue?: (cue: PresentationCue) => void;
+  /** Page-owned render receipt for mandatory direct-component explanation focus. */
+  readonly onComponentExplanationPresentation?: ComponentExplanationPresentationHandler;
+  /** Production direct-component reads must wait for their focus render receipt. */
+  readonly requireComponentExplanationPresentation?: boolean;
+  /** Host-owned camera focus for component explanation reads. */
+  readonly onFocusComponent?: (componentId: string) => void;
   /** Browser-owned interview session port, available only on the interview surface. */
   readonly interviewService?: InterviewService;
   readonly timing?: WebMcpTimingSink;
@@ -151,12 +161,60 @@ export interface ToWebMcpToolOptions {
   readonly traceGeneration?: number;
 }
 
+function componentExplanationTarget(
+  capabilityName: string,
+  data: unknown,
+  input: unknown,
+  architecture: Architecture,
+): string | undefined {
+  if (capabilityName === "inspect_component" && isRecord(data)) {
+    if (typeof data.id === "string") return data.id;
+    const selection = isRecord(data.selection) ? data.selection : undefined;
+    const components = Array.isArray(data.components) ? data.components : undefined;
+    if (selection?.matchedCount !== 1 || components?.length !== 1 || !isRecord(components[0]) || typeof components[0].id !== "string") return undefined;
+    return components[0].id;
+  }
+  if (capabilityName === "inspect_component_option" && isRecord(input) && typeof input.type === "string") {
+    const matches = architecture.components.filter((component) => component.type === input.type);
+    if (matches.length === 1) return matches[0]!.id;
+  }
+  return undefined;
+}
+
+function focusAnnotationFromResult(result: CapabilityResult<unknown>): import("@faultline/agent-capabilities").AgentFocusAnnotation | undefined {
+  if (!result.ok || !isRecord(result.data) || !isRecord(result.data.annotation)) return undefined;
+  const annotation = result.data.annotation;
+  return annotation.type === "focus" && typeof annotation.id === "string" && typeof annotation.componentId === "string"
+    ? annotation as unknown as import("@faultline/agent-capabilities").AgentFocusAnnotation
+    : undefined;
+}
+
+async function awaitPresentationReceiptPromise<T>(
+  receiptPromise: Promise<import("@faultline/agent-capabilities").VisualApplicationReceipt>,
+  command: import("@faultline/agent-capabilities").ComponentExplanationPresentation,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("render timeout")), COMPONENT_EXPLANATION_RENDER_DEADLINE_MS);
+    const abort = () => reject(new DOMException("Aborted", "AbortError"));
+    signal?.addEventListener("abort", abort, { once: true });
+    receiptPromise.then((receipt) => {
+      if (!isMatchingVisualApplicationReceipt(command, receipt)) reject(new Error("render receipt rejected"));
+      else resolve(receipt as T);
+    }, reject).finally(() => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+    });
+  });
+}
+
 /**
  * Adapt one semantic capability into a browser WebMCP tool. Domain execution
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onPresentationCue, interviewService, timing, trace, traceGroup, traceGeneration } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onPresentationCue, onComponentExplanationPresentation, requireComponentExplanationPresentation = false, onFocusComponent, interviewService, timing, trace, traceGroup, traceGeneration } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
 
   const acquireLease = async (signal?: AbortSignal): Promise<WebMcpEvidenceLease> => {
@@ -214,6 +272,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
             interviewService,
             surfaceRevision: availableToolNames ? computeSurfaceRevisionFromTools(availableToolNames) : surfaceRevision,
           }), { capability: capability.name, mode: capability.mode });
+          let componentBarrierRendered = false;
           sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
           recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, evidenceRevision: lease.evidenceRevision, ...(capability.mode === "session" ? { interviewTransition: interviewTransition(capability.name) } : {}), outcome: sanitized.ok ? "success" : sanitized.code === "CANCELLED" ? "cancelled" : "error", ...(sanitized.ok ? interviewTraceFields(sanitized) : {}), ...(sanitized.ok ? {} : { errorCode: sanitized.code }) });
           const resultData = sanitized.ok && sanitized.data && typeof sanitized.data === "object"
@@ -236,6 +295,61 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               },
             };
           }
+          const componentId = sanitized.ok ? componentExplanationTarget(capability.name, sanitized.data, input, context.architecture) : undefined;
+          if (componentId && requireComponentExplanationPresentation) {
+            recordWebMcpTrace(trace, { name: "component_target_resolved", capability: capability.name, evidenceRevision: lease.evidenceRevision });
+            if (!onComponentExplanationPresentation || !onVisualIntent) {
+              sanitized = sanitizeWebMcpCapabilityResult(
+                capabilityError("PRESENTATION_UNAVAILABLE", "Component focus is unavailable; retry this current-component read.", {
+                  retryable: true,
+                  currentEvidenceRevision: lease.evidenceRevision,
+                  recoveryTool: "review_current_design",
+                }),
+                capability.name,
+              );
+            } else {
+              const focusResult = await registry.invoke("focus_component", context, { componentId }, {
+                signal: executionContext.signal,
+                session,
+                surfaceRevision: availableToolNames ? computeSurfaceRevisionFromTools(availableToolNames) : surfaceRevision,
+              });
+              const annotation = focusAnnotationFromResult(focusResult);
+              if (!annotation) {
+                sanitized = sanitizeWebMcpCapabilityResult(capabilityError("PRESENTATION_UNAVAILABLE", "Component focus could not be applied; retry this current-component read.", { retryable: true, currentEvidenceRevision: lease.evidenceRevision, recoveryTool: "review_current_design" }), capability.name);
+              } else {
+                const command = createComponentExplanationPresentation({
+                  commandId: annotation.intentId ?? annotation.id,
+                  componentId,
+                  evidenceRevision: lease.evidenceRevision,
+                  sessionRevision: session.revision,
+                });
+                recordWebMcpTrace(trace, { name: "visual_barrier_started", capability: capability.name, evidenceRevision: lease.evidenceRevision });
+                onFocusComponent?.(componentId);
+                const presentationReceipt = onComponentExplanationPresentation(command, { signal: executionContext.signal });
+                publishVisualIntent("focus_component", { componentId }, focusResult as CapabilityResult<VisualAnnotationIntent>, onVisualIntent);
+                recordWebMcpTrace(trace, { name: "focus_component_invoked", capability: capability.name, evidenceRevision: lease.evidenceRevision });
+                try {
+                  await awaitPresentationReceiptPromise(presentationReceipt, command, executionContext.signal);
+                  if (!lease.isCurrent()) {
+                    if (attempt === 0) { attempt += 1; continue; }
+                    sanitized = sanitizeWebMcpCapabilityResult(capabilityError("NOT_FOUND", "Current evidence was superseded by a newer architecture revision; retry the read.", { retryable: true, currentEvidenceRevision: getCurrentEvidenceRevision?.() }), capability.name);
+                  } else {
+                    componentBarrierRendered = true;
+                    recordWebMcpTrace(trace, { name: "visual_barrier_rendered", capability: capability.name, evidenceRevision: lease.evidenceRevision });
+                  }
+                } catch (error) {
+                  sanitized = sanitizeWebMcpCapabilityResult(
+                    isCapabilityCancelled(executionContext.signal) || (error instanceof DOMException && error.name === "AbortError")
+                      ? capabilityCancelled()
+                      : capabilityError("PRESENTATION_UNAVAILABLE", "Component focus was not rendered; retry this current-component read.", { retryable: true, currentEvidenceRevision: lease.evidenceRevision, recoveryTool: "review_current_design" }),
+                    capability.name,
+                  );
+                }
+              }
+            }
+          } else if (componentId) {
+            onFocusComponent?.(componentId);
+          }
           capabilityResult = sanitized;
           if (sanitized.ok) {
             sanitized = wrapWebMcpEnvelope(sanitized, context, {
@@ -245,6 +359,13 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               lease,
               availableToolNames,
             });
+            if (componentBarrierRendered && sanitized.ok && isRecord(sanitized.data) && "presentation" in sanitized.data) {
+              const { presentation: _duplicateFocusCue, ...withoutPresentation } = sanitized.data;
+              sanitized = { ok: true, data: withoutPresentation };
+            }
+            if (componentBarrierRendered && sanitized.ok) {
+              recordWebMcpTrace(trace, { name: "evidence_released", capability: capability.name, evidenceRevision: lease.evidenceRevision });
+            }
           }
           if (!lease.isCurrent()) {
             if ((capability.mode === "read" || capability.mode === "session") && attempt === 0) {
@@ -272,6 +393,11 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               // prevent the current evidence envelope from reaching the host.
               try {
                 onPresentationCue?.(cue as PresentationCue);
+                if (capability.name === "inspect_component" || capability.name === "inspect_component_option") {
+                  const primary = (cue as PresentationCue).targets.find((target) => target.kind === "component" && target.emphasis === "primary")
+                    ?? (cue as PresentationCue).targets.find((target) => target.kind === "component");
+                  if (primary?.kind === "component") onFocusComponent?.(primary.entityId);
+                }
                 if (onPresentationCue) recordWebMcpTrace(trace, { name: "cue_published", capability: capability.name, cueKind: cue.kind, targetCount: cue.targets.length, evidenceRevision: lease.evidenceRevision });
               } catch (error) {
                 if (development) console.warn("WebMCP presentation callback failed", error);

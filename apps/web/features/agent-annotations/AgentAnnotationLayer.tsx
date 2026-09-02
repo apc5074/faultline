@@ -5,9 +5,9 @@ import { AGENT_ANNOTATION_MAX_COUNT } from "@faultline/agent-capabilities";
 import { componentRegistry } from "@faultline/component-catalog";
 import type { Architecture } from "@faultline/core";
 import { useViewport } from "@xyflow/react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
-import { useAgentSessionState } from "@/features/agent-session/AgentSessionProvider";
+import { useAgentSessionState, useComponentExplanationBarrier } from "@/features/agent-session/AgentSessionProvider";
 import {
   buildEdgePathsFromArchitecture,
   computeParallelOffsets,
@@ -147,6 +147,7 @@ export function AgentAnnotationLayer({
 }) {
   const { x, y, zoom } = useViewport();
   const session = useAgentSessionState();
+  const componentExplanationBarrier = useComponentExplanationBarrier();
 
   const annotations = useMemo(
     () => session.annotations.slice(0, AGENT_ANNOTATION_MAX_COUNT),
@@ -181,6 +182,14 @@ export function AgentAnnotationLayer({
     }
     return indexes;
   }, [annotations]);
+
+  useEffect(() => {
+    for (const annotation of annotations) {
+      if (annotation.type !== "focus") continue;
+      if (!findComponentBounds(architecture, annotation.componentId)) continue;
+      componentExplanationBarrier.acknowledgeFocusRendered(annotation, session.revision);
+    }
+  }, [annotations, architecture, componentExplanationBarrier, session.revision]);
 
   if (semanticZoomOut || annotations.length === 0) return null;
 

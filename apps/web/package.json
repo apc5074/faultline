@@ -47,6 +47,7 @@
     "verify:phase-4-live": "pnpm run build:deps && node --experimental-strip-types scripts/verify-phase-4-live.mjs",
     "verify:live-agent-context-factory": "pnpm run build:deps && node --experimental-strip-types scripts/verify-live-agent-context-factory.mjs",
     "verify:agent-session": "pnpm run build:deps && node --experimental-strip-types scripts/verify-agent-session.mjs",
+    "verify:component-explanation-order": "pnpm run build:deps && pnpm --filter @faultline/webmcp build && node --experimental-strip-types scripts/verify-component-explanation-order.mjs",
     "verify:interview-storage": "node --experimental-strip-types scripts/verify-interview-storage.mjs",
     "verify:interview-service": "node --experimental-strip-types scripts/verify-interview-service.mjs",
     "verify:interview-e2e": "node --experimental-strip-types scripts/verify-interview-e2e.mjs",

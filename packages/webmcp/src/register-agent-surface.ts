@@ -8,6 +8,7 @@ import type { InterviewService } from "@faultline/agent-capabilities";
 import type { WebMcpModelContext, WebMcpRegisterToolOptions, WebMcpTool } from "./types.js";
 import { measureWebMcpTiming, recordWebMcpTrace, type WebMcpTimingSink, type WebMcpTraceSink } from "./timing.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
+import type { ComponentExplanationPresentationHandler } from "./component-explanation-presentation.js";
 
 /** Browser registration deadline derived from the WMP-001 lifecycle baseline. */
 export const WEBMCP_REGISTRATION_DEADLINE_MS = 2_000;
@@ -33,6 +34,9 @@ export interface RegisterAgentWebMcpSurfaceOptions {
   readonly development?: boolean;
   readonly onVisualIntent?: VisualIntentHandler;
   readonly onPresentationCue?: (cue: PresentationCue) => void;
+  readonly onComponentExplanationPresentation?: ComponentExplanationPresentationHandler;
+  /** Host-owned camera focus for direct component reads. */
+  readonly onFocusComponent?: (componentId: string) => void;
   readonly interviewService?: InterviewService;
   readonly timing?: WebMcpTimingSink;
   readonly trace?: WebMcpTraceSink;
@@ -62,7 +66,7 @@ function fingerprintManifest(tools: readonly WebMcpTool[]): string {
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
 export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onPresentationCue, interviewService, timing, trace, traceGeneration, group = "all" } = options;
+  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onPresentationCue, onComponentExplanationPresentation, onFocusComponent, interviewService, timing, trace, traceGeneration, group = "all" } = options;
   recordWebMcpTrace(trace, { name: "registration_started", group, ...(traceGeneration !== undefined ? { generation: traceGeneration } : {}) });
   const startedAt = performance.now();
   if (signal.aborted) return abortedResult(group);
@@ -73,7 +77,7 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   const includeInterview = group === "all" || group === "stable-interview";
   const [read, visual, interview] = await Promise.all([
     includeRead
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "read" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", enforceComponentExplanationPresentation: true, ...(onPresentationCue ? { onPresentationCue } : {}), ...(onVisualIntent ? { onVisualIntent } : {}), ...(onComponentExplanationPresentation ? { onComponentExplanationPresentation } : {}), ...(onFocusComponent ? { onFocusComponent } : {}) }), { mode: "read" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeVisual
       ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "visual" })

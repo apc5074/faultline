@@ -4,6 +4,7 @@ export type CapabilityErrorCode =
   | "SIMULATION_UNAVAILABLE"
   | "INVALID_INPUT"
   | "CONSENT_REQUIRED"
+  | "PRESENTATION_UNAVAILABLE"
   | "CANCELLED";
 
 export type CapabilityRecovery = {

@@ -12,6 +12,7 @@ export * from "./result.js";
 export * from "./evidence-result.js";
 export * from "./evidence-continuations.js";
 export * from "./presentation-cue.js";
+export * from "./component-explanation-presentation.js";
 export * from "./output-validators.js";
 export * from "./registry.js";
 export * from "./resolve-capabilities.js";

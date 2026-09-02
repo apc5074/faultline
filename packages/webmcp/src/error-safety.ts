@@ -7,6 +7,7 @@ const CONTROLLED_ERROR_CODES = new Set<CapabilityErrorCode>([
   "INVALID_INPUT",
   "CANCELLED",
   "CONSENT_REQUIRED",
+  "PRESENTATION_UNAVAILABLE",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
