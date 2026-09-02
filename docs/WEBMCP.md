@@ -47,17 +47,18 @@ stable-visual:
 
 stable-interview:
   start_design_interview, get_design_interview, submit_interview_answer,
-  follow_up_design_interview, advance_design_interview, end_design_interview,
-  restart_design_interview, prepare_interview_simulation_review,
-  submit_interview_simulation_critique
+  select_interview_question, follow_up_design_interview,
+  review_live_interview_scenario, submit_live_interview_critique,
+  end_design_interview, restart_design_interview
 ```
 
 Registration is not exposure. A tool must be registered in the shared registry,
 belong to the production manifest, have the required mode/safety annotations,
 and be available for the current `AgentContext`. Specialist availability is
 determined by shared architecture predicates and capability logic, not by model
-choice or UI heuristics. The interview owns the supported simulation scenario
-and review evidence.
+choice or UI heuristics. The v2 interview owns bounded candidate selection,
+supported live scenarios, review evidence, and the five-slot lifecycle. The
+former advance and simulation-review tools are retired from production.
 
 ## Runtime flow
 
@@ -193,10 +194,9 @@ WebMCP tools do not receive architecture-edit powers.
   component-camera command to center the live React Flow node at an explicit
   zoom, and the adapter withholds evidence until its matching receipt confirms
   both the rendered focus annotation and completed camera movement.
-Visual marks, viewport focus, and playback are not
-architecture state, simulator input, official-submission input, or persistent
-competition evidence. The final interview simulation question owns scenario
-comparison and critique.
+Visual marks, viewport focus, and playback are not architecture state,
+simulator input, official-submission input, or persistent competition evidence.
+The v2 live interview slots own calibrated scenario review and critique.
 
 ## Registration lifecycle and observability
 

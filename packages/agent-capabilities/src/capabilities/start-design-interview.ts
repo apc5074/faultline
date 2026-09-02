@@ -251,7 +251,7 @@ export const startDesignInterviewCapability: AgentCapability<
 > = {
   name: "start_design_interview",
   description:
-    "Call when the player asks to be interviewed on their design. Returns one stable-ID question at a time: three high-level questions followed by one question per component while visually focusing that component; stateless service instances are grouped.",
+    "Sole entry point for interview or quiz practice: call when the player says interview me, quiz me, test me on this architecture, or asks for system-design practice. Starts or resumes the browser-owned session and returns only the current stable-ID question. Do not use a one-off review tool for interview intent.",
   inputSchema: startDesignInterviewInputSchema,
   mode: "session",
   availableWhen: () => true,

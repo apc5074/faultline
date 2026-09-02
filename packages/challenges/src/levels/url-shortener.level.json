@@ -491,6 +491,27 @@
     "budget-trap",
     "cache-placement"
   ],
+  "interviewCurriculum": {
+    "starterComponentIds": ["traffic-source-start", "service-start", "postgres-start"],
+    "difficultyTags": ["request-path", "cache-concentration", "capacity", "tradeoffs"],
+    "settingFacts": [
+      "Six regions share 120k redirects per second.",
+      "One viral short code receives 25% of redirect traffic.",
+      "The CDN and Redis are modeled differently for average and hot-key reads."
+    ],
+    "edgeCaseCards": [
+      {
+        "id": "viral-short-code-hot-key",
+        "setting": "A viral short code suddenly receives 25% of all redirect traffic.",
+        "promptCore": "One URL suddenly receives 25% of all traffic. How does your current system behave?",
+        "expectedTopics": ["request path", "cache concentration", "hot-key pressure", "origin effects"],
+        "acceptableTradeoffs": ["edge offload versus freshness", "read-aside relief versus cost"],
+        "commonMisconceptions": ["aggregate throughput alone proves the hot key is safe", "a cache automatically makes writes cheap"],
+        "allowedProbeAngles": ["trace the hot request", "identify the first bottleneck", "name one mitigation and tradeoff"],
+        "difficulty": "early_career"
+      }
+    ]
+  },
   "forbiddenMechanisms": [
     "async_buffer",
     "async_consumer",

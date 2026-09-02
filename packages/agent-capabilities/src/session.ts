@@ -2,6 +2,7 @@ import type { Architecture } from "@faultline/core";
 
 import type { AgentContext } from "./context.js";
 import type { CapabilityErrorCode } from "./result.js";
+import type { ToolRoutingIntent } from "./tool-routing.js";
 
 /** Maximum coaching annotations visible on the canvas at once. */
 export const AGENT_ANNOTATION_MAX_COUNT = 12;
@@ -47,6 +48,8 @@ export interface AgentPendingHelpRequest {
   readonly id: string;
   readonly template: string;
   readonly promptIntent?: PromptIntent;
+  /** Structured page-owned routing intent, when a help chip represents an action. */
+  readonly routingIntent?: ToolRoutingIntent;
   /** Session revision of the human focus used to create this invitation. */
   readonly focusRevision?: number;
   readonly suggestedCapabilityNames?: readonly string[];

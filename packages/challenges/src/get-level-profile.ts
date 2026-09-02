@@ -3,6 +3,7 @@ import type { Architecture } from "@faultline/core";
 import {
   assertLevelProfile,
   type LevelComponentCard,
+  type LevelInterviewCurriculum,
   type LevelProfileV1,
 } from "./level-profile.js";
 import urlShortenerLevelProfile from "./levels/url-shortener.level.json" with { type: "json" };
@@ -54,6 +55,7 @@ export interface LevelCurriculumSlice {
   volumeProfile: LevelProfileV1["volumeProfile"];
   /** Sandbox teaching cards keyed by catalog type. */
   componentCards: Readonly<Record<string, LevelComponentCard>>;
+  interviewCurriculum: LevelInterviewCurriculum;
 }
 
 export function getLevelCurriculum(slug: string): LevelCurriculumSlice {
@@ -72,6 +74,7 @@ export function getLevelCurriculum(slug: string): LevelCurriculumSlice {
     hotKeyExpectedFail: profile.firstRunExpectation.hotKeyExpectedFail === true,
     volumeProfile: profile.volumeProfile,
     componentCards,
+    interviewCurriculum: profile.interviewCurriculum,
   };
 }
 

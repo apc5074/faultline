@@ -29,83 +29,29 @@ ChatGPT owns the written conversation; Faultline’s visual capabilities are opt
 
 ## Design interviews
 
-The design interview is sequential. The host asks only the current stable-ID
-question, submits the player's answer for a `correct`, `partial`, or
-`incorrect` evaluation, explains strengths and gaps, and then offers follow-ups
-or the next question. Follow-ups remain on the same question; only explicit
-readiness advances the state. `classifyInterviewReadiness` is intentionally
-conservative: a new technical question is a follow-up and ambiguous language
-does not advance.
+The durable v2 interview contract is documented in [INTERVIEWS.md](./INTERVIEWS.md).
+It is an exactly five-question session with stable slots, automatic
+post-critique advancement for chat questions, two editable live exercises,
+bounded candidate selection, simulator-owned coaching objectives, and no
+official scoring. Follow-ups do not advance a slot, and there is no readiness
+turn or hidden completion question.
 
-### Integrated simulation question contract
+### V2 lifecycle and evidence contract
 
-The integrated interview contract is frozen as `design-interview-3`, with
-orchestration guidance version `design-interview-orchestration-2`. The browser
-payload now uses version 3 and browser storage uses an explicit v2 key/version;
-records from the previous active version are not coerced into a state that
-does not contain the simulation question. They are discarded or archived by
-the storage migration and the player is offered a restart.
+See [INTERVIEWS.md](./INTERVIEWS.md) for the complete durable contract. In
+brief, Faultline captures a validated semantic baseline and trusted challenge
+context, then serves only the current slot. Chat critiques close Q1, Q2, and
+Q4 and immediately prepare the next slot; live reviews close Q3 and Q5 only
+after a current simulator pass and digest-bound critique. Semantic edits
+refresh the unanswered slot or make a submitted packet stale; UI-only edits
+never do. The browser stores bounded state locally, and older variable-length
+v3 sessions are archived or restarted rather than coerced into v2.
 
-The fixed order is three opening questions, one question per component agenda
-item (with stateless services grouped as today), exactly one simulation
-question, then completion after a valid critique is saved. The simulation
-question is `simulation-traffic-double-v1` and its scenario is always
-`{ type: "traffic_multiplier", parameters: { multiplier: 2 } }`. Faultline
-chooses that scenario; the external model cannot select a multiplier, choose
-among scenarios, or edit the architecture.
-
-The player edits the canonical canvas architecture during the simulation
-question. The prompt is derived from challenge facts and asks the player to
-handle doubled demand while the original latency, reliability, and budget
-requirements still apply. It may expose original and doubled request rates and
-requirement labels, but it must not prescribe a topology, component, threshold,
-or canonical solution. The player explicitly says “Review my redesign” to
-request review.
-
-The interview captures one validated semantic baseline at start, including its
-architecture revision, challenge identity/version, and fixed scenario. Semantic
-architecture identity and deltas include components, connections, config, and
-deployments, while ignoring UI coordinates, selection, annotations, playback,
-view mode, and array ordering. Before the simulation question, a semantic edit
-stales the interview and requires restart. During the simulation question, a
-semantic edit is the candidate answer; UI-only edits never stale it.
-
-The lifecycle and action classification are:
-
-| Player/host action | Faultline transition |
-| --- | --- |
-| Answer a discussion question | Validate and store the bounded evaluation; remain on the question. |
-| Ask a follow-up | Store it against the current discussion question; do not advance. |
-| Explicitly say ready/next | Advance exactly one opening or component question. The final component advances to `awaiting_design_change`. |
-| Redesign the canvas during simulation | Update the candidate architecture; remain `awaiting_design_change`. |
-| Say “Review my redesign” | Prepare a digest-bound simulator review of baseline and candidate. |
-| Submit the structured critique | Require the current digest, store the critique, and complete immediately. |
-| Restart | Archive bounded prior browser state and capture a fresh baseline/scenario. |
-| Abandon/dismiss | End the active interview without official submission or leaderboard writes. |
-
-No answer shortcut advances from a component question into simulation or from
-simulation into completion. Discussion answer/follow-up APIs reject the
-simulation question. A no-edit review request returns bounded `INVALID_INPUT`
-and asks for a semantic redesign. An invalid candidate returns bounded
-validation evidence and may receive a `does_not_satisfy` coaching critique,
-but never fabricated metrics. A repeated review replaces only the prepared
-packet while no critique has been submitted. Editing after preparation makes
-the digest stale and requires fresh preparation. Refresh resumes the same
-baseline, scenario, and phase; restart creates a new baseline. Completion is
-coaching only and never means official pass/fail.
-
-The first three opening slots are dynamically contextualized from the active
-challenge, workload, requirements, architecture inventory, and available
-simulator evidence. The external LLM writes fresh wording for the returned
-focus instead of repeating a fixed question template. Faultline persists the
-stable slot and context signals, so this scales to new levels while the
-reducer still controls order and transitions.
-
-The shared coaching policy includes the versioned orchestration contract above.
-It tells an external host when to call the start, answer, follow-up, advance,
-prepare-review, and submit-critique tools, how to recover from retries or stale
-sessions, and how to avoid revealing future questions. This is guidance; the
-interview reducer and browser service remain the authority for transitions.
+The external host receives only current evidence and bounded candidate cards.
+It may phrase a selected question and explain simulator output, but cannot
+edit architecture, invent scenarios, reveal future slots, or decide official
+pass/fail. Targeted component evidence is withheld until the matching focus
+has a current browser render acknowledgement.
 
 Evaluation output is validated before persistence or presentation. Its
 `grounding` field distinguishes current architecture evidence, general system

@@ -23,16 +23,19 @@ affect official attempts.
 
 ## Design interview session
 
-These tools operate on the browser-owned interview session. The agent must use
-the returned stable IDs and advance only after explicit player readiness.
+These tools operate on the browser-owned v2 interview session. The agent must
+use returned stable IDs and may advance only through a valid chat evaluation
+or a passing simulator review plus critique.
 
 | Tool | Brief description |
 | --- | --- |
 | `start_design_interview` | Start or resume an interview and return one current question focus at a time. |
 | `get_design_interview` | Read the current interview state for supplied interview and question IDs. |
-| `submit_interview_answer` | Store one structured evaluation for the current answer without advancing. |
+| `select_interview_question` | Select one qualified current candidate card and approved probe angle, with deterministic fallback for invalid selection. |
+| `submit_interview_answer` | Store one structured evaluation and atomically return the next chat slot. |
 | `follow_up_design_interview` | Answer a follow-up while keeping the interview on the same question. |
-| `advance_design_interview` | Move to exactly one next question after explicit readiness. |
+| `review_live_interview_scenario` | Evaluate the current live slot against its simulator-owned coaching objective. |
+| `submit_live_interview_critique` | Store a critique for a passing live review and advance or complete the interview. |
 | `end_design_interview` | Abandon the active interview without changing the design. |
 | `restart_design_interview` | Start a fresh interview on the current design while retaining bounded browser-local history. |
 

@@ -4,7 +4,8 @@ export type AgentHelpChipId =
   | "ask-about-selection"
   | "trace-workload"
   | "review-requirement"
-  | "review-cost";
+  | "review-cost"
+  | "start-interview";
 
 export interface AgentHelpChipDefinition {
   readonly id: AgentHelpChipId;
@@ -12,8 +13,9 @@ export interface AgentHelpChipDefinition {
   readonly template: string;
   readonly clipboardPrompt: string;
   readonly requiresSelection: boolean;
-  readonly promptIntent: PromptIntent;
+  readonly promptIntent?: PromptIntent;
   readonly suggestedCapabilityNames: readonly string[];
+  readonly routingIntent?: "design_interview";
 }
 
 export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
@@ -57,6 +59,15 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
     promptIntent: "cost_review",
     suggestedCapabilityNames: ["get_cost_breakdown", "review_current_design", "inspect_design_entity"],
   },
+  {
+    id: "start-interview",
+    label: "Interview me",
+    template: "Start the Faultline design interview.",
+    clipboardPrompt: "Interview me on this architecture.",
+    requiresSelection: false,
+    routingIntent: "design_interview",
+    suggestedCapabilityNames: ["start_design_interview"],
+  },
 ] as const;
 
 export function buildPendingHelpRequest(
@@ -67,7 +78,8 @@ export function buildPendingHelpRequest(
   return {
     id: chip.id,
     template: chip.template,
-    promptIntent: chip.promptIntent,
+    ...(chip.promptIntent ? { promptIntent: chip.promptIntent } : {}),
+    ...(chip.routingIntent ? { routingIntent: chip.routingIntent } : {}),
     focusRevision,
     suggestedCapabilityNames: chip.suggestedCapabilityNames,
     ...(focus.kind === "component" ? { componentId: focus.componentId } : {}),

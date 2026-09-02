@@ -252,6 +252,21 @@ function minimalProfile(overrides = {}) {
     ],
     curriculumTags: ["geo", "hot-key", "budget-trap"],
     forbiddenMechanisms: ["async_buffer", "async_consumer"],
+    interviewCurriculum: {
+      starterComponentIds: ["traffic-source-start", "service-start", "postgres-start"],
+      difficultyTags: ["capacity"],
+      settingFacts: ["Traffic is global."],
+      edgeCaseCards: [{
+        id: "hot-key",
+        setting: "One key becomes popular.",
+        promptCore: "How does the current system behave?",
+        expectedTopics: ["hot-key"],
+        acceptableTradeoffs: ["cache cost"],
+        commonMisconceptions: ["throughput is enough"],
+        allowedProbeAngles: ["trace the request"],
+        difficulty: "early_career",
+      }],
+    },
     ...overrides,
   };
 }
@@ -375,5 +390,17 @@ rejects((profile) => {
 rejects((profile) => {
   profile.starterArchitecture = { version: 1, components: "nope", connections: [] };
 }, /starterArchitecture/i);
+
+rejects((profile) => {
+  profile.interviewCurriculum.starterComponentIds = ["missing-starter"];
+}, /unknown starter component/i);
+
+rejects((profile) => {
+  profile.interviewCurriculum.edgeCaseCards[0].promptCore = "x".repeat(241);
+}, /1 to 240 characters/i);
+
+rejects((profile) => {
+  profile.interviewCurriculum.edgeCaseCards[0].difficulty = "intern";
+}, /early_career/i);
 
 console.log("verify-level-profile-schema: ok");

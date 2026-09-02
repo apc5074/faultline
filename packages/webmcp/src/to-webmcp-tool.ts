@@ -104,11 +104,11 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
     review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
-    start_design_interview: "Call when the player asks to be interviewed. Starts or resumes the browser-owned session and returns one stable-ID question at a time; visually focuses the current component and groups stateless services.",
+    start_design_interview: "Sole entry point for interview or quiz practice. Call for interview me, quiz me, test me on this architecture, or system-design practice. Starts or resumes the browser-owned session and returns only the current stable-ID question; do not use a one-off review tool for interview intent.",
     get_design_interview: "Read the active browser-owned interview for its exact interview and question IDs. Does not advance or mutate the session.",
-    submit_interview_answer: "Submit one evaluated answer for the current question. The session remains on this question so the player can ask follow-ups before advancing.",
+    submit_interview_answer: "Submit one evaluated answer for the current question. The session validates the critique and the v2 lifecycle advances chat slots atomically.",
     follow_up_design_interview: "Ask and answer a follow-up about the current question. Keeps the interview on the same question.",
-    advance_design_interview: "Advance exactly one question after the player explicitly says they are ready. Requires ready: true and the current question ID.",
+    advance_design_interview: "Retired from the v2 production interview surface. Do not call for interview or quiz intent.",
     end_design_interview: "End the active browser-owned interview. Does not change the architecture, official attempts, or leaderboard.",
     restart_design_interview: "Start a new interview on the current architecture while preserving the prior browser-scoped interview in history. Use only after the player explicitly asks to restart.",
     prepare_interview_simulation_review: "After the player says Review my redesign, evaluate the baseline and current canvas design under the fixed traffic×2 scenario. Returns bounded simulated evidence and a digest; does not edit the architecture or submit official results.",

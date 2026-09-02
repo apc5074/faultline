@@ -7,7 +7,7 @@
  *   identity fields, sandbox component *types* (as allowedComponentTypes).
  * - Teaching / UI / playtest only (never pass/fail): narrative, component teaching
  *   cards, volumeProfile, starterArchitecture, firstRunExpectation, playtestChecklist,
- *   curriculumTags, forbiddenMechanisms.
+ *   curriculumTags, forbiddenMechanisms, interviewCurriculum.
  *
  * Volume bands are soft teaching ranges for visuals/playtest — they must not be
  * treated as scored topology or required path shares.
@@ -52,6 +52,7 @@ const LEVEL_PROFILE_TOP_LEVEL_KEYS = new Set([
   "playtestChecklist",
   "curriculumTags",
   "forbiddenMechanisms",
+  "interviewCurriculum",
 ]);
 
 const FORBIDDEN_TOPOLOGY_SCORING_KEYS = new Set([
@@ -172,6 +173,27 @@ export interface FirstRunExpectation {
   hotKeyExpectedFail?: boolean;
 }
 
+export type InterviewDifficulty = "intern" | "early_career" | "early_mid";
+
+export interface InterviewEdgeCaseCard {
+  id: string;
+  setting: string;
+  promptCore: string;
+  expectedTopics: readonly string[];
+  acceptableTradeoffs: readonly string[];
+  commonMisconceptions: readonly string[];
+  allowedProbeAngles: readonly string[];
+  difficulty: InterviewDifficulty;
+}
+
+/** Bounded, browser-safe curriculum for the five-question interview. */
+export interface LevelInterviewCurriculum {
+  starterComponentIds: readonly string[];
+  difficultyTags: readonly string[];
+  settingFacts: readonly string[];
+  edgeCaseCards: readonly InterviewEdgeCaseCard[];
+}
+
 /**
  * Level Profile schema v1.
  * Compile to ChallengeDefinition strips teaching-only sections (LP-03).
@@ -200,6 +222,7 @@ export interface LevelProfileV1 {
   curriculumTags: readonly string[];
   /** Mechanism ids intentionally out of this level's story. */
   forbiddenMechanisms: readonly string[];
+  interviewCurriculum: LevelInterviewCurriculum;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -229,6 +252,56 @@ function assertShareRange(value: unknown, context: string): asserts value is Vol
 function assertNonEmptyStringArray(value: unknown, context: string): asserts value is string[] {
   if (!isStringArray(value) || value.length === 0) {
     throw new LevelProfileError(`${context} must be a non-empty string array.`);
+  }
+}
+
+function assertBoundedStringArray(value: unknown, context: string, maxLength: number): asserts value is string[] {
+  assertNonEmptyStringArray(value, context);
+  if (value.length > maxLength) {
+    throw new LevelProfileError(`${context} must contain at most ${maxLength} entries.`);
+  }
+  for (const item of value) {
+    if (item.length > 240) throw new LevelProfileError(`${context} entries must be at most 240 characters.`);
+  }
+}
+
+function assertInterviewCurriculum(value: unknown, starterArchitecture: Architecture): asserts value is LevelInterviewCurriculum {
+  if (!isRecord(value)) throw new LevelProfileError("interviewCurriculum must be an object.");
+  assertBoundedStringArray(value.starterComponentIds, "interviewCurriculum.starterComponentIds", 32);
+  const starterIds = new Set(starterArchitecture.components.map((component) => component.id));
+  const seenStarterIds = new Set<string>();
+  for (const id of value.starterComponentIds) {
+    if (!slugPattern.test(id)) throw new LevelProfileError("interviewCurriculum.starterComponentIds must use stable ids.");
+    if (!starterIds.has(id)) throw new LevelProfileError(`interviewCurriculum references unknown starter component "${id}".`);
+    if (seenStarterIds.has(id)) throw new LevelProfileError(`interviewCurriculum has duplicate starter component "${id}".`);
+    seenStarterIds.add(id);
+  }
+  assertBoundedStringArray(value.difficultyTags, "interviewCurriculum.difficultyTags", 12);
+  assertBoundedStringArray(value.settingFacts, "interviewCurriculum.settingFacts", 12);
+  if (!Array.isArray(value.edgeCaseCards) || value.edgeCaseCards.length === 0 || value.edgeCaseCards.length > 12) {
+    throw new LevelProfileError("interviewCurriculum.edgeCaseCards must contain 1 to 12 cards.");
+  }
+  const seenCardIds = new Set<string>();
+  for (let index = 0; index < value.edgeCaseCards.length; index += 1) {
+    const card = value.edgeCaseCards[index];
+    const context = `interviewCurriculum.edgeCaseCards[${index}]`;
+    if (!isRecord(card)) throw new LevelProfileError(`${context} must be an object.`);
+    if (!isNonEmptyString(card.id) || !slugPattern.test(card.id)) throw new LevelProfileError(`${context}.id must be a stable lowercase hyphenated identifier.`);
+    if (seenCardIds.has(card.id)) throw new LevelProfileError(`${context}.id must be unique.`);
+    seenCardIds.add(card.id);
+    for (const field of ["setting", "promptCore"] as const) {
+      if (!isNonEmptyString(card[field]) || card[field].length > 240) throw new LevelProfileError(`${context}.${field} must be 1 to 240 characters.`);
+    }
+    assertBoundedStringArray(card.expectedTopics, `${context}.expectedTopics`, 8);
+    assertBoundedStringArray(card.acceptableTradeoffs, `${context}.acceptableTradeoffs`, 6);
+    assertBoundedStringArray(card.commonMisconceptions, `${context}.commonMisconceptions`, 6);
+    assertBoundedStringArray(card.allowedProbeAngles, `${context}.allowedProbeAngles`, 6);
+    if (!(["intern", "early_career", "early_mid"] as const).includes(card.difficulty as InterviewDifficulty)) {
+      throw new LevelProfileError(`${context}.difficulty must be intern, early_career, or early_mid.`);
+    }
+  }
+  if (!value.edgeCaseCards.some((card) => (card as InterviewEdgeCaseCard).difficulty === "early_career")) {
+    throw new LevelProfileError("interviewCurriculum must include an early_career edge-case card.");
   }
 }
 
@@ -404,6 +477,7 @@ export function assertLevelProfile(value: unknown): asserts value is LevelProfil
     const detail = architectureResult.errors.map((issue) => issue.message).join("; ");
     throw new LevelProfileError(`starterArchitecture is invalid: ${detail}`);
   }
+  assertInterviewCurriculum(value.interviewCurriculum, value.starterArchitecture as Architecture);
 
   if (!isRecord(value.firstRunExpectation)) {
     throw new LevelProfileError("firstRunExpectation must be an object.");

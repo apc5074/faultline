@@ -25,4 +25,6 @@ export * from "./pin-observation.js";
 export * from "./interview-state.js";
 export * from "./interview-protocol.js";
 export * from "./interview-service-port.js";
+export * from "./interview-question.js";
+export * from "./interview-state-v2.js";
 export * from "./capabilities/index.js";
