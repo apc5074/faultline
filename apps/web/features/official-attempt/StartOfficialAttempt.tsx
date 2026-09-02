@@ -136,8 +136,8 @@ export function StartOfficialAttempt({
         return;
       }
       if (!body.active) {
-        // The initial restore and automatic start may race. Preserve the
-        // active session if it was established while restore was in flight.
+        // The initial restore and briefing acknowledgement may race. Preserve
+        // the active session if it was established while restore was in flight.
         if (sessionRef.current) return;
         setSession(null);
         setCompletion(null);
@@ -145,10 +145,13 @@ export function StartOfficialAttempt({
           setState({ status: "error", message: "No active daily challenge." });
           return;
         }
-        // A fresh level starts its official attempt on load. The server
-        // authors startedAt, so the visible timer begins at the real start
-        // of the attempt rather than at a browser render.
-        await startAttempt();
+        // A fresh Level 1 attempt starts only after the player acknowledges
+        // the briefing. The explicit control remains available as a retry or
+        // for direct level links that do not show the intro cards.
+        setState({
+          status: "idle",
+          alias: body.authenticated ? body.alias : null,
+        });
         return;
       }
       applyActive({

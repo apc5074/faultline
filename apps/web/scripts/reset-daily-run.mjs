@@ -128,9 +128,41 @@ if (!confirmed) {
   process.exit(0);
 }
 
-const reset = await supabase.rpc("reset_player_daily_run", {
+let reset = await supabase.rpc("reset_player_daily_run", {
   p_user_id: matchedUser.id,
 });
+// Older local databases expose the safer challenge-scoped overload instead of
+// the newer all-history operator RPC. Fall back only to the exact attempts
+// discovered above; never broaden the deletion scope in the compatibility path.
+if (
+  reset.error &&
+  /Could not find the function .*reset_player_daily_run\(p_user_id\)/i.test(reset.error.message) &&
+  attempts.data.length > 0
+) {
+  const scopedResults = [];
+  for (const attempt of attempts.data) {
+    const scoped = await supabase.rpc("reset_player_daily_run", {
+      p_user_id: matchedUser.id,
+      p_daily_challenge_id: attempt.daily_challenge_id,
+    });
+    if (scoped.error) {
+      reset = scoped;
+      break;
+    }
+    scopedResults.push(scoped.data ?? {});
+  }
+  if (scopedResults.length === attempts.data.length) {
+    reset = {
+      data: {
+        attempts: scopedResults.reduce((sum, value) => sum + Number(value.attempts ?? 0), 0),
+        submissions: scopedResults.reduce((sum, value) => sum + Number(value.submissions ?? 0), 0),
+        daily_best: scopedResults.reduce((sum, value) => sum + Number(value.daily_best ?? 0), 0),
+        share_cards: scopedResults.reduce((sum, value) => sum + Number(value.share_cards ?? 0), 0),
+      },
+      error: null,
+    };
+  }
+}
 if (reset.error) {
   throw new Error(
     `Could not reset player data: ${reset.error.message}. Apply the latest Supabase migration first.`
