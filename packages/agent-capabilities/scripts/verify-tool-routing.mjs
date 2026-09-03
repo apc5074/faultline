@@ -34,22 +34,35 @@ assert.deepEqual(getToolRoutingRule("component"), {
   allowedFallbackCapabilityNames: ["inspect_design_entity"],
   requiresCurrentTarget: true,
   resultFrame: "component",
-  selectionGuidance: "For a named current component, call inspect_component first using its exact component ID.",
-  competingIntentGuidance: "If the player asks to be interviewed or quizzed, call start_design_interview instead of answering a component question.",
+  selectionGuidance: "Hard rule: for tell me about, explain, or inspect a named current component, call inspect_component this turn before answering—prefer its exact component ID. Do not answer from get_metrics, overview review, or prior-turn evidence. Production focuses and zooms a single resolved component before this tool returns.",
+  positiveExamples: [
+    "tell me about the postgres db",
+    "tell me about the Stateless Service",
+    "what's going on with postgres-1",
+    "explain this Redis",
+    "tell me about error on the Stateless Service",
+  ],
+  negativeExamples: ["what's wrong with my design", "how is system health", "interview me"],
+  competingIntentGuidance: "If the player asks to be interviewed or quizzed, call start_design_interview instead of answering a component question. System-wide health without a named subject stays on get_metrics; first-error asks without a named component stay on requirement_failure.",
 });
 assert.equal(getToolRoutingRule("component_position").preferredCapabilityName, "inspect_component");
 assert.deepEqual(getToolRoutingRule("component_position").allowedFallbackCapabilityNames, []);
+assert.match(getToolRoutingRule("component_position").selectionGuidance, /Hard rule/);
+assert.match(getToolRoutingRule("component_position").selectionGuidance, /scope topmost/);
+assert.ok(getToolRoutingRule("component_position").positiveExamples?.includes("tell me about the bottom Stateless Service"));
 assert.equal(getToolRoutingRule("board_inventory").preferredCapabilityName, "get_architecture");
 assert.equal(getToolRoutingRule("board_inventory").resultFrame, "set");
 assert.match(getToolRoutingRule("board_inventory").selectionGuidance, /inventory/);
 assert.deepEqual(getToolRoutingRule("relationship").allowedFallbackCapabilityNames, ["get_architecture"]);
 assert.deepEqual(getToolRoutingRule("workload_path").allowedFallbackCapabilityNames, ["review_current_design"]);
 assert.equal(getToolRoutingRule("system_health").preferredCapabilityName, "get_metrics");
+assert.match(getToolRoutingRule("system_health").selectionGuidance, /inspect_component instead/);
 assert.equal(getToolRoutingRule("requirement_failure").preferredCapabilityName, "review_current_design");
 assert.deepEqual(getToolRoutingRule("requirement_failure").positiveExamples, ["tell me about the first error", "tell me what went wrong", "Why is there an error?", "What broke?"]);
 assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /primary implicated component/);
 assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /focuses and zooms/);
 assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /mechanism categories/);
+assert.match(getToolRoutingRule("requirement_failure").competingIntentGuidance ?? "", /inspect_component/);
 assert.equal(getToolRoutingRule("overview").preferredCapabilityName, "review_current_design");
 assert.deepEqual(getToolRoutingRule("overview").positiveExamples, ["what's wrong with my design", "review my design", "how is my architecture looking?"]);
 assert.match(getToolRoutingRule("overview").selectionGuidance, /mechanism categories/);
@@ -72,9 +85,11 @@ assert.match(TOOL_ROUTING_GUIDANCE, /current-state read/);
 assert.match(TOOL_ROUTING_GUIDANCE, /earlier evidence revision/);
 assert.match(TOOL_ROUTING_GUIDANCE, /interview me/);
 assert.match(TOOL_ROUTING_GUIDANCE, /never invent a freeform/i);
+assert.match(TOOL_ROUTING_GUIDANCE, /Hard rule: for tell me about/);
 assert.match(TOOL_ROUTING_GUIDANCE, /error, failure, bottleneck/);
 assert.match(TOOL_ROUTING_GUIDANCE, /requirement_failure/);
 assert.match(TOOL_ROUTING_GUIDANCE, /focus-and-zoom/);
+assert.match(TOOL_ROUTING_GUIDANCE, /framing is required/);
 assert.match(TOOL_ROUTING_GUIDANCE, /mechanism categories/);
 assert.match(TOOL_ROUTING_GUIDANCE, /specific catalog components/);
 assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Hard rule/);

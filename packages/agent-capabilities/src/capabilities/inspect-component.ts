@@ -75,7 +75,7 @@ export const inspectComponentCapability: AgentCapability<
 > = {
   name: "inspect_component",
   description:
-    "Read the current invocation revision: inspect one component by exact componentId, or select a catalog type with { selector: { type, scope: \"all\" | \"topmost\" } }. For an unqualified type-wide/count/existence question, use scope all; use topmost only for positional requests. Do not reuse after a board edit. For interview or quiz practice, call start_design_interview instead of answering a one-off component question.",
+    "REQUIRED this turn for tell me about, explain, or inspect a named/positioned board component—do not substitute get_metrics or prior-turn evidence. Read the current invocation revision: inspect one component by exact componentId, or select a catalog type with { selector: { type, scope: \"all\" | \"topmost\" } }. For an unqualified type-wide/count/existence question, use scope all; use topmost only for positional requests. Do not reuse after a board edit. For interview or quiz practice, call start_design_interview instead of answering a one-off component question.",
   inputSchema: inspectComponentInputSchema,
   mode: "read",
   availableWhen: () => true,

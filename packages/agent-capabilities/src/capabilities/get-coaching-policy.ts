@@ -57,7 +57,7 @@ export const getCoachingPolicyCapability: AgentCapability<
 > = {
   name: "get_coaching_policy",
   description:
-    "Read Faultline's adapter-neutral reviewer contract: read-first turn protocol, targeted evidence recipes, spatial budget, prohibited actions, and challenge learning themes. Call once per coaching session on the first turn; retain the returned policy in host system context and do not call again unless the challenge changes.",
+    "MANDATORY FIRST COACHING ACTION: before producing the first coaching answer or calling another coaching read, call this tool exactly once per session. Read Faultline's adapter-neutral reviewer contract: read-first turn protocol, targeted evidence recipes, spatial budget, prohibited actions, and challenge learning themes. When available, call get_session_focus in parallel. Retain the returned policy in host system context and do not call again unless the challenge changes or the player asks to reset coaching policy.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,

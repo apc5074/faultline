@@ -286,7 +286,7 @@ export function buildReviewCurrentDesignOutput(context: AgentContext, input: Rev
 
 export const reviewCurrentDesignCapability: AgentCapability<AgentContext, ReviewCurrentDesignInput, CapabilityResult<ReviewCurrentDesignResult>> = {
   name: "review_current_design",
-  description: "Review the current design once using live focus and simulator evidence. Returns one compact grounded finding context; use targeted reads only when needed. For interview or quiz practice, call start_design_interview instead of answering a one-off review.",
+  description: "Review the current design once using live focus and simulator evidence. Use for overview, diagnosis, ambiguity, or unnamed errors with requirement_failure; when the player names a component to discuss (tell me about / explain / error on X), call inspect_component instead. Returns one compact grounded finding context; use targeted reads only when needed. For interview or quiz practice, call start_design_interview instead of answering a one-off review.",
   inputSchema: reviewCurrentDesignInputSchema,
   mode: "read",
   availableWhen: () => true,

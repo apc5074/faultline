@@ -6,7 +6,7 @@
 
 Level 1 is a global URL shortener after a celebrity campaign. $85k/month budget, p95 under 150ms worldwide, one viral short link trying to melt a single cache key. Drag services, caches, databases, and CDNs onto a canvas, place them on a world map, hit Run, watch packets move, iterate.
 
-Play solo in any browser. In ChatGPT's in-app browser, or Chrome with WebMCP enabled (`chrome://flags/#enable-webmcp-testing`), an agent can join the live session.
+Play solo in any browser. In ChatGPT's in-app browser (recommend sol light or higher), or Chrome with WebMCP enabled (`chrome://flags/#enable-webmcp-testing`), an agent can join the live session.
 
 ---
 

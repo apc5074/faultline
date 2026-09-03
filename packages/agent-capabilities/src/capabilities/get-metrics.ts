@@ -136,7 +136,7 @@ export const getMetricsCapability: AgentCapability<
 > = {
   name: "get_metrics",
   description:
-    "Return compact simulator truth: system outcomes, per-component metrics, and scenario results. Does not fabricate metrics when simulation is unavailable.",
+    "Return compact simulator truth for system-wide health: system outcomes, per-component metrics, and scenario results. Do not use as a substitute when the player asked about a named or positioned component—call inspect_component instead. Does not fabricate metrics when simulation is unavailable.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,

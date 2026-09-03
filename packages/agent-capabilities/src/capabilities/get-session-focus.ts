@@ -59,7 +59,7 @@ export const getSessionFocusCapability: AgentCapability<
 > = {
   name: "get_session_focus",
   description:
-    "Read human canvas focus and any pending help request from selection or help chips. Call when human focus or pending help may have changed; does not clear pending help.",
+    "On the first coaching turn, call this in parallel with get_coaching_policy before answering when available. Read human canvas focus and any pending help request from selection or help chips. Call when human focus or pending help may have changed; does not clear pending help.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,

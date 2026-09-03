@@ -58,13 +58,15 @@ async function invokeDirect(name, input) {
 
 const component = await invokeDirect("inspect_component", { componentId: "service-1" });
 assert.match(component.tool.description, /componentId/);
+assert.match(component.tool.description, /REQUIRED this turn for tell me about/);
+assert.match(component.tool.description, /focused and zoomed/);
 const selection = await invokeDirect("inspect_component", { selector: { type: "postgres", scope: "all" } });
 assert.match(selection.tool.description, /scope: "all" \| "topmost"/);
-assert.match(selection.tool.description, /current invocation revision/);
 assert.match(selection.tool.description, /count\/existence/);
 assert.equal(selection.result.data.data.selection.matchedCount, selection.result.data.data.selection.resolvedComponentIds.length);
 const metrics = await invokeDirect("get_metrics", undefined);
-assert.match(metrics.tool.description, /first for health/);
+assert.match(metrics.tool.description, /system-wide health/);
+assert.match(metrics.tool.description, /inspect_component instead/);
 const architecture = await invokeDirect("get_architecture", undefined);
 assert.match(architecture.tool.description, /current architecture and inventory/);
 assert.match(architecture.tool.description, /board-wide contents/);
@@ -74,6 +76,6 @@ const reviewTool = toWebMcpTool(registry.get("review_current_design"), { registr
 assert.match(reviewTool.description, /overview/);
 assert.match(reviewTool.description, /mechanism categories/);
 assert.match(reviewTool.description, /requirement_failure/);
-assert.match(reviewTool.description, /inspect_component/);
+assert.match(reviewTool.description, /inspect_component instead/);
 
 console.log("verify-direct-routing: ok");

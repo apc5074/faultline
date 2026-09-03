@@ -85,21 +85,29 @@ assert.deepEqual(
 assert.equal(output.agentRole, "systems_reviewer");
 assert.equal(output.visualBudget.maxGesturesPerAnswer, 2);
 assert.equal(output.visualBudget.defaultBehavior, "non_disruptive_emphasis");
-assert.equal(output.visualBudget.selectionOrViewport, "only_on_explicit_human_request");
+assert.equal(output.visualBudget.selectionOrViewport, "auto_frame_on_targeted_read");
 assert.equal(output.turnProtocol.length, 6);
 assert.ok(output.turnProtocol[0].includes("start_design_interview"));
 assert.ok(output.turnProtocol[0].includes("Never invent a freeform"));
 assert.ok(output.turnProtocol[1].includes("review_current_design"));
 assert.ok(output.turnProtocol[1].includes("get_coaching_policy"));
+assert.ok(output.turnProtocol[1].includes("tell me about"));
 assert.ok(output.turnProtocol[3].includes("one simulator-grounded finding"));
 assert.ok(output.turnProtocol[4].includes("mechanism categories"));
 assert.ok(output.turnProtocol[4].includes("Do not recommend adding a specific catalog component"));
+assert.ok(output.turnProtocol[5].includes("Hard rule"));
+assert.ok(output.turnProtocol[5].includes("auto-frames and zooms"));
+assert.ok(output.turnProtocol[5].includes("required, not optional"));
 assert.equal(output.sessionRetention, COACHING_POLICY_SESSION_RETENTION);
 assert.ok(output.policyText.includes("Never assume a CDN"));
+assert.ok(output.policyText.includes("auto-frames and zooms"));
+assert.ok(output.policyText.includes("inspect_component this turn"));
 assert.ok(output.prohibitedActions.some((action) => action.includes("Mutate architecture")));
 assert.ok(output.prohibitedActions.some((action) => action.includes("labels, notes")));
 assert.ok(output.prohibitedActions.some((action) => action.includes("specific catalog component")));
 assert.ok(output.toolRecipes.find((recipe) => recipe.id === "requirement_failure")?.steps.some((step) => /Mechanism categories are fine/.test(step)));
+assert.ok(output.toolRecipes.find((recipe) => recipe.id === "requirement_failure")?.steps.some((step) => /names a component subject/.test(step)));
+assert.ok(output.toolRecipes.find((recipe) => recipe.id === "component_review")?.steps.some((step) => /auto-frame/.test(step)));
 assert.deepEqual(
   output.toolRecipes.map((recipe) => recipe.id),
   ["component_review", "requirement_failure", "workload_trace", "cost_review"],

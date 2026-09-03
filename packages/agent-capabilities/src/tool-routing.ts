@@ -46,7 +46,7 @@ export interface ToolRoutingRule {
 
 /** Compact routing guidance shared by policy and adapter-facing descriptions. */
 export const TOOL_ROUTING_GUIDANCE =
-  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. For interview me, quiz me, test me, or any interview/practice intent, call start_design_interview first and ask only its returned question—never invent a freeform system-design interview in chat. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity. When the player asks about an error, failure, bottleneck, what broke, or the first error, use review_current_design with requirement_failure. When discussing what might help, use mechanism categories (caching, edge offload, regional serving) rather than recommending specific catalog components to add. A single current-component inspect and a requirement_failure review on the browser production surface wait for matching focus-and-zoom on the primary implicated component before evidence is released; visual tools remain optional for other intents.";
+  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. Hard rule: for tell me about, explain, or inspect a named or positioned board component (for example the postgres db, Stateless Service, or bottom service), call inspect_component this turn before answering—do not substitute get_metrics, review_current_design, or prior-turn evidence. Prefer componentId when known; for type-only questions use selector with scope all unless the player says top/bottom/left/right/topmost; positional asks use scope topmost. For interview me, quiz me, test me, or any interview/practice intent, call start_design_interview first and ask only its returned question—never invent a freeform system-design interview in chat. Use get_architecture for board inventory, inspect_design_entity for relationships/workload paths, get_metrics only for system-wide health (not a named component), and review_current_design for overview or genuine ambiguity. When the player asks about an error, failure, bottleneck, what broke, or the first error without naming a component to discuss, use review_current_design with requirement_failure; when they name a component in the same ask, call inspect_component for that subject. When discussing what might help, use mechanism categories (caching, edge offload, regional serving) rather than recommending specific catalog components to add. A single current-component inspect and a requirement_failure review on the browser production surface wait for matching focus-and-zoom on the primary implicated component before evidence is released—that framing is required for those reads, not optional; separate visual tools remain only for explicit persistent marks.";
 
 /**
  * Shared routing policy for embedded and external agents. This is metadata,
@@ -60,8 +60,16 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     allowedFallbackCapabilityNames: ["inspect_design_entity"],
     requiresCurrentTarget: true,
     resultFrame: "component",
-    selectionGuidance: "For a named current component, call inspect_component first using its exact component ID.",
-    competingIntentGuidance: "If the player asks to be interviewed or quizzed, call start_design_interview instead of answering a component question.",
+    selectionGuidance: "Hard rule: for tell me about, explain, or inspect a named current component, call inspect_component this turn before answering—prefer its exact component ID. Do not answer from get_metrics, overview review, or prior-turn evidence. Production focuses and zooms a single resolved component before this tool returns.",
+    positiveExamples: [
+      "tell me about the postgres db",
+      "tell me about the Stateless Service",
+      "what's going on with postgres-1",
+      "explain this Redis",
+      "tell me about error on the Stateless Service",
+    ],
+    negativeExamples: ["what's wrong with my design", "how is system health", "interview me"],
+    competingIntentGuidance: "If the player asks to be interviewed or quizzed, call start_design_interview instead of answering a component question. System-wide health without a named subject stays on get_metrics; first-error asks without a named component stay on requirement_failure.",
   },
   {
     intent: "component_position",
@@ -70,7 +78,12 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     allowedFallbackCapabilityNames: [],
     requiresCurrentTarget: false,
     resultFrame: "component",
-    selectionGuidance: "For a component type, use inspect_component with an exact catalog type; use scope all unless the player says topmost.",
+    selectionGuidance: "Hard rule: for a positioned or type-qualified board component (bottom/top/left/right, or ‘the postgres’), call inspect_component this turn with an exact catalog type. Use scope topmost for positional asks; use scope all only for type-wide count/existence. Production focuses and zooms when exactly one component resolves.",
+    positiveExamples: [
+      "tell me about the bottom Stateless Service",
+      "inspect the topmost postgres",
+      "what is the left service doing",
+    ],
   },
   {
     intent: "board_inventory",
@@ -106,7 +119,7 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     allowedFallbackCapabilityNames: ["estimate_capacity"],
     requiresCurrentTarget: false,
     resultFrame: "set",
-    selectionGuidance: "For system health, call get_metrics first; use estimate_capacity for capacity-specific follow-up.",
+    selectionGuidance: "For system-wide health or metrics with no named component subject, call get_metrics first; use estimate_capacity for capacity-specific follow-up. Do not use get_metrics as a substitute when the player asked about a named or positioned component—call inspect_component instead.",
   },
   {
     intent: "requirement_failure",
@@ -115,8 +128,9 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     allowedFallbackCapabilityNames: ["inspect_design_entity"],
     requiresCurrentTarget: false,
     resultFrame: "causal_path",
-    selectionGuidance: "For an error, failure, bottleneck, or first/named requirement failure, call review_current_design with requirement_failure; inspect_design_entity is a targeted fallback. The production surface focuses and zooms the primary implicated component before this tool returns. Explain present evidence; mechanism categories are fine, but do not recommend specific catalog components to add.",
+    selectionGuidance: "For an error, failure, bottleneck, or first/named requirement failure without a named component subject, call review_current_design with requirement_failure this turn; inspect_design_entity is a targeted fallback. The production surface focuses and zooms the primary implicated component before this tool returns. Explain present evidence; mechanism categories are fine, but do not recommend specific catalog components to add.",
     positiveExamples: ["tell me about the first error", "tell me what went wrong", "Why is there an error?", "What broke?"],
+    competingIntentGuidance: "If the player names a component to discuss (tell me about error on the Stateless Service, explain postgres), call inspect_component for that subject instead of requirement_failure.",
   },
   {
     intent: "overview",
