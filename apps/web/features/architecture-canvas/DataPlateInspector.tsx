@@ -1152,20 +1152,41 @@ export function DataPlateInspector({
             />
           </div>
           <PlateField label="Coverage">
-            <input
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              value={coverage}
-              onChange={(event) =>
-                onConfigChange(component.id, {
-                  coverage: Number(event.target.value),
-                  ttlBand,
-                  tier,
-                })
-              }
-            />
+            <div className="data-plate-inspector__range-wrap">
+              <div className="data-plate-inspector__range-heading">
+                <span>Cacheable traffic</span>
+                <output className="tabular" htmlFor={`cdn-coverage-${component.id}`}>
+                  {formatPercent(coverage)}
+                </output>
+              </div>
+              <input
+                id={`cdn-coverage-${component.id}`}
+                className="data-plate-inspector__range"
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={coverage}
+                list={`cdn-coverage-ticks-${component.id}`}
+                aria-label="CDN coverage"
+                onChange={(event) =>
+                  onConfigChange(component.id, {
+                    coverage: Number(event.target.value),
+                    ttlBand,
+                    tier,
+                  })
+                }
+              />
+              <datalist id={`cdn-coverage-ticks-${component.id}`}>
+                {Array.from({ length: 21 }, (_, index) => (
+                  <option key={index} value={index / 20} />
+                ))}
+              </datalist>
+              <div className="data-plate-inspector__range-scale" aria-hidden>
+                <span>0%</span>
+                <span>100%</span>
+              </div>
+            </div>
           </PlateField>
           <SpecList>
             <SpecRow
