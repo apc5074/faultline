@@ -23,6 +23,8 @@ const pubsubFlashes = new Map<string, number>();
 const cdnUsefulArrivalCounts = new Map<string, number>();
 const cdnPassCounts = new Map<string, number>();
 const cacheHitFlashes = new Map<string, { tick: number; slotIdx: number }>();
+/** Stable random slot assignment per dwelling packet so cache cells don't jump around. */
+const cachePacketSlots = new Map<string, number>();
 const componentVisualAccrual = new Map<string, number>();
 const authoritativeSpawnAccrual = new Map<string, number>();
 const authoritativeForwardAccrual = new Map<string, number>();
@@ -41,6 +43,30 @@ export const CACHE_HIT_FLASH_TICKS = 20;
 /** Cache activity samples the simulator's realized cache usefulness exactly. */
 export function redisVisualSampleRate(realizedHitRate: number): number {
   return Math.min(1, Math.max(0, realizedHitRate));
+}
+
+/** Assign each dwelling cache packet a stable random slot index so lit cells don't jump each tick. */
+function cacheSlotIndicesForDwellers(dwellers: readonly SimPacket[], capacity: number): readonly number[] {
+  const cap = Math.max(1, capacity);
+  const usedSlots = new Set<number>();
+  const slots: number[] = [];
+  for (const pkt of dwellers) {
+    let slot = cachePacketSlots.get(pkt.id);
+    if (slot === undefined || slot >= cap || usedSlots.has(slot)) {
+      // Pick a random unused slot
+      const available = [];
+      for (let i = 0; i < cap; i++) {
+        if (!usedSlots.has(i)) available.push(i);
+      }
+      slot = available.length > 0
+        ? available[Math.floor(Math.random() * available.length)]
+        : Math.floor(Math.random() * cap);
+      cachePacketSlots.set(pkt.id, slot);
+    }
+    usedSlots.add(slot);
+    slots.push(slot);
+  }
+  return slots;
 }
 
 function shouldShowComponentActivity(componentId: string, plan: AuthoritativeTrafficPlan): boolean {
@@ -197,6 +223,7 @@ export function resetTickSimulationState(): void {
   cdnUsefulArrivalCounts.clear();
   cdnPassCounts.clear();
   cacheHitFlashes.clear();
+  cachePacketSlots.clear();
   componentVisualAccrual.clear();
   authoritativeSpawnAccrual.clear();
   authoritativeForwardAccrual.clear();
@@ -577,9 +604,8 @@ export function tickSimulation(
       passCount: comp.type === "cdn" ? Math.round((passCount ?? 0) * scale) : passCount,
       cacheHitFlash: comp.type === "cache" ? cacheHitFlash : scale > 0 && cacheHitFlash,
       mechanismCount,
-      // Use the flash slot index for cache cell placement variety when available
-      processingSlotIndices: comp.type === "cache" && cacheFlashEntry !== undefined
-        ? [cacheFlashEntry.slotIdx]
+      processingSlotIndices: comp.type === "cache" && processingDwellers.length > 0
+        ? cacheSlotIndicesForDwellers(processingDwellers, comp.capacity)
         : undefined,
       rejectedCount: rejectionCounts.get(comp.id) || undefined,
     };
