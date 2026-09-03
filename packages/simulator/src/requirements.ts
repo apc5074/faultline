@@ -7,6 +7,7 @@ import type {
   RequirementResult,
   RequirementType,
 } from "@faultline/core";
+import type { Level2SimulationResult } from "./level2.js";
 
 import { estimateMonthlyCost } from "./cost.js";
 import { evaluateHotKeyScenario, type HotKeyScenarioResult } from "./hot-key.js";
@@ -40,6 +41,7 @@ interface OutcomeSnapshot {
   headroom: number;
   headroomExplanationFocus: string;
   cost: CostResult;
+  level2?: Level2SimulationResult;
 }
 
 function compare(actual: number, comparator: RequirementComparator, target: number): boolean {
@@ -216,6 +218,32 @@ function evaluateBudget(requirement: RequirementDefinition, snapshot: OutcomeSna
   };
 }
 
+function evaluateChannelRequirement(requirement: RequirementDefinition, snapshot: OutcomeSnapshot): RequirementResult {
+  const evidence = snapshot.level2;
+  const channel = evidence?.channels[requirement.channelId ?? ""];
+  let actual = 0;
+  if (evidence && requirement.metric === "completion_ratio") {
+    actual = requirement.channelId === "processing"
+      ? evidence.processing.deadlineCompletionRatio
+      : channel?.handledRatio ?? 0;
+  } else if (requirement.metric === "p95_latency_ms") {
+    actual = channel?.p95LatencyMs ?? Number.POSITIVE_INFINITY;
+  }
+  const passed = compare(actual, requirement.comparator, requirement.target);
+  const unit = requirement.metric === "p95_latency_ms" ? "ms" : "of required work";
+  return {
+    id: requirement.id,
+    type: requirement.type,
+    passed,
+    actual,
+    target: requirement.target,
+    operator: requirement.comparator,
+    explanation: passed
+      ? `Channel "${requirement.channelId}" measured ${requirement.metric === "p95_latency_ms" ? `${actual.toFixed(1)}ms` : formatRatioPercent(actual)}; target is ${requirement.target}${unit}.`
+      : `Channel "${requirement.channelId}" measured ${requirement.metric === "p95_latency_ms" ? `${Number.isFinite(actual) ? actual.toFixed(1) : "unavailable"}ms` : formatRatioPercent(actual)}; target is ${requirement.target}${unit}.`,
+  };
+}
+
 const evaluators: Record<
   RequirementType,
   (requirement: RequirementDefinition, snapshot: OutcomeSnapshot) => RequirementResult
@@ -276,10 +304,12 @@ export function evaluateRequirements(input: TrafficPropagationInput): Requiremen
     headroom: headroom.headroom,
     headroomExplanationFocus: headroom.focus,
     cost,
+    level2: latency.level2,
   };
 
   const challenge = input.challenge as ChallengeDefinition;
   const requirements = challenge.requirements.map((requirement) => {
+    if (requirement.channelId && requirement.metric) return evaluateChannelRequirement(requirement, snapshot);
     const evaluator = evaluators[requirement.type];
     return evaluator(requirement, snapshot);
   });

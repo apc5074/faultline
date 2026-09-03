@@ -23,6 +23,7 @@ type BoardState =
   | { status: "loading" }
   | {
       status: "ready";
+      challengeTitle: string;
       challengeSlug: string;
       challengeVersion: number;
       mode: LeaderboardMode;
@@ -106,6 +107,7 @@ export function LeaderboardHud({ maxEntries }: { maxEntries?: number } = {}) {
 
       setState({
         status: "ready",
+        challengeTitle: body.challengeTitle,
         challengeSlug: body.challengeSlug,
         challengeVersion: body.challengeVersion,
         mode: nextMode,
@@ -184,7 +186,7 @@ export function LeaderboardHud({ maxEntries }: { maxEntries?: number } = {}) {
       {state.status === "ready" ? (
         <>
           <p className="hud-plate__meta">
-            {state.challengeSlug} v{state.challengeVersion}
+            {state.challengeTitle}
             {state.mode === "cheapest" ? " · by cost" : " · by time"}
           </p>
 

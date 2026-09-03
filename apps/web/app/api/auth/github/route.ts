@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { normalizeAuthCallbackRedirect } from "@/lib/auth/account-status";
 import { createSupabaseAuthAdapter } from "@/lib/auth/auth-adapter";
 import { recordAccountLinkAttempt } from "@/lib/auth/link-audit";
-import { setAccountLinkIntent } from "@/lib/auth/link-session";
+import { clearAccountLinkIntent, setAccountLinkIntent } from "@/lib/auth/link-session";
 import { startGitHubOAuth } from "@/lib/auth/github-oauth";
 import { buildOAuthCallbackUrl, getRequestOrigin } from "@/lib/auth/request-origin";
 import { createSupabaseServerClient, getSupabasePublicConfig } from "@/lib/supabase/server";
@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 /** Explicit GitHub OAuth entry point. Never auto-invoked on page load. */
 export async function GET(request: Request): Promise<Response> {
   const configured = getSupabasePublicConfig() !== null;
-  const next = normalizeAuthCallbackRedirect(new URL(request.url).searchParams.get("next"));
+  const requestUrl = new URL(request.url);
+  const next = normalizeAuthCallbackRedirect(requestUrl.searchParams.get("next"));
+  const mode = requestUrl.searchParams.get("mode") === "signin" ? "signin" : "link";
 
   if (!configured) {
     return NextResponse.redirect(new URL(`/?auth_error=misconfigured`, request.url));
@@ -29,13 +31,18 @@ export async function GET(request: Request): Promise<Response> {
   const adapter = createSupabaseAuthAdapter(supabase);
   const user = await adapter.getUser();
 
-  if (user?.is_anonymous === true) {
+  // A normal sign-in must not inherit a stale anonymous-link intent from a
+  // previous failed linking attempt, or the callback could reject the
+  // returning permanent user as an identity conflict.
+  if (mode === "signin") await clearAccountLinkIntent();
+
+  if (user?.is_anonymous === true && mode === "link") {
     await setAccountLinkIntent(user.id);
     await recordAccountLinkAttempt(user.id, "started");
   }
 
   const callbackUrl = buildOAuthCallbackUrl(origin, next);
-  const result = await startGitHubOAuth(adapter, { callbackUrl, next, currentUser: user });
+  const result = await startGitHubOAuth(adapter, { callbackUrl, next, currentUser: user, mode });
 
   if (!result.ok) {
     if (result.code === "already_signed_in") {

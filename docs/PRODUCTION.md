@@ -42,7 +42,7 @@ identity, linking, history, and streak semantics are defined in
 
 ### Simulator / challenge republish (competition)
 
-`SIMULATOR_VERSION` (`packages/simulator/src/version.ts`, currently **`"2"`**) is stored on each `challenge_versions.simulator_version` row. Official verify rejects a runtime mismatch against the active published snapshot.
+`SIMULATOR_VERSION` (`packages/simulator/src/version.ts`, currently **`"4"`**) is stored on each `challenge_versions.simulator_version` row. Official verify rejects a runtime mismatch against the active published snapshot.
 
 When competition semantics change (including workload affinity ceilings, participation/cost pressure rules, or hot-key `reuseConcentration`):
 
@@ -52,6 +52,13 @@ When competition semantics change (including workload affinity ceilings, partici
 4. Confirm `pnpm verify:affinity` and `pnpm --filter @faultline/web verify:competition-config` (or submission verify) against the new pair.
 
 Do not silently re-score historical official attempts under incompatible simulator semantics.
+
+To flip a test environment to another registered daily challenge after deploy,
+publish/reuse its immutable snapshot and replace the active window in one
+operation: `pnpm --filter @faultline/web seed:daily-challenge -- --slug
+premiere-night --end-active`. The same command with `--slug url-shortener
+--end-active` flips back; the default slug remains `url-shortener` for legacy
+local usage.
 
 Direct `profiles` reads are owner-only; public aliases are returned solely by the shaped leaderboard RPCs. Apply `20260826168000_lock_down_profiles.sql` after the existing Phase 4 migrations.
 

@@ -1,5 +1,6 @@
 export type RequirementType = "throughput" | "latency" | "headroom" | "budget";
 export type RequirementComparator = "gte" | "lte" | "lt";
+export type RequirementMetric = "completion_ratio" | "p95_latency_ms";
 
 /** A requirement is evaluated from simulation/cost outcomes, never component names. */
 export interface RequirementDefinition {
@@ -9,6 +10,9 @@ export interface RequirementDefinition {
   comparator: RequirementComparator;
   target: number;
   unit: string;
+  /** Optional Level 2 evidence binding; omitted requirements use legacy aggregates. */
+  channelId?: string;
+  metric?: RequirementMetric;
 }
 
 /** Deterministic outcome of evaluating one challenge requirement against simulated metrics. */

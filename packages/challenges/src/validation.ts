@@ -4,6 +4,7 @@ import {
   type ChallengeDefinition,
   type RequirementComparator,
   type RequirementType,
+  type RequirementMetric,
   type WorkloadMechanismId,
   type WorkloadChannelKind,
   assertWorkloadCompletionContract,
@@ -13,6 +14,7 @@ import {
 const slugPattern = /^[a-z][a-z0-9-]*$/;
 const requirementTypes = new Set<RequirementType>(["throughput", "latency", "headroom", "budget"]);
 const comparators = new Set<RequirementComparator>(["gte", "lte", "lt"]);
+const requirementMetrics = new Set<RequirementMetric>(["completion_ratio", "p95_latency_ms"]);
 const workloadMechanismIds = new Set<WorkloadMechanismId>([
   "edge_cache",
   "data_cache",
@@ -215,6 +217,18 @@ export function assertChallengeDefinition(definition: unknown): asserts definiti
       throw new ChallengeDefinitionError(`Challenge "${definition.slug}" has an invalid requirement.`);
     }
     if (ids.has(requirement.id)) throw new ChallengeDefinitionError(`Challenge "${definition.slug}" has duplicate requirement IDs.`);
+    if (requirement.channelId !== undefined) {
+      const channels = definition.workloadChannels;
+      if (!isNonEmptyString(requirement.channelId) || !Array.isArray(channels) || !channels.some((channel) => isRecord(channel) && channel.id === requirement.channelId)) {
+        throw new ChallengeDefinitionError(`Challenge "${definition.slug}" requirement "${requirement.id}" references an unknown workload channel.`);
+      }
+    }
+    if (requirement.metric !== undefined && !requirementMetrics.has(requirement.metric as RequirementMetric)) {
+      throw new ChallengeDefinitionError(`Challenge "${definition.slug}" requirement "${requirement.id}" has an invalid metric.`);
+    }
+    if ((requirement.channelId === undefined) !== (requirement.metric === undefined)) {
+      throw new ChallengeDefinitionError(`Challenge "${definition.slug}" requirement "${requirement.id}" must provide both channelId and metric.`);
+    }
     ids.add(requirement.id);
   }
 

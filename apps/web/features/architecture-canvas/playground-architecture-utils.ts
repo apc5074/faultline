@@ -1,5 +1,5 @@
 import { componentRegistry } from "@faultline/component-catalog";
-import { checkConnectionCompatibility, validateArchitecture, type Architecture, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection } from "@faultline/core";
+import { checkConnectionCompatibility, validateArchitecture, type Architecture, type ChallengeDefinition, type ComponentDefinition, type ComponentInstance, type Connection as ArchitectureConnection } from "@faultline/core";
 
 import { buildLevel1HeroScene, isLevel1HeroSceneEnabled } from "@/features/architecture-canvas/level1-hero-scene";
 import { activeLevelStarterArchitecture } from "@/features/architecture-canvas/playground-challenge";
@@ -10,7 +10,9 @@ export function resolveInitialArchitecture(): Architecture {
   return isLevel1HeroSceneEnabled() ? buildLevel1HeroScene() : activeLevelStarterArchitecture();
 }
 
-const PLAYGROUND_DRAFT_KEY = "faultline:level1:draft:v1";
+export function playgroundDraftStorageKey(slug: string, version: number): string {
+  return `faultline:draft:v1:${slug}:${version}`;
+}
 
 const UUID_SUFFIX_PATTERN = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -72,13 +74,13 @@ export function migrateFriendlyArchitectureIds(architecture: Architecture): Arch
 }
 
 /** Restore only a validated local draft; official runs/results are never persisted here. */
-export function loadPersistedArchitecture(): Architecture | null {
+export function loadPersistedArchitecture(slug: string, version: number): Architecture | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(PLAYGROUND_DRAFT_KEY);
+    const raw = window.localStorage.getItem(playgroundDraftStorageKey(slug, version));
     if (!raw || raw.length > 1_000_000) return null;
-    const envelope = JSON.parse(raw) as { challenge?: string; architecture?: unknown };
-    if (envelope.challenge !== "url-shortener") return null;
+    const envelope = JSON.parse(raw) as { version?: number; challenge?: { slug?: string; version?: number }; architecture?: unknown };
+    if (envelope.version !== 1 || envelope.challenge?.slug !== slug || envelope.challenge.version !== version) return null;
     const result = validateArchitecture(envelope.architecture);
     return result.success ? migrateFriendlyArchitectureIds(result.data) : null;
   } catch {
@@ -86,10 +88,13 @@ export function loadPersistedArchitecture(): Architecture | null {
   }
 }
 
-export function persistArchitecture(architecture: Architecture): void {
+export function persistArchitecture(architecture: Architecture, challenge: Pick<ChallengeDefinition, "slug" | "version">): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(PLAYGROUND_DRAFT_KEY, JSON.stringify({ version: 1, challenge: "url-shortener", architecture }));
+    window.localStorage.setItem(
+      playgroundDraftStorageKey(challenge.slug, challenge.version),
+      JSON.stringify({ version: 1, challenge: { slug: challenge.slug, version: challenge.version }, architecture }),
+    );
   } catch {
     // Storage can be unavailable or full; gameplay remains fully local and playable.
   }

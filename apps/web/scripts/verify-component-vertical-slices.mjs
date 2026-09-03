@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 
 import { componentRegistry } from "@faultline/component-catalog";
 import { evaluateRequirements } from "@faultline/simulator";
-import { urlShortenerChallenge } from "@faultline/challenges";
+import { resolvePlayableChallenge, urlShortenerStarterArchitecture } from "@faultline/challenges";
 
-import { activeChallenge, activeLevelStarterArchitecture } from "../features/architecture-canvas/playground-challenge.ts";
+const activeChallenge = resolvePlayableChallenge("url-shortener");
 import { glyphDimensionsForProps, glyphPropsFromComponent } from "../features/playground-glyphs/catalog-map.ts";
 import { glyphFamilyRegistry, hasGlyphFamily } from "../features/playground-glyphs/glyph-registry.ts";
 import { selectComponentVisualEvidence } from "../features/traffic-playback/component-visual-evidence.ts";
@@ -29,7 +29,7 @@ for (const definition of componentRegistry.list()) {
 }
 
 for (const type of activeChallenge.allowedComponentTypes) assert.ok(componentRegistry.has(type), `${type}: active allow-list registry entry`);
-const result = evaluateRequirements({ architecture: activeLevelStarterArchitecture(), challenge: urlShortenerChallenge, registry: componentRegistry });
+const result = evaluateRequirements({ architecture: urlShortenerStarterArchitecture(), challenge: activeChallenge, registry: componentRegistry });
 assert.equal(result.valid, true, "Level 1 starter remains simulatable");
 
 console.log("component vertical slices verified");

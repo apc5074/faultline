@@ -13,4 +13,8 @@ assert.ok(simulation.level2.playback.startupP95LatencyMs > 1000, "starter must e
 const outcome = evaluateRequirements({ architecture, challenge: premiereNightChallenge, registry: componentRegistry });
 assert.equal(outcome.valid, true, "Premiere Night starter must produce an outcome");
 assert.ok(outcome.level2?.processing, "requirements evaluation must preserve Level 2 processing evidence");
+const requirementsById = new Map(outcome.requirements.map((requirement) => [requirement.id, requirement]));
+assert.equal(requirementsById.get("processing-deadline")?.passed, false, "processing deadline requirement must fail");
+assert.equal(requirementsById.get("playback-startup")?.passed, false, "playback startup requirement must fail");
+assert.ok([true, false].includes(requirementsById.get("upload-throughput")?.passed), "upload requirement must be evaluated");
 console.log("Level 2 starter calibration verified");

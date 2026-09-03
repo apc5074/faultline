@@ -1,4 +1,6 @@
-const LEVEL_INTRO_PENDING_KEY = "faultline:level1:intro-pending:v1";
+function levelIntroPendingKey(slug: string): string {
+  return `faultline:intro-pending:v1:${slug}`;
+}
 
 /**
  * Marks that the level intro (help card, then briefing) should show on the
@@ -6,19 +8,20 @@ const LEVEL_INTRO_PENDING_KEY = "faultline:level1:intro-pending:v1";
  * intro always appears after that click, but consuming the flag on read
  * means a plain refresh of the level page won't re-trigger it.
  */
-export function markLevelIntroPending(): void {
+export function markLevelIntroPending(slug: string): void {
   try {
-    window.sessionStorage.setItem(LEVEL_INTRO_PENDING_KEY, "1");
+    window.sessionStorage.setItem(levelIntroPendingKey(slug), "1");
   } catch {
     // Storage may be unavailable (private mode, disabled cookies); the intro
     // simply won't show in that case.
   }
 }
 
-export function consumeLevelIntroPending(): boolean {
+export function consumeLevelIntroPending(slug: string): boolean {
   try {
-    const pending = window.sessionStorage.getItem(LEVEL_INTRO_PENDING_KEY) === "1";
-    if (pending) window.sessionStorage.removeItem(LEVEL_INTRO_PENDING_KEY);
+    const key = levelIntroPendingKey(slug);
+    const pending = window.sessionStorage.getItem(key) === "1";
+    if (pending) window.sessionStorage.removeItem(key);
     return pending;
   } catch {
     return false;

@@ -15,6 +15,7 @@ export type CheapestLeaderboardEntry = {
 
 export type CheapestLeaderboard = {
   dailyChallengeId: string;
+  challengeTitle: string;
   challengeSlug: string;
   challengeVersion: number;
   entries: readonly CheapestLeaderboardEntry[];
@@ -99,6 +100,7 @@ export async function getCheapestLeaderboard(
   const rows = (result.data ?? []) as RpcRow[];
   return {
     dailyChallengeId: active.dailyChallengeId,
+    challengeTitle: active.challengeVersion.config.title,
     challengeSlug: active.challengeVersion.slug,
     challengeVersion: active.challengeVersion.version,
     entries: rows.map(asEntry),

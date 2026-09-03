@@ -28,6 +28,16 @@ export interface GetMetricsScenarios {
   readonly hotKey?: {
     readonly passed: boolean;
   };
+  readonly processing?: {
+    readonly deadlineCompletionRatio: number;
+    readonly deadlineMissRatio: number;
+  };
+  readonly playback?: {
+    readonly requestedStartsPerSecond: number;
+    readonly cdnHitStartsPerSecond: number;
+    readonly originReadStartsPerSecond: number;
+    readonly startupP95LatencyMs: number;
+  };
 }
 
 export type GetMetricsOutput =
@@ -72,11 +82,16 @@ function compactComponent(id: string, evidence: AgentComponentEvidence): GetMetr
 }
 
 function compactScenarios(scenarios: AgentScenarioEvidence | undefined): GetMetricsScenarios {
-  if (!scenarios?.hotKey) return {};
+  if (!scenarios) return {};
   return {
-    hotKey: {
-      passed: scenarios.hotKey.passed,
-    },
+    ...(scenarios.hotKey ? { hotKey: { passed: scenarios.hotKey.passed } } : {}),
+    ...(scenarios.processing ? { processing: scenarios.processing } : {}),
+    ...(scenarios.playback ? { playback: {
+      requestedStartsPerSecond: scenarios.playback.requestedStartsPerSecond,
+      cdnHitStartsPerSecond: scenarios.playback.cdnHitStartsPerSecond,
+      originReadStartsPerSecond: scenarios.playback.originReadStartsPerSecond,
+      startupP95LatencyMs: scenarios.playback.startupP95LatencyMs,
+    } } : {}),
   };
 }
 

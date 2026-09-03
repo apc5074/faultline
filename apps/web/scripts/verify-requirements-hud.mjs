@@ -12,6 +12,8 @@ assert.match(source, /STALE — architecture changed; run again for current trut
 assert.match(source, /failedCount/);
 assert.match(source, /evaluated\.explanation/);
 assert.match(source, /result\.hotKey\.explanation/);
+assert.match(source, /workloadChannels/);
+assert.match(source, /channels\.length === 0/);
 assert.doesNotMatch(source, /you must use Redis/i);
 
 console.log("requirements HUD verified");

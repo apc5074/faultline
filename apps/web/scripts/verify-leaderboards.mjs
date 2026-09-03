@@ -46,6 +46,8 @@ assert.match(ui, /\/api\/leaderboards\/fastest/);
 assert.match(ui, /\/api\/leaderboards\/cheapest/);
 assert.match(ui, /Fastest/);
 assert.match(ui, /Cheapest/);
+assert.match(ui, /challengeTitle/);
+assert.doesNotMatch(ui, /state\.challengeSlug\} v\{state\.challengeVersion/);
 assert.match(ui, /formatSolveTime/);
 assert.match(ui, /const PODIUM_RANKS = \[1, 2, 3\]/);
 assert.match(ui, /Math\.max\(3, maxEntries/);
@@ -62,6 +64,7 @@ for (const [kind, migrationName, functionName, ordering] of [
   assert.doesNotMatch(route, /getCurrentAuthUser/);
 
   const lib = readFileSync(join(root, `lib/leaderboards/${kind}.ts`), "utf8");
+  assert.match(lib, /challengeTitle: active\.challengeVersion\.config\.title/);
   assert.match(lib, new RegExp(functionName));
   assert.match(lib, /daily_best/);
   assert.doesNotMatch(lib, /userId:|user_id/);

@@ -21,7 +21,7 @@ export function PlayLevelLink({
       className={className}
       href={LEVEL_ONE_HREF}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
-        markLevelIntroPending();
+        markLevelIntroPending("url-shortener");
         handleClick(event);
       }}
     >

@@ -1,7 +1,6 @@
 "use client";
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
-import { urlShortenerChallenge } from "@faultline/challenges";
 import { componentRegistry } from "@faultline/component-catalog";
 import { validateArchitecture, type Architecture } from "@faultline/core";
 import {
@@ -10,7 +9,7 @@ import {
   safeWebMcpRevision,
   type Phase6InspectorSnapshot,
 } from "@faultline/webmcp";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
 
 import {
   AgentSessionProvider,
@@ -22,6 +21,7 @@ import {
 import { AGENT_HELP_CHIPS, buildPendingHelpRequest } from "@/features/agent-session/agent-help-templates";
 import { createVisualCommandPublisher } from "@/features/agent-session/visual-intent-bridge";
 import { clearDevWebMcpTrace, readDevWebMcpTrace, type WebMcpTelemetryEvent } from "@/features/webmcp/webmcp-config";
+import { PlaygroundChallengeProvider, usePlaygroundChallenge } from "@/features/architecture-canvas/playground-challenge";
 
 const DEFAULT_ARCHITECTURE: Architecture = {
   version: 1,
@@ -76,16 +76,22 @@ export function WebMcpInspector() {
   }, [architectureJson]);
 
   return (
-    <AgentSessionProvider
-      architecture={architecture ?? DEFAULT_ARCHITECTURE}
-      challenge={urlShortenerChallenge}
-    >
-      <WebMcpInspectorWorkspace
+    <PlaygroundChallengeProvider>
+      <WebMcpInspectorWithChallenge
         architecture={architecture}
         architectureJson={architectureJson}
         architectureError={architectureError}
         onArchitectureJsonChange={setArchitectureJson}
       />
+    </PlaygroundChallengeProvider>
+  );
+}
+
+function WebMcpInspectorWithChallenge(props: ComponentProps<typeof WebMcpInspectorWorkspace>) {
+  const { challenge } = usePlaygroundChallenge();
+  return (
+    <AgentSessionProvider architecture={props.architecture ?? DEFAULT_ARCHITECTURE} challenge={challenge}>
+      <WebMcpInspectorWorkspace {...props} />
     </AgentSessionProvider>
   );
 }

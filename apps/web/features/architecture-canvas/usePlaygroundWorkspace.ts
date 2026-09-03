@@ -1,19 +1,53 @@
 "use client";
 
-import { useReactFlow, type Connection as FlowConnection, type Edge, type EdgeChange, type NodeChange } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useReactFlow,
+  type Connection as FlowConnection,
+  type Edge,
+  type EdgeChange,
+  type NodeChange,
+} from "@xyflow/react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
 
-import { architectureAvailabilityFingerprint, type ComponentCameraApplication, type PinnedObservation, type PresentationCue } from "@faultline/agent-capabilities";
+import {
+  architectureAvailabilityFingerprint,
+  type ComponentCameraApplication,
+  type PinnedObservation,
+  type PresentationCue,
+} from "@faultline/agent-capabilities";
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
 import type { StartAttemptResponse } from "@/app/api/attempts/start/route";
 import { componentRegistry } from "@faultline/component-catalog";
-import { postgresReplicaDeployments, totalServiceInstancesFromDeployments, type Architecture, type ComponentInstance, type RegionDeployment, type RegionId } from "@faultline/core";
-import { evaluateRequirements, type SimulationValidationError } from "@faultline/simulator";
+import {
+  postgresReplicaDeployments,
+  totalServiceInstancesFromDeployments,
+  type Architecture,
+  type ComponentInstance,
+  type RegionDeployment,
+  type RegionId,
+} from "@faultline/core";
+import {
+  evaluateRequirements,
+  type SimulationValidationError,
+} from "@faultline/simulator";
 
-import { clampToPlaygroundBoard, PLAYGROUND_MAX_ZOOM } from "@/features/architecture-canvas/canvas-grid";
+import {
+  clampToPlaygroundBoard,
+  PLAYGROUND_MAX_ZOOM,
+} from "@/features/architecture-canvas/canvas-grid";
 import { runDurationMs } from "@/features/architecture-canvas/run-duration";
 import { firstFailureFocus } from "@/features/architecture-canvas/run-failure-focus";
-import { buildRunTimeline, firstFailingComponentId } from "@/features/architecture-canvas/run-timeline";
+import {
+  buildRunTimeline,
+  firstFailingComponentId,
+} from "@/features/architecture-canvas/run-timeline";
 import {
   buildEdgePathsFromArchitecture,
   computeHopMarkers,
@@ -22,7 +56,10 @@ import {
   normalizeConnectionLoad,
 } from "@/features/architecture-canvas/ink-edge-routing";
 import { buildLevel1HeroScene } from "@/features/architecture-canvas/level1-hero-scene";
-import { activeChallenge, challengeRedirectRps } from "@/features/architecture-canvas/playground-challenge";
+import {
+  challengePlaybackDemandRpsFor,
+  usePlaygroundChallenge,
+} from "@/features/architecture-canvas/playground-challenge";
 import {
   architectureSimulationKey,
   connectionCreateResult,
@@ -35,19 +72,33 @@ import {
   worldSelectionForComponent,
 } from "@/features/architecture-canvas/playground-architecture-utils";
 import type { ConnectingFrom } from "@/features/architecture-canvas/playground-connect-hints";
-import { componentToNode, connectionToEdge } from "@/features/architecture-canvas/playground-flow-model";
+import {
+  componentToNode,
+  connectionToEdge,
+} from "@/features/architecture-canvas/playground-flow-model";
 import {
   PLAYGROUND_DELETE_MS,
   PLAYGROUND_EDGE_PULSE_MS,
   PLAYGROUND_SETTLE_MS,
 } from "@/features/architecture-canvas/playground-interaction";
-import { notifyPacketReroute, registerPacketRerouteHandler } from "@/features/architecture-canvas/playground-packet-reroute";
-import type { FlowConnectionLike, PlaygroundFlowNode, SimulationRunState, SuccessfulSimulation } from "@/features/architecture-canvas/playground-types";
+import {
+  notifyPacketReroute,
+  registerPacketRerouteHandler,
+} from "@/features/architecture-canvas/playground-packet-reroute";
+import type {
+  FlowConnectionLike,
+  PlaygroundFlowNode,
+  SimulationRunState,
+  SuccessfulSimulation,
+} from "@/features/architecture-canvas/playground-types";
 import {
   applyRegionPlacementFromPosition,
   enclosureRegionsForArchitecture,
 } from "@/features/architecture-canvas/region-enclosures";
-import { glyphDimensionsForProps, glyphPropsFromComponent } from "@/features/playground-glyphs";
+import {
+  glyphDimensionsForProps,
+  glyphPropsFromComponent,
+} from "@/features/playground-glyphs";
 import {
   buildComponentPlaybackVisuals,
   buildComponentVolumeShares,
@@ -64,7 +115,10 @@ const COMPONENT_CAMERA_READY_DEADLINE_MS = 1_000;
 
 function nextAnimationFrame(signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
     const frame = window.requestAnimationFrame(() => {
       signal?.removeEventListener("abort", abort);
       resolve();
@@ -78,51 +132,92 @@ function nextAnimationFrame(signal?: AbortSignal): Promise<void> {
 }
 
 export function usePlaygroundWorkspace() {
+  const { challenge: activeChallenge, starterArchitecture } =
+    usePlaygroundChallenge();
+  const challengeDemandRps = challengePlaybackDemandRpsFor(activeChallenge);
   const {
     session: officialSession,
     completion,
     setSession,
     setCompletion,
   } = useOfficialAttempt();
-  const [architecture, setArchitecture] = useState<Architecture>(resolveInitialArchitecture);
+  const [architecture, setArchitecture] = useState<Architecture>(
+    resolveInitialArchitecture,
+  );
   const draftHydratedRef = useRef(false);
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-  const [attentionComponentId, setAttentionComponentId] = useState<string | null>(null);
-  const [attentionComponentIds, setAttentionComponentIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [attentionConnectionIds, setAttentionConnectionIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [attentionPrimaryConnectionId, setAttentionPrimaryConnectionId] = useState<string | null>(null);
-  const [interviewModeledFailureComponentId, setInterviewModeledFailureComponentId] = useState<string | null>(null);
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(
+    null,
+  );
+  const [selectedConnectionId, setSelectedConnectionId] = useState<
+    string | null
+  >(null);
+  const [attentionComponentId, setAttentionComponentId] = useState<
+    string | null
+  >(null);
+  const [attentionComponentIds, setAttentionComponentIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [attentionConnectionIds, setAttentionConnectionIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [attentionPrimaryConnectionId, setAttentionPrimaryConnectionId] =
+    useState<string | null>(null);
+  const [
+    interviewModeledFailureComponentId,
+    setInterviewModeledFailureComponentId,
+  ] = useState<string | null>(null);
   const attentionTimeoutRef = useRef<number | null>(null);
   const canvasInteractionRef = useRef(false);
   const presentationVersionRef = useRef(0);
-  const pendingCameraRef = useRef<{ readonly version: number; readonly componentIds: readonly string[] } | null>(null);
+  const pendingCameraRef = useRef<{
+    readonly version: number;
+    readonly componentIds: readonly string[];
+  } | null>(null);
   const componentCameraInFlightRef = useRef<{
     readonly componentId: string;
     readonly promise: Promise<ComponentCameraApplication>;
   } | null>(null);
   const [viewMode, setViewMode] = useState<"logical" | "world">("logical");
   const [worldSelection, setWorldSelection] = useState<WorldMapSelection>(null);
-  const [pinnedObservations, setPinnedObservations] = useState<readonly PinnedObservation[]>([]);
+  const [pinnedObservations, setPinnedObservations] = useState<
+    readonly PinnedObservation[]
+  >([]);
   const [runState, setRunState] = useState<SimulationRunState>("idle");
-  const [simulationResult, setSimulationResult] = useState<SuccessfulSimulation | null>(null);
-  const [simulationErrors, setSimulationErrors] = useState<readonly SimulationValidationError[]>([]);
+  const [simulationResult, setSimulationResult] =
+    useState<SuccessfulSimulation | null>(null);
+  const [simulationErrors, setSimulationErrors] = useState<
+    readonly SimulationValidationError[]
+  >([]);
   const [unexpectedError, setUnexpectedError] = useState<string | null>(null);
   const [lastRunKey, setLastRunKey] = useState<string | null>(null);
   const [officialSubmitting, setOfficialSubmitting] = useState(false);
   const [officialSummary, setOfficialSummary] = useState<string | null>(null);
-  const [officialVerification, setOfficialVerification] = useState<Extract<SubmitOfficialResponse, { ok: true }> | null>(null);
-  const [connectingFrom, setConnectingFrom] = useState<ConnectingFrom | null>(null);
-  const [interactionNotice, setInteractionNotice] = useState<string | null>(null);
-  const [settlingNodeIds, setSettlingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [officialVerification, setOfficialVerification] = useState<Extract<
+    SubmitOfficialResponse,
+    { ok: true }
+  > | null>(null);
+  const [connectingFrom, setConnectingFrom] = useState<ConnectingFrom | null>(
+    null,
+  );
+  const [interactionNotice, setInteractionNotice] = useState<string | null>(
+    null,
+  );
+  const [settlingNodeIds, setSettlingNodeIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [deletingNodeIds, setDeletingNodeIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [pulsingEdgeIds, setPulsingEdgeIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [semanticZoomOut, setSemanticZoomOut] = useState(false);
   const [requirementsReviewKey, setRequirementsReviewKey] = useState(0);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const rejectedNodeDeleteIdsRef = useRef<Set<string>>(new Set());
   const playback = usePlaybackController();
-  const { screenToFlowPosition, fitView, getNode, getViewport } = useReactFlow();
+  const { screenToFlowPosition, fitView, getNode, getViewport } =
+    useReactFlow();
 
   useEffect(() => {
     if (!completion?.submission) return;
@@ -131,31 +226,47 @@ export function usePlaygroundWorkspace() {
   }, [completion]);
 
   useEffect(() => {
-    const persisted = loadPersistedArchitecture();
+    const persisted = loadPersistedArchitecture(
+      activeChallenge.slug,
+      activeChallenge.version,
+    );
     if (persisted) setArchitecture(persisted);
+    else if (activeChallenge.slug !== "url-shortener")
+      setArchitecture(starterArchitecture);
     draftHydratedRef.current = true;
-  }, []);
+  }, [activeChallenge.slug, activeChallenge.version, starterArchitecture]);
 
   useEffect(() => {
-    if (draftHydratedRef.current) persistArchitecture(architecture);
-  }, [architecture]);
+    if (draftHydratedRef.current)
+      persistArchitecture(architecture, activeChallenge);
+  }, [architecture, activeChallenge]);
 
   const paletteDefinitions = useMemo(
-    () => componentRegistry.list().filter((definition) => activeChallenge.allowedComponentTypes.includes(definition.type)),
-    [],
+    () =>
+      componentRegistry
+        .list()
+        .filter((definition) =>
+          activeChallenge.allowedComponentTypes.includes(definition.type),
+        ),
+    [activeChallenge.allowedComponentTypes],
   );
   const webMcpReconciliationKey = useMemo(
-    () => `${activeChallenge.slug}:${architectureAvailabilityFingerprint(architecture)}`,
+    () =>
+      `${activeChallenge.slug}:${architectureAvailabilityFingerprint(architecture)}`,
+    [architecture, activeChallenge.slug],
+  );
+  const simulationKey = useMemo(
+    () => architectureSimulationKey(architecture),
     [architecture],
   );
-  const simulationKey = useMemo(() => architectureSimulationKey(architecture), [architecture]);
   const rawResultIsStale = lastRunKey !== null && lastRunKey !== simulationKey;
   // The prior result stays available after an edit, and becomes stale as soon
   // as the editable board no longer matches the run that produced it.
   const resultIsStale = rawResultIsStale && runState === "complete";
   // A completed run remains available as evidence, but the canvas itself
   // returns to a clean editable state after the playback reset.
-  const showSimulationVisuals = simulationResult !== null && runState === "complete";
+  const showSimulationVisuals =
+    simulationResult !== null && runState === "complete";
   // Keep retained run evidence visible on the board after an edit. The stale
   // marker belongs to the status surfaces, not to the editable canvas styling.
   const boardEvidenceIsStale = false;
@@ -164,7 +275,9 @@ export function usePlaygroundWorkspace() {
     if (!presentationEvents) return new Set<string>();
     return new Set(
       presentationEvents
-        .filter((event) => event.type === "traffic_routed" && event.connectionId)
+        .filter(
+          (event) => event.type === "traffic_routed" && event.connectionId,
+        )
         .map((event) => event.connectionId as string),
     );
   }, [presentationEvents]);
@@ -172,7 +285,7 @@ export function usePlaygroundWorkspace() {
   const isValidConnection = useCallback(
     (connection: FlowConnection | Edge | FlowConnectionLike) =>
       connectionCreateResult(connection, architecture).ok,
-    [architecture],
+    [architecture, activeChallenge],
   );
   const enclosureRegions = useMemo(
     () => enclosureRegionsForArchitecture(architecture, activeChallenge),
@@ -180,12 +293,20 @@ export function usePlaygroundWorkspace() {
   );
 
   const applyRegionalPlacement = useCallback(
-    (component: ComponentInstance, position: { x: number; y: number }): ComponentInstance => {
+    (
+      component: ComponentInstance,
+      position: { x: number; y: number },
+    ): ComponentInstance => {
       if (enclosureRegions.length === 0) return component;
       const definition = componentRegistry.get(component.type);
       const glyphCatalog = glyphPropsFromComponent(component, definition);
       const dimensions = glyphDimensionsForProps(glyphCatalog);
-      return applyRegionPlacementFromPosition(component, position, dimensions, enclosureRegions);
+      return applyRegionPlacementFromPosition(
+        component,
+        position,
+        dimensions,
+        enclosureRegions,
+      );
     },
     [enclosureRegions],
   );
@@ -193,7 +314,9 @@ export function usePlaygroundWorkspace() {
   const playbackVisualsActive = playback.playbackRunning;
 
   // Retriggers the traffic-source starting pulse each time a run begins.
-  const runPulseKey = playbackVisualsActive ? `run-${playback.runSeq}` : undefined;
+  const runPulseKey = playbackVisualsActive
+    ? `run-${playback.runSeq}`
+    : undefined;
 
   const culpritComponentId = useMemo(() => {
     if (runState !== "complete") return null;
@@ -216,7 +339,7 @@ export function usePlaygroundWorkspace() {
           events: simulationResult.events,
           hotKey: simulationResult.hotKey,
         },
-        redirectRps: challengeRedirectRps,
+        redirectRps: challengeDemandRps,
       },
       Math.min(tick, totalEvents),
       totalEvents,
@@ -243,7 +366,12 @@ export function usePlaygroundWorkspace() {
           map.set(visual.componentId, visual);
           continue;
         }
-        if (visual.state === "processing" || visual.processingCount > 0 || visual.cacheHitFlash || (visual.rejectedCount ?? 0) > 0) {
+        if (
+          visual.state === "processing" ||
+          visual.processingCount > 0 ||
+          visual.cacheHitFlash ||
+          (visual.rejectedCount ?? 0) > 0
+        ) {
           const settled = map.get(visual.componentId);
           // Live packet dwell owns the animated mechanism count. The settled
           // path-share fill returns when the component is no longer processing.
@@ -260,7 +388,11 @@ export function usePlaygroundWorkspace() {
       map.set(visual.componentId, visual);
     }
     return map;
-  }, [playback.frame.componentVisuals, playbackVisualsActive, shareBasedPlaybackVisuals]);
+  }, [
+    playback.frame.componentVisuals,
+    playbackVisualsActive,
+    shareBasedPlaybackVisuals,
+  ]);
 
   const idlePlaybackVisual = useCallback(
     (componentId: string): ComponentPlaybackVisual => ({
@@ -283,11 +415,18 @@ export function usePlaygroundWorkspace() {
   const nodes = useMemo(
     () =>
       architecture.components.map((component) => {
-        const modeledFailure = interviewModeledFailureComponentId === component.id;
+        const modeledFailure =
+          interviewModeledFailureComponentId === component.id;
         const playbackVisual = modeledFailure
-          ? { componentId: component.id, processingCount: 0, state: "failed" as const }
-          : playbackVisualByComponent.get(component.id) ??
-            (playbackVisualsActive ? idlePlaybackVisual(component.id) : undefined);
+          ? {
+              componentId: component.id,
+              processingCount: 0,
+              state: "failed" as const,
+            }
+          : (playbackVisualByComponent.get(component.id) ??
+            (playbackVisualsActive
+              ? idlePlaybackVisual(component.id)
+              : undefined));
         return componentToNode(
           component,
           architecture.connections,
@@ -357,11 +496,13 @@ export function usePlaygroundWorkspace() {
     return architecture.connections.map((connection) => {
       const simRps = loads.get(connection.id) ?? 0;
       const shareEdgeLoad = hasShareEvidence
-        ? edgePlaybackWeightFromRps(simRps, challengeRedirectRps)
+        ? edgePlaybackWeightFromRps(simRps, challengeDemandRps)
         : normalizeConnectionLoad(simRps, maxLoad);
       // Prefer sim path-share weights once evidence exists so ambient tick packets
       // cannot make Redis look as busy as CDN.
-      const tickLoad = hasShareEvidence ? 0 : (playbackEdgeLoads.get(connection.id) ?? 0);
+      const tickLoad = hasShareEvidence
+        ? 0
+        : (playbackEdgeLoads.get(connection.id) ?? 0);
 
       return connectionToEdge(connection, {
         selected: connection.id === selectedConnectionId,
@@ -400,26 +541,40 @@ export function usePlaygroundWorkspace() {
     playbackEdgeLoads,
   ]);
 
-  const selectedComponent = architecture.components.find((component) => component.id === selectedComponentId);
+  const selectedComponent = architecture.components.find(
+    (component) => component.id === selectedComponentId,
+  );
   const showCanvasEmptyState = architecture.components.length === 0;
 
   useEffect(() => {
-    if (attentionComponentId && !architecture.components.some((component) => component.id === attentionComponentId)) {
+    if (
+      attentionComponentId &&
+      !architecture.components.some(
+        (component) => component.id === attentionComponentId,
+      )
+    ) {
       setAttentionComponentId(null);
     }
   }, [architecture.components, attentionComponentId]);
 
   useEffect(() => {
     if (
-      interviewModeledFailureComponentId
-      && !architecture.components.some((component) => component.id === interviewModeledFailureComponentId)
+      interviewModeledFailureComponentId &&
+      !architecture.components.some(
+        (component) => component.id === interviewModeledFailureComponentId,
+      )
     ) {
       setInterviewModeledFailureComponentId(null);
     }
   }, [architecture.components, interviewModeledFailureComponentId]);
 
   useEffect(() => {
-    if (selectedConnectionId && !architecture.connections.some((connection) => connection.id === selectedConnectionId)) {
+    if (
+      selectedConnectionId &&
+      !architecture.connections.some(
+        (connection) => connection.id === selectedConnectionId,
+      )
+    ) {
       setSelectedConnectionId(null);
     }
   }, [architecture.connections, selectedConnectionId]);
@@ -432,12 +587,19 @@ export function usePlaygroundWorkspace() {
 
   const onNodesChange = useCallback(
     (changes: NodeChange<PlaygroundFlowNode>[]) => {
-      if (changes.some((change) => change.type === "position" || change.type === "select")) {
-        if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      if (
+        changes.some(
+          (change) => change.type === "position" || change.type === "select",
+        )
+      ) {
+        if (attentionTimeoutRef.current !== null)
+          window.clearTimeout(attentionTimeoutRef.current);
         attentionTimeoutRef.current = null;
         setAttentionComponentId(null);
       }
-      const structuralChanges = changes.filter((change) => change.type !== "remove");
+      const structuralChanges = changes.filter(
+        (change) => change.type !== "remove",
+      );
 
       if (structuralChanges.length > 0) {
         setArchitecture((current) => {
@@ -468,10 +630,15 @@ export function usePlaygroundWorkspace() {
         if (change.type !== "remove") continue;
         if (pendingDeleteIdsRef.current.has(change.id)) continue;
 
-        const removedComponent = architecture.components.find((component) => component.id === change.id);
+        const removedComponent = architecture.components.find(
+          (component) => component.id === change.id,
+        );
         if (removedComponent?.type === "traffic-source") {
           rejectedNodeDeleteIdsRef.current.add(change.id);
-          window.setTimeout(() => rejectedNodeDeleteIdsRef.current.delete(change.id), 0);
+          window.setTimeout(
+            () => rejectedNodeDeleteIdsRef.current.delete(change.id),
+            0,
+          );
           setInteractionNotice("The traffic source can't be deleted.");
           continue;
         }
@@ -482,7 +649,8 @@ export function usePlaygroundWorkspace() {
         const connectionIds = architecture.connections
           .filter(
             (connection) =>
-              connection.sourceComponentId === change.id || connection.targetComponentId === change.id,
+              connection.sourceComponentId === change.id ||
+              connection.targetComponentId === change.id,
           )
           .map((connection) => connection.id);
         const connectionsBeforeDelete = architecture.connections;
@@ -490,11 +658,16 @@ export function usePlaygroundWorkspace() {
 
         window.setTimeout(() => {
           setArchitecture((current) => {
-            const components = current.components.filter((component) => component.id !== change.id);
-            const componentIds = new Set(components.map((component) => component.id));
+            const components = current.components.filter(
+              (component) => component.id !== change.id,
+            );
+            const componentIds = new Set(
+              components.map((component) => component.id),
+            );
             const connections = current.connections.filter(
               (connection) =>
-                componentIds.has(connection.sourceComponentId) && componentIds.has(connection.targetComponentId),
+                componentIds.has(connection.sourceComponentId) &&
+                componentIds.has(connection.targetComponentId),
             );
             const replacements = reconnectAroundComponent(
               { ...current, components, connections },
@@ -516,7 +689,9 @@ export function usePlaygroundWorkspace() {
         }, PLAYGROUND_DELETE_MS);
       }
 
-      const selectChanges = changes.filter((change) => change.type === "select");
+      const selectChanges = changes.filter(
+        (change) => change.type === "select",
+      );
       if (selectChanges.length > 0) {
         // React Flow emits deselect+select in one batch; prefer the newly selected node
         // so switching components does not briefly clear into the challenge sidebar.
@@ -527,8 +702,11 @@ export function usePlaygroundWorkspace() {
         setWorldSelection(worldSelectionForComponent(architecture, nextId));
       }
       for (const change of changes) {
-        if (change.type !== "remove" || change.id !== selectedComponentId) continue;
-        const component = architecture.components.find((candidate) => candidate.id === change.id);
+        if (change.type !== "remove" || change.id !== selectedComponentId)
+          continue;
+        const component = architecture.components.find(
+          (candidate) => candidate.id === change.id,
+        );
         if (component?.type === "traffic-source") continue;
         setSelectedComponentId(null);
         setWorldSelection(null);
@@ -545,8 +723,14 @@ export function usePlaygroundWorkspace() {
   const onDrop = useCallback(
     (event: DragEvent) => {
       event.preventDefault();
-      const type = event.dataTransfer.getData("application/faultline-component-type");
-      if (!activeChallenge.allowedComponentTypes.includes(type) || !componentRegistry.has(type)) return;
+      const type = event.dataTransfer.getData(
+        "application/faultline-component-type",
+      );
+      if (
+        !activeChallenge.allowedComponentTypes.includes(type) ||
+        !componentRegistry.has(type)
+      )
+        return;
 
       const position = clampToPlaygroundBoard(
         screenToFlowPosition({ x: event.clientX, y: event.clientY }),
@@ -580,51 +764,73 @@ export function usePlaygroundWorkspace() {
 
   const onConfigChange = useCallback((componentId: string, config: unknown) => {
     setArchitecture((current) => {
-      const component = current.components.find((candidate) => candidate.id === componentId);
+      const component = current.components.find(
+        (candidate) => candidate.id === componentId,
+      );
       if (!component) return current;
-      const parsed = componentRegistry.get(component.type).configSchema.safeParse(config);
+      const parsed = componentRegistry
+        .get(component.type)
+        .configSchema.safeParse(config);
       if (!parsed.success) return current;
       return {
         ...current,
         components: current.components.map((candidate) =>
-          candidate.id === componentId ? { ...candidate, config: parsed.data } : candidate,
+          candidate.id === componentId
+            ? { ...candidate, config: parsed.data }
+            : candidate,
         ),
       };
     });
   }, []);
 
-  const onDeploymentsChange = useCallback((componentId: string, deployments: RegionDeployment[]) => {
-    setArchitecture((current) => {
-      const component = current.components.find((candidate) => candidate.id === componentId);
-      if (!component || !componentRegistry.has(component.type)) return current;
+  const onDeploymentsChange = useCallback(
+    (componentId: string, deployments: RegionDeployment[]) => {
+      setArchitecture((current) => {
+        const component = current.components.find(
+          (candidate) => candidate.id === componentId,
+        );
+        if (!component || !componentRegistry.has(component.type))
+          return current;
 
-      let nextConfig = component.config;
-      if (component.type === "service") {
-        const instances = Math.max(1, totalServiceInstancesFromDeployments(deployments));
-        const parsed = componentRegistry.get(component.type).configSchema.safeParse({
-          ...component.config,
-          instances,
-        });
-        if (!parsed.success) return current;
-        nextConfig = parsed.data;
-      } else if (component.type === "postgres") {
-        const readReplicaCount = postgresReplicaDeployments(deployments).length;
-        const parsed = componentRegistry.get(component.type).configSchema.safeParse({
-          ...component.config,
-          readReplicaCount,
-        });
-        if (!parsed.success) return current;
-        nextConfig = parsed.data;
-      }
+        let nextConfig = component.config;
+        if (component.type === "service") {
+          const instances = Math.max(
+            1,
+            totalServiceInstancesFromDeployments(deployments),
+          );
+          const parsed = componentRegistry
+            .get(component.type)
+            .configSchema.safeParse({
+              ...component.config,
+              instances,
+            });
+          if (!parsed.success) return current;
+          nextConfig = parsed.data;
+        } else if (component.type === "postgres") {
+          const readReplicaCount =
+            postgresReplicaDeployments(deployments).length;
+          const parsed = componentRegistry
+            .get(component.type)
+            .configSchema.safeParse({
+              ...component.config,
+              readReplicaCount,
+            });
+          if (!parsed.success) return current;
+          nextConfig = parsed.data;
+        }
 
-      return {
-        ...current,
-        components: current.components.map((candidate) =>
-          candidate.id === componentId ? { ...candidate, config: nextConfig, deployments } : candidate,
-        ),
-      };
-    });
-  }, []);
+        return {
+          ...current,
+          components: current.components.map((candidate) =>
+            candidate.id === componentId
+              ? { ...candidate, config: nextConfig, deployments }
+              : candidate,
+          ),
+        };
+      });
+    },
+    [],
+  );
 
   const clearConnectingFrom = useCallback(() => {
     setConnectingFrom(null);
@@ -641,46 +847,69 @@ export function usePlaygroundWorkspace() {
     }, PLAYGROUND_EDGE_PULSE_MS);
   }, []);
 
-  const onConnectStart = useCallback((_event: unknown, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
-    if (!params.nodeId || !params.handleId || !params.handleType) return;
-    setInteractionNotice(null);
-    setConnectingFrom({
-      nodeId: params.nodeId,
-      handleId: params.handleId,
-      handleType: params.handleType as ConnectingFrom["handleType"],
-    });
-  }, []);
+  const onConnectStart = useCallback(
+    (
+      _event: unknown,
+      params: {
+        nodeId: string | null;
+        handleId: string | null;
+        handleType: string | null;
+      },
+    ) => {
+      if (!params.nodeId || !params.handleId || !params.handleType) return;
+      setInteractionNotice(null);
+      setConnectingFrom({
+        nodeId: params.nodeId,
+        handleId: params.handleId,
+        handleType: params.handleType as ConnectingFrom["handleType"],
+      });
+    },
+    [],
+  );
 
   const onConnectEnd = useCallback(() => {
     clearConnectingFrom();
   }, [clearConnectingFrom]);
 
-  const onConnect = useCallback((connection: FlowConnection) => {
-    clearConnectingFrom();
+  const onConnect = useCallback(
+    (connection: FlowConnection) => {
+      clearConnectingFrom();
 
-    setArchitecture((current) => {
-      const result = connectionCreateResult(connection, current);
-      if (!result.ok) {
-        queueMicrotask(() => setInteractionNotice(result.reason));
-        return current;
-      }
+      setArchitecture((current) => {
+        const result = connectionCreateResult(connection, current);
+        if (!result.ok) {
+          queueMicrotask(() => setInteractionNotice(result.reason));
+          return current;
+        }
 
-      queueMicrotask(() => {
-        setInteractionNotice(null);
-        pulseConnection(result.connection.id);
+        queueMicrotask(() => {
+          setInteractionNotice(null);
+          pulseConnection(result.connection.id);
+        });
+        return {
+          ...current,
+          connections: [...current.connections, result.connection],
+        };
       });
-      return { ...current, connections: [...current.connections, result.connection] };
-    });
-  }, [clearConnectingFrom, pulseConnection]);
+    },
+    [clearConnectingFrom, pulseConnection],
+  );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      if (changes.some((change) => change.type === "select" || change.type === "remove")) {
-        if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      if (
+        changes.some(
+          (change) => change.type === "select" || change.type === "remove",
+        )
+      ) {
+        if (attentionTimeoutRef.current !== null)
+          window.clearTimeout(attentionTimeoutRef.current);
         attentionTimeoutRef.current = null;
         setAttentionComponentId(null);
       }
-      const selectedChanges = changes.filter((change) => change.type === "select");
+      const selectedChanges = changes.filter(
+        (change) => change.type === "select",
+      );
       if (selectedChanges.length > 0) {
         const newlySelected = selectedChanges.find((change) => change.selected);
         if (newlySelected) {
@@ -698,9 +927,17 @@ export function usePlaygroundWorkspace() {
         changes
           .filter((change) => change.type === "remove")
           .filter((change) => {
-            const connection = architecture.connections.find((candidate) => candidate.id === change.id);
-            return !connection || ![connection.sourceComponentId, connection.targetComponentId].some((componentId) =>
-              rejectedNodeDeleteIdsRef.current.has(componentId),
+            const connection = architecture.connections.find(
+              (candidate) => candidate.id === change.id,
+            );
+            return (
+              !connection ||
+              ![
+                connection.sourceComponentId,
+                connection.targetComponentId,
+              ].some((componentId) =>
+                rejectedNodeDeleteIdsRef.current.has(componentId),
+              )
             );
           })
           .map((change) => change.id),
@@ -709,9 +946,13 @@ export function usePlaygroundWorkspace() {
 
       setArchitecture((current) => ({
         ...current,
-        connections: current.connections.filter((connection) => !removedIds.has(connection.id)),
+        connections: current.connections.filter(
+          (connection) => !removedIds.has(connection.id),
+        ),
       }));
-      setSelectedConnectionId((current) => (current && removedIds.has(current) ? null : current));
+      setSelectedConnectionId((current) =>
+        current && removedIds.has(current) ? null : current,
+      );
     },
     [architecture.connections, playback.playbackRunning],
   );
@@ -753,14 +994,19 @@ export function usePlaygroundWorkspace() {
             setRunState("complete");
           },
           (event) => {
-            if (event.type === "component_saturated" && event.componentId) playback.markComponentFailed(event.componentId);
+            if (event.type === "component_saturated" && event.componentId)
+              playback.markComponentFailed(event.componentId);
           },
         );
       } catch (error) {
         setSimulationResult(null);
         setSimulationErrors([]);
         setLastRunKey(runKey);
-        setUnexpectedError(error instanceof Error ? error.message : "Simulation failed unexpectedly.");
+        setUnexpectedError(
+          error instanceof Error
+            ? error.message
+            : "Simulation failed unexpectedly.",
+        );
         setRunState("error");
       }
     }, 0);
@@ -784,7 +1030,7 @@ export function usePlaygroundWorkspace() {
       return;
     }
     const shares = buildComponentVolumeShares({
-      redirectRps: challengeRedirectRps,
+      redirectRps: challengeDemandRps,
       simulation: {
         caches: simulationResult.caches,
         services: simulationResult.services,
@@ -799,11 +1045,15 @@ export function usePlaygroundWorkspace() {
     }
     playback.setVolumeShares(shareMap);
     const componentActivityRates = new Map<string, number>();
-    for (const [componentId, cache] of Object.entries(simulationResult.caches ?? {})) {
+    for (const [componentId, cache] of Object.entries(
+      simulationResult.caches ?? {},
+    )) {
       // Placement + configuration resolve to this realized rate in the simulator.
       componentActivityRates.set(componentId, cache.hitRate);
     }
-    for (const [componentId, service] of Object.entries(simulationResult.services)) {
+    for (const [componentId, service] of Object.entries(
+      simulationResult.services,
+    )) {
       componentActivityRates.set(
         componentId,
         service.incomingRps > 0 ? service.handledRps / service.incomingRps : 0,
@@ -815,7 +1065,7 @@ export function usePlaygroundWorkspace() {
     }
     playback.setAuthoritativeTraffic({
       rates: edgeRatesFromTrafficEvents(simulationResult.events),
-      redirectRps: challengeRedirectRps,
+      redirectRps: challengeDemandRps,
       componentActivityRates,
     });
   }, [
@@ -854,7 +1104,9 @@ export function usePlaygroundWorkspace() {
     (mode: "logical" | "world") => {
       setViewMode(mode);
       if (mode === "world") {
-        setWorldSelection(worldSelectionForComponent(architecture, selectedComponentId));
+        setWorldSelection(
+          worldSelectionForComponent(architecture, selectedComponentId),
+        );
       }
     },
     [architecture, selectedComponentId],
@@ -925,7 +1177,10 @@ export function usePlaygroundWorkspace() {
 
         if (!body.ok) {
           setOfficialVerification(null);
-          if (body.code === "invalid_architecture" && Array.isArray(body.details)) {
+          if (
+            body.code === "invalid_architecture" &&
+            Array.isArray(body.details)
+          ) {
             setSimulationResult(null);
             setSimulationErrors(body.details as SimulationValidationError[]);
             setRunState("error");
@@ -947,7 +1202,9 @@ export function usePlaygroundWorkspace() {
           setSimulationResult(null);
           setSimulationErrors(outcome.errors);
           setRunState("error");
-          setUnexpectedError("Server accepted submission but local replay failed validation.");
+          setUnexpectedError(
+            "Server accepted submission but local replay failed validation.",
+          );
           return;
         }
 
@@ -971,16 +1228,25 @@ export function usePlaygroundWorkspace() {
         const best = body.dailyBest
           ? ` · best ${Math.round(body.dailyBest.fastestSolveMs / 1000)}s / ${formatCost(body.dailyBest.cheapestCost)}`
           : "";
-        setOfficialSummary(body.eligible ? null : `Server verified · ${rank}${best}`);
+        setOfficialSummary(
+          body.eligible ? null : `Server verified · ${rank}${best}`,
+        );
         if (body.eligible) {
           // Stop the solve timer at server verification, before the optional
           // account streak lookup completes.
           setCompletion({ streak: null });
           let streak: number | null = null;
           try {
-            const streakResponse = await fetch("/api/account/streak", { method: "GET", cache: "no-store" });
-            const streakBody = (await streakResponse.json()) as { ok?: boolean; currentStreak?: number };
-            if (streakBody.ok && typeof streakBody.currentStreak === "number") streak = streakBody.currentStreak;
+            const streakResponse = await fetch("/api/account/streak", {
+              method: "GET",
+              cache: "no-store",
+            });
+            const streakBody = (await streakResponse.json()) as {
+              ok?: boolean;
+              currentStreak?: number;
+            };
+            if (streakBody.ok && typeof streakBody.currentStreak === "number")
+              streak = streakBody.currentStreak;
           } catch {
             // The verified completion still stops the timer if streak loading fails.
           }
@@ -997,7 +1263,8 @@ export function usePlaygroundWorkspace() {
 
   const onSelectComponent = useCallback(
     (componentId: string, deploymentId?: string) => {
-      if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      if (attentionTimeoutRef.current !== null)
+        window.clearTimeout(attentionTimeoutRef.current);
       attentionTimeoutRef.current = null;
       setAttentionComponentId(null);
       setSelectedComponentId(componentId);
@@ -1012,12 +1279,15 @@ export function usePlaygroundWorkspace() {
 
   const onSelectRegion = useCallback(
     (regionId: RegionId) => {
-      if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+      if (attentionTimeoutRef.current !== null)
+        window.clearTimeout(attentionTimeoutRef.current);
       attentionTimeoutRef.current = null;
       setAttentionComponentId(null);
       setWorldSelection({ kind: "region", regionId });
       const deployed = architecture.components.find((component) =>
-        component.deployments.some((deployment) => deployment.regionId === regionId),
+        component.deployments.some(
+          (deployment) => deployment.regionId === regionId,
+        ),
       );
       if (deployed) setSelectedComponentId(deployed.id);
     },
@@ -1025,7 +1295,8 @@ export function usePlaygroundWorkspace() {
   );
 
   const clearSelection = useCallback(() => {
-    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+    if (attentionTimeoutRef.current !== null)
+      window.clearTimeout(attentionTimeoutRef.current);
     attentionTimeoutRef.current = null;
     setAttentionComponentId(null);
     setSelectedComponentId(null);
@@ -1033,117 +1304,171 @@ export function usePlaygroundWorkspace() {
     setWorldSelection(null);
   }, []);
 
-  const applyInterviewModeledFailure = useCallback((componentId: string | null) => {
-    if (!componentId) {
-      setInterviewModeledFailureComponentId(null);
-      if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
+  const applyInterviewModeledFailure = useCallback(
+    (componentId: string | null) => {
+      if (!componentId) {
+        setInterviewModeledFailureComponentId(null);
+        if (attentionTimeoutRef.current !== null)
+          window.clearTimeout(attentionTimeoutRef.current);
+        attentionTimeoutRef.current = null;
+        // Invalidate any in-flight spotlight/camera work from the failure cue.
+        presentationVersionRef.current += 1;
+        pendingCameraRef.current = null;
+        setAttentionComponentId(null);
+        setAttentionComponentIds(new Set());
+        setAttentionConnectionIds(new Set());
+        setAttentionPrimaryConnectionId(null);
+        return;
+      }
+      if (
+        !architecture.components.some(
+          (component) => component.id === componentId,
+        )
+      ) {
+        setInterviewModeledFailureComponentId(null);
+        return;
+      }
+      setInterviewModeledFailureComponentId(componentId);
+      if (attentionTimeoutRef.current !== null)
+        window.clearTimeout(attentionTimeoutRef.current);
       attentionTimeoutRef.current = null;
-      // Invalidate any in-flight spotlight/camera work from the failure cue.
-      presentationVersionRef.current += 1;
-      pendingCameraRef.current = null;
-      setAttentionComponentId(null);
-      setAttentionComponentIds(new Set());
+      setAttentionComponentIds(new Set([componentId]));
       setAttentionConnectionIds(new Set());
       setAttentionPrimaryConnectionId(null);
-      return;
-    }
-    if (!architecture.components.some((component) => component.id === componentId)) {
-      setInterviewModeledFailureComponentId(null);
-      return;
-    }
-    setInterviewModeledFailureComponentId(componentId);
-    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
-    attentionTimeoutRef.current = null;
-    setAttentionComponentIds(new Set([componentId]));
-    setAttentionConnectionIds(new Set());
-    setAttentionPrimaryConnectionId(null);
-    setAttentionComponentId(componentId);
-    if (viewMode !== "logical") setViewMode("logical");
-    if (!canvasInteractionRef.current && viewMode === "logical") {
-      fitView({ nodes: [{ id: componentId }], duration: 350, padding: 0.55, maxZoom: 1.15 });
-    } else {
-      const version = presentationVersionRef.current + 1;
-      presentationVersionRef.current = version;
-      pendingCameraRef.current = { version, componentIds: [componentId] };
-    }
-  }, [architecture.components, fitView, viewMode]);
-
-  const spotlightPresentationCue = useCallback((cue: PresentationCue) => {
-    // Every cue replaces both the visible mark set and any deferred camera work.
-    const version = presentationVersionRef.current + 1;
-    presentationVersionRef.current = version;
-    pendingCameraRef.current = null;
-
-    const liveComponents = new Set(architecture.components.map((component) => component.id));
-    const liveConnections = new Map(architecture.connections.map((connection) => [connection.id, connection]));
-    const componentIds: string[] = [];
-    const connectionIds = new Set<string>();
-    const addComponent = (id: string) => {
-      if (liveComponents.has(id) && !componentIds.includes(id) && (cue.kind !== "path" || componentIds.length < 5)) componentIds.push(id);
-    };
-
-    // Explicit components preserve evidence order. Connection-only cues gain their
-    // live endpoints so a relationship can still be framed.
-    for (const target of cue.targets) {
-      if (target.kind === "component") addComponent(target.entityId);
-      if (target.kind === "connection") {
-        const connection = liveConnections.get(target.entityId);
-        if (!connection) continue;
-        connectionIds.add(connection.id);
-        addComponent(connection.sourceComponentId);
-        addComponent(connection.targetComponentId);
-      }
-    }
-    const primary = cue.targets.find((target) => target.emphasis === "primary");
-    const primaryComponentId = primary?.kind === "component" && componentIds.includes(primary.entityId)
-      ? primary.entityId
-      : componentIds[0];
-    if (!primaryComponentId) return;
-
-    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
-    setAttentionComponentIds(new Set(componentIds));
-    setAttentionConnectionIds(connectionIds);
-    setAttentionPrimaryConnectionId(
-      [...connectionIds].find((connectionId) => {
-        const connection = liveConnections.get(connectionId);
-        return connection?.sourceComponentId === primaryComponentId || connection?.targetComponentId === primaryComponentId;
-      }) ?? null,
-    );
-    setAttentionComponentId(primaryComponentId);
-
-    if (cue.reason === "error-location") {
-      setInterviewModeledFailureComponentId(primaryComponentId);
-    }
-
-    if (cue.camera === "frame-primary" || cue.camera === "frame-path" || cue.camera === "frame-set") {
-      const frameIds = cue.camera === "frame-primary" ? [primaryComponentId] : componentIds;
-      pendingCameraRef.current = { version, componentIds: frameIds };
+      setAttentionComponentId(componentId);
       if (viewMode !== "logical") setViewMode("logical");
       if (!canvasInteractionRef.current && viewMode === "logical") {
-        pendingCameraRef.current = null;
-        fitView({ nodes: frameIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
+        fitView({
+          nodes: [{ id: componentId }],
+          duration: 350,
+          padding: 0.55,
+          maxZoom: 1.15,
+        });
+      } else {
+        const version = presentationVersionRef.current + 1;
+        presentationVersionRef.current = version;
+        pendingCameraRef.current = { version, componentIds: [componentId] };
       }
-    }
-    // Interview failure marks stay until the failure slot clears; other cues remain brief.
-    if (cue.reason === "error-location") {
-      attentionTimeoutRef.current = null;
-      return;
-    }
-    attentionTimeoutRef.current = window.setTimeout(() => {
-      if (presentationVersionRef.current !== version) return;
+    },
+    [architecture.components, fitView, viewMode],
+  );
+
+  const spotlightPresentationCue = useCallback(
+    (cue: PresentationCue) => {
+      // Every cue replaces both the visible mark set and any deferred camera work.
+      const version = presentationVersionRef.current + 1;
+      presentationVersionRef.current = version;
       pendingCameraRef.current = null;
-      setAttentionComponentId(null);
-      setAttentionComponentIds(new Set());
-      setAttentionConnectionIds(new Set());
-      setAttentionPrimaryConnectionId(null);
-      attentionTimeoutRef.current = null;
-    }, 4500);
-  }, [architecture.components, architecture.connections, fitView, viewMode]);
+
+      const liveComponents = new Set(
+        architecture.components.map((component) => component.id),
+      );
+      const liveConnections = new Map(
+        architecture.connections.map((connection) => [
+          connection.id,
+          connection,
+        ]),
+      );
+      const componentIds: string[] = [];
+      const connectionIds = new Set<string>();
+      const addComponent = (id: string) => {
+        if (
+          liveComponents.has(id) &&
+          !componentIds.includes(id) &&
+          (cue.kind !== "path" || componentIds.length < 5)
+        )
+          componentIds.push(id);
+      };
+
+      // Explicit components preserve evidence order. Connection-only cues gain their
+      // live endpoints so a relationship can still be framed.
+      for (const target of cue.targets) {
+        if (target.kind === "component") addComponent(target.entityId);
+        if (target.kind === "connection") {
+          const connection = liveConnections.get(target.entityId);
+          if (!connection) continue;
+          connectionIds.add(connection.id);
+          addComponent(connection.sourceComponentId);
+          addComponent(connection.targetComponentId);
+        }
+      }
+      const primary = cue.targets.find(
+        (target) => target.emphasis === "primary",
+      );
+      const primaryComponentId =
+        primary?.kind === "component" && componentIds.includes(primary.entityId)
+          ? primary.entityId
+          : componentIds[0];
+      if (!primaryComponentId) return;
+
+      if (attentionTimeoutRef.current !== null)
+        window.clearTimeout(attentionTimeoutRef.current);
+      setAttentionComponentIds(new Set(componentIds));
+      setAttentionConnectionIds(connectionIds);
+      setAttentionPrimaryConnectionId(
+        [...connectionIds].find((connectionId) => {
+          const connection = liveConnections.get(connectionId);
+          return (
+            connection?.sourceComponentId === primaryComponentId ||
+            connection?.targetComponentId === primaryComponentId
+          );
+        }) ?? null,
+      );
+      setAttentionComponentId(primaryComponentId);
+
+      if (cue.reason === "error-location") {
+        setInterviewModeledFailureComponentId(primaryComponentId);
+      }
+
+      if (
+        cue.camera === "frame-primary" ||
+        cue.camera === "frame-path" ||
+        cue.camera === "frame-set"
+      ) {
+        const frameIds =
+          cue.camera === "frame-primary" ? [primaryComponentId] : componentIds;
+        pendingCameraRef.current = { version, componentIds: frameIds };
+        if (viewMode !== "logical") setViewMode("logical");
+        if (!canvasInteractionRef.current && viewMode === "logical") {
+          pendingCameraRef.current = null;
+          fitView({
+            nodes: frameIds.map((id) => ({ id })),
+            duration: 350,
+            padding: 0.55,
+            maxZoom: 1.15,
+          });
+        }
+      }
+      // Interview failure marks stay until the failure slot clears; other cues remain brief.
+      if (cue.reason === "error-location") {
+        attentionTimeoutRef.current = null;
+        return;
+      }
+      attentionTimeoutRef.current = window.setTimeout(() => {
+        if (presentationVersionRef.current !== version) return;
+        pendingCameraRef.current = null;
+        setAttentionComponentId(null);
+        setAttentionComponentIds(new Set());
+        setAttentionConnectionIds(new Set());
+        setAttentionPrimaryConnectionId(null);
+        attentionTimeoutRef.current = null;
+      }, 4500);
+    },
+    [architecture.components, architecture.connections, fitView, viewMode],
+  );
   useEffect(() => {
-    const componentIds = new Set(architecture.components.map((component) => component.id));
-    const connectionIds = new Set(architecture.connections.map((connection) => connection.id));
-    setAttentionComponentIds((current) => new Set([...current].filter((id) => componentIds.has(id))));
-    setAttentionConnectionIds((current) => new Set([...current].filter((id) => connectionIds.has(id))));
+    const componentIds = new Set(
+      architecture.components.map((component) => component.id),
+    );
+    const connectionIds = new Set(
+      architecture.connections.map((connection) => connection.id),
+    );
+    setAttentionComponentIds(
+      (current) => new Set([...current].filter((id) => componentIds.has(id))),
+    );
+    setAttentionConnectionIds(
+      (current) => new Set([...current].filter((id) => connectionIds.has(id))),
+    );
   }, [architecture.components, architecture.connections]);
 
   useEffect(() => {
@@ -1159,35 +1484,67 @@ export function usePlaygroundWorkspace() {
     if (viewMode !== "logical" || canvasInteractionRef.current) return;
     const pending = pendingCameraRef.current;
     if (!pending || pending.version !== presentationVersionRef.current) return;
-    const componentIds = pending.componentIds.filter((id) => architecture.components.some((component) => component.id === id));
+    const componentIds = pending.componentIds.filter((id) =>
+      architecture.components.some((component) => component.id === id),
+    );
     pendingCameraRef.current = null;
     if (componentIds.length > 0) {
-      fitView({ nodes: componentIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
+      fitView({
+        nodes: componentIds.map((id) => ({ id })),
+        duration: 350,
+        padding: 0.55,
+        maxZoom: 1.15,
+      });
     }
   }, [architecture.components, fitView, viewMode]);
 
-  const setCanvasInteraction = useCallback((active: boolean) => {
-    canvasInteractionRef.current = active;
-    if (active || viewMode !== "logical") return;
-    const pending = pendingCameraRef.current;
-    pendingCameraRef.current = null;
-    const componentIds = pending?.componentIds.filter((id) => architecture.components.some((component) => component.id === id)) ?? [];
-    if (pending && pending.version === presentationVersionRef.current && componentIds.length > 0) {
-      fitView({ nodes: componentIds.map((id) => ({ id })), duration: 350, padding: 0.55, maxZoom: 1.15 });
-    }
-  }, [architecture.components, fitView, viewMode]);
+  const setCanvasInteraction = useCallback(
+    (active: boolean) => {
+      canvasInteractionRef.current = active;
+      if (active || viewMode !== "logical") return;
+      const pending = pendingCameraRef.current;
+      pendingCameraRef.current = null;
+      const componentIds =
+        pending?.componentIds.filter((id) =>
+          architecture.components.some((component) => component.id === id),
+        ) ?? [];
+      if (
+        pending &&
+        pending.version === presentationVersionRef.current &&
+        componentIds.length > 0
+      ) {
+        fitView({
+          nodes: componentIds.map((id) => ({ id })),
+          duration: 350,
+          padding: 0.55,
+          maxZoom: 1.15,
+        });
+      }
+    },
+    [architecture.components, fitView, viewMode],
+  );
 
-  useEffect(() => () => {
-    if (attentionTimeoutRef.current !== null) window.clearTimeout(attentionTimeoutRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (attentionTimeoutRef.current !== null)
+        window.clearTimeout(attentionTimeoutRef.current);
+    },
+    [],
+  );
 
   const focusComponentCamera = useCallback(
-    (componentId: string, options: { readonly signal?: AbortSignal } = {}): Promise<ComponentCameraApplication> => {
+    (
+      componentId: string,
+      options: { readonly signal?: AbortSignal } = {},
+    ): Promise<ComponentCameraApplication> => {
       const existing = componentCameraInFlightRef.current;
       if (existing?.componentId === componentId) return existing.promise;
 
-      const component = architecture.components.find((candidate) => candidate.id === componentId);
-      if (!component) return Promise.reject(new Error(`Unknown component "${componentId}".`));
+      const component = architecture.components.find(
+        (candidate) => candidate.id === componentId,
+      );
+      if (!component)
+        return Promise.reject(new Error(`Unknown component "${componentId}".`));
 
       const version = presentationVersionRef.current + 1;
       presentationVersionRef.current = version;
@@ -1196,8 +1553,12 @@ export function usePlaygroundWorkspace() {
 
       const promise: Promise<ComponentCameraApplication> = (async () => {
         const startedAt = performance.now();
-        while (performance.now() - startedAt < COMPONENT_CAMERA_READY_DEADLINE_MS) {
-          if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        while (
+          performance.now() - startedAt <
+          COMPONENT_CAMERA_READY_DEADLINE_MS
+        ) {
+          if (options.signal?.aborted)
+            throw new DOMException("Aborted", "AbortError");
           if (canvasInteractionRef.current || !getNode(componentId)) {
             await nextAnimationFrame(options.signal);
             continue;
@@ -1213,20 +1574,30 @@ export function usePlaygroundWorkspace() {
             await nextAnimationFrame(options.signal);
             continue;
           }
-          if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (options.signal?.aborted)
+            throw new DOMException("Aborted", "AbortError");
           const viewport = getViewport();
           if (viewport.zoom <= 0) {
             throw new Error("Component camera did not reach a valid zoom.");
           }
-          return { componentId, status: "centered" as const, zoom: viewport.zoom };
+          return {
+            componentId,
+            status: "centered" as const,
+            zoom: viewport.zoom,
+          };
         }
-        throw new Error("Component camera was unavailable before the presentation deadline.");
+        throw new Error(
+          "Component camera was unavailable before the presentation deadline.",
+        );
       })();
 
       componentCameraInFlightRef.current = { componentId, promise };
-      void promise.finally(() => {
-        if (componentCameraInFlightRef.current?.promise === promise) componentCameraInFlightRef.current = null;
-      }).catch(() => undefined);
+      void promise
+        .finally(() => {
+          if (componentCameraInFlightRef.current?.promise === promise)
+            componentCameraInFlightRef.current = null;
+        })
+        .catch(() => undefined);
       return promise;
     },
     [architecture.components, fitView, getNode, getViewport, viewMode],
@@ -1234,7 +1605,9 @@ export function usePlaygroundWorkspace() {
 
   const focusComponentInPresentation = useCallback(
     (componentId: string) => {
-      const component = architecture.components.find((candidate) => candidate.id === componentId);
+      const component = architecture.components.find(
+        (candidate) => candidate.id === componentId,
+      );
       if (!component) return;
       setSelectedComponentId(componentId);
       setSelectedConnectionId(null);
@@ -1244,22 +1617,49 @@ export function usePlaygroundWorkspace() {
     [architecture, focusComponentCamera],
   );
 
-  const focusConnectionInPresentation = useCallback((connectionId: string) => {
-    const connection = architecture.connections.find((candidate) => candidate.id === connectionId);
-    if (!connection) return;
-    const evidenceRevision = webMcpReconciliationKey;
-    spotlightPresentationCue({
-      contractVersion: "presentation-1",
-      kind: "path",
-      reason: "causal-path",
-      camera: "frame-path",
-      targets: [
-        { ref: connection.id, kind: "connection", entityId: connection.id, evidenceRevision, emphasis: "primary" },
-        { ref: connection.sourceComponentId, kind: "component", entityId: connection.sourceComponentId, evidenceRevision, emphasis: "secondary" },
-        { ref: connection.targetComponentId, kind: "component", entityId: connection.targetComponentId, evidenceRevision, emphasis: "secondary" },
-      ],
-    });
-  }, [architecture.connections, spotlightPresentationCue, webMcpReconciliationKey]);
+  const focusConnectionInPresentation = useCallback(
+    (connectionId: string) => {
+      const connection = architecture.connections.find(
+        (candidate) => candidate.id === connectionId,
+      );
+      if (!connection) return;
+      const evidenceRevision = webMcpReconciliationKey;
+      spotlightPresentationCue({
+        contractVersion: "presentation-1",
+        kind: "path",
+        reason: "causal-path",
+        camera: "frame-path",
+        targets: [
+          {
+            ref: connection.id,
+            kind: "connection",
+            entityId: connection.id,
+            evidenceRevision,
+            emphasis: "primary",
+          },
+          {
+            ref: connection.sourceComponentId,
+            kind: "component",
+            entityId: connection.sourceComponentId,
+            evidenceRevision,
+            emphasis: "secondary",
+          },
+          {
+            ref: connection.targetComponentId,
+            kind: "component",
+            entityId: connection.targetComponentId,
+            evidenceRevision,
+            emphasis: "secondary",
+          },
+        ],
+      });
+    },
+    [
+      architecture.connections,
+      spotlightPresentationCue,
+      webMcpReconciliationKey,
+    ],
+  );
 
   const reviewFirstFailure = useCallback(() => {
     if (!simulationResult || runState !== "complete") return;
@@ -1337,7 +1737,17 @@ export function usePlaygroundWorkspace() {
     applyInterviewModeledFailure,
     setCanvasInteraction,
     reviewFirstFailure,
-    pinObservation: (observation: PinnedObservation) => setPinnedObservations((current) => [...current.filter((entry) => `${entry.target}:${entry.id}:${entry.metricId}` !== `${observation.target}:${observation.id}:${observation.metricId}`), observation].slice(-6)),
+    pinObservation: (observation: PinnedObservation) =>
+      setPinnedObservations((current) =>
+        [
+          ...current.filter(
+            (entry) =>
+              `${entry.target}:${entry.id}:${entry.metricId}` !==
+              `${observation.target}:${observation.id}:${observation.metricId}`,
+          ),
+          observation,
+        ].slice(-6),
+      ),
     clearPinnedObservations: () => setPinnedObservations([]),
     focusComponentInPresentation,
     focusComponentCamera,

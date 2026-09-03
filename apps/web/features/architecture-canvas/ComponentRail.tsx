@@ -9,7 +9,7 @@ import {
   glyphPropsFromComponent,
 } from "@/features/playground-glyphs";
 
-const RAIL_GROUP_ORDER = ["Edge", "Routing", "Compute", "Storage"] as const;
+const RAIL_GROUP_ORDER = ["Edge", "Routing", "Compute", "Async", "Storage"] as const;
 
 const RAIL_TYPE_ORDER: Partial<Record<string, number>> = {
   cdn: 0,
@@ -19,6 +19,9 @@ const RAIL_TYPE_ORDER: Partial<Record<string, number>> = {
   postgres: 0,
   redis: 1,
   "traffic-source": 0,
+  queue: 0,
+  worker: 1,
+  "object-storage": 0,
 };
 
 const RAIL_SHORT_LABELS: Partial<Record<string, string>> = {
@@ -36,6 +39,9 @@ const RAIL_DESCRIPTIONS: Partial<Record<string, string>> = {
   service: "Runs application logic; scale with size and instance count.",
   redis: "In-memory cache that speeds reads and protects the database.",
   postgres: "Durable relational store; replicas scale read traffic.",
+  queue: "Buffers asynchronous work so user-facing requests do not wait for processing.",
+  worker: "Consumes queued work and processes it independently from API capacity.",
+  "object-storage": "Stores large source and rendition objects outside the relational database.",
 };
 
 function railDescriptionForDefinition(definition: ComponentDefinition): string {
@@ -51,6 +57,9 @@ function railGroupForDefinition(definition: ComponentDefinition): string {
       return "Routing";
     case "service":
       return "Compute";
+    case "queue":
+    case "worker":
+      return "Async";
     case "postgres":
     case "redis":
       return "Storage";

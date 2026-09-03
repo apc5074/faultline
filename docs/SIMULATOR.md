@@ -248,15 +248,18 @@ Every new workload channel should follow this sequence:
 6. Add fixtures for missing dependencies, disconnected capacity, ordering
    permutations, and browser/server replay parity.
 
-Level 2 handoff: upload, processing, and playback must each declare their own
-channel contract while sharing the same architecture and resolver. Before
-Level 2 becomes official, replace the current evaluator's aggregate
+Level 2 handoff: upload, processing, and playback now bind requirements to
+their named channel evidence (`completion_ratio` or `p95_latency_ms`) while
+sharing the same architecture and resolver. The current evaluator still uses
+aggregate
 “all Services / all Queues / all Workers / all Object Storage” capacity pools
 with channel-resolved flow pools. A Queue buffers only the work that reaches
 its valid path; Workers consume only eligible queued work; Object Storage
 throughput is charged only for actual upload, output, and origin-read flows.
-This migration is required for Level 2 scoring and must not be implemented as a
-Level 2-specific topology branch.
+This remains a known limitation for Level 2: channel-bound requirement scoring
+is truthful about the evidence produced, but the underlying capacity pools are
+not yet channel-resolved. This must not be implemented as a Level 2-specific
+topology branch.
 
 ### New component checklist
 
@@ -273,6 +276,10 @@ WebMCP, and official server replay parity checks.
 
 `SIMULATOR_VERSION` in `@faultline/simulator` is recorded on each published `challenge_versions` row. Competition-affecting simulator changes require bumping this value and publishing a new challenge version so official attempts are never silently re-scored under incompatible semantics.
 
-**v3** (with `url-shortener` challenge **v3**): workload affinity — placement-aware cache ceilings, non-cache capacity/latency/cost pressure, hot-key `reuseConcentration`, and path-aware workload completion. Republish via `pnpm --filter @faultline/web seed:daily-challenge` after deploy when competition semantics change.
+**v4** (with `url-shortener` challenge **v3**): adds challenge-authored
+requirement bindings to named Level 2 channel evidence while retaining the v3
+workload-affinity semantics. Republish affected snapshots via
+`pnpm --filter @faultline/web seed:daily-challenge` after deploy; historical
+snapshots retain their recorded simulator version.
 
 Competition note: bumping `SIMULATOR_VERSION` (or challenge `version`) without republishing leaves official attempts on the previous immutable `challenge_versions` row. Local play and official verify must agree on the same simulator + challenge pair (`docs/PRODUCTION.md`).

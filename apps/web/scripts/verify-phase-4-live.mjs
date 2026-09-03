@@ -253,9 +253,9 @@ assert.equal(healthJson.status, "online", `health: ${JSON.stringify(healthJson)}
 const activeGuest = await api(new CookieJar(), "/api/challenges/active");
 assert.equal(activeGuest.response.status, 200);
 assert.equal(activeGuest.json.ok, true);
-assert.equal(activeGuest.json.challenge.slug, "url-shortener");
+assert.ok(typeof activeGuest.json.challenge.slug === "string" && activeGuest.json.challenge.slug.length > 0);
 const challengeVersion = activeGuest.json.challenge.version;
-assert.equal(challengeVersion, urlShortenerChallenge.version);
+assert.equal(challengeVersion, activeGuest.json.challenge.config.version);
 assert.ok(activeGuest.json.challenge.config.workloadAffinity?.mechanisms?.edge_cache);
 assert.ok(activeGuest.json.challenge.config.workloadAffinity?.mechanisms?.data_cache);
 assert.equal(activeGuest.json.challenge.simulatorVersion, SIMULATOR_VERSION);

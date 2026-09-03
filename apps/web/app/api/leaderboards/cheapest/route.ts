@@ -10,6 +10,7 @@ export type CheapestLeaderboardResponse =
   | {
       ok: true;
       dailyChallengeId: string;
+      challengeTitle: string;
       challengeSlug: string;
       challengeVersion: number;
       entries: readonly CheapestLeaderboardEntry[];
@@ -30,6 +31,7 @@ export async function GET(): Promise<Response> {
     const body: CheapestLeaderboardResponse = {
       ok: true,
       dailyChallengeId: board.dailyChallengeId,
+      challengeTitle: board.challengeTitle,
       challengeSlug: board.challengeSlug,
       challengeVersion: board.challengeVersion,
       entries: board.entries,

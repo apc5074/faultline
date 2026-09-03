@@ -3,16 +3,16 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { componentRegistry } from "@faultline/component-catalog";
-import type { Architecture, RequirementDefinition, RequirementResult } from "@faultline/core";
+import type { Architecture, ChallengeDefinition, RequirementDefinition, RequirementResult } from "@faultline/core";
 import { estimateMonthlyCost } from "@faultline/simulator";
 
 import {
-  activeChallenge,
-  challengeHotKeyFraction,
-  challengeHotKeyLabel,
-  challengeReadWriteRatioLabel,
-  challengeRedirectRps,
-  challengeWriteRps,
+  challengeHotKeyFractionFor,
+  challengeHotKeyLabelFor,
+  challengeReadWriteRatioLabelFor,
+  challengeRedirectRpsFor,
+  challengeWriteRpsFor,
+  usePlaygroundChallenge,
 } from "@/features/architecture-canvas/playground-challenge";
 import { componentDisplayLabel, formatCost } from "@/features/architecture-canvas/playground-architecture-utils";
 import type { SimulationRunState, SuccessfulSimulation } from "@/features/architecture-canvas/playground-types";
@@ -142,6 +142,8 @@ export function BudgetHud({
   traffic?: SuccessfulSimulation["traffic"];
   geographicRoutes?: SuccessfulSimulation["geographicRoutes"];
 }) {
+  const { challenge: activeChallenge } = usePlaygroundChallenge();
+  const challengeRedirectRps = challengeRedirectRpsFor(activeChallenge);
   const cost = estimateMonthlyCost({
     architecture,
     registry: componentRegistry,
@@ -211,9 +213,9 @@ function formatComparator(comparator: RequirementDefinition["comparator"]): stri
   return "<";
 }
 
-function formatRequirementTarget(requirement: RequirementDefinition): string {
+function formatRequirementTarget(requirement: RequirementDefinition, challenge: ChallengeDefinition): string {
   if (requirement.type === "throughput") {
-    return `${activeChallenge.workload.requestsPerSecond.toLocaleString("en-US")} req/sec`;
+    return `${challenge.workload.requestsPerSecond.toLocaleString("en-US")} req/sec`;
   }
   if (requirement.type === "latency") {
     return `${formatComparator(requirement.comparator)} ${requirement.target}ms`;
@@ -250,6 +252,11 @@ export function RequirementsHud({
   /** Increments when a global failure is sent here from the results plate. */
   reviewKey?: number;
 }) {
+  const { challenge: activeChallenge } = usePlaygroundChallenge();
+  const challengeRedirectRps = challengeRedirectRpsFor(activeChallenge);
+  const challengeWriteRps = challengeWriteRpsFor(activeChallenge);
+  const challengeHotKeyFraction = challengeHotKeyFractionFor(activeChallenge);
+  const channels = activeChallenge.workloadChannels ?? [];
   const showResults = result !== null && runState === "complete";
   const overallPass = showResults && result.allRequirementsPass;
   const failedCount = showResults
@@ -276,9 +283,13 @@ export function RequirementsHud({
       <details key={reviewKey} className="hud-plate__details" open={reviewKey > 0}>
         <summary className="hud-plate__details-summary">Challenge workload</summary>
         <p className="hud-plate__meta hud-plate__meta--block tabular">
-          {Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
-          {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec · {challengeReadWriteRatioLabel} ·{" "}
-          {challengeHotKeyLabel}
+          {channels.length > 0
+            ? channels.map((channel, index) => (
+                <span key={channel.id}>{index > 0 ? " · " : ""}{channel.id.replaceAll("-", " ")} {Math.round(channel.ratePerSecond).toLocaleString("en-US")}/sec ({channel.kind.replaceAll("_", " ")})</span>
+              ))
+            : <>{Math.round(challengeRedirectRps).toLocaleString("en-US")} redirects/sec ·{" "}
+              {Math.round(challengeWriteRps).toLocaleString("en-US")} writes/sec · {challengeReadWriteRatioLabelFor(activeChallenge)} ·{" "}
+              {challengeHotKeyLabelFor(activeChallenge)}</>}
         </p>
       </details>
 
@@ -302,7 +313,7 @@ export function RequirementsHud({
           const evaluated = showResults
             ? result.requirements.find((candidate) => candidate.id === requirement.id)
             : undefined;
-          const target = formatRequirementTarget(requirement);
+          const target = formatRequirementTarget(requirement, activeChallenge);
 
           return (
             <li key={requirement.id} className="hud-plate__row">
@@ -328,7 +339,7 @@ export function RequirementsHud({
             </li>
           );
         })}
-        {(activeChallenge.workload.hotKeyReadFraction ?? 0) > 0 ? (
+        {channels.length === 0 && (activeChallenge.workload.hotKeyReadFraction ?? 0) > 0 ? (
           <li className="hud-plate__row">
             <div className="hud-plate__row-header">
               <span>Hot-key scenario</span>

@@ -38,4 +38,11 @@ assert.ok(!serialized.includes('"pros"'));
 
 assert.equal(compactLevelTeachingForAgent("tiny-api"), undefined);
 
+const premiere = getLevelCurriculum("premiere-night");
+assert.match(premiere.hook, /premiere|viewers|video/i);
+assert.match(premiere.stakes, /upload|processing|playback/i);
+assert.ok(premiere.componentCards.queue);
+assert.ok(premiere.componentCards.worker);
+assert.ok(premiere.componentCards["object-storage"]);
+
 console.log("level teaching surfaces verified");

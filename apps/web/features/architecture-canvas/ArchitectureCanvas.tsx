@@ -33,7 +33,7 @@ import {
   BudgetHud,
   RequirementsHud,
 } from "@/features/architecture-canvas/PlaygroundHudPlates";
-import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
+import { PlaygroundChallengeProvider, usePlaygroundChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { SimBar } from "@/features/architecture-canvas/SimBar";
 import { RunVerdictChip } from "@/features/architecture-canvas/RunVerdictChip";
 import { runVerdictSummary } from "@/features/architecture-canvas/run-verdict";
@@ -48,6 +48,7 @@ function InterviewStatusPanelBridge() {
 }
 
 function ArchitectureWorkspace() {
+  const { challenge } = usePlaygroundChallenge();
   const workspace = usePlaygroundWorkspace();
   const briefing = useLevelBriefing();
   const loadAnswerEnabled = isLevel1LoadAnswerEnabled();
@@ -132,7 +133,7 @@ function ArchitectureWorkspace() {
               nodes={workspace.nodes}
               edges={workspace.edges}
               architecture={workspace.architecture}
-              challenge={activeChallenge}
+              challenge={challenge}
               selectedComponentId={workspace.selectedComponentId}
               worldSelection={workspace.worldSelection}
               showSimulationVisuals={workspace.showSimulationVisuals}
@@ -264,7 +265,7 @@ function ArchitectureWorkspace() {
   return (
     <AgentSessionProvider
       architecture={workspace.architecture}
-      challenge={activeChallenge}
+      challenge={challenge}
     >
       {shell}
     </AgentSessionProvider>
@@ -274,9 +275,11 @@ function ArchitectureWorkspace() {
 export function ArchitectureCanvas() {
   return (
     <OfficialAttemptProvider>
-      <ReactFlowProvider>
-        <ArchitectureWorkspace />
-      </ReactFlowProvider>
+      <PlaygroundChallengeProvider>
+        <ReactFlowProvider>
+          <ArchitectureWorkspace />
+        </ReactFlowProvider>
+      </PlaygroundChallengeProvider>
     </OfficialAttemptProvider>
   );
 }

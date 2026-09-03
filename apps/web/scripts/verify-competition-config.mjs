@@ -28,7 +28,8 @@ assert.equal(urlShortenerChallenge.version, 3);
 
 console.log("Check — seed persists full challenge definition");
 const seed = readWeb("scripts/seed-daily-challenge.mjs");
-assert.match(seed, /const definition = urlShortenerChallenge/);
+assert.match(seed, /resolvePlayableChallenge\(challengeSlug\)/);
+assert.match(seed, /--end-active/);
 assert.match(seed, /config_json: definition/);
 assert.match(seed, /simulator_version: SIMULATOR_VERSION/);
 

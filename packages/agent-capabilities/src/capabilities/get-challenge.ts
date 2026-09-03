@@ -23,6 +23,14 @@ export interface GetChallengeOutput {
     readonly redirectsPerSecond: number;
     readonly writesPerSecond: number;
   };
+  readonly channels: readonly {
+    readonly id: string;
+    readonly kind: string;
+    readonly ratePerSecond: number;
+    readonly bytesPerOperation?: number;
+    readonly workUnitsPerOperation?: number;
+    readonly hotShare?: number;
+  }[];
   readonly specialScenarios: readonly ChallengeSpecialScenario[];
   readonly budgetMonthly: number;
   /** Mechanism ceilings + notes for this workload — not a placement recipe. */
@@ -66,6 +74,14 @@ export function buildGetChallengeOutput(
       redirectsPerSecond: redirectsPerSecond(challenge),
       writesPerSecond: writesPerSecond(challenge),
     },
+    channels: (challenge.workloadChannels ?? []).map((channel) => ({
+      id: channel.id,
+      kind: channel.kind,
+      ratePerSecond: channel.ratePerSecond,
+      ...(channel.bytesPerOperation !== undefined ? { bytesPerOperation: channel.bytesPerOperation } : {}),
+      ...(channel.workUnitsPerOperation !== undefined ? { workUnitsPerOperation: channel.workUnitsPerOperation } : {}),
+      ...(channel.hotShare !== undefined ? { hotShare: channel.hotShare } : {}),
+    })),
     specialScenarios: specialScenarios(challenge),
     budgetMonthly: challenge.monthlyBudget,
     ...(workloadAffinity ? { workloadAffinity } : {}),

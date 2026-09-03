@@ -23,6 +23,14 @@ export function AuthCallbackNotice() {
     const errorCode = searchParams.get("auth_error");
     const signedIn = searchParams.get("auth_signed_in") === "1";
     const linked = searchParams.get("auth_linked") === "1";
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const identityAlreadyExists = fragment.get("error_code") === "identity_already_exists";
+
+    if (identityAlreadyExists) {
+      setTone("error");
+      setMessage("This GitHub account is already registered. Use “Sign in to existing account” instead of linking it.");
+      return;
+    }
 
     if (linked) {
       setTone("success");

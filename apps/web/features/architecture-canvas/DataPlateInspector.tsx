@@ -2,7 +2,6 @@
 
 import {
   getLevelComponentCard,
-  urlShortenerChallenge,
 } from "@faultline/challenges";
 import type { LevelComponentCard } from "@faultline/challenges";
 import {
@@ -25,12 +24,23 @@ import {
   redisTtlHitRateBands,
   serviceCapacityForConfig,
   serviceSizeModels,
+  objectStorageModelForConfig,
+  objectStorageTierModels,
+  objectStorageTiers,
+  queueCapacityModels,
+  queueCapacityTiers,
+  queueMonthlyCostForConfig,
+  workerCapacityForConfig,
+  workerMonthlyCostForConfig,
+  workerSizeModels,
+  workerSizes,
 } from "@faultline/component-catalog";
 import {
   createRegionDeployment,
   getRegions,
   isValidRegion,
   type Architecture,
+  type ChallengeDefinition,
   type ComponentDefinition,
   type ComponentInstance,
   type RegionDeployment,
@@ -51,6 +61,7 @@ import {
   approximateOriginTraffic,
   formatApproxRps,
 } from "@/features/architecture-canvas/approximate-origin-traffic";
+import { challengeRedirectRpsFor, challengeWriteRpsFor, usePlaygroundChallenge } from "@/features/architecture-canvas/playground-challenge";
 import {
   buildWorkloadEvidencePanel,
   type WorkloadEvidencePanel,
@@ -64,14 +75,6 @@ type SuccessfulSimulation = Extract<
   RequirementsEvaluationResult,
   { valid: true }
 >;
-
-const activeChallenge = urlShortenerChallenge;
-const challengeRedirectRps =
-  activeChallenge.workload.requestsPerSecond *
-  activeChallenge.workload.readRatio;
-const challengeWriteRps =
-  activeChallenge.workload.requestsPerSecond *
-  activeChallenge.workload.writeRatio;
 
 function formatCost(amount: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -291,6 +294,7 @@ function WorkloadFitSection({
 
 function workloadPanelForComponent(
   component: ComponentInstance,
+  challenge: ChallengeDefinition,
   simulation: SuccessfulSimulation | null,
   simulationStale: boolean,
   runComplete: boolean
@@ -310,7 +314,7 @@ function workloadPanelForComponent(
   }
   const panel = buildWorkloadEvidencePanel({
     component,
-    challenge: activeChallenge,
+    challenge,
     caches: simulation.caches,
     services: simulation.services,
     postgres: simulation.postgres,
@@ -472,6 +476,9 @@ export function DataPlateInspector({
   onConfigChange,
   onDeploymentsChange,
 }: DataPlateInspectorProps) {
+  const { challenge: activeChallenge } = usePlaygroundChallenge();
+  const challengeRedirectRps = challengeRedirectRpsFor(activeChallenge);
+  const challengeWriteRps = challengeWriteRpsFor(activeChallenge);
   if (!component) return <EmptyInspector />;
 
   const definition = componentRegistry.get(component.type);
@@ -486,6 +493,7 @@ export function DataPlateInspector({
 
   const workloadFit = workloadPanelForComponent(
     component,
+    activeChallenge,
     simulation,
     simulationStale,
     runComplete
@@ -954,6 +962,78 @@ export function DataPlateInspector({
           </SpecList>
         </DataPlateSection>
       </>
+    );
+  }
+
+  if (component.type === "queue") {
+    const parsed = definition.configSchema.safeParse(component.config);
+    if (!parsed.success) return null;
+    const capacityTier = parsed.data.capacityTier as keyof typeof queueCapacityModels;
+    const model = queueCapacityModels[capacityTier];
+    return shell(
+      "Queue inspector",
+      <>
+        <DataPlateSection title="Buffer capacity">
+          <InspectorSegControl
+            label="Capacity tier"
+            value={capacityTier}
+            options={queueCapacityTiers}
+            onChange={(next) => onConfigChange(component.id, { capacityTier: next })}
+          />
+          <SpecList>
+            <SpecRow label="Queue capacity" value={`${model.capacityWorkUnits.toLocaleString()} work units`} />
+            <SpecRow label="Enqueue capacity" value={`${model.enqueueCapacityWorkUnitsPerSecond.toLocaleString()} work units/sec`} />
+            <SpecRow label="Dequeue capacity" value={`${model.dequeueCapacityWorkUnitsPerSecond.toLocaleString()} work units/sec`} />
+            <SpecRow label="Monthly cost" value={formatCost(queueMonthlyCostForConfig({ capacityTier }))} />
+          </SpecList>
+          <PlateHint>A larger buffer buys time for a backlog; it does not create processing capacity.</PlateHint>
+        </DataPlateSection>
+      </>,
+    );
+  }
+
+  if (component.type === "worker") {
+    const parsed = definition.configSchema.safeParse(component.config);
+    if (!parsed.success) return null;
+    const size = parsed.data.size as keyof typeof workerSizeModels;
+    const instances = parsed.data.instances as number;
+    const model = workerSizeModels[size];
+    return shell(
+      "Worker inspector",
+      <>
+        <DataPlateSection title="Processing capacity">
+          <div className="inspector-plate__controls">
+            <InspectorSegControl label="Size" value={size} options={workerSizes} onChange={(next) => onConfigChange(component.id, { size: next, instances })} />
+            <InspectorDataRow label="Instances" value={instances} />
+          </div>
+          <InspectorStepper label="Worker instances" value={instances} min={1} max={20} onChange={(next) => onConfigChange(component.id, { size, instances: next })} />
+          <SpecList>
+            <SpecRow label="Processing capacity" value={`${workerCapacityForConfig({ size, instances }).toLocaleString()} work units/sec`} />
+            <SpecRow label="Source read capacity" value={`${(model.sourceReadCapacityBytesPerSecond * instances).toLocaleString()} bytes/sec`} />
+            <SpecRow label="Monthly cost" value={formatCost(workerMonthlyCostForConfig({ size, instances }))} />
+          </SpecList>
+          <PlateHint>Workers drain queued processing work independently from user-facing Services.</PlateHint>
+        </DataPlateSection>
+      </>,
+    );
+  }
+
+  if (component.type === "object-storage") {
+    const parsed = definition.configSchema.safeParse(component.config);
+    if (!parsed.success) return null;
+    const tier = parsed.data.tier as keyof typeof objectStorageTierModels;
+    const model = objectStorageModelForConfig({ tier });
+    return shell(
+      "Object Storage inspector",
+      <DataPlateSection title="Storage tier">
+        <InspectorSegControl label="Tier" value={tier} options={objectStorageTiers} onChange={(next) => onConfigChange(component.id, { tier: next })} />
+        <SpecList>
+          <SpecRow label="Upload capacity" value={`${model.uploadCapacityBytesPerSecond.toLocaleString()} bytes/sec`} />
+          <SpecRow label="Origin read capacity" value={`${model.originReadCapacityBytesPerSecond.toLocaleString()} bytes/sec`} />
+          <SpecRow label="Monthly base cost" value={formatCost(model.monthlyBaseCost)} />
+        </SpecList>
+        <PlateHint>Use Object Storage for large source and rendition bytes; Postgres remains the metadata store.</PlateHint>
+      </DataPlateSection>,
     );
   }
 

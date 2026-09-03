@@ -14,6 +14,7 @@ export type FastestLeaderboardEntry = {
 
 export type FastestLeaderboard = {
   dailyChallengeId: string;
+  challengeTitle: string;
   challengeSlug: string;
   challengeVersion: number;
   entries: readonly FastestLeaderboardEntry[];
@@ -99,6 +100,7 @@ export async function getFastestLeaderboard(
   const rows = (result.data ?? []) as RpcRow[];
   return {
     dailyChallengeId: active.dailyChallengeId,
+    challengeTitle: active.challengeVersion.config.title,
     challengeSlug: active.challengeVersion.slug,
     challengeVersion: active.challengeVersion.version,
     entries: rows.map(asEntry),

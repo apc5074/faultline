@@ -4,12 +4,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import {
-  activeChallenge,
-  activeLevelCurriculum,
-  challengeHotKeyLabel,
-  challengeReadWriteRatioLabel,
-  challengeRedirectRps,
-  challengeWriteRps,
+  challengeHotKeyLabelFor,
+  challengeReadWriteRatioLabelFor,
+  challengeRedirectRpsFor,
+  challengeWriteRpsFor,
+  usePlaygroundChallenge,
 } from "@/features/architecture-canvas/playground-challenge";
 import { consumeLevelIntroPending } from "@/features/architecture-canvas/level-intro-storage";
 
@@ -42,7 +41,7 @@ function formatRequirementTarget(
 
 const REQUIREMENT_HELP: Record<string, string> = {
   throughput: "Peak traffic that system must reliably handle.",
-  latency: "How fast redirects feel for users.",
+  latency: "How quickly user requests complete.",
   headroom: "Necessary extra capacity above peak traffic.",
   budget: "Maximum budget for system upkeep.",
 };
@@ -180,6 +179,10 @@ export function LevelBriefing({
 }: LevelBriefingProps) {
   const titleId = useId();
   const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  const { challenge, curriculum } = usePlaygroundChallenge();
+  const challengeRedirectRps = challengeRedirectRpsFor(challenge);
+  const challengeWriteRps = challengeWriteRpsFor(challenge);
+  const channels = challenge.workloadChannels ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -205,8 +208,8 @@ export function LevelBriefing({
       >
         <header className="level-briefing__header">
           <div>
-            <p className="level-briefing__eyebrow">Level 1 · Briefing</p>
-            <h2 id={titleId}>{activeChallenge.title}</h2>
+            <p className="level-briefing__eyebrow">{challenge.title} · Briefing</p>
+            <h2 id={titleId}>{challenge.title}</h2>
           </div>
           <button
             className="level-briefing__close"
@@ -220,38 +223,35 @@ export function LevelBriefing({
 
         <div className="level-briefing__body">
           <p className="level-briefing__scenario">
-            {activeLevelCurriculum.hook}
+            {curriculum.hook}
           </p>
           <p className="level-briefing__stakes">
-            {activeLevelCurriculum.stakes}
+            {curriculum.stakes}
           </p>
 
-          <p className="level-briefing__section-label">Traffic estimate</p>
+          <p className="level-briefing__section-label">Workload estimate</p>
           <dl className="level-briefing__traffic">
-            <div>
-              <dt>Redirects</dt>
-              <dd>{formatCompactCount(challengeRedirectRps)}/s</dd>
-            </div>
-            <div>
-              <dt>New links</dt>
-              <dd>{formatCompactCount(challengeWriteRps)}/s</dd>
-            </div>
-            <div>
-              <dt>Mix</dt>
-              <dd>{challengeReadWriteRatioLabel} reads</dd>
-            </div>
-            <div>
-              <dt>Spike</dt>
-              <dd>{challengeHotKeyLabel}</dd>
-            </div>
+            {channels.length > 0 ? channels.map((channel) => (
+              <div key={channel.id}>
+                <dt>{channel.id.replaceAll("-", " ")}</dt>
+                <dd>{formatCompactCount(channel.ratePerSecond)}/s · {channel.kind.replaceAll("_", " ")}</dd>
+              </div>
+            )) : (
+              <>
+                <div><dt>Redirects</dt><dd>{formatCompactCount(challengeRedirectRps)}/s</dd></div>
+                <div><dt>New links</dt><dd>{formatCompactCount(challengeWriteRps)}/s</dd></div>
+                <div><dt>Mix</dt><dd>{challengeReadWriteRatioLabelFor(challenge)} reads</dd></div>
+                <div><dt>Spike</dt><dd>{challengeHotKeyLabelFor(challenge)}</dd></div>
+              </>
+            )}
           </dl>
 
-          {activeChallenge.geographicDistribution?.length ? (
+          {challenge.geographicDistribution?.length ? (
             <ul
               className="level-briefing__geo"
               aria-label="Traffic origin regions"
             >
-              {activeChallenge.geographicDistribution.map((origin) => (
+              {challenge.geographicDistribution.map((origin) => (
                 <li key={origin.regionId}>
                   <strong>{origin.regionId}</strong>{" "}
                   {formatPercent(origin.fraction)}
@@ -262,7 +262,7 @@ export function LevelBriefing({
 
           <p className="level-briefing__section-label">Pass when</p>
           <ul className="level-briefing__targets">
-            {activeChallenge.requirements.map((requirement) => (
+            {challenge.requirements.map((requirement) => (
               <RequirementRow
                 key={requirement.id}
                 label={
@@ -308,6 +308,7 @@ export function LevelBriefing({
 }
 
 export function useLevelBriefing() {
+  const { curriculum } = usePlaygroundChallenge();
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
@@ -353,7 +354,7 @@ export function useLevelBriefing() {
     // The home link supplies both a query trigger and a session marker. Read
     // the marker even when the query is present; otherwise `||` short-circuits
     // and leaves it behind to reopen Help after a refresh.
-    const introPending = consumeLevelIntroPending();
+    const introPending = consumeLevelIntroPending(curriculum.slug);
     const shouldShowIntro = forceIntro || introPending;
     if (forceIntro) {
       // As above, consume the URL trigger on entry. The session-storage flag
@@ -368,7 +369,7 @@ export function useLevelBriefing() {
 
     setHelpOpen(true);
     setOpen(false);
-  }, [forceBrief, forceIntro, stripBriefParam, stripIntroParam]);
+  }, [curriculum.slug, forceBrief, forceIntro, stripBriefParam, stripIntroParam]);
 
   const closeBriefing = useCallback(() => {
     setOpen(false);

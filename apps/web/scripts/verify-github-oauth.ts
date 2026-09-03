@@ -78,6 +78,22 @@ console.log("start oauth — anonymous uses linkIdentity");
   assert.equal(state.oauthStarted, false);
 }
 
+console.log("start oauth — anonymous can sign in to an existing account");
+{
+  const state = { user: fakeUser({ id: "anon-1", isAnonymous: true }), oauthStarted: false, linkStarted: false };
+  const adapter = createFakeAdapter(state);
+  const result = await startGitHubOAuth(adapter, {
+    callbackUrl: "https://faultline.test/auth/callback?next=%2F",
+    next: "/",
+    currentUser: state.user,
+    mode: "signin",
+  });
+  assert.equal(result.ok, true);
+  assert.ok(state.oauthStarted);
+  assert.equal(state.linkStarted, false);
+  assert.equal(state.user, null);
+}
+
 console.log("start oauth — permanent user short-circuits");
 {
   const state = { user: fakeUser({ id: "perm-1" }), oauthStarted: false, linkStarted: false };

@@ -27,6 +27,7 @@ export function AccountAuthPlate({
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const signInHref = `/api/auth/github?next=${encodeURIComponent(nextPath)}`;
+  const existingSignInHref = `/api/auth/github?next=${encodeURIComponent(nextPath)}&mode=signin`;
 
   const refresh = useCallback(async () => {
     try {
@@ -133,6 +134,9 @@ export function AccountAuthPlate({
           >
             {state.linkingPending ? "Signing in…" : "Sign in with GitHub"}
           </a>
+          <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href={existingSignInHref}>
+            Sign in to existing account
+          </a>
         </div>
       );
     }
@@ -153,6 +157,9 @@ export function AccountAuthPlate({
           aria-busy={state.linkingPending}
         >
           {state.linkingPending ? "Linking…" : "Link with GitHub"}
+        </a>
+        <a className="account-auth-plate__secondary account-auth-plate__secondary--link" href={existingSignInHref}>
+          Sign in to existing account
         </a>
         {state.alias ? (
           <p className="account-auth-plate__hint">Playing as {state.alias}</p>

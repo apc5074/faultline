@@ -10,6 +10,7 @@ export type FastestLeaderboardResponse =
   | {
       ok: true;
       dailyChallengeId: string;
+      challengeTitle: string;
       challengeSlug: string;
       challengeVersion: number;
       entries: readonly FastestLeaderboardEntry[];
@@ -30,6 +31,7 @@ export async function GET(): Promise<Response> {
     const body: FastestLeaderboardResponse = {
       ok: true,
       dailyChallengeId: board.dailyChallengeId,
+      challengeTitle: board.challengeTitle,
       challengeSlug: board.challengeSlug,
       challengeVersion: board.challengeVersion,
       entries: board.entries,

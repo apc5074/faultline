@@ -18,6 +18,8 @@ export type HandleOAuthCallbackInput = {
   next: string | null;
 };
 
+export type GitHubOAuthMode = "link" | "signin";
+
 export type HandleOAuthCallbackResult =
   | { ok: true; next: AuthCallbackRedirectPath }
   | { ok: false; code: AuthCallbackErrorCode; next: AuthCallbackRedirectPath };
@@ -66,17 +68,24 @@ export function mapAuthErrorToCallbackCode(error: AuthError | null): AuthCallbac
  */
 export async function startGitHubOAuth(
   adapter: AuthAdapter,
-  input: { callbackUrl: string; next: string | null; currentUser?: User | null },
+  input: { callbackUrl: string; next: string | null; currentUser?: User | null; mode?: GitHubOAuthMode },
 ): Promise<StartGitHubOAuthResult> {
   const next = normalizeAuthCallbackRedirect(input.next);
   const user = input.currentUser === undefined ? await adapter.getUser() : input.currentUser;
+
+  if (input.mode === "signin" && user?.is_anonymous === true) {
+    const signedOut = await adapter.signOut();
+    if (signedOut.error) return { ok: false, code: "oauth_start_failed", next };
+  }
 
   if (user && user.is_anonymous !== true) {
     return { ok: false, code: "already_signed_in", next };
   }
 
+  const shouldLink = input.mode !== "signin" && user?.is_anonymous === true;
+
   const start = await Promise.race([
-    user
+    shouldLink
       ? adapter.linkIdentity({ redirectTo: input.callbackUrl })
       : adapter.signInWithOAuth({ redirectTo: input.callbackUrl }),
     new Promise<{ url: null; error: AuthError | null }>((resolve) => {

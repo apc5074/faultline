@@ -107,6 +107,6 @@ export const workerDefinition: ComponentDefinition<WorkerConfig> = {
   regionSupport: false,
   replicationSupport: false,
   clusteringSupport: false,
-  agentCapabilities: ["inspect_processing", "slow_consumers"],
+  agentCapabilities: ["inspect_processing"],
   schemaVersion: 1,
 };

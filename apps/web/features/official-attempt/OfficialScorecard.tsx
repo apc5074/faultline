@@ -1,7 +1,7 @@
 "use client";
 
 import type { SubmitOfficialResponse } from "@/app/api/submissions/route";
-import { activeChallenge } from "@/features/architecture-canvas/playground-challenge";
+import { usePlaygroundChallenge } from "@/features/architecture-canvas/playground-challenge";
 import { formatLeaderboardCost, formatSolveTime } from "@/lib/leaderboards/format";
 import { ShareResultActions } from "./ShareResultActions";
 
@@ -12,6 +12,7 @@ function formatPercent(value: number): string {
 }
 
 export function OfficialScorecard({ result, stale }: { result: VerifiedSubmission; stale: boolean }) {
+  const { challenge } = usePlaygroundChallenge();
   const passed = result.allRequirementsPass && result.withinBudget;
   const ranks = result.eligible ? result.leaderboardRanks : null;
   return (
@@ -38,14 +39,14 @@ export function OfficialScorecard({ result, stale }: { result: VerifiedSubmissio
       {stale ? <p className="official-scorecard__stale">Architecture changed after verification — edit and run again for current evidence.</p> : null}
       <dl className="official-scorecard__metrics tabular">
         <div><dt>Solve time</dt><dd>{result.officialSolveMs === null ? "—" : formatSolveTime(result.officialSolveMs)}</dd></div>
-        <div><dt>Monthly cost</dt><dd>{formatLeaderboardCost(result.cost.monthlyTotal)} / {formatLeaderboardCost(activeChallenge.monthlyBudget)}</dd></div>
+        <div><dt>Monthly cost</dt><dd>{formatLeaderboardCost(result.cost.monthlyTotal)} / {formatLeaderboardCost(challenge.monthlyBudget)}</dd></div>
         <div><dt>p95 latency</dt><dd>{result.metrics.p95LatencyMs.toFixed(1)} ms</dd></div>
         <div><dt>Headroom</dt><dd>{formatPercent(result.metrics.headroom)}</dd></div>
       </dl>
       <div className="official-scorecard__requirements">
         <p className="official-scorecard__label">Verified requirements</p>
         <ul>
-          {activeChallenge.requirements.map((definition) => {
+          {challenge.requirements.map((definition) => {
             const requirement = result.requirements.find((candidate) => candidate.id === definition.id);
             return <li key={definition.id}><span className={requirement?.passed ? "official-scorecard__pass" : "official-scorecard__fail"}>{requirement?.passed ? "PASS" : "FAIL"}</span><span>{definition.label}</span></li>;
           })}

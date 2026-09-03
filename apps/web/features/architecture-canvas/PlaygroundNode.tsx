@@ -6,7 +6,7 @@ import type { ComponentDefinition, ComponentInstance } from "@faultline/core";
 
 import { PlaygroundHandle } from "@/features/architecture-canvas/PlaygroundHandle";
 import { portOffsetY } from "@/features/architecture-canvas/glyph-port-layout";
-import { challengeRedirectRps } from "@/features/architecture-canvas/playground-challenge";
+import { challengeRedirectRpsFor, usePlaygroundChallenge } from "@/features/architecture-canvas/playground-challenge";
 import {
   ComponentGlyph,
   glyphDimensionsForProps,
@@ -52,6 +52,8 @@ export type PlaygroundNodeData = {
 type PlaygroundFlowNode = Node<PlaygroundNodeData, "playground">;
 
 export function PlaygroundNode({ data, selected, dragging }: NodeProps<PlaygroundFlowNode>) {
+  const { challenge } = usePlaygroundChallenge();
+  const challengeRedirectRps = challengeRedirectRpsFor(challenge);
   const glyphCatalog = glyphPropsFromComponent(data.component, data.definition);
   const fullDimensions = glyphDimensionsForProps(glyphCatalog);
   const dimensions = data.semanticZoomOut
