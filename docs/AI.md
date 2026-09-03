@@ -19,7 +19,7 @@ The session helps an agent respond to human intent; it does not authorize an age
 
 ## Coaching behavior
 
-Embedded agents and complete semantic adapters may call `get_coaching_policy` and `get_session_focus` before coaching. The production WebMCP profile exposes the stable review/read tools listed in [WEBMCP.md](./WEBMCP.md), so production hosts follow their metadata and the shared routing contract directly. The reviewer contract requires inspecting the smallest relevant evidence before asserting, providing one simulator-grounded finding and one question, and not revealing a canonical topology or solution thresholds.
+Embedded agents and complete semantic adapters call `get_coaching_policy` once per coaching session on the first turn (in parallel with `get_session_focus` when both are needed), retain the returned policy in host system context, and use `get_session_focus` on later turns when human focus or pending help may have changed. The production WebMCP profile exposes the stable review/read tools listed in [WEBMCP.md](./WEBMCP.md), so production hosts follow their metadata and the shared routing contract directly. The reviewer contract requires inspecting the smallest relevant evidence before asserting, providing one simulator-grounded finding and one question, and not revealing a canonical topology or solution thresholds.
 
 Use simulator evidence when available and say when it is unavailable. Do not invent metrics, infer pass/fail independently, or prescribe a single technology stack as the answer.
 

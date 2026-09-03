@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildCoachingPolicy,
   buildGetCoachingPolicyOutput,
+  COACHING_POLICY_SESSION_RETENTION,
   createDefaultCapabilityRegistry,
   getCoachingPolicyCapability,
 } from "../dist/index.js";
@@ -69,6 +70,7 @@ assert.ok(output.policyText.length > 0);
 assert.match(output.policyText, /hot-key resilience/);
 assert.match(output.policyText, /cache-workload-fit/);
 assert.match(output.policyText, /workload-fit evidence/);
+assert.match(output.policyText, /Do not call get_coaching_policy again/);
 assert.match(output.policyText, /Never change architecture/);
 assert.match(output.policyText, /Do not prescribe a canonical stack/);
 assert.match(output.policyText, /ChatGPT or another agent host owns prose/);
@@ -86,6 +88,8 @@ assert.equal(output.turnProtocol.length, 5);
 assert.ok(output.turnProtocol[0].includes("start_design_interview"));
 assert.ok(output.turnProtocol[0].includes("Never invent a freeform"));
 assert.ok(output.turnProtocol[1].includes("review_current_design"));
+assert.ok(output.turnProtocol[1].includes("get_coaching_policy"));
+assert.equal(output.sessionRetention, COACHING_POLICY_SESSION_RETENTION);
 assert.ok(output.policyText.includes("Never assume a CDN"));
 assert.ok(output.prohibitedActions.some((action) => action.includes("Mutate architecture")));
 assert.ok(output.prohibitedActions.some((action) => action.includes("labels, notes")));

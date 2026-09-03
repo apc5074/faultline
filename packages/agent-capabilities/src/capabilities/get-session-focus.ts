@@ -59,7 +59,7 @@ export const getSessionFocusCapability: AgentCapability<
 > = {
   name: "get_session_focus",
   description:
-    "Read human canvas focus and any pending help request from selection or help chips. Poll after the player asks for help; does not clear pending help.",
+    "Read human canvas focus and any pending help request from selection or help chips. Call when human focus or pending help may have changed; does not clear pending help.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,

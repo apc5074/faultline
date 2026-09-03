@@ -14,7 +14,7 @@
   },
   "reviewRecipe": {
     "calls": 4,
-    "names": ["get_coaching_policy", "get_session_focus", "inspect_component", "get_metrics"]
+    "names": ["get_session_focus", "inspect_component"]
   },
   "repeatedReads": {
     "calls": 10,

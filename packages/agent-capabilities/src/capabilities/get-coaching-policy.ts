@@ -1,5 +1,10 @@
 import type { AgentCapability } from "../capability.js";
-import { buildCoachingPolicy, REVIEWER_CONTRACT, type CoachingReviewerContract } from "../coaching-policy.js";
+import {
+  buildCoachingPolicy,
+  COACHING_POLICY_SESSION_RETENTION,
+  REVIEWER_CONTRACT,
+  type CoachingReviewerContract,
+} from "../coaching-policy.js";
 import type { AgentContext } from "../context.js";
 import { capabilityOk, type CapabilityResult } from "../result.js";
 import { noInputSchema } from "../schemas.js";
@@ -18,6 +23,8 @@ export interface GetCoachingPolicyOutput {
   readonly toolRecipes: CoachingReviewerContract["toolRecipes"];
   readonly visualBudget: CoachingReviewerContract["visualBudget"];
   readonly prohibitedActions: CoachingReviewerContract["prohibitedActions"];
+  /** How the host should retain this payload across later coaching turns. */
+  readonly sessionRetention: string;
 }
 
 export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoachingPolicyOutput {
@@ -25,7 +32,8 @@ export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoaching
   return {
     policyVersion: "wmp-1",
     policyDigest: "faultline-reviewer-wmp-1",
-    summary: "Use simulator evidence as truth; give one grounded finding and one focused question; preserve human ownership.",
+    summary:
+      "Use simulator evidence as truth; give one grounded finding and one focused question; preserve human ownership. Retain this policy in host system context for the rest of the coaching session.",
     policyText: buildCoachingPolicy(context),
     focusThemes: policy?.focusThemes ?? [],
     prohibitedRevealCategories: policy?.prohibitedRevealCategories ?? [],
@@ -34,6 +42,7 @@ export function buildGetCoachingPolicyOutput(context: AgentContext): GetCoaching
     toolRecipes: REVIEWER_CONTRACT.toolRecipes,
     visualBudget: REVIEWER_CONTRACT.visualBudget,
     prohibitedActions: REVIEWER_CONTRACT.prohibitedActions,
+    sessionRetention: COACHING_POLICY_SESSION_RETENTION,
   };
 }
 
@@ -48,7 +57,7 @@ export const getCoachingPolicyCapability: AgentCapability<
 > = {
   name: "get_coaching_policy",
   description:
-    "Read Faultline's adapter-neutral reviewer contract: read-first turn protocol, targeted evidence recipes, spatial budget, prohibited actions, and challenge learning themes. Call before coaching the player.",
+    "Read Faultline's adapter-neutral reviewer contract: read-first turn protocol, targeted evidence recipes, spatial budget, prohibited actions, and challenge learning themes. Call once per coaching session on the first turn; retain the returned policy in host system context and do not call again unless the challenge changes.",
   inputSchema: noInputSchema,
   mode: "read",
   availableWhen: () => true,
