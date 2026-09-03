@@ -36,7 +36,7 @@ const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
 };
 
 const STARTER_PROMPTS = [
-  "Review my current Faultline design with review_current_design. Give me one grounded finding and one question.",
+  "What's wrong with my Faultline design? Use review_current_design, give one grounded finding and one question. You may discuss mechanism categories, but do not recommend specific components to add.",
   'Tell me about all my Postgres components using inspect_component with { selector: { type: "postgres", scope: "all" } }.',
   "How healthy is my system? Use get_metrics first and give one finding and one question.",
 ] as const;

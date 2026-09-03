@@ -44,7 +44,7 @@ export const AGENT_HELP_CHIPS: readonly AgentHelpChipDefinition[] = [
     label: "Review requirement",
     template: "Investigate the focused or failing requirement.",
     clipboardPrompt:
-      "Why is this requirement failing in Faultline? Use the current evidence, give one finding and one question, and do not modify the design.",
+      "Why is this requirement failing in Faultline? Use current evidence, give one finding and one question; do not modify the design or recommend specific components to add.",
     requiresSelection: false,
     promptIntent: "requirement_failure",
     suggestedCapabilityNames: ["review_current_design", "get_requirements", "get_metrics"],

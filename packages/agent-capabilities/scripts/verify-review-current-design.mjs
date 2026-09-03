@@ -47,6 +47,12 @@ assert.deepEqual(incompletePackets.requirement.latency.implicatedComponentIds, [
 const fallbackFailure = buildReviewCurrentDesignOutput(incompletePathContext, { intent: "requirement_failure" }, { ...session, focus: { kind: "none" } });
 assert.equal(fallbackFailure.ok, true);
 assert.deepEqual(fallbackFailure.data.requirement.implicatedComponentIds, ["service-z", "cdn-a"]);
+assert.deepEqual(fallbackFailure.data.policy.contract, [
+  "Use simulator evidence as truth.",
+  "Give one finding and one focused question.",
+  "Discuss mechanism categories, not specific components to add.",
+  "Do not mutate architecture or invent metrics.",
+]);
 for (const [intent, targetId] of [["component_review", "service-1"], ["requirement_failure", "latency"], ["workload_trace", "redirects"], ["cost_review", undefined]]) {
   const result = buildReviewCurrentDesignOutput(context, { intent, ...(targetId ? { targetId } : {}) }, session);
   assert.equal(result.ok, true);

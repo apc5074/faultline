@@ -49,7 +49,10 @@ assert.equal(getToolRoutingRule("requirement_failure").preferredCapabilityName, 
 assert.deepEqual(getToolRoutingRule("requirement_failure").positiveExamples, ["tell me about the first error", "tell me what went wrong", "Why is there an error?", "What broke?"]);
 assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /primary implicated component/);
 assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /focuses and zooms/);
+assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /mechanism categories/);
 assert.equal(getToolRoutingRule("overview").preferredCapabilityName, "review_current_design");
+assert.deepEqual(getToolRoutingRule("overview").positiveExamples, ["what's wrong with my design", "review my design", "how is my architecture looking?"]);
+assert.match(getToolRoutingRule("overview").selectionGuidance, /mechanism categories/);
 assert.equal(getToolRoutingRule("cost").preferredCapabilityName, "get_cost_breakdown");
 assert.equal(getToolRoutingRule("cache").preferredCapabilityName, "inspect_cache");
 assert.equal(getToolRoutingRule("replication").preferredCapabilityName, "inspect_replication");
@@ -72,6 +75,8 @@ assert.match(TOOL_ROUTING_GUIDANCE, /never invent a freeform/i);
 assert.match(TOOL_ROUTING_GUIDANCE, /error, failure, bottleneck/);
 assert.match(TOOL_ROUTING_GUIDANCE, /requirement_failure/);
 assert.match(TOOL_ROUTING_GUIDANCE, /focus-and-zoom/);
+assert.match(TOOL_ROUTING_GUIDANCE, /mechanism categories/);
+assert.match(TOOL_ROUTING_GUIDANCE, /specific catalog components/);
 assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Hard rule/);
 assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Never invent a freeform/);
 

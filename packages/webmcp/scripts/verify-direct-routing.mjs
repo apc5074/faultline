@@ -72,7 +72,7 @@ assert.ok(architecture.result.data.data.facts.inventory);
 
 const reviewTool = toWebMcpTool(registry.get("review_current_design"), { registry, getContext: () => context });
 assert.match(reviewTool.description, /overview/);
-assert.match(reviewTool.description, /direct evidence/);
+assert.match(reviewTool.description, /mechanism categories/);
 assert.match(reviewTool.description, /requirement_failure/);
 assert.match(reviewTool.description, /inspect_component/);
 
