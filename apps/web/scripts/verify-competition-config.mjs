@@ -24,7 +24,7 @@ function readWeb(rel) {
 console.log("Check — url-shortener publishes workloadAffinity");
 assert.ok(urlShortenerChallenge.workloadAffinity?.mechanisms.edge_cache);
 assert.ok(urlShortenerChallenge.workloadAffinity?.mechanisms.data_cache);
-assert.equal(urlShortenerChallenge.version, 3);
+assert.equal(urlShortenerChallenge.version, 4);
 
 console.log("Check — seed persists full challenge definition");
 const seed = readWeb("scripts/seed-daily-challenge.mjs");
@@ -32,6 +32,7 @@ assert.match(seed, /resolvePlayableChallenge\(challengeSlug\)/);
 assert.match(seed, /--end-active/);
 assert.match(seed, /config_json: definition/);
 assert.match(seed, /simulator_version: SIMULATOR_VERSION/);
+assert.match(seed, /blockingEnd/);
 
 console.log("Check — active challenge API returns full config");
 const activeRoute = readWeb("app/api/challenges/active/route.ts");

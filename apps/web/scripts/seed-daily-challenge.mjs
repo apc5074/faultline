@@ -172,8 +172,25 @@ if (active.data) {
 
 const activeAfterEnd = active.data && (active.data.challenge_version_id !== challengeVersionId || endActive);
 if (!active.data || activeAfterEnd) {
-  // Phase 4 testing window: start of current UTC day → +365 days.
-  const startsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // Prefer the current UTC day, but never overlap a just-closed window.
+  // `--end-active` sets ends_at = now on a range that often began before
+  // midnight; tstzrange(starts_at, ends_at, '[)') would then collide with a
+  // replacement that starts at 00:00Z.
+  const startOfUtcDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const blocking = await supabase
+    .from("daily_challenges")
+    .select("ends_at")
+    .gt("ends_at", startOfUtcDay.toISOString())
+    .order("ends_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (blocking.error) {
+    console.error(blocking.error.message);
+    process.exit(1);
+  }
+  const blockingEnd = blocking.data?.ends_at ? new Date(blocking.data.ends_at) : null;
+  const startsAt =
+    blockingEnd && blockingEnd > startOfUtcDay ? blockingEnd : startOfUtcDay;
   const endsAt = new Date(startsAt);
   endsAt.setUTCFullYear(endsAt.getUTCFullYear() + 1);
 

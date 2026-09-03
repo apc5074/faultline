@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "identity": {
     "slug": "url-shortener",
-    "version": 3,
+    "version": 4,
     "title": "Global URL Shortener",
     "prompt": "Design infrastructure for a global URL shortening service. It must absorb heavy redirect traffic, accept new links, survive a viral short URL, and stay within latency, capacity headroom, and monthly budget \u2014 without a prescribed topology.",
     "developmentOnly": false

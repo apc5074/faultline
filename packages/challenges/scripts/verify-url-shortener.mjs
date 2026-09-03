@@ -9,7 +9,7 @@ import {
 } from "../dist/index.js";
 
 assert.equal(urlShortenerChallenge.slug, "url-shortener");
-assert.equal(urlShortenerChallenge.version, 3);
+assert.equal(urlShortenerChallenge.version, 4);
 assert.equal(urlShortenerChallenge.developmentOnly, false);
 assert.equal(urlShortenerRedirectRps, 120_000);
 assert.equal(urlShortenerWriteRps, 4_000);

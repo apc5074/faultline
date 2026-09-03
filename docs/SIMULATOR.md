@@ -276,10 +276,11 @@ WebMCP, and official server replay parity checks.
 
 `SIMULATOR_VERSION` in `@faultline/simulator` is recorded on each published `challenge_versions` row. Competition-affecting simulator changes require bumping this value and publishing a new challenge version so official attempts are never silently re-scored under incompatible semantics.
 
-**v4** (with `url-shortener` challenge **v3**): adds challenge-authored
+**v4** (with `url-shortener` challenge **v4**): adds challenge-authored
 requirement bindings to named Level 2 channel evidence while retaining the v3
-workload-affinity semantics. Republish affected snapshots via
-`pnpm --filter @faultline/web seed:daily-challenge` after deploy; historical
-snapshots retain their recorded simulator version.
+workload-affinity semantics. `url-shortener` itself is unchanged except for the
+required version bump so an immutable snapshot can record simulator `4`.
+Republish affected snapshots via `pnpm --filter @faultline/web seed:daily-challenge`
+after deploy; historical snapshots retain their recorded simulator version.
 
 Competition note: bumping `SIMULATOR_VERSION` (or challenge `version`) without republishing leaves official attempts on the previous immutable `challenge_versions` row. Local play and official verify must agree on the same simulator + challenge pair (`docs/PRODUCTION.md`).
