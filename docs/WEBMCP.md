@@ -193,7 +193,10 @@ WebMCP tools do not receive architecture-edit powers.
 - A direct single-component explanation is stricter: the page uses one
   component-camera command to center the live React Flow node at an explicit
   zoom, and the adapter withholds evidence until its matching receipt confirms
-  both the rendered focus annotation and completed camera movement.
+  both the rendered focus annotation and completed camera movement. A
+  `review_current_design` `requirement_failure` read uses that same handshake
+  for the primary implicated component so first-error questions highlight and
+  zoom before the model answers.
 Visual marks, viewport focus, and playback are not architecture state,
 simulator input, official-submission input, or persistent competition evidence.
 The v2 live interview slots own calibrated scenario review and critique.

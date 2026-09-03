@@ -9,7 +9,6 @@ import type {
   PresentationCue,
   VisualAnnotationIntent,
 } from "@faultline/agent-capabilities";
-import type { Architecture } from "@faultline/core";
 import {
   capabilityCancelled,
   capabilityError,
@@ -18,6 +17,7 @@ import {
   createComponentExplanationPresentation,
   isCapabilityCancelled,
   isMatchingVisualApplicationReceipt,
+  presentationCueForCapability,
   resolveLiveAgentSnapshot,
   validatePresentationCue,
 } from "@faultline/agent-capabilities";
@@ -103,7 +103,7 @@ function hasPlayerAuthoredContent(capabilityName: string): boolean {
 /** Keep host-facing metadata explicit and compact; the shared capability remains verbose for other adapters. */
 function webMcpDescription(capability: RegisteredCapability): string {
   const metadata: Record<string, string> = {
-    review_current_design: "Use for overview, current UI focus, retained-revision delta, or genuine ambiguity. Targeted questions should use direct evidence tools first.",
+    review_current_design: "Use for overview, current UI focus, retained-revision delta, ambiguity, or error questions. For errors use requirement_failure; production zooms the implicated component first, like inspect_component. Targeted questions should use direct evidence tools first.",
     start_design_interview: "REQUIRED first tool for interview me, quiz me, test me, or system-design practice. Call exactly once before asking any interview question. Returns the current Faultline question plus assessment fields when present. Never invent a freeform whiteboard or URL-shortener interview from memory. Preparation failures return INVALID_INPUT with the exact next board action—explain that and stop; do not invent a substitute question.",
     get_design_interview: "Read the active interview for exact interviewId and questionId. Returns assessment fields when present. Does not advance. Call once per read.",
     submit_interview_answer: "Submit exactly once per player answer. Required: interviewId, questionId, answer, evaluation.{verdict,explanation,strengths,gaps,idealAnswer,grounding} (confidence optional). Score only against returned assessment.requiredTopics and evidenceSummary, then present the verdict.",
@@ -163,12 +163,25 @@ export interface ToWebMcpToolOptions {
   readonly traceGeneration?: number;
 }
 
+function primaryComponentFromCue(
+  capabilityName: string,
+  data: unknown,
+  input: unknown,
+  context: AgentContext,
+): string | undefined {
+  const cue = presentationCueForCapability(capabilityName, data, context, input);
+  const primary = cue?.targets.find((target) => target.kind === "component" && target.emphasis === "primary")
+    ?? cue?.targets.find((target) => target.kind === "component");
+  return primary?.kind === "component" ? primary.entityId : undefined;
+}
+
 function componentExplanationTarget(
   capabilityName: string,
   data: unknown,
   input: unknown,
-  architecture: Architecture,
+  context: AgentContext,
 ): string | undefined {
+  const architecture = context.architecture;
   if (capabilityName === "inspect_component" && isRecord(data)) {
     if (typeof data.id === "string") return data.id;
     const selection = isRecord(data.selection) ? data.selection : undefined;
@@ -179,6 +192,13 @@ function componentExplanationTarget(
   if (capabilityName === "inspect_component_option" && isRecord(input) && typeof input.type === "string") {
     const matches = architecture.components.filter((component) => component.type === input.type);
     if (matches.length === 1) return matches[0]!.id;
+  }
+  if (capabilityName === "review_current_design") {
+    const request = isRecord(input) ? input : undefined;
+    const payload = isRecord(data) ? data : undefined;
+    const isFailureReview = request?.intent === "requirement_failure" || isRecord(payload?.requirement);
+    if (!isFailureReview) return undefined;
+    return primaryComponentFromCue(capabilityName, data, input, context);
   }
   return undefined;
 }
@@ -297,7 +317,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               },
             };
           }
-          const componentId = sanitized.ok ? componentExplanationTarget(capability.name, sanitized.data, input, context.architecture) : undefined;
+          const componentId = sanitized.ok ? componentExplanationTarget(capability.name, sanitized.data, input, context) : undefined;
           if (componentId && requireComponentExplanationPresentation) {
             recordWebMcpTrace(trace, { name: "component_target_resolved", capability: capability.name, evidenceRevision: lease.evidenceRevision });
             if (!onComponentExplanationPresentation || !onVisualIntent) {
@@ -362,8 +382,10 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
               availableToolNames,
             });
             if (componentBarrierRendered && sanitized.ok && isRecord(sanitized.data) && "presentation" in sanitized.data) {
-              const { presentation: _duplicateFocusCue, ...withoutPresentation } = sanitized.data;
-              sanitized = { ok: true, data: withoutPresentation };
+              if (capability.name === "inspect_component" || capability.name === "inspect_component_option") {
+                const { presentation: _duplicateFocusCue, ...withoutPresentation } = sanitized.data;
+                sanitized = { ok: true, data: withoutPresentation };
+              }
             }
             if (componentBarrierRendered && sanitized.ok) {
               recordWebMcpTrace(trace, { name: "evidence_released", capability: capability.name, evidenceRevision: lease.evidenceRevision });
@@ -387,7 +409,7 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
             );
             recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, outcome: "superseded", errorCode: "NOT_FOUND", evidenceRevision: lease.evidenceRevision });
           }
-          if (sanitized.ok && sanitized.data && typeof sanitized.data === "object" && "presentation" in sanitized.data) {
+          if (!componentBarrierRendered && sanitized.ok && sanitized.data && typeof sanitized.data === "object" && "presentation" in sanitized.data) {
             const cue = (sanitized.data as { presentation?: unknown }).presentation;
             if (cue) recordWebMcpTrace(trace, { name: "cue_derived", capability: capability.name, cueKind: (cue as { kind?: string }).kind === "path" ? "path" : (cue as { kind?: string }).kind === "set" ? "set" : "spotlight", targetCount: Array.isArray((cue as { targets?: unknown }).targets) ? (cue as { targets: unknown[] }).targets.length : 0, primaryKind: String(((cue as { targets?: Array<{ kind?: unknown }> }).targets ?? []).find((target) => target?.kind)?.kind ?? "unknown"), cameraIntent: String((cue as { camera?: unknown }).camera ?? "none") });
             if (cue && validatePresentationCue(cue, lease.evidenceRevision)) {

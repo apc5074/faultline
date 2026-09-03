@@ -46,7 +46,7 @@ export interface ToolRoutingRule {
 
 /** Compact routing guidance shared by policy and adapter-facing descriptions. */
 export const TOOL_ROUTING_GUIDANCE =
-  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. For interview me, quiz me, test me, or any interview/practice intent, call start_design_interview first and ask only its returned question—never invent a freeform system-design interview in chat. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity. A single current-component inspect on the browser production surface waits for its matching focus render before evidence is released; visual tools remain optional for other intents.";
+  "Routing: before asserting current component existence, count, configuration, deployment, placement, or connection state, perform the direct current-state read during this answer; never use chat history or an earlier evidence revision. For interview me, quiz me, test me, or any interview/practice intent, call start_design_interview first and ask only its returned question—never invent a freeform system-design interview in chat. Use get_architecture for board inventory, inspect_component for a named component or exact-type count/details with scope all by default (topmost only for positional requests), inspect_design_entity for relationships/workload paths, get_metrics for health, review_current_design for overview or genuine ambiguity. When the player asks about an error, failure, bottleneck, what broke, or the first error, use review_current_design with requirement_failure. A single current-component inspect and a requirement_failure review on the browser production surface wait for matching focus-and-zoom on the primary implicated component before evidence is released; visual tools remain optional for other intents.";
 
 /**
  * Shared routing policy for embedded and external agents. This is metadata,
@@ -115,7 +115,8 @@ export const TOOL_ROUTING_RULES: readonly ToolRoutingRule[] = [
     allowedFallbackCapabilityNames: ["inspect_design_entity"],
     requiresCurrentTarget: false,
     resultFrame: "causal_path",
-    selectionGuidance: "For a first or named requirement failure, call review_current_design with requirement_failure; inspect_design_entity is a targeted fallback.",
+    selectionGuidance: "For an error, failure, bottleneck, or first/named requirement failure, call review_current_design with requirement_failure; inspect_design_entity is a targeted fallback. The production surface focuses and zooms the primary implicated component before this tool returns; explain that component after it is framed.",
+    positiveExamples: ["tell me about the first error", "tell me what went wrong", "Why is there an error?", "What broke?"],
   },
   {
     intent: "overview",

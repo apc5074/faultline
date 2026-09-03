@@ -18,6 +18,35 @@ assert.ok(packets.component["service-1"]);
 assert.equal(packets.requirement.latency.result.actual, 90);
 assert.ok(packets.workload.redirects.channel.paths.length > 0);
 assert.equal(packets.cost.monthlyTotal, 10);
+const incompletePathContext = {
+  ...context,
+  architecture: {
+    version: 1,
+    components: [
+      { id: "service-z", type: "service", config: { instances: 2 }, deployments: [], ui: { x: 0, y: 0 } },
+      { id: "cdn-a", type: "cdn", config: {}, deployments: [], ui: { x: 1, y: 1 } },
+    ],
+    connections: [],
+  },
+  simulation: {
+    available: true,
+    components: { "service-z": { metrics: { utilization: 1.2 }, state: "saturated" }, "cdn-a": { metrics: { utilization: 0.2 } } },
+    system: { redirectP95Ms: 200, throughputPass: false, minimumHeadroom: 0 },
+    workloadPaths: {
+      redirects: {
+        channelId: "redirects",
+        paths: [{ pathId: "redirect-path", componentIds: ["service-z", "cdn-a"], connectionIds: [], status: "failed", failureReason: "saturated" }],
+        inactiveComponentIds: [],
+      },
+    },
+  },
+  requirementResults: [{ id: "latency", type: "latency", passed: false, actual: 200, target: 50, operator: "lte", explanation: "service-z is the first constrained component" }],
+};
+const incompletePackets = buildReviewUseCasePackets(incompletePathContext);
+assert.deepEqual(incompletePackets.requirement.latency.implicatedComponentIds, ["service-z", "cdn-a"]);
+const fallbackFailure = buildReviewCurrentDesignOutput(incompletePathContext, { intent: "requirement_failure" }, { ...session, focus: { kind: "none" } });
+assert.equal(fallbackFailure.ok, true);
+assert.deepEqual(fallbackFailure.data.requirement.implicatedComponentIds, ["service-z", "cdn-a"]);
 for (const [intent, targetId] of [["component_review", "service-1"], ["requirement_failure", "latency"], ["workload_trace", "redirects"], ["cost_review", undefined]]) {
   const result = buildReviewCurrentDesignOutput(context, { intent, ...(targetId ? { targetId } : {}) }, session);
   assert.equal(result.ok, true);

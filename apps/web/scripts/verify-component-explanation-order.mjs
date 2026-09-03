@@ -117,4 +117,72 @@ assert.ok(hostInspect, "registered review host includes inspect_component");
 assert.equal((await hostInspect.execute({ componentId: "cdn-1" }, {})).ok, true);
 assert.equal(hostVisualIntents.length, 1, "registered review tool publishes nested focus");
 
+const failureContext = {
+  ...context,
+  challenge: {
+    ...challenge,
+    requirements: [{ id: "latency", label: "Latency", type: "latency_p95", target: 100, unit: "ms", comparator: "lte" }],
+  },
+  architecture: {
+    version: 1,
+    components: [
+      { id: "cdn-1", type: "cdn", config: {}, deployments: [], ui: { x: 0, y: 0 } },
+      { id: "service-2", type: "service", config: {}, deployments: [], ui: { x: 200, y: 0 } },
+    ],
+    connections: [],
+  },
+  requirementResults: [{ id: "latency", passed: false, actual: 150, target: 100, explanation: "service-2 is the first constrained component" }],
+  reviewPackets: {
+    overview: { failedRequirements: [] },
+    component: {},
+    requirement: {
+      latency: {
+        result: { id: "latency", passed: false, actual: 150, target: 100, explanation: "service-2 is the first constrained component" },
+        implicatedComponentIds: ["service-2"],
+        caveats: [],
+        relatedBottlenecks: [],
+      },
+    },
+    workload: {},
+    cost: { contributors: [], topContributors: [], budget: 1 },
+  },
+};
+const failureTrace = createWebMcpTrace();
+const failureOrder = [];
+const failureTool = toWebMcpTool(registry.get("review_current_design"), {
+  registry,
+  getContext: () => ({ context: failureContext, session: createEmptyAgentSessionState() }),
+  getCurrentEvidenceRevision: () => "revision-a",
+  requireComponentExplanationPresentation: true,
+  development: true,
+  trace: failureTrace.sink,
+  onVisualIntent: (intent) => {
+    assert.equal(intent.kind, "annotation");
+    assert.equal(intent.annotation.type, "focus");
+    assert.equal(intent.annotation.componentId, "service-2");
+    failureOrder.push("focus-published");
+  },
+  onComponentExplanationPresentation: async (command) => {
+    assert.equal(command.component.entityId, "service-2");
+    failureOrder.push("barrier-registered");
+    return {
+      contractVersion: command.contractVersion,
+      commandId: command.commandId,
+      componentId: command.component.entityId,
+      evidenceRevision: command.evidenceRevision,
+      appliedSessionRevision: command.sessionRevision + 1,
+      annotationStatus: "rendered",
+      cameraStatus: "centered",
+      appliedZoom: 1.5,
+      status: "applied",
+    };
+  },
+});
+const failureResult = await failureTool.execute({ intent: "requirement_failure" }, {});
+assert.equal(failureResult.ok, true);
+failureOrder.push("evidence-returned");
+assert.deepEqual(failureOrder, ["barrier-registered", "focus-published", "evidence-returned"]);
+assert.deepEqual(failureTrace.events.map((event) => event.name).filter((name) => ["component_target_resolved", "visual_barrier_started", "focus_component_invoked", "visual_barrier_rendered", "evidence_released"].includes(name)), ["component_target_resolved", "visual_barrier_started", "focus_component_invoked", "visual_barrier_rendered", "evidence_released"]);
+assert.equal(failureResult.data.presentation.targets[0].entityId, "service-2");
+
 console.log("verify-component-explanation-order: ok");

@@ -49,6 +49,23 @@ export interface ReviewCurrentDesignOutput {
 
 const PACKET_CAP = 3;
 
+function implicatedComponentIdsForRequirement(
+  result: { readonly explanation: string },
+  context: AgentContext,
+  risks: readonly { readonly componentId?: string }[],
+): readonly string[] {
+  const known = new Set(context.architecture.components.map((component) => component.id));
+  const simulation = context.simulation?.available === true ? context.simulation : undefined;
+  const fromPaths = Object.values(simulation?.workloadPaths ?? {})
+    .flatMap((channel) => channel.paths.filter((path) => path.status !== "complete").flatMap((path) => path.componentIds))
+    .filter((id) => known.has(id));
+  const fromRisks = risks
+    .map((risk) => risk.componentId)
+    .filter((id): id is string => typeof id === "string" && known.has(id));
+  const fromExplanation = [...known].filter((id) => result.explanation.includes(id));
+  return [...fromPaths, ...fromRisks, ...fromExplanation].filter((id, index, ids) => ids.indexOf(id) === index).slice(0, PACKET_CAP);
+}
+
 /** Materialize bounded projections once per immutable evidence revision. */
 export function buildReviewUseCasePackets(context: AgentContext): ReviewUseCasePackets {
   const simulation = context.simulation?.available === true ? context.simulation : undefined;
@@ -71,8 +88,12 @@ export function buildReviewUseCasePackets(context: AgentContext): ReviewUseCaseP
   }
   const requirement: Record<string, { result: typeof failedRequirements[number]; implicatedComponentIds: readonly string[]; caveats: readonly string[]; relatedBottlenecks: readonly unknown[] }> = {};
   for (const result of context.requirementResults ?? []) {
-    const implicatedComponentIds = Object.values(simulation?.workloadPaths ?? {}).flatMap((channel) => channel.paths.filter((path) => path.status !== "complete").flatMap((path) => path.componentIds)).filter((id, index, ids) => ids.indexOf(id) === index).sort().slice(0, PACKET_CAP);
-    requirement[result.id] = { result, implicatedComponentIds, caveats: result.passed ? [] : ["Status and actual values come from the deterministic simulator."], relatedBottlenecks: risks?.ok ? risks.data.risks.slice(0, PACKET_CAP) : [] };
+    requirement[result.id] = {
+      result,
+      implicatedComponentIds: implicatedComponentIdsForRequirement(result, context, risks?.ok ? risks.data.risks : []),
+      caveats: result.passed ? [] : ["Status and actual values come from the deterministic simulator."],
+      relatedBottlenecks: risks?.ok ? risks.data.risks.slice(0, PACKET_CAP) : [],
+    };
   }
   const workload = Object.fromEntries(Object.entries(simulation?.workloadPaths ?? {}).map(([id, channel]) => [id, { channel }])) as ReviewUseCasePackets["workload"];
   const cost = getCostBreakdown(context);
@@ -231,10 +252,16 @@ export function buildReviewCurrentDesignOutput(context: AgentContext, input: Rev
     const id = input.targetId ?? (focus.focus.kind === "requirement" ? focus.focus.requirementId : session.pendingHelpRequest?.requirementId) ?? failed[0]?.id;
     const packetRequirement = id ? context.reviewPackets?.requirement[id] : undefined;
     const fallbackRequirement = context.requirementResults?.find((candidate) => candidate.id === id);
-    const requirement = packetRequirement ?? (fallbackRequirement ? { result: fallbackRequirement, implicatedComponentIds: [], caveats: [], relatedBottlenecks: [] } : undefined);
-    if (!requirement) return capabilityError("INVALID_INPUT", "requirement_failure targetId must name a current simulator requirement.");
-    const risks = context.reviewPackets ? { ok: true as const, data: { risks: requirement.relatedBottlenecks } } : inspectBottlenecks(context);
-    const built = capabilityOk({ ...common, requirement: { ...requirement.result, implicatedComponentIds: requirement.implicatedComponentIds, caveats: requirement.caveats, relatedBottlenecks: risks.ok ? risks.data.risks.slice(0, 3) : [] }, suggestedNextTools: [suggested("inspect_bottlenecks", "Trace the simulator-reported risks behind this result."), suggested("get_metrics", "Read the compact system outcomes.")] });
+    if (!packetRequirement && !fallbackRequirement) return capabilityError("INVALID_INPUT", "requirement_failure targetId must name a current simulator requirement.");
+    const liveRisks = context.reviewPackets ? undefined : inspectBottlenecks(context);
+    const relatedBottlenecks = packetRequirement?.relatedBottlenecks.slice(0, 3) ?? (liveRisks?.ok ? liveRisks.data.risks.slice(0, 3) : []);
+    const implicatedComponentIds = packetRequirement?.implicatedComponentIds.length
+      ? packetRequirement.implicatedComponentIds
+      : fallbackRequirement
+        ? implicatedComponentIdsForRequirement(fallbackRequirement, context, liveRisks?.ok ? liveRisks.data.risks : [])
+        : [];
+    const requirement = packetRequirement ?? { result: fallbackRequirement!, implicatedComponentIds, caveats: [] as const, relatedBottlenecks };
+    const built = capabilityOk({ ...common, requirement: { ...requirement.result, implicatedComponentIds, caveats: requirement.caveats, relatedBottlenecks }, suggestedNextTools: [suggested("inspect_bottlenecks", "Trace the simulator-reported risks behind this result."), suggested("get_metrics", "Read the compact system outcomes.")] });
     return built.ok ? capabilityOk(applyKnownState(context, built.data, input, session, surfaceRevision)) : built;
   }
   if (intent === "workload_trace") {

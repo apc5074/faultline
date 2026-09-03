@@ -46,6 +46,9 @@ assert.deepEqual(getToolRoutingRule("relationship").allowedFallbackCapabilityNam
 assert.deepEqual(getToolRoutingRule("workload_path").allowedFallbackCapabilityNames, ["review_current_design"]);
 assert.equal(getToolRoutingRule("system_health").preferredCapabilityName, "get_metrics");
 assert.equal(getToolRoutingRule("requirement_failure").preferredCapabilityName, "review_current_design");
+assert.deepEqual(getToolRoutingRule("requirement_failure").positiveExamples, ["tell me about the first error", "tell me what went wrong", "Why is there an error?", "What broke?"]);
+assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /primary implicated component/);
+assert.match(getToolRoutingRule("requirement_failure").selectionGuidance, /focuses and zooms/);
 assert.equal(getToolRoutingRule("overview").preferredCapabilityName, "review_current_design");
 assert.equal(getToolRoutingRule("cost").preferredCapabilityName, "get_cost_breakdown");
 assert.equal(getToolRoutingRule("cache").preferredCapabilityName, "inspect_cache");
@@ -66,6 +69,9 @@ assert.match(TOOL_ROUTING_GUIDANCE, /current-state read/);
 assert.match(TOOL_ROUTING_GUIDANCE, /earlier evidence revision/);
 assert.match(TOOL_ROUTING_GUIDANCE, /interview me/);
 assert.match(TOOL_ROUTING_GUIDANCE, /never invent a freeform/i);
+assert.match(TOOL_ROUTING_GUIDANCE, /error, failure, bottleneck/);
+assert.match(TOOL_ROUTING_GUIDANCE, /requirement_failure/);
+assert.match(TOOL_ROUTING_GUIDANCE, /focus-and-zoom/);
 assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Hard rule/);
 assert.match(getToolRoutingRule("design_interview").selectionGuidance, /Never invent a freeform/);
 

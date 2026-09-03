@@ -51,6 +51,17 @@ const registered = [];
 const intents = [];
 const presentationCues = [];
 const controller = new AbortController();
+const appliedReceipt = (command) => ({
+  contractVersion: command.contractVersion,
+  commandId: command.commandId,
+  componentId: command.component.entityId,
+  evidenceRevision: command.evidenceRevision,
+  appliedSessionRevision: command.sessionRevision + 1,
+  annotationStatus: "rendered",
+  cameraStatus: "centered",
+  appliedZoom: 1.5,
+  status: "applied",
+});
 const result = await registerAgentWebMcpSurface({
   modelContext: {
     async registerTool(tool, { signal }) {
@@ -64,6 +75,7 @@ const result = await registerAgentWebMcpSurface({
   development: true,
   onVisualIntent: (intent) => intents.push(intent),
   onPresentationCue: (cue) => presentationCues.push(cue),
+  onComponentExplanationPresentation: async (command) => appliedReceipt(command),
 });
 
 assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].filter((name) => ["review_current_design", "start_design_interview", "get_coaching_policy", "expand_design_evidence", "inspect_design_entity", "inspect_component_option", "compare_design_evidence", "get_architecture", "inspect_component", "estimate_capacity", "get_metrics", "get_cost_breakdown"].includes(name)));
@@ -109,9 +121,11 @@ const compactFailure = await reviewTool.execute({
   knownEvidenceRevision: "production-rev",
 }, {});
 assert.equal(compactFailure.ok, true);
-assert.equal(presentationCues.length, 4, "unchanged first-error review still publishes its grounded location");
-assert.equal(presentationCues[3].reason, "error-location");
-assert.equal(presentationCues[3].targets[0].entityId, "service-2");
+assert.equal(presentationCues.length, 3, "first-error review uses the inspect_component focus-and-zoom barrier instead of an advisory cue");
+assert.equal(compactFailure.data.presentation.reason, "error-location");
+assert.equal(compactFailure.data.presentation.targets[0].entityId, "service-2");
+assert.equal(intents.at(-1)?.annotation.type, "focus");
+assert.equal(intents.at(-1)?.annotation.componentId, "service-2");
 
 controller.abort();
 const aborted = await registerAgentWebMcpSurface({
