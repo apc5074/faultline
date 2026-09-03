@@ -22,7 +22,7 @@ const pubsubFlashes = new Map<string, number>();
 /** Useful CDN arrivals; separate from the animation version to avoid visual spam. */
 const cdnUsefulArrivalCounts = new Map<string, number>();
 const cdnPassCounts = new Map<string, number>();
-const cacheHitFlashes = new Map<string, number>();
+const cacheHitFlashes = new Map<string, { tick: number; slotIdx: number }>();
 const componentVisualAccrual = new Map<string, number>();
 const authoritativeSpawnAccrual = new Map<string, number>();
 const authoritativeForwardAccrual = new Map<string, number>();
@@ -36,7 +36,7 @@ const rejectionCounts = new Map<string, number>();
  */
 export const MAX_VISIBLE_REJECTED_PER_COMPONENT = 3;
 /** A cache hit is a brief acknowledgement, not sustained component motion. */
-export const CACHE_HIT_FLASH_TICKS = 5;
+export const CACHE_HIT_FLASH_TICKS = 20;
 
 /** Cache activity samples the simulator's realized cache usefulness exactly. */
 export function redisVisualSampleRate(realizedHitRate: number): number {
@@ -338,7 +338,10 @@ export function tickSimulation(
           if (comp.type === "load_balancer") swingArm(comp, next);
           return [hopPacket(traveling, next.id, false)];
         }
-        if (comp.type === "cache" && traveling.cacheVisualActive) cacheHitFlashes.set(comp.id, tick);
+        if (comp.type === "cache" && traveling.cacheVisualActive) {
+          const cap = Math.max(1, comp.capacity);
+          cacheHitFlashes.set(comp.id, { tick, slotIdx: Math.floor(Math.random() * cap) });
+        }
         completeRoundTrip(traveling, newRouteLingers);
         return [];
       }
@@ -535,8 +538,8 @@ export function tickSimulation(
     const passCount =
       comp.type === "cdn" ? (cdnPassCounts.get(comp.id) ?? comp.passCount ?? 0) : comp.passCount;
 
-    const cacheHitFlash =
-      comp.type === "cache" && tick - (cacheHitFlashes.get(comp.id) ?? -Infinity) < CACHE_HIT_FLASH_TICKS;
+    const cacheFlashEntry = comp.type === "cache" ? cacheHitFlashes.get(comp.id) : undefined;
+    const cacheHitFlash = cacheFlashEntry !== undefined && tick - cacheFlashEntry.tick < CACHE_HIT_FLASH_TICKS;
 
     let state = comp.state;
     if (state !== "failed") {
@@ -556,7 +559,8 @@ export function tickSimulation(
     const mechanismCount = Math.max(
       0,
       comp.type === "cache"
-        ? 0
+        // Cache: one lit cell per dwelling packet, matching Figma reference.
+        ? processingDwellers.length
         : comp.type === "server"
           // ServerGlyph bays represent the configured pool, not individual
           // packets. Average dwellers across instances so a burst does not
@@ -568,12 +572,15 @@ export function tickSimulation(
     return {
       ...comp,
       state: comp.type !== "cache" && scale <= 0 && state === "processing" ? "idle" : state,
-      processingPackets: comp.type === "cache" ? [] : processingPackets,
+      processingPackets,
       armAngle,
       passCount: comp.type === "cdn" ? Math.round((passCount ?? 0) * scale) : passCount,
       cacheHitFlash: comp.type === "cache" ? cacheHitFlash : scale > 0 && cacheHitFlash,
       mechanismCount,
-      processingSlotIndices: undefined,
+      // Use the flash slot index for cache cell placement variety when available
+      processingSlotIndices: comp.type === "cache" && cacheFlashEntry !== undefined
+        ? [cacheFlashEntry.slotIdx]
+        : undefined,
       rejectedCount: rejectionCounts.get(comp.id) || undefined,
     };
   });

@@ -6,7 +6,17 @@ import {
   type GlyphState,
 } from "./glyph-types";
 
-function DiagonalHatch({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+function DiagonalHatch({
+  x,
+  y,
+  w,
+  h,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}) {
   const lines = [];
   const step = 6;
   for (let i = -h; i < w + h; i += step) {
@@ -35,7 +45,19 @@ function DiagonalHatch({ x, y, w, h }: { x: number; y: number; w: number; h: num
   );
 }
 
-function CornerTicks({ x, y, w, h, gap = 2 }: { x: number; y: number; w: number; h: number; gap?: number }) {
+function CornerTicks({
+  x,
+  y,
+  w,
+  h,
+  gap = 2,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  gap?: number;
+}) {
   const len = 6;
   return (
     <g stroke={GLYPH_INK.ink} strokeWidth={1}>
@@ -84,7 +106,11 @@ function ServerGlyph({
     <g>
       {!mini &&
         Array.from({ length: stack }).map((_, i) => (
-          <g key={i} opacity={0.35} transform={`translate(${(i + 1) * 3}, ${(i + 1) * 3})`}>
+          <g
+            key={i}
+            opacity={0.35}
+            transform={`translate(${(i + 1) * 3}, ${(i + 1) * 3})`}
+          >
             <rect
               x={tx}
               y={4}
@@ -97,7 +123,9 @@ function ServerGlyph({
           </g>
         ))}
       <rect x={tx} y={4} width={tw} height={h} fill={GLYPH_INK.paper} {...op} />
-      {isFailingGlyphState(state) && <DiagonalHatch x={tx} y={4} w={tw} h={h} />}
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch x={tx} y={4} w={tw} h={h} />
+      )}
       {!mini &&
         Array.from({ length: bays }).map((_, i) => {
           const on = i < filled;
@@ -123,7 +151,9 @@ function ServerGlyph({
             </g>
           );
         })}
-      {state === "selected" && <CornerTicks x={tx} y={4} w={tw} h={h} gap={5} />}
+      {state === "selected" && (
+        <CornerTicks x={tx} y={4} w={tw} h={h} gap={5} />
+      )}
     </g>
   );
 }
@@ -160,7 +190,14 @@ function LoadBalancerGlyph({
             transition: "transform 0.18s ease-out",
           }}
         >
-          <line x1={cx} y1={cy} x2={cx + armLen} y2={cy} stroke={GLYPH_INK.ink} strokeWidth={2} />
+          <line
+            x1={cx}
+            y1={cy}
+            x2={cx + armLen}
+            y2={cy}
+            stroke={GLYPH_INK.ink}
+            strokeWidth={2}
+          />
           <circle cx={cx + armLen} cy={cy} r={2.25} fill={GLYPH_INK.ink} />
         </g>
       )}
@@ -177,7 +214,6 @@ function CacheGlyph({
   capacity = 16,
   processingCount = 0,
   processingSlotIndices,
-  cacheHitFlash = false,
   mini = false,
 }: {
   state: GlyphState;
@@ -186,67 +222,45 @@ function CacheGlyph({
   capacity?: number;
   processingCount?: number;
   processingSlotIndices?: readonly number[];
-  cacheHitFlash?: boolean;
   mini?: boolean;
 }) {
   const op = outlineProps(state);
   const cols = Math.ceil(Math.sqrt(capacity));
   const rows = Math.ceil(capacity / cols);
-  const cw = w / cols;
-  const ch = h / rows;
+  // 4px outer border + 4px inner padding = 8px total inset on each axis, matching Figma reference
+  const cw = (w - 8) / cols;
+  const ch = (h - 8) / rows;
   const filled = Math.min(processingCount, capacity);
-  const slotOrder =
+  // Use provided slot order for randomised fills, else fill sequentially from index 0
+  const filledSet = new Set(
     processingSlotIndices && processingSlotIndices.length > 0
-      ? processingSlotIndices
-      : Array.from({ length: filled }, (_, index) => index);
+      ? processingSlotIndices.slice(0, filled)
+      : Array.from({ length: filled }, (_, i) => i),
+  );
 
   return (
     <g>
       <rect x={4} y={4} width={w} height={h} fill={GLYPH_INK.paper} {...op} />
       {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
-      {!mini && (
-        <>
-          {Array.from({ length: cols - 1 }).map((_, i) => (
-            <line
-              key={`v${i}`}
-              x1={4 + (i + 1) * cw}
-              y1={4}
-              x2={4 + (i + 1) * cw}
-              y2={4 + h}
-              stroke={GLYPH_INK.ink}
-              strokeWidth={0.5}
-            />
-          ))}
-          {Array.from({ length: rows - 1 }).map((_, i) => (
-            <line
-              key={`h${i}`}
-              x1={4}
-              y1={4 + (i + 1) * ch}
-              x2={4 + w}
-              y2={4 + (i + 1) * ch}
-              stroke={GLYPH_INK.ink}
-              strokeWidth={0.5}
-            />
-          ))}
-          {cacheHitFlash ? (
-            <rect x={4 + 1.5} y={4 + 1.5} width={cw - 3} height={ch - 3} fill={GLYPH_INK.ink} />
-          ) : null}
-          {slotOrder.slice(0, filled).map((idx) => {
-            const r = Math.floor(idx / cols);
-            const c = idx % cols;
+      {!mini &&
+        Array.from({ length: rows }).flatMap((_, r) =>
+          Array.from({ length: cols }).map((_, c) => {
+            const idx = r * cols + c;
+            if (idx >= capacity) return null;
             return (
               <rect
                 key={idx}
-                x={4 + c * cw + 1.5}
-                y={4 + r * ch + 1.5}
-                width={cw - 3}
-                height={ch - 3}
-                fill={GLYPH_INK.ink}
+                x={8 + c * cw}
+                y={8 + r * ch}
+                width={cw - 1.5}
+                height={ch - 1.5}
+                fill={filledSet.has(idx) ? GLYPH_INK.ink : "none"}
+                stroke={GLYPH_INK.ink}
+                strokeWidth={0.4}
               />
             );
-          })}
-        </>
-      )}
+          }),
+        )}
       {state === "selected" && <CornerTicks x={4} y={4} w={w} h={h} />}
     </g>
   );
@@ -300,11 +314,29 @@ function SqlDbGlyph({
       {!mini &&
         Array.from({ length: Math.min(replicas, 2) }).map((_, i) => (
           <g key={i} opacity={0.35} transform={`translate(${(i + 1) * 8}, 0)`}>
-            <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill={GLYPH_INK.paper} stroke={GLYPH_INK.ink} strokeWidth={0.75} />
-            <path d={bodyPath} fill={GLYPH_INK.paper} stroke={GLYPH_INK.ink} strokeWidth={0.75} />
+            <ellipse
+              cx={cx}
+              cy={topY}
+              rx={rx}
+              ry={ry}
+              fill={GLYPH_INK.paper}
+              stroke={GLYPH_INK.ink}
+              strokeWidth={0.75}
+            />
+            <path
+              d={bodyPath}
+              fill={GLYPH_INK.paper}
+              stroke={GLYPH_INK.ink}
+              strokeWidth={0.75}
+            />
           </g>
         ))}
-      <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
+      <path
+        d={bodyPath}
+        fill={GLYPH_INK.paper}
+        stroke={op.stroke}
+        strokeWidth={op.strokeWidth}
+      />
       {!mini &&
         Array.from({ length: bands }).map((_, i) => {
           // Fill from the bottom of the cylinder upward.
@@ -312,18 +344,44 @@ function SqlDbGlyph({
           if (fromBottom >= lit) return null;
           const y0 = topY + i * bandH;
           const y1 = topY + (i + 1) * bandH;
-          return <path key={i} d={bandPath(y0, y1)} fill="url(#postgres-pressure-meter)" />;
+          return (
+            <path
+              key={i}
+              d={bandPath(y0, y1)}
+              fill="url(#postgres-pressure-meter)"
+            />
+          );
         })}
       {!mini && lit > 0 ? (
         <defs>
-          <pattern id="postgres-pressure-meter" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <pattern
+            id="postgres-pressure-meter"
+            width="4"
+            height="4"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
             <rect width="4" height="4" fill={GLYPH_INK.paper} />
-            <path d="M 0 1.25 H 4" fill="none" stroke={GLYPH_INK.ink} strokeWidth="0.8" />
+            <path
+              d="M 0 1.25 H 4"
+              fill="none"
+              stroke={GLYPH_INK.ink}
+              strokeWidth="0.8"
+            />
           </pattern>
         </defs>
       ) : null}
-      <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
-      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />}
+      <ellipse
+        cx={cx}
+        cy={topY}
+        rx={rx}
+        ry={ry}
+        fill={GLYPH_INK.paper}
+        {...op}
+      />
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch x={4} y={topY} w={w} h={bodyH} />
+      )}
       {!mini &&
         Array.from({ length: bands - 1 }).map((_, i) => {
           // Skip rims buried inside the bottom-up fill — paper chords looked like
@@ -339,8 +397,15 @@ function SqlDbGlyph({
             />
           );
         })}
-      <path d={rimArc(bottomY)} fill="none" stroke={op.stroke} strokeWidth={op.strokeWidth * 1.25} />
-      {state === "selected" && <CornerTicks x={4} y={4} w={w} h={bodyH + ry * 2} />}
+      <path
+        d={rimArc(bottomY)}
+        fill="none"
+        stroke={op.stroke}
+        strokeWidth={op.strokeWidth * 1.25}
+      />
+      {state === "selected" && (
+        <CornerTicks x={4} y={4} w={w} h={bodyH + ry * 2} />
+      )}
     </g>
   );
 }
@@ -371,14 +436,39 @@ function NosqlDbGlyph({
   const ridges = Math.max(1, Math.min(16, Math.floor(documentSlots)));
   const lit = Math.min(processingCount, ridges);
   const bodyPath = `M ${cx - rx} ${topCy} L ${cx - rx} ${bottomY} A ${rx} ${ry} 0 0 0 ${cx + rx} ${bottomY} L ${cx + rx} ${topCy} Z`;
-  const rimArc = (y: number) => `M ${cx - rx} ${y} A ${rx} ${ry} 0 0 0 ${cx + rx} ${y}`;
+  const rimArc = (y: number) =>
+    `M ${cx - rx} ${y} A ${rx} ${ry} 0 0 0 ${cx + rx} ${y}`;
 
   return (
     <g>
-      <path d={bodyPath} fill={GLYPH_INK.paper} stroke={op.stroke} strokeWidth={op.strokeWidth} />
-      <ellipse cx={cx} cy={topCy} rx={rx} ry={ry} fill={GLYPH_INK.paper} {...op} />
-      {!mini && <ellipse cx={cx} cy={topCy} rx={rx * 0.55} ry={ry * 0.55} fill="none" stroke={GLYPH_INK.ink} strokeWidth={0.75} />}
-      {isFailingGlyphState(state) && <DiagonalHatch x={cx - rx} y={topCy} w={rx * 2} h={bottomY - topCy} />}
+      <path
+        d={bodyPath}
+        fill={GLYPH_INK.paper}
+        stroke={op.stroke}
+        strokeWidth={op.strokeWidth}
+      />
+      <ellipse
+        cx={cx}
+        cy={topCy}
+        rx={rx}
+        ry={ry}
+        fill={GLYPH_INK.paper}
+        {...op}
+      />
+      {!mini && (
+        <ellipse
+          cx={cx}
+          cy={topCy}
+          rx={rx * 0.55}
+          ry={ry * 0.55}
+          fill="none"
+          stroke={GLYPH_INK.ink}
+          strokeWidth={0.75}
+        />
+      )}
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch x={cx - rx} y={topCy} w={rx * 2} h={bottomY - topCy} />
+      )}
       {!mini &&
         Array.from({ length: ridges }).map((_, i) => {
           const x = cx - rx + 4 + (i * (rx * 2 - 8)) / (ridges - 1);
@@ -397,11 +487,28 @@ function NosqlDbGlyph({
         })}
       {!mini && (
         <>
-          <path d={rimArc(collarTop + collarH)} fill="none" stroke={GLYPH_INK.ink} strokeWidth={0.75} />
+          <path
+            d={rimArc(collarTop + collarH)}
+            fill="none"
+            stroke={GLYPH_INK.ink}
+            strokeWidth={0.75}
+          />
         </>
       )}
-      <path d={rimArc(bottomY)} fill="none" stroke={op.stroke} strokeWidth={op.strokeWidth * 1.25} />
-      {state === "selected" && <CornerTicks x={cx - rx} y={topCy - ry} w={rx * 2} h={bottomY - topCy + ry * 2} />}
+      <path
+        d={rimArc(bottomY)}
+        fill="none"
+        stroke={op.stroke}
+        strokeWidth={op.strokeWidth * 1.25}
+      />
+      {state === "selected" && (
+        <CornerTicks
+          x={cx - rx}
+          y={topCy - ry}
+          w={rx * 2}
+          h={bottomY - topCy + ry * 2}
+        />
+      )}
     </g>
   );
 }
@@ -435,7 +542,15 @@ function QueueGlyph({
       {isFailingGlyphState(state) && <DiagonalHatch x={4} y={4} w={w} h={h} />}
       {!mini && (
         <>
-          <rect x={8} y={8} width={w - 16} height={h - 16} fill="none" stroke={GLYPH_INK.inkHairline} strokeWidth={0.5} />
+          <rect
+            x={8}
+            y={8}
+            width={w - 16}
+            height={h - 16}
+            fill="none"
+            stroke={GLYPH_INK.inkHairline}
+            strokeWidth={0.5}
+          />
           {Array.from({ length: slots }).map((_, i) => (
             <rect
               key={i}
@@ -579,7 +694,8 @@ function CdnGlyph({
   const r =
     Math.min(w, h) *
     (machineSize === "small" ? 0.11 : machineSize === "large" ? 0.145 : 0.13);
-  const linkWidth = machineSize === "large" ? 1.35 : machineSize === "small" ? 0.75 : 1;
+  const linkWidth =
+    machineSize === "large" ? 1.35 : machineSize === "small" ? 0.75 : 1;
 
   return (
     <g>
@@ -648,9 +764,25 @@ function ObjectStorageGlyph({
   return (
     <g>
       <path d={body} fill={GLYPH_INK.paper} {...op} />
-      {!mini && <path d={handle} fill="none" stroke={op.stroke} strokeWidth={1.5} />}
-      <rect x={rimX} y={rimY} width={rimW} height={rimH} fill={GLYPH_INK.paper} {...op} />
-      {isFailingGlyphState(state) && <DiagonalHatch x={topL} y={rimY + rimH} w={topR - topL} h={botY - rimY - rimH} />}
+      {!mini && (
+        <path d={handle} fill="none" stroke={op.stroke} strokeWidth={1.5} />
+      )}
+      <rect
+        x={rimX}
+        y={rimY}
+        width={rimW}
+        height={rimH}
+        fill={GLYPH_INK.paper}
+        {...op}
+      />
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch
+          x={topL}
+          y={rimY + rimH}
+          w={topR - topL}
+          h={botY - rimY - rimH}
+        />
+      )}
       {!mini &&
         Array.from({ length: items }).map((_, i) => (
           <line
@@ -702,7 +834,9 @@ function ApiGatewayGlyph({
     <g>
       <polygon points={leftTrap} fill={GLYPH_INK.paper} {...op} />
       <polygon points={rightTrap} fill={GLYPH_INK.paper} {...op} />
-      {isFailingGlyphState(state) && <DiagonalHatch x={left} y={cy - wide} w={w} h={wide * 2} />}
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch x={left} y={cy - wide} w={w} h={wide * 2} />
+      )}
       {!mini &&
         dotRows.map((dy, ri) =>
           dotCols.map((dx, ci) => {
@@ -714,14 +848,28 @@ function ApiGatewayGlyph({
                 y={dy - 1.75}
                 width={3.5}
                 height={3.5}
-                fill={ri < rejected ? GLYPH_INK.signalRed : on ? GLYPH_INK.ink : "none"}
-                stroke={ri < rejected ? GLYPH_INK.signalRed : on ? GLYPH_INK.ink : GLYPH_INK.inkHairline}
+                fill={
+                  ri < rejected
+                    ? GLYPH_INK.signalRed
+                    : on
+                      ? GLYPH_INK.ink
+                      : "none"
+                }
+                stroke={
+                  ri < rejected
+                    ? GLYPH_INK.signalRed
+                    : on
+                      ? GLYPH_INK.ink
+                      : GLYPH_INK.inkHairline
+                }
                 strokeWidth={0.5}
               />
             );
           }),
         )}
-      {state === "selected" && <CornerTicks x={left} y={cy - wide} w={w} h={wide * 2} />}
+      {state === "selected" && (
+        <CornerTicks x={left} y={cy - wide} w={w} h={wide * 2} />
+      )}
     </g>
   );
 }
@@ -753,10 +901,19 @@ function DnsGlyph({
   return (
     <g>
       <polygon points={points} fill={GLYPH_INK.paper} {...op} />
-      {isFailingGlyphState(state) && <DiagonalHatch x={4} y={topOuterY} w={w} h={botOuterY - topOuterY} />}
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch x={4} y={topOuterY} w={w} h={botOuterY - topOuterY} />
+      )}
       {!mini && (
         <>
-          <line x1={cx} y1={peakY} x2={cx} y2={botSpineY} stroke={GLYPH_INK.ink} strokeWidth={1} />
+          <line
+            x1={cx}
+            y1={peakY}
+            x2={cx}
+            y2={botSpineY}
+            stroke={GLYPH_INK.ink}
+            strokeWidth={1}
+          />
           {Array.from({ length: rows }).map((_, i) => {
             const f = 0.35 + i * 0.2;
             const active = i < (answerCount ?? processingCount);
@@ -780,8 +937,22 @@ function DnsGlyph({
             const rowW = active ? 1.25 : 0.5;
             return (
               <g key={i}>
-                <line x1={lx0} y1={ly(lx0)} x2={lx1} y2={ly(lx1)} stroke={stroke} strokeWidth={rowW} />
-                <line x1={rx0} y1={ry(rx0)} x2={rx1} y2={ry(rx1)} stroke={stroke} strokeWidth={rowW} />
+                <line
+                  x1={lx0}
+                  y1={ly(lx0)}
+                  x2={lx1}
+                  y2={ly(lx1)}
+                  stroke={stroke}
+                  strokeWidth={rowW}
+                />
+                <line
+                  x1={rx0}
+                  y1={ry(rx0)}
+                  x2={rx1}
+                  y2={ry(rx1)}
+                  stroke={stroke}
+                  strokeWidth={rowW}
+                />
               </g>
             );
           })}
@@ -820,11 +991,27 @@ function GlobalRouterGlyph({
 
   return (
     <g>
-      <rect x={gateX} y={4} width={gateW} height={h} fill={GLYPH_INK.paper} {...op} />
-      {isFailingGlyphState(state) && <DiagonalHatch x={gateX} y={4} w={gateW} h={h} />}
+      <rect
+        x={gateX}
+        y={4}
+        width={gateW}
+        height={h}
+        fill={GLYPH_INK.paper}
+        {...op}
+      />
+      {isFailingGlyphState(state) && (
+        <DiagonalHatch x={gateX} y={4} w={gateW} h={h} />
+      )}
       {!mini && (
         <>
-          <circle cx={cx} cy={cy} r={compassR} fill="none" stroke={GLYPH_INK.inkHairline} strokeWidth={0.75} />
+          <circle
+            cx={cx}
+            cy={cy}
+            r={compassR}
+            fill="none"
+            stroke={GLYPH_INK.inkHairline}
+            strokeWidth={0.75}
+          />
           <line
             x1={cx}
             y1={cy - compassR}
@@ -899,7 +1086,17 @@ function FallbackGlyph({
   );
 }
 
-function UserGlyph({ state, w, h, mini = false }: { state: GlyphState; w: number; h: number; mini?: boolean }) {
+function UserGlyph({
+  state,
+  w,
+  h,
+  mini = false,
+}: {
+  state: GlyphState;
+  w: number;
+  h: number;
+  mini?: boolean;
+}) {
   const op = outlineProps(state);
   const cx = 4 + w / 2;
   const cy = 4 + h / 2;
@@ -950,8 +1147,16 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
   const shared = { state, w, h, mini };
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} overflow="visible" aria-hidden="true">
-      {type === "fallback" && <FallbackGlyph {...shared} label={fallbackLabel} />}
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      overflow="visible"
+      aria-hidden="true"
+    >
+      {type === "fallback" && (
+        <FallbackGlyph {...shared} label={fallbackLabel} />
+      )}
       {type === "server" && (
         <ServerGlyph
           {...shared}
@@ -960,14 +1165,15 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
           machineSize={machineSize}
         />
       )}
-      {type === "load_balancer" && <LoadBalancerGlyph {...shared} armAngle={armAngle} />}
+      {type === "load_balancer" && (
+        <LoadBalancerGlyph {...shared} armAngle={armAngle} />
+      )}
       {type === "cache" && (
         <CacheGlyph
           {...shared}
           capacity={capacity}
           processingCount={processingCount}
           processingSlotIndices={processingSlotIndices}
-          cacheHitFlash={cacheHitFlash}
         />
       )}
       {type === "sql_db" && (
@@ -980,10 +1186,19 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
         />
       )}
       {type === "nosql_db" && (
-        <NosqlDbGlyph {...shared} processingCount={processingCount} documentSlots={documentSlots} />
+        <NosqlDbGlyph
+          {...shared}
+          processingCount={processingCount}
+          documentSlots={documentSlots}
+        />
       )}
       {type === "queue" && (
-        <QueueGlyph {...shared} depth={depth} slotCount={slotCount} queueDepth={queueDepth ?? processingCount} />
+        <QueueGlyph
+          {...shared}
+          depth={depth}
+          slotCount={slotCount}
+          queueDepth={queueDepth ?? processingCount}
+        />
       )}
       {type === "pubsub" && (
         <PubSubGlyph
@@ -993,14 +1208,30 @@ export function ComponentGlyph(props: ComponentGlyphProps) {
           deliveryCount={deliveryCount}
         />
       )}
-      {type === "cdn" && <CdnGlyph {...shared} passCount={passCount} machineSize={machineSize} />}
+      {type === "cdn" && (
+        <CdnGlyph {...shared} passCount={passCount} machineSize={machineSize} />
+      )}
       {type === "object_storage" && (
-        <ObjectStorageGlyph {...shared} processingCount={processingCount} objectMarks={objectMarks} />
+        <ObjectStorageGlyph
+          {...shared}
+          processingCount={processingCount}
+          objectMarks={objectMarks}
+        />
       )}
       {type === "api_gateway" && (
-        <ApiGatewayGlyph {...shared} processingCount={processingCount} rejectedCount={rejectedCount} />
+        <ApiGatewayGlyph
+          {...shared}
+          processingCount={processingCount}
+          rejectedCount={rejectedCount}
+        />
       )}
-      {type === "dns" && <DnsGlyph {...shared} processingCount={processingCount} answerCount={answerCount} />}
+      {type === "dns" && (
+        <DnsGlyph
+          {...shared}
+          processingCount={processingCount}
+          answerCount={answerCount}
+        />
+      )}
       {type === "global_router" && <GlobalRouterGlyph {...shared} />}
       {type === "user" && <UserGlyph {...shared} />}
     </svg>
