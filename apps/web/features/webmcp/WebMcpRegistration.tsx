@@ -2,7 +2,7 @@
 
 import { createDefaultCapabilityRegistry } from "@faultline/agent-capabilities";
 import type { ComponentCameraApplication, InterviewService, PresentationCue } from "@faultline/agent-capabilities";
-import { getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type WebMcpRegistrationGroup, type WebMcpTraceEvent, type WebMcpTimingEvent } from "@faultline/webmcp";
+import { createCoachingSessionGate, getWebMcpModelContext, registerAgentWebMcpSurface, WEBMCP_REGISTRATION_DEADLINE_MS, type CoachingSessionGate, type WebMcpRegistrationGroup, type WebMcpTraceEvent, type WebMcpTimingEvent } from "@faultline/webmcp";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -42,6 +42,7 @@ function useWebMcpGroupRegistration({
   onInvocationObserved,
   onStatus,
   interviewService,
+  coachingSessionGate,
 }: {
   group: WebMcpRegistrationGroup;
   reconciliationKey: string;
@@ -55,6 +56,7 @@ function useWebMcpGroupRegistration({
   onInvocationObserved: () => void;
   onStatus: (group: WebMcpRegistrationGroup, status: GroupStatus) => void;
   interviewService?: InterviewService;
+  coachingSessionGate: CoachingSessionGate;
 }) {
   const generationRef = useRef(0);
   const visualRef = useRef(onVisualIntent);
@@ -94,11 +96,11 @@ function useWebMcpGroupRegistration({
       if (active && event.name === "tool_callback_total_ms") invocationObservedRef.current();
       emitWebMcpTelemetry(event);
     };
-    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, generation: event.generation, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason, selectorScope: event.selectorScope, matchedCount: event.matchedCount, retried: event.retried, interviewId: event.interviewId, questionId: event.questionId, interviewTransition: event.interviewTransition, evaluationVerdict: event.evaluationVerdict });
+    const trace = process.env.NODE_ENV === "production" ? undefined : (event: WebMcpTraceEvent) => emitWebMcpTelemetry({ kind: "trace", traceName: event.name, capability: event.capability, group: event.group, generation: event.generation, inputShape: event.inputShape, evidenceRevision: event.evidenceRevision, targetCount: event.targetCount, reason: event.reason, selectorScope: event.selectorScope, matchedCount: event.matchedCount, retried: event.retried, errorCode: event.errorCode, interviewId: event.interviewId, questionId: event.questionId, interviewTransition: event.interviewTransition, evaluationVerdict: event.evaluationVerdict });
     void registerAgentWebMcpSurface({
       modelContext, registry, getContext: (signal) => evidenceSource.getSnapshot(signal),
       getCurrentEvidenceRevision: () => evidenceSource.getEvidenceRevision(), signal: controller.signal,
-      development: process.env.NODE_ENV === "development", group, timing, trace,
+      development: process.env.NODE_ENV === "development", group, timing, trace, coachingSessionGate,
       onVisualIntent: (intent) => visualRef.current?.(intent),
       onFocusComponent: (componentId) => focusComponentRef.current?.(componentId),
       ...(componentExplanationRef.current ? { onComponentExplanationPresentation: (command, options) => componentExplanationRef.current!(command, options) } : {}),
@@ -167,6 +169,9 @@ export function WebMcpRegistration({
   const componentExplanationBarrierRef = useRef(componentExplanationBarrier);
   componentExplanationBarrierRef.current = componentExplanationBarrier;
   const registry = useMemo(() => createDefaultCapabilityRegistry(), []);
+  const coachingSessionGateRef = useRef<CoachingSessionGate | null>(null);
+  if (!coachingSessionGateRef.current) coachingSessionGateRef.current = createCoachingSessionGate();
+  const coachingSessionGate = coachingSessionGateRef.current;
   const interviewService = useInterviewService();
   const onVisualIntent = useMemo(
     () => createVisualCommandPublisher(sessionStore, {
@@ -212,10 +217,10 @@ export function WebMcpRegistration({
   }, []);
 
   const stableKey = reconciliationKey.split(":", 1)[0] ?? reconciliationKey;
-  useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onComponentExplanationPresentation: componentExplanationPresentation, onInvocationObserved, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onInvocationObserved, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onInvocationObserved, onStatus: onGroupStatus });
-  useWebMcpGroupRegistration({ group: "stable-interview", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onFocusComponent, onInvocationObserved, onStatus: onGroupStatus, interviewService });
+  useWebMcpGroupRegistration({ group: "stable-review", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onComponentExplanationPresentation: componentExplanationPresentation, onInvocationObserved, onStatus: onGroupStatus, coachingSessionGate });
+  useWebMcpGroupRegistration({ group: "stable-visual", reconciliationKey: stableKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onInvocationObserved, onStatus: onGroupStatus, coachingSessionGate });
+  useWebMcpGroupRegistration({ group: "specialists", reconciliationKey, evidenceSource, registry, retryToken, onVisualIntent, onPresentationCue, onFocusComponent, onInvocationObserved, onStatus: onGroupStatus, coachingSessionGate });
+  useWebMcpGroupRegistration({ group: "stable-interview", reconciliationKey, evidenceSource, registry, retryToken, onPresentationCue, onFocusComponent, onInvocationObserved, onStatus: onGroupStatus, interviewService, coachingSessionGate });
 
   useEffect(() => {
     const statuses = Object.values(groupStatuses);

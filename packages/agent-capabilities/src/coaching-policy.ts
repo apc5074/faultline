@@ -71,7 +71,7 @@ export const REVIEWER_CONTRACT: CoachingReviewerContract = {
     {
       id: "requirement_failure",
       purpose: "Investigate a failed requirement from simulator evidence.",
-      capabilityNames: ["review_current_design", "get_requirements", "get_metrics", "inspect_bottlenecks"],
+      capabilityNames: ["review_current_design", "get_requirements", "get_metrics"],
       evidenceCategories: ["session_focus", "requirement", "simulation", "workload_path"],
       steps: [
         "When the ask names a component subject, call inspect_component for that subject; otherwise call review_current_design with requirement_failure.",

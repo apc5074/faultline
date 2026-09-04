@@ -14,7 +14,6 @@ import { getRequirementsCapability } from "./get-requirements.js";
 import { inspectComponentCapability } from "./inspect-component.js";
 import { inspectDesignEntityCapability } from "./inspect-design-entity.js";
 import { BASELINE_VISUAL_CAPABILITIES } from "./visual-capabilities.js";
-import { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 import { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
 import { reviewCurrentDesignCapability } from "./review-current-design.js";
 import { compareDesignEvidenceCapability } from "./compare-design-evidence.js";
@@ -82,7 +81,6 @@ export {
 } from "./inspect-design-entity.js";
 export type {
   InspectDesignEntityOutput,
-  InspectDesignEntityComponentOutput,
   InspectDesignEntityConnectionOutput,
   InspectDesignEntityRequirementOutput,
   InspectDesignEntityWorkloadOutput,
@@ -165,7 +163,6 @@ export {
 } from "./visual-capabilities.js";
 export type { ClearAnnotationsIntent, FocusRegionIntent, VisualAnnotationIntent } from "./visual-capabilities.js";
 export type { PinObservationIntent, PinnedObservation } from "../pin-observation.js";
-export { inspectBottlenecksCapability } from "./inspect-bottlenecks.js";
 export { inspectQueueCapability, inspectProcessingCapability, inspectObjectStorageCapability, inspectPlaybackOriginCapability } from "./inspect-level2.js";
 
 /** Phase 5 MVP capability set. Additional CAP tickets register here. */
@@ -191,7 +188,6 @@ export function createDefaultCapabilityRegistry(): AgentCapabilityRegistry {
     inspectReplicationCapability,
     inspectRegionalTrafficCapability,
     ...BASELINE_VISUAL_CAPABILITIES,
-    inspectBottlenecksCapability,
     inspectQueueCapability,
     inspectProcessingCapability,
     inspectObjectStorageCapability,

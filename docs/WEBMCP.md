@@ -30,11 +30,11 @@ The web app registers four independent production groups:
 | `specialists` | Architecture-dependent read tools. | The challenge or architecture availability fingerprint changes. |
 | `stable-interview` | Browser-owned, one-question-at-a-time design interview session. | Challenge identity changes or registration retry. |
 
-The shared production manifest (`wmp-production-1`) presently permits:
+The shared production manifest (`wmp-production-2`) presently permits:
 
 ```text
 stable-review:
-  review_current_design, get_coaching_policy, expand_design_evidence, inspect_design_entity,
+  review_current_design, get_coaching_policy, get_session_focus, expand_design_evidence, inspect_design_entity,
   inspect_component_option, compare_design_evidence, get_architecture,
   inspect_component, estimate_capacity, get_metrics, get_cost_breakdown
 
@@ -47,9 +47,8 @@ stable-visual:
 
 stable-interview:
   start_design_interview, get_design_interview, submit_interview_answer,
-  select_interview_question, follow_up_design_interview,
-  review_live_interview_scenario, submit_live_interview_critique,
-  end_design_interview, restart_design_interview
+  follow_up_design_interview, end_design_interview, restart_design_interview,
+  prepare_interview_simulation_review, submit_interview_simulation_critique
 ```
 
 Registration is not exposure. A tool must be registered in the shared registry,
@@ -133,6 +132,11 @@ new simulator truth.
 
 Each tool execution acquires a `WebMcpEvidenceLease` containing a
 `LiveAgentSnapshot`, evidence revision, surface revision, and session revision.
+Before any coaching read or visual action can execute, the page-owned coaching
+gate requires a successful `get_coaching_policy` call for the active challenge.
+`get_session_focus` remains available during that bootstrap so hosts can call it
+in parallel with the policy. Interview-session operations keep their separate
+first-tool contract.
 Before an invocation it checks current availability; every capability call goes
 through `AgentCapabilityRegistry.invoke`, which validates input. After
 execution, the adapter checks whether the lease

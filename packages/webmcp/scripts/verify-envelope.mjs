@@ -106,10 +106,10 @@ const staleTool = toWebMcpTool(registry.get("inspect_component"), {
 const staleResult = await staleTool.execute({ componentId: scopedRef.ref }, {});
 assert.equal(staleResult.ok, false, "stale continuation target cannot be read as current evidence");
 
-for (const name of ["review_current_design", "get_metrics", "get_cost_breakdown", "inspect_design_entity", "expand_design_evidence"]) {
+for (const name of ["review_current_design", "get_metrics", "get_cost_breakdown", "inspect_component", "expand_design_evidence"]) {
   const tool = toWebMcpTool(registry.get(name), { registry, getContext: () => validContext });
   const result = await tool.execute(
-    name === "inspect_design_entity" ? { kind: "component", ref: "service-1" } : name === "expand_design_evidence" ? undefined : {},
+    name === "inspect_component" ? { componentId: "service-1" } : name === "expand_design_evidence" ? undefined : {},
     {},
   );
   if (name === "expand_design_evidence") continue;

@@ -353,10 +353,6 @@ export function presentationCueForCapability(
     const components = Array.isArray(record.components) ? record.components.map(recordValue) : [];
     targets = components.map((item) => stringValue(item?.id)).filter((value): value is string => value !== undefined);
     primaryTarget = targets[0];
-  } else if (capabilityName === "inspect_bottlenecks") {
-    const risks = Array.isArray(record.risks) ? record.risks.map(recordValue) : [];
-    targets = risks.map((item) => stringValue(item?.componentId)).filter((value): value is string => value !== undefined);
-    primaryTarget = targets[0];
   } else if (capabilityName === "run_load_test" || capabilityName === "flush_cache" || capabilityName === "inject_component_failure" || capabilityName === "inject_region_failure") {
     const affected = Array.isArray(record.affectedEntityRefs) ? record.affectedEntityRefs : [];
     targets = affected.flatMap((value) => {

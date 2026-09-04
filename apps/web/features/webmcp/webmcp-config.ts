@@ -34,6 +34,7 @@ export type WebMcpTelemetryEvent = {
   readonly selectorScope?: "all" | "topmost";
   readonly matchedCount?: number;
   readonly retried?: boolean;
+  readonly errorCode?: string;
   readonly interviewId?: string;
   readonly questionId?: string;
   readonly interviewTransition?: "start" | "get" | "answer" | "follow_up" | "advance" | "prepare_review" | "submit_critique" | "end" | "restart";

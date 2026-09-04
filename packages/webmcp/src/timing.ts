@@ -33,7 +33,10 @@ export type WebMcpTraceName =
   | "visual_barrier_started"
   | "focus_component_invoked"
   | "visual_barrier_rendered"
-  | "evidence_released";
+  | "evidence_released"
+  | "coaching_policy_required"
+  | "coaching_policy_bootstrapped"
+  | "coaching_policy_reset";
 
 export interface WebMcpTraceEvent {
   readonly kind: "trace";

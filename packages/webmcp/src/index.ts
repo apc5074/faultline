@@ -1,6 +1,7 @@
 export * from "./agent-visual-surface.js";
 export * from "./visual-intent.js";
 export * from "./component-explanation-presentation.js";
+export * from "./coaching-session-gate.js";
 export * from "./annotations.js";
 export * from "./error-safety.js";
 export * from "./envelope.js";

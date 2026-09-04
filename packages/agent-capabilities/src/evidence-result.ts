@@ -41,7 +41,7 @@ interface EvidenceContinuationBase {
 
 export type EvidenceContinuation =
   | (EvidenceContinuationBase & { readonly capabilityName: "inspect_component"; readonly input: { readonly componentId: string }; readonly targetRefs: readonly [ScopedEntityReference] })
-  | (EvidenceContinuationBase & { readonly capabilityName: "inspect_design_entity"; readonly input: Extract<InspectDesignEntityInput, { readonly kind: "component" | "connection" | "requirement" | "region" | "workload"; readonly ref: string }>; readonly targetRefs: readonly [ScopedEntityReference] })
+  | (EvidenceContinuationBase & { readonly capabilityName: "inspect_design_entity"; readonly input: Extract<InspectDesignEntityInput, { readonly kind: "connection" | "requirement" | "region" | "workload"; readonly ref: string }>; readonly targetRefs: readonly [ScopedEntityReference] })
   | (EvidenceContinuationBase & { readonly capabilityName: "estimate_capacity"; readonly input: { readonly componentId: string }; readonly targetRefs: readonly [ScopedEntityReference] })
   | (EvidenceContinuationBase & { readonly capabilityName: "expand_design_evidence"; readonly input: { readonly reviewRef: string; readonly sections: readonly ReviewEvidenceSection[] }; readonly reviewRef: string })
   | (EvidenceContinuationBase & { readonly capabilityName: "compare_design_evidence"; readonly input: CompareDesignEvidenceInput; readonly targetRefs?: readonly [ScopedEntityReference] })
@@ -437,10 +437,6 @@ export function separatePlayerAuthored(
   capabilityName: string,
   data: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (capabilityName === "inspect_design_entity" && data.kind === "component" && typeof data.config === "object" && data.config !== null) {
-    const { config, ...facts } = data;
-    return { facts: { ...facts, config }, playerAuthored: { note: "Component config values are player-authored." } };
-  }
   if (capabilityName === "inspect_component" && typeof data.config === "object" && data.config !== null) {
     const { config, label, ...facts } = data;
     return {

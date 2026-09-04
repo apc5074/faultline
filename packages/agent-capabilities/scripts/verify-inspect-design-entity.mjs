@@ -6,6 +6,7 @@ import {
   createScopedEntityReference,
   inspectDesignEntity,
   inspectDesignEntityCapability,
+  inspectDesignEntityInputSchema,
   resolveInspectDesignEntityTarget,
 } from "../dist/index.js";
 
@@ -49,18 +50,7 @@ const context = {
   evidenceMeta: { architectureRevision: "entity-fixture", simulationRunId: "live-entity", simulatorVersion: "test", isStale: false, generatedAt: "fixed" },
 };
 
-const component = inspectDesignEntity(context, { kind: "component", ref: "service-1" });
-assert.equal(component.ok, true);
-if (component.ok) {
-  assert.equal(component.data.kind, "component");
-  assert.equal(component.data.entityId, "service-1");
-  assert.ok(component.data.neighbors.includes("postgres-1"));
-  assert.ok(JSON.stringify(component.data).length <= 4096);
-}
-
-const scoped = createScopedEntityReference("component", "service-1", "entity-fixture");
-assert.equal(inspectDesignEntity(context, { kind: "component", ref: scoped.ref }).ok, true);
-assert.equal(inspectDesignEntity(context, { kind: "component", ref: createScopedEntityReference("component", "service-1", "stale").ref }).ok, false);
+assert.equal(inspectDesignEntityInputSchema.safeParse({ kind: "component", ref: "service-1" }).success, false);
 
 const connection = inspectDesignEntity(context, { kind: "connection", ref: "svc-pg" });
 assert.equal(connection.ok, true);
@@ -154,7 +144,6 @@ const ambiguous = resolveInspectDesignEntityTarget("component", "service", conte
 assert.equal(ambiguous.ok, false);
 if (!ambiguous.ok) assert.ok(ambiguous.choices && ambiguous.choices.length > 1);
 
-assert.equal(inspectDesignEntity(context, { kind: "component", ref: "missing" }).ok, false);
 assert.equal(inspectDesignEntityCapability.annotations.readOnlyHint, true);
 
 const registry = createDefaultCapabilityRegistry();

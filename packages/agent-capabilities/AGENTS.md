@@ -116,9 +116,9 @@ Dynamic specialists are architecture predicates, not prompt decisions:
 
 `focus_region` and `pin_observation` are in the shared visual baseline but are
 not currently in the WebMCP production manifest. Likewise,
-`inspect_bottlenecks` is registered but not part of the normal read resolver or
-the production manifest. Do not expose any of these merely because they are
-registered.
+The `inspectBottlenecks` helper is used internally to build review packets; it
+is not a separately registered or production-exposed capability. Do not expose
+internal evidence helpers merely because their logic is useful to a review.
 
 ## Where to make a change
 

@@ -28,6 +28,7 @@ import { sanitizeWebMcpCapabilityResult, unexpectedWebMcpCapabilityFailure } fro
 import type { WebMcpEvidenceLease, WebMcpTool, WebMcpToolExecutionContext } from "./types.js";
 import { publishVisualIntent, type VisualIntentHandler } from "./visual-intent.js";
 import { COMPONENT_EXPLANATION_RENDER_DEADLINE_MS, type ComponentExplanationPresentationHandler } from "./component-explanation-presentation.js";
+import type { CoachingSessionGate } from "./coaching-session-gate.js";
 import { measureWebMcpTiming, recordWebMcpTiming, recordWebMcpTrace, serializedWebMcpBytes, type WebMcpTimingSink, type WebMcpTraceSink } from "./timing.js";
 
 type RegisteredCapability = AgentCapability<AgentContext, unknown, CapabilityResult<unknown>>;
@@ -115,7 +116,7 @@ function webMcpDescription(capability: RegisteredCapability): string {
     submit_interview_simulation_critique: "Submit exactly one critique after a passing prepare_interview_simulation_review. Required: interviewId, questionId, reviewDigest, candidateArchitectureRevision, critique.{verdict,summary,strengths,gaps,nextStep,grounding}. Use only the returned packet; never claims official pass/fail.",
     get_architecture: "Read the current architecture and inventory for board-wide contents, logical component counts, and connections. Use this for unqualified board questions; do not reuse after a board edit.",
     get_coaching_policy: "MANDATORY FIRST COACHING ACTION: before answering the player or calling another coaching read, call this exactly once per session. When available, call get_session_focus in parallel. Retain policyText, policyDigest, turnProtocol, and prohibitedActions in host system context; do not call again unless the challenge changes or the player asks to reset coaching policy.",
-    get_session_focus: "On the first coaching turn, call this in parallel with get_coaching_policy before answering when available. Read human canvas focus and pending help. Call when focus or pending help may have changed.",
+    get_session_focus: "On the first coaching turn, call this in parallel with get_coaching_policy before answering when available. Canvas focus and pending help are advisory hints only—never override the player's explicit request with them. Read human canvas focus and pending help. Call when focus or pending help may have changed.",
     inspect_design_entity: "Use first for relationships/workloads. Input: { kind: \"connection\", endpoints: { source, target } } or { kind: \"workload\", selector: { scope: \"named\" | \"default\", channelId? } }. Frames valid paths.",
     inspect_component: "REQUIRED this turn for tell me about, explain, or inspect a named/positioned board component—do not substitute get_metrics or prior-turn evidence. A single resolved current component is visibly focused and zoomed before its evidence returns. Use { componentId } for one component, or { selector: { type: \"postgres\", scope: \"all\" | \"topmost\" } }; use scope all for type-wide/count/existence, topmost for positional asks. Do not reuse after a board edit.",
     get_metrics: "Use first for system-wide health/metrics with no named component subject. Do not use as a substitute when the player asked about a named or positioned component—call inspect_component instead. Returns current simulator outcomes; targeted results frame valid evidence.",
@@ -161,6 +162,8 @@ export interface ToWebMcpToolOptions {
   readonly trace?: WebMcpTraceSink;
   readonly traceGroup?: string;
   readonly traceGeneration?: number;
+  /** Page-owned gate that requires coaching policy bootstrap before coaching actions. */
+  readonly coachingSessionGate?: CoachingSessionGate;
 }
 
 function primaryComponentFromCue(
@@ -236,7 +239,7 @@ async function awaitPresentationReceiptPromise<T>(
  * stays in AgentCapabilityRegistry; this layer only maps WebMCP tool fields.
  */
 export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcpToolOptions): WebMcpTool {
-  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onPresentationCue, onComponentExplanationPresentation, requireComponentExplanationPresentation = false, onFocusComponent, interviewService, timing, trace, traceGroup, traceGeneration } = options;
+  const { registry, getContext, getCurrentEvidenceRevision, surfaceRevision = "unversioned", availableToolNames, development = false, onVisualIntent, onPresentationCue, onComponentExplanationPresentation, requireComponentExplanationPresentation = false, onFocusComponent, interviewService, timing, trace, traceGroup, traceGeneration, coachingSessionGate } = options;
   const annotations = toWebMcpAnnotations(capability.annotations);
 
   const acquireLease = async (signal?: AbortSignal): Promise<WebMcpEvidenceLease> => {
@@ -278,6 +281,21 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
             return sanitizeWebMcpCapabilityResult(capabilityCancelled(), capability.name);
           }
 
+          const gateCheck = coachingSessionGate?.check(capability.name, context.challenge);
+          if (gateCheck?.reset) {
+            recordWebMcpTrace(trace, { name: "coaching_policy_reset", capability: capability.name, evidenceRevision: lease.evidenceRevision, reason: "challenge_changed" });
+          }
+          if (gateCheck && !gateCheck.allowed) {
+            recordWebMcpTrace(trace, { name: "coaching_policy_required", capability: capability.name, evidenceRevision: lease.evidenceRevision, reason: "policy_not_acknowledged" });
+            return sanitizeWebMcpCapabilityResult(
+              capabilityError("POLICY_REQUIRED", "Call get_coaching_policy before using coaching tools. You may call get_session_focus in parallel.", {
+                retryable: true,
+                recoveryTool: "get_coaching_policy",
+              }),
+              capability.name,
+            );
+          }
+
           if (!capability.availableWhen(context)) {
             return sanitizeWebMcpCapabilityResult(
               capabilityError("NOT_FOUND", `Capability "${capability.name}" is not available for the current architecture.`, {
@@ -296,6 +314,10 @@ export function toWebMcpTool(capability: RegisteredCapability, options: ToWebMcp
           }), { capability: capability.name, mode: capability.mode });
           let componentBarrierRendered = false;
           sanitized = sanitizeWebMcpCapabilityResult(result, capability.name);
+          if (capability.name === "get_coaching_policy" && sanitized.ok) {
+            coachingSessionGate?.acknowledgePolicy(context.challenge);
+            recordWebMcpTrace(trace, { name: "coaching_policy_bootstrapped", capability: capability.name, evidenceRevision: lease.evidenceRevision });
+          }
           recordWebMcpTrace(trace, { name: "capability_completed", capability: capability.name, evidenceRevision: lease.evidenceRevision, ...(capability.mode === "session" ? { interviewTransition: interviewTransition(capability.name) } : {}), outcome: sanitized.ok ? "success" : sanitized.code === "CANCELLED" ? "cancelled" : "error", ...(sanitized.ok ? interviewTraceFields(sanitized) : {}), ...(sanitized.ok ? {} : { errorCode: sanitized.code }) });
           const resultData = sanitized.ok && sanitized.data && typeof sanitized.data === "object"
             ? sanitized.data as Record<string, unknown>

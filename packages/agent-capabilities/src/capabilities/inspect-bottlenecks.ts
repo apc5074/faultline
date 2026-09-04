@@ -1,7 +1,5 @@
-import type { AgentCapability } from "../capability.js";
 import type { AgentContext, AgentComponentEvidence } from "../context.js";
 import { capabilityError, capabilityOk, type CapabilityResult } from "../result.js";
-import { noInputSchema } from "../schemas.js";
 
 export type BottleneckRiskKind = "saturation" | "missing_path" | "headroom" | "latency" | "unmet_demand" | "hot_key" | "budget";
 export interface BottleneckRisk {
@@ -55,13 +53,3 @@ export function inspectBottlenecks(context: AgentContext): CapabilityResult<Insp
   if (context.cost && context.cost.monthlyTotal > context.challenge.monthlyBudget) risks.push({ kind: "budget", value: context.cost.monthlyTotal, evidence: "simulator-reported monthly cost exceeds the challenge budget" });
   return capabilityOk({ risks: risks.sort((a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind) || (a.componentId ?? "").localeCompare(b.componentId ?? "")) });
 }
-
-export const inspectBottlenecksCapability: AgentCapability<AgentContext, undefined, CapabilityResult<InspectBottlenecksOutput>> = {
-  name: "inspect_bottlenecks",
-  description: "Summarize and rank material simulator-evidenced risks in the current architecture. Reports facts only and does not prescribe a topology or decide correctness independently.",
-  inputSchema: noInputSchema,
-  mode: "read",
-  availableWhen: () => true,
-  annotations: { readOnlyHint: true, idempotentHint: true },
-  execute(context) { return inspectBottlenecks(context); },
-};

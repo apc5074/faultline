@@ -213,7 +213,8 @@ export const expandDesignEvidenceInputSchema: CapabilityInputSchema<ExpandDesign
   },
 };
 
-export type InspectDesignEntityKind = "component" | "connection" | "requirement" | "workload" | "region";
+/** Entity classes served by the relationship/path-oriented generic inspector. */
+export type InspectDesignEntityKind = "connection" | "requirement" | "workload" | "region";
 
 export type ComponentReference = { readonly componentId: string } | ComponentSelector;
 
@@ -222,7 +223,7 @@ export type InspectDesignEntityInput =
   | { readonly kind: "connection"; readonly endpoints: { readonly source: ComponentReference; readonly target: ComponentReference } }
   | { readonly kind: "workload"; readonly selector: { readonly scope: "named" | "default"; readonly channelId?: string } };
 
-const inspectDesignEntityKinds = ["component", "connection", "requirement", "workload", "region"] as const;
+const inspectDesignEntityKinds = ["connection", "requirement", "workload", "region"] as const;
 
 export const inspectDesignEntityInputSchema: CapabilityInputSchema<InspectDesignEntityInput> = {
   jsonSchema: {
@@ -254,7 +255,7 @@ export const inspectDesignEntityInputSchema: CapabilityInputSchema<InspectDesign
   safeParse(input: unknown) {
     if (!isRecord(input)) return { success: false as const, errors: ["inspect_design_entity input must be an object."] };
     if (typeof input.kind !== "string" || !inspectDesignEntityKinds.includes(input.kind as InspectDesignEntityKind)) {
-      return { success: false as const, errors: ["kind must be component, connection, requirement, workload, or region."] };
+      return { success: false as const, errors: ["kind must be connection, requirement, workload, or region. Use inspect_component for component facts."] };
     }
 
     if (input.kind === "connection" && input.endpoints !== undefined) {

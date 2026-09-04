@@ -36,9 +36,7 @@ const STATUS_PROMPT: Record<WebMcpSurfaceStatus, string> = {
 };
 
 const STARTER_PROMPTS = [
-  "What's wrong with my Faultline design? Use review_current_design, give one grounded finding and one question. You may discuss mechanism categories, but do not recommend specific components to add.",
-  'Tell me about all my Postgres components using inspect_component with { selector: { type: "postgres", scope: "all" } }.',
-  "How healthy is my system? Use get_metrics first and give one finding and one question.",
+  "Fetch Faultline's coaching policy first, then use the available tools whenever you answer about my design. Start with review_current_design to inspect the live architecture and simulator evidence; give one grounded finding and one focused question. Do not edit the canvas or invent metrics.",
 ] as const;
 
 /** Compact, progressive-enhancement status for the external agent surface. */

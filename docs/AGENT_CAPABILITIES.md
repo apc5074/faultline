@@ -100,9 +100,10 @@ The resolver then conditionally adds specialists:
 | `inspect_object_storage` | An Object Storage component. |
 | `inspect_playback_origin` | A CDN or Object Storage component. |
 
-`inspect_bottlenecks` is registered as a read capability but is not part of the
-general read resolver list. It is therefore not automatically exposed by the
-current production manifest.
+`inspect_design_entity` is intentionally relationship/path-oriented; use
+`inspect_component` for every component fact or explanation. Bottleneck
+analysis is an internal helper used to build review packets; it is not a
+separately registered or production-exposed capability.
 
 ### Visual capabilities
 
@@ -122,7 +123,9 @@ tools unless the manifest changes intentionally.
 `PRODUCTION_CAPABILITY_MANIFEST` is the source of truth for the current
 production WebMCP exposure. It groups exposed capability names as
 `stable-review`, `specialists`, `stable-visual`, or `stable-interview` and has the
-contract version `wmp-production-1`.
+contract version `wmp-production-2`. The production-manifest verifier locks the
+intentional group membership, mode, and safety metadata so exposing a new tool
+requires an explicit contract change.
 
 The WebMCP adapter:
 

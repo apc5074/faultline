@@ -12,7 +12,7 @@ affect official attempts.
 | --- | --- |
 | `review_current_design` | Get a concise overview or targeted review of the current design and evidence. |
 | `expand_design_evidence` | Expand selected sections of a retained design review. |
-| `inspect_design_entity` | Inspect a named component, connection, workload, requirement, region, or other design entity. |
+| `inspect_design_entity` | Inspect a named connection, workload, requirement, or region. Use `inspect_component` for component facts. |
 | `inspect_component_option` | Explain a catalog component option and its modeled behavior. |
 | `compare_design_evidence` | Compare current evidence with a retained revision or review baseline. |
 | `get_architecture` | Read the current architecture inventory, components, and connections. |

@@ -227,6 +227,11 @@ function WebMcpInspectorWorkspace({
         && event.evidenceRevision === latestInvocation.evidenceRevision,
       )
     : undefined;
+  const latestPolicyGateEvent = [...traceEvents].reverse().find((event) =>
+    event.traceName === "coaching_policy_required"
+    || event.traceName === "coaching_policy_bootstrapped"
+    || event.traceName === "coaching_policy_reset",
+  );
   const renderToolList = (entries: readonly Phase6InspectorSnapshot["entries"][number][]) => (
     <div className="webmcp-inspector__tool-list">
       {entries.map((entry) => (
@@ -348,9 +353,13 @@ function WebMcpInspectorWorkspace({
             <dt>latest invoked revision</dt>
             <dd>{latestInvocation?.evidenceRevision ?? "none"}</dd>
           </div>
+          <div>
+            <dt>coaching policy gate</dt>
+            <dd>{latestPolicyGateEvent ? `${latestPolicyGateEvent.traceName}${latestPolicyGateEvent.capability ? ` · ${latestPolicyGateEvent.capability}` : ""}` : "not observed"}</dd>
+          </div>
         </dl>
         {traceEvents.length === 0 ? <p>No WebMCP lifecycle traces recorded yet.</p> : (
-          <pre>{traceEvents.map((event, index) => `${index + 1}. ${event.traceName ?? "trace"}${event.capability ? ` · ${event.capability}` : ""}${event.generation !== undefined ? ` · generation:${event.generation}` : ""}${event.selectorScope ? ` · scope:${event.selectorScope}` : ""}${event.matchedCount !== undefined ? ` · matched:${event.matchedCount}` : ""}${event.retried ? " · retried" : ""}${event.evidenceRevision ? ` · ${event.evidenceRevision}` : ""}${event.targetCount !== undefined ? ` · targets:${event.targetCount}` : ""}${event.reason ? ` · ${event.reason}` : ""}`).join("\n")}</pre>
+          <pre>{traceEvents.map((event, index) => `${index + 1}. ${event.traceName ?? "trace"}${event.capability ? ` · ${event.capability}` : ""}${event.generation !== undefined ? ` · generation:${event.generation}` : ""}${event.selectorScope ? ` · scope:${event.selectorScope}` : ""}${event.matchedCount !== undefined ? ` · matched:${event.matchedCount}` : ""}${event.retried ? " · retried" : ""}${event.evidenceRevision ? ` · ${event.evidenceRevision}` : ""}${event.targetCount !== undefined ? ` · targets:${event.targetCount}` : ""}${event.reason ? ` · ${event.reason}` : ""}${event.errorCode ? ` · ${event.errorCode}` : ""}`).join("\n")}</pre>
         )}
       </section>
 

@@ -1,4 +1,4 @@
-import type { ComponentInstance, Connection, CostResult, RequirementResult } from "@faultline/core";
+import type { Connection, RequirementResult } from "@faultline/core";
 
 import type { AgentCapability } from "../capability.js";
 import type {
@@ -23,7 +23,7 @@ import {
   type InspectDesignEntityInput,
   type InspectDesignEntityKind,
 } from "../schemas.js";
-import { buildOutput as buildComponentOutput, selectComponentsBySelector } from "./inspect-component-selectors.js";
+import { selectComponentsBySelector } from "./inspect-component-selectors.js";
 import { createEmptyAgentSessionState, type AgentSessionState } from "../session.js";
 
 const NEIGHBOR_CAP = 3;
@@ -31,25 +31,10 @@ const PATH_CAP = 3;
 const ENTITY_BYTE_BUDGET = 4096;
 
 export type InspectDesignEntityOutput =
-  | InspectDesignEntityComponentOutput
   | InspectDesignEntityConnectionOutput
   | InspectDesignEntityRequirementOutput
   | InspectDesignEntityWorkloadOutput
   | InspectDesignEntityRegionOutput;
-
-export interface InspectDesignEntityComponentOutput {
-  readonly kind: "component";
-  readonly entityId: string;
-  readonly entityRef: string;
-  readonly type: string;
-  readonly config: ComponentInstance["config"];
-  readonly deployments: readonly ComponentInstance["deployments"][number][];
-  readonly metrics?: Readonly<Record<string, number>>;
-  readonly monthlyCost?: number;
-  readonly workloadFit?: unknown;
-  readonly neighbors: readonly string[];
-  readonly relatedRequirements: readonly RequirementResult[];
-}
 
 export interface InspectDesignEntityConnectionOutput {
   readonly kind: "connection";
@@ -134,8 +119,10 @@ function entityCandidates(context: AgentContext): Record<EntityKind, readonly st
   };
 }
 
+type InspectEntityLookupKind = InspectDesignEntityKind | "component";
+
 function labelMatchesForKind(
-  kind: InspectDesignEntityKind,
+  kind: InspectEntityLookupKind,
   ref: string,
   context: AgentContext,
 ): readonly string[] {
@@ -178,7 +165,7 @@ function labelMatchesForKind(
 }
 
 export function resolveInspectDesignEntityTarget(
-  kind: InspectDesignEntityKind,
+  kind: InspectEntityLookupKind,
   ref: string,
   context: AgentContext,
 ):
@@ -212,40 +199,6 @@ export function resolveInspectDesignEntityTarget(
 
 function entityRefFor(context: AgentContext, kind: InspectDesignEntityKind, entityId: string): string {
   return createScopedEntityReference(kind, entityId, context.evidenceMeta?.architectureRevision ?? "unversioned").ref;
-}
-
-function monthlyCostForComponent(cost: CostResult | undefined, componentId: string): number | undefined {
-  if (!cost) return undefined;
-  const amount = cost.lineItems.filter((item) => item.componentId === componentId).reduce((sum, item) => sum + item.amount, 0);
-  return cost.lineItems.some((item) => item.componentId === componentId) ? amount : undefined;
-}
-
-function componentNeighbors(context: AgentContext, componentId: string): readonly string[] {
-  return context.architecture.connections
-    .filter((connection) => connection.sourceComponentId === componentId || connection.targetComponentId === componentId)
-    .flatMap((connection) => [connection.sourceComponentId, connection.targetComponentId])
-    .filter((id) => id !== componentId)
-    .sort((left, right) => left.localeCompare(right))
-    .slice(0, NEIGHBOR_CAP);
-}
-
-function inspectComponentEntity(context: AgentContext, entityId: string, session: AgentSessionState): InspectDesignEntityComponentOutput {
-  const component = context.architecture.components.find((candidate) => candidate.id === entityId)!;
-  const base = buildComponentOutput(component, context);
-  const packet = context.reviewPackets?.component[entityId];
-  return {
-    kind: "component",
-    entityId,
-    entityRef: entityRefFor(context, "component", entityId),
-    type: base.type,
-    config: base.config,
-    deployments: [...component.deployments].sort((left, right) => left.id.localeCompare(right.id)),
-    ...(base.metrics ? { metrics: base.metrics } : {}),
-    ...(base.monthlyCost !== undefined ? { monthlyCost: base.monthlyCost } : {}),
-    ...(base.workloadFit ? { workloadFit: base.workloadFit } : {}),
-    neighbors: packet?.neighbors ?? componentNeighbors(context, entityId),
-    relatedRequirements: packet?.relatedRequirements ?? (context.requirementResults ?? []).filter((requirement) => requirement.explanation.includes(entityId)).slice(0, NEIGHBOR_CAP),
-  };
 }
 
 function deploymentRegions(context: AgentContext, componentId: string): readonly string[] {
@@ -478,7 +431,6 @@ export function inspectDesignEntity(
     });
   }
   let output: InspectDesignEntityOutput | undefined;
-  if (input.kind === "component") output = inspectComponentEntity(context, resolved.entityId, session);
   if (input.kind === "connection") output = inspectConnectionEntity(context, resolved.entityId);
   if (input.kind === "requirement") output = inspectRequirementEntity(context, resolved.entityId);
   if (input.kind === "workload") output = inspectWorkloadEntity(context, resolved.entityId);
@@ -497,7 +449,7 @@ export const inspectDesignEntityCapability: AgentCapability<
 > = {
   name: "inspect_design_entity",
   description:
-    "Inspect one named design entity by exact ref, a connection using structured endpoints, or a workload using selector { scope: \"named\" | \"default\" }. Never accepts free-form queries.",
+    "Inspect one named relationship, requirement, workload, or region by exact ref; inspect connections using structured endpoints or workloads using selector { scope: \"named\" | \"default\" }. Use inspect_component for component facts. Never accepts free-form queries.",
   inputSchema: inspectDesignEntityInputSchema,
   mode: "read",
   availableWhen: () => true,

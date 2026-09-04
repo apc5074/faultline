@@ -48,8 +48,6 @@ export const PHASE_7_DYNAMIC_CAPABILITY_NAMES = [
   "inspect_playback_origin",
 ] as const;
 
-export const PHASE_8_READ_CAPABILITY_NAMES = ["inspect_bottlenecks"] as const;
-
 export type ResolvedCapabilityName = BaselineReadCapabilityName | Phase7DynamicCapabilityName;
 
 export const PRODUCTION_CAPABILITY_MANIFEST_VERSION = "wmp-production-2" as const;
@@ -57,6 +55,7 @@ export const PRODUCTION_CAPABILITY_MANIFEST_VERSION = "wmp-production-2" as cons
 export const PRODUCTION_CAPABILITY_MANIFEST = [
   { name: "review_current_design", production: true, group: "stable-review" },
   { name: "get_coaching_policy", production: true, group: "stable-review" },
+  { name: "get_session_focus", production: true, group: "stable-review" },
   { name: "start_design_interview", production: true, group: "stable-interview" },
   { name: "get_design_interview", production: true, group: "stable-interview" },
   { name: "submit_interview_answer", production: true, group: "stable-interview" },
@@ -110,7 +109,6 @@ export const WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES = [...productionNames("st
 
 export type BaselineReadCapabilityName = (typeof BASELINE_READ_CAPABILITY_NAMES)[number];
 export type Phase7DynamicCapabilityName = (typeof PHASE_7_DYNAMIC_CAPABILITY_NAMES)[number];
-export type Phase8ReadCapabilityName = (typeof PHASE_8_READ_CAPABILITY_NAMES)[number];
 /** Baseline visual coaching capabilities available on every Level 1 canvas. */
 export const BASELINE_VISUAL_CAPABILITY_NAMES = [
   "focus_component",

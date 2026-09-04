@@ -261,14 +261,14 @@ export function buildReviewCurrentDesignOutput(context: AgentContext, input: Rev
         ? implicatedComponentIdsForRequirement(fallbackRequirement, context, liveRisks?.ok ? liveRisks.data.risks : [])
         : [];
     const requirement = packetRequirement ?? { result: fallbackRequirement!, implicatedComponentIds, caveats: [] as const, relatedBottlenecks };
-    const built = capabilityOk({ ...common, requirement: { ...requirement.result, implicatedComponentIds, caveats: requirement.caveats, relatedBottlenecks }, suggestedNextTools: [suggested("inspect_bottlenecks", "Trace the simulator-reported risks behind this result."), suggested("get_metrics", "Read the compact system outcomes.")] });
+    const built = capabilityOk({ ...common, requirement: { ...requirement.result, implicatedComponentIds, caveats: requirement.caveats, relatedBottlenecks }, suggestedNextTools: [suggested("get_metrics", "Read the compact system outcomes.")] });
     return built.ok ? capabilityOk(applyKnownState(context, built.data, input, session, surfaceRevision)) : built;
   }
   if (intent === "workload_trace") {
     const id = input.targetId ?? (focus.focus.kind === "workload_channel" ? focus.focus.workloadChannelId : session.pendingHelpRequest?.workloadChannelId);
     const channel = id ? context.reviewPackets?.workload[id]?.channel ?? (context.simulation?.available === true ? context.simulation.workloadPaths?.[id] : undefined) : undefined;
     if (!id || !channel) return capabilityError("INVALID_INPUT", "workload_trace targetId must name a current workload channel.");
-    const built = capabilityOk({ ...common, workload: { channelId: id, paths: channel.paths, verifiedComponentIds: [...new Set(channel.paths.flatMap((path) => path.componentIds))].sort(), verifiedConnectionIds: [...new Set(channel.paths.flatMap((path) => path.connectionIds))].sort() }, suggestedNextTools: [suggested("inspect_design_entity", "Inspect a verified component or connection on this path."), suggested("get_metrics", "Compare path evidence with system outcomes.")] });
+    const built = capabilityOk({ ...common, workload: { channelId: id, paths: channel.paths, verifiedComponentIds: [...new Set(channel.paths.flatMap((path) => path.componentIds))].sort(), verifiedConnectionIds: [...new Set(channel.paths.flatMap((path) => path.connectionIds))].sort() }, suggestedNextTools: [suggested("inspect_design_entity", "Inspect a verified connection on this path."), suggested("inspect_component", "Inspect a verified component on this path."), suggested("get_metrics", "Compare path evidence with system outcomes.")] });
     return built.ok ? capabilityOk(applyKnownState(context, built.data, input, session, surfaceRevision)) : built;
   }
   if (intent === "cost_review") {

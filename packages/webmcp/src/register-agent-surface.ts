@@ -9,6 +9,7 @@ import type { WebMcpModelContext, WebMcpRegisterToolOptions, WebMcpTool } from "
 import { measureWebMcpTiming, recordWebMcpTrace, type WebMcpTimingSink, type WebMcpTraceSink } from "./timing.js";
 import type { VisualIntentHandler } from "./visual-intent.js";
 import type { ComponentExplanationPresentationHandler } from "./component-explanation-presentation.js";
+import type { CoachingSessionGate } from "./coaching-session-gate.js";
 
 /** Browser registration deadline derived from the WMP-001 lifecycle baseline. */
 export const WEBMCP_REGISTRATION_DEADLINE_MS = 2_000;
@@ -43,6 +44,8 @@ export interface RegisterAgentWebMcpSurfaceOptions {
   readonly traceGeneration?: number;
   /** Limit this registration generation to one independently reconciled group. */
   readonly group?: WebMcpRegistrationGroup;
+  /** Shared by every independently registered page group for this coaching session. */
+  readonly coachingSessionGate?: CoachingSessionGate;
 }
 
 export interface RegisterAgentWebMcpSurfaceResult {
@@ -66,7 +69,7 @@ function fingerprintManifest(tools: readonly WebMcpTool[]): string {
 
 /** Build one coherent manifest from one prepared context, then register in manifest order. */
 export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSurfaceOptions): Promise<RegisterAgentWebMcpSurfaceResult> {
-  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onPresentationCue, onComponentExplanationPresentation, onFocusComponent, interviewService, timing, trace, traceGeneration, group = "all" } = options;
+  const { modelContext, registry, getContext, getCurrentEvidenceRevision, signal, development = false, onVisualIntent, onPresentationCue, onComponentExplanationPresentation, onFocusComponent, interviewService, timing, trace, traceGeneration, group = "all", coachingSessionGate } = options;
   recordWebMcpTrace(trace, { name: "registration_started", group, ...(traceGeneration !== undefined ? { generation: traceGeneration } : {}) });
   const startedAt = performance.now();
   if (signal.aborted) return abortedResult(group);
@@ -77,10 +80,10 @@ export async function registerAgentWebMcpSurface(options: RegisterAgentWebMcpSur
   const includeInterview = group === "all" || group === "stable-interview";
   const [read, visual, interview] = await Promise.all([
     includeRead
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", enforceComponentExplanationPresentation: true, ...(onPresentationCue ? { onPresentationCue } : {}), ...(onVisualIntent ? { onVisualIntent } : {}), ...(onComponentExplanationPresentation ? { onComponentExplanationPresentation } : {}), ...(onFocusComponent ? { onFocusComponent } : {}) }), { mode: "read" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildAgentReadSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", enforceComponentExplanationPresentation: true, ...(coachingSessionGate ? { coachingSessionGate } : {}), ...(onPresentationCue ? { onPresentationCue } : {}), ...(onVisualIntent ? { onVisualIntent } : {}), ...(onComponentExplanationPresentation ? { onComponentExplanationPresentation } : {}), ...(onFocusComponent ? { onFocusComponent } : {}) }), { mode: "read" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeVisual
-      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", ...(onVisualIntent ? { onVisualIntent } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "visual" })
+      ? measureWebMcpTiming(timing, "surface_build_ms", () => buildVisualWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, development, timing, trace, profile: "production", ...(coachingSessionGate ? { coachingSessionGate } : {}), ...(onVisualIntent ? { onVisualIntent } : {}), ...(onPresentationCue ? { onPresentationCue } : {}) }), { mode: "visual" })
       : Promise.resolve({ tools: [], skipped: [], resolvedNames: [] }),
     includeInterview
       ? measureWebMcpTiming(timing, "surface_build_ms", () => buildInterviewWebMcpSurface({ registry, getContext, getCurrentEvidenceRevision, context, interviewService, development, ...(onPresentationCue ? { onPresentationCue } : {}), timing, trace }), { mode: "session" })

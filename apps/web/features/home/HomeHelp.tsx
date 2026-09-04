@@ -344,12 +344,13 @@ export function HomeHelp({
                 <div>
                   <h3>Bring an external agent into the loop</h3>
                   <p>
-                    In a compatible browser, WebMCP lets your agent look at
-                    Faultline with you. Ask it to walk through the design, point
-                    at a component, explain a confusing result, or highlight a
-                    likely problem using live simulator evidence. You stay in
-                    charge of changes, and the simulator decides whether the
-                    design passes.
+                    In a compatible browser, use the starter prompt at the top
+                    of the screen to give your agent the right coaching
+                    workflow. WebMCP then lets it look at Faultline with you:
+                    walk through the design, point at a component, explain a
+                    confusing result, or highlight a likely problem using live
+                    simulator evidence. You stay in charge of changes, and the
+                    simulator decides whether the design passes.
                   </p>
                   <WebMcpGraphic />
                 </div>

@@ -78,12 +78,12 @@ const result = await registerAgentWebMcpSurface({
   onComponentExplanationPresentation: async (command) => appliedReceipt(command),
 });
 
-assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].filter((name) => ["review_current_design", "start_design_interview", "get_coaching_policy", "expand_design_evidence", "inspect_design_entity", "inspect_component_option", "compare_design_evidence", "get_architecture", "inspect_component", "estimate_capacity", "get_metrics", "get_cost_breakdown"].includes(name)));
+assert.deepEqual(result.readToolNames, [...WEBMCP_PRODUCTION_READ_CAPABILITY_NAMES].filter((name) => ["review_current_design", "start_design_interview", "get_coaching_policy", "get_session_focus", "expand_design_evidence", "inspect_design_entity", "inspect_component_option", "compare_design_evidence", "get_architecture", "inspect_component", "estimate_capacity", "get_metrics", "get_cost_breakdown"].includes(name)));
 assert.deepEqual(result.visualToolNames, [...WEBMCP_PRODUCTION_VISUAL_CAPABILITY_NAMES]);
 assert.deepEqual(result.registeredToolNames, [...result.readToolNames, ...result.visualToolNames]);
 assert.deepEqual(result.resolvedToolNames, result.registeredToolNames);
 assert.deepEqual(result.failedToolNames, []);
-assert.equal(registered.length, 15);
+assert.equal(registered.length, 16);
 
 const focusTool = registered.find((tool) => tool.name === "focus_component");
 assert.ok(focusTool);
@@ -91,19 +91,20 @@ const focusResult = await focusTool.execute({ componentId: "service-1" }, {});
 assert.equal(focusResult.ok, true);
 assert.equal(intents.length, 1);
 
-const inspectEntityTool = registered.find((tool) => tool.name === "inspect_design_entity");
-assert.ok(inspectEntityTool, "production surface exposes the targeted entity read");
-const inspected = await inspectEntityTool.execute({ kind: "component", ref: "service-1" }, {});
+const inspectComponentTool = registered.find((tool) => tool.name === "inspect_component");
+assert.ok(inspectComponentTool, "production surface exposes the dedicated component read");
+const inspected = await inspectComponentTool.execute({ componentId: "service-1" }, {});
 assert.equal(inspected.ok, true);
-assert.equal(presentationCues.length, 1, "production targeted read publishes a presentation cue");
-assert.equal(presentationCues[0].camera, "frame-primary");
-assert.deepEqual(presentationCues[0].targets.map((target) => target.entityId), ["service-1"]);
+assert.equal(presentationCues.length, 0, "the dedicated component read uses its required focus-and-zoom barrier instead of a duplicate cue");
+assert.equal(intents.length, 2, "the dedicated component read publishes its focus intent after the explicit visual action");
 
+const inspectEntityTool = registered.find((tool) => tool.name === "inspect_design_entity");
+assert.ok(inspectEntityTool, "production surface exposes the relationship/path entity read");
 const inspectedConnection = await inspectEntityTool.execute({ kind: "connection", ref: "service-path" }, {});
 assert.equal(inspectedConnection.ok, true);
-assert.equal(presentationCues.length, 2, "one production relationship read publishes one grouped cue");
-assert.equal(presentationCues[1].camera, "frame-path");
-assert.deepEqual(presentationCues[1].targets.map((target) => target.entityId), ["service-path", "service-1", "service-2"]);
+assert.equal(presentationCues.length, 1, "one production relationship read publishes one grouped cue");
+assert.equal(presentationCues[0].camera, "frame-path");
+assert.deepEqual(presentationCues[0].targets.map((target) => target.entityId), ["service-path", "service-1", "service-2"]);
 
 const reviewTool = registered.find((tool) => tool.name === "review_current_design");
 assert.ok(reviewTool);
@@ -113,15 +114,15 @@ const compactReview = await reviewTool.execute({
   knownEvidenceRevision: "production-rev",
 }, {});
 assert.equal(compactReview.ok, true);
-assert.equal(presentationCues.length, 3, "known-revision optimization retains the requested visual subject");
-assert.equal(presentationCues[2].targets[0].entityId, "service-1");
+assert.equal(presentationCues.length, 2, "the component review retains its advisory cue after the focus-and-zoom barrier");
+assert.equal(presentationCues[1].targets[0].entityId, "service-1");
 
 const compactFailure = await reviewTool.execute({
   intent: "requirement_failure",
   knownEvidenceRevision: "production-rev",
 }, {});
 assert.equal(compactFailure.ok, true);
-assert.equal(presentationCues.length, 3, "first-error review uses the inspect_component focus-and-zoom barrier instead of an advisory cue");
+assert.equal(presentationCues.length, 2, "first-error review uses the inspect_component focus-and-zoom barrier instead of an advisory cue");
 assert.equal(compactFailure.data.presentation.reason, "error-location");
 assert.equal(compactFailure.data.presentation.targets[0].entityId, "service-2");
 assert.equal(intents.at(-1)?.annotation.type, "focus");
