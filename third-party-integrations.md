@@ -1,5 +1,0 @@
-- Supabase Auth and Postgres, through @supabase/supabase-js and @supabase/ssr, for optional account identity, GitHub OAuth linking, official attempts, verified submissions, and leaderboards.
-- GitHub OAuth, used only as an optional identity provider.
-- Vercel, used to host and deploy the live application.
-- Open source dependencies including Next.js, React, React Flow, and related packages.
-- Google Fonts via next/font/google for the Space Mono typeface.
